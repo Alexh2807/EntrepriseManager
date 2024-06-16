@@ -1,0 +1,23 @@
+name: EntrepriseManager
+version: '${project.version}'
+main: com.gravityyfh.entreprisemanager.EntrepriseManager
+api-version: 1.20
+commands:
+  entreprise:
+    description: Commande principale de l'EntrepriseManager, inclut les fonctionnalités pour les joueurs et les administrateurs
+    usage: /<command> [sous-commande] [arguments...]
+    aliases: []
+
+permissions:
+  entreprisemanager.use:
+    description: Permet l'utilisation des commandes de base de l'EntrepriseManager
+    default: true
+  entreprisemanager.admin:
+    description: Permet l'utilisation des fonctionnalités administratives de l'EntrepriseManager
+    default: op
+  entreprisemanager.declare:
+    description: Permet de déclarer des entreprises
+    default: true
+  entreprisemanager.manage:
+    description: Permet la gestion des entreprises (ajout/suppression d'employés, consultation des infos, etc.)
+    default: true

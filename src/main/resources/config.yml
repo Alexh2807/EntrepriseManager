@@ -1,0 +1,52 @@
+# Configuration pour EntrepriseManager
+
+# Liste des types d'entreprise disponibles
+types-entreprise:
+  Minage:
+    blocs-autorisés:
+      - STONE
+      - COAL_ORE
+      - IRON_ORE
+    message-erreur:
+      - "&4&lSTOP ! Vous avez assez miner pour cette heure !"
+      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Minage'."
+      - "&4ou"
+      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
+    limite-non-membre-par-heure: 3
+  Agriculture:
+    blocs-autorisés:
+      - WHEAT
+      - CARROTS
+    message-erreur:
+      - "&4&lSTOP ! Vous avez recolter assez pour cette heure !"
+      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Agricultures'."
+      - "&4ou"
+      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
+    limite-non-membre-par-heure: 3
+  Deforestation:
+    blocs-autorisés:
+      - OAK_LOG
+      - SPRUCE_LOG
+    message-erreur:
+      - "&4&lSTOP ! Vous avez besoin de vous reposer !"
+      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Deforestation'."
+      - "&4ou"
+      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
+    limite-non-membre-par-heure: 3
+
+# Configuration financière
+finance:
+  gain-par-employe: 1000  # Montant gagné par jour pour chaque employé
+  max-entreprises-par-gerant: 1  # Nombre maximum d'entreprises qu'un joueur peut posséder en tant que gérant
+  max-employer-par-entreprise: 10  # Nombre maximum d'employés qu'une entreprise peut avoir
+  max-travail-joueur: 2  # Nombre maximum d'entreprises pour lesquelles un joueur peut travailler simultanément
+  pourcentage-taxes: 15  # Pourcentage de taxes lors du retrait d'argent de l'entreprise
+  heure-paiement: 20  # Heure du jour pour le paiement journalier (format 24h)
+
+# Paramètres des invitations
+invitation:
+  distance-max: 10  # Distance maximale en blocs pour envoyer une invitation
+
+# Configuration des SIRET
+siret:
+  longueur: 14  # Longueur du numéro SIRET
