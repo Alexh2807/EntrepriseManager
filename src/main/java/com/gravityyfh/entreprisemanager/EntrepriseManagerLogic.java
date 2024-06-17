@@ -263,6 +263,21 @@ public class EntrepriseManagerLogic {
         }
     }
 
+    public Collection<Entreprise> getEntreprises() {
+        return entreprises.values();
+    }
+
+    public List<Entreprise> getEntreprisesByVille(String ville) {
+        List<Entreprise> entreprisesDansVille = new ArrayList<>();
+        for (Entreprise entreprise : entreprises.values()) {
+            if (entreprise.getVille().equalsIgnoreCase(ville)) {
+                entreprisesDansVille.add(entreprise);
+            }
+        }
+        return entreprisesDansVille;
+    }
+
+
     public void leaveEntreprise(Player joueur, String nomEntreprise) {
         Entreprise entreprise = entreprises.get(nomEntreprise);
         if (entreprise == null) {
@@ -557,6 +572,13 @@ public class EntrepriseManagerLogic {
             // Affichage des logs pour le suivi
             plugin.getLogger().info("Paiements journaliers traités pour l'entreprise: " + entreprise.getNom());
         }
+    }
+
+    private Entreprise trouverEntrepriseParGerantEtType(String gerant, String type) {
+        return entreprises.values().stream()
+                .filter(e -> e.getGerant().equals(gerant) && e.getType().equals(type))
+                .findFirst()
+                .orElse(null);
     }
 
     private void loadEntreprises() {
@@ -910,6 +932,56 @@ public class EntrepriseManagerLogic {
         return nombreEmployes < maxEmployerParEntreprise;
     }
 
+    public void changerNomEntreprise(Player player, String gerant, String type, String nouveauNom) {
+        Entreprise entreprise = trouverEntrepriseParGerantEtType(gerant, type);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "L'entreprise spécifiée n'existe pas.");
+            return;
+        }
+
+        if (!entreprise.getGerant().equals(player.getName())) {
+            player.sendMessage(ChatColor.RED + "Vous devez être le gérant de l'entreprise pour changer son nom.");
+            return;
+        }
+
+        if (entreprises.containsKey(nouveauNom)) {
+            player.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
+            return;
+        }
+
+        // Changer le nom de l'entreprise
+        entreprises.remove(entreprise.getNom());
+        entreprise.setNom(nouveauNom);
+        entreprises.put(nouveauNom, entreprise);
+
+        player.sendMessage(ChatColor.GREEN + "Le nom de l'entreprise a été changé en " + nouveauNom + ".");
+    }
+
+    public void renameEntreprise(Player player, String gerant, String type, String nouveauNom) {
+        Entreprise entreprise = entreprises.values().stream()
+                .filter(e -> e.getGerant().equalsIgnoreCase(gerant) && e.getType().equalsIgnoreCase(type))
+                .findFirst()
+                .orElse(null);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée pour ce gérant et ce type.");
+            return;
+        }
+
+        if (entreprises.containsKey(nouveauNom)) {
+            player.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
+            return;
+        }
+
+        // Renommer l'entreprise
+        entreprises.remove(entreprise.getNom());
+        entreprise.setNom(nouveauNom);
+        entreprises.put(nouveauNom, entreprise);
+
+        player.sendMessage(ChatColor.GREEN + "L'entreprise a été renommée avec succès.");
+    }
+
 
     public static class Entreprise {
         private double chiffreAffairesTotal = 0;
@@ -1001,6 +1073,10 @@ public class EntrepriseManagerLogic {
             return this.chiffreAffairesTotal;
         }
         public String getNom() { return nom; }
+
+        public void setNom(String nom) {
+            this.nom = nom;
+        }
         public String getVille() { return ville; }
         public String getType() { return type; }
         public String getGerant() { return gerant; }

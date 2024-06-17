@@ -15,12 +15,13 @@ import java.util.*;
 
 public class EntrepriseCommandHandler implements CommandExecutor {
 
-    private EntrepriseManagerLogic entrepriseLogic;
+    private final EntrepriseManagerLogic entrepriseLogic;
+    private final EntrepriseGUI entrepriseGUI;
 
-    public EntrepriseCommandHandler(EntrepriseManagerLogic entrepriseLogic) {
+    public EntrepriseCommandHandler(EntrepriseManagerLogic entrepriseLogic, EntrepriseGUI entrepriseGUI) {
         this.entrepriseLogic = entrepriseLogic;
+        this.entrepriseGUI = entrepriseGUI;
     }
-
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
@@ -31,7 +32,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         Player player = (Player) sender;
         if (args.length == 0) {
-            player.sendMessage("Usage: /entreprise <sous-commande> [arguments...]");
+            entrepriseGUI.openMainMenu(player); // Ouvre le menu principal si aucun argument n'est fourni
             return true;
         }
 
@@ -95,11 +96,34 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                     entrepriseLogic.leaveEntreprise(player, args[1]);
                 }
                 break;
+            case "rename":
+                if (args.length < 4) {
+                    player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <gerant> <type> <nouveauNom>");
+                } else {
+                    String gerant = args[1];
+                    String type = args[2];
+                    String nouveauNom = args[3];
+                    entrepriseLogic.renameEntreprise(player, gerant, type, nouveauNom);
+                }
+                break;
             default:
                 player.sendMessage("Commande inconnue.");
                 return false;
         }
         return true;
+    }
+
+    private void handleRenameCommand(Player player, String[] args) {
+        if (args.length < 4) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <gerant> <type> <nouveauNom>");
+            return;
+        }
+
+        String gerant = args[1];
+        String type = args[2];
+        String nouveauNom = args[3];
+
+        entrepriseLogic.changerNomEntreprise(player, gerant, type, nouveauNom);
     }
 
 
@@ -233,7 +257,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                 continue; // Si l'entreprise n'a pas d'employés, passez à la suivante
             }
 
-            player.sendMessage(ChatColor.GOLD + "Employés de l'entreprise " + ChatColor.BLUE + entreprise.getNom() + ChatColor.GOLD + " (" + entreprise.getType() + ") :");
+            player.sendMessage(ChatColor.GOLD + "handleInfoCommand " + ChatColor.BLUE + entreprise.getNom() + ChatColor.GOLD + " (" + entreprise.getType() + ") :");
             for (String employe : employes) {
                 TextComponent message = new TextComponent(ChatColor.YELLOW + employe + " ");
                 TextComponent virerButton = new TextComponent(ChatColor.RED + "[Virer]");
@@ -338,7 +362,6 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleInfoCommand(Player player, String[] args) {
-        // Assurez-vous que la commande est fournie avec les arguments nécessaires.
         if (args.length < 3) {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise info <gerant> <type>");
             return;
@@ -346,7 +369,6 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         String gerant = args[1];
         String type = args[2];
-
         // Trouver l'entreprise correspondant au gérant et au type
         String nomEntreprise = entrepriseLogic.trouverNomEntrepriseParTypeEtGerant(gerant, type);
         if (nomEntreprise == null) {

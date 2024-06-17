@@ -9,6 +9,7 @@ public class EntrepriseManager extends JavaPlugin {
     private static EntrepriseManager instance; // Singleton instance pour faciliter l'accès depuis d'autres classes
     private EntrepriseManagerLogic entrepriseLogic;
     private ChatListener chatListener;
+    private EntrepriseGUI entrepriseGUI;
     private static Economy econ = null; // Instance d'économie
 
     @Override
@@ -31,10 +32,12 @@ public class EntrepriseManager extends JavaPlugin {
 
         // Initialisation de la logique principale du plugin et des écouteurs d'événements
         entrepriseLogic = new EntrepriseManagerLogic(this);
-        chatListener = new ChatListener(this); // Passez 'this' pour accéder à EntrepriseManager depuis ChatListener
+        entrepriseGUI = new EntrepriseGUI(this, entrepriseLogic); // Initialiser l'interface GUI
+        chatListener = new ChatListener(this, entrepriseGUI); // Passez 'entrepriseGUI' pour accéder à EntrepriseManager depuis ChatListener
         EventListener eventListener = new EventListener(this, entrepriseLogic);
         getServer().getPluginManager().registerEvents(chatListener, this);
         getServer().getPluginManager().registerEvents(eventListener, this);
+        getServer().getPluginManager().registerEvents(entrepriseGUI, this);
         entrepriseLogic.chargerBlocsAutorises();
         getServer().getPluginManager().registerEvents(new TreeCutListener(entrepriseLogic), this);
         // Configuration des commandes
@@ -56,7 +59,7 @@ public class EntrepriseManager extends JavaPlugin {
 
     private void setupCommands() {
         // Initialisation et enregistrement du gestionnaire de commandes
-        EntrepriseCommandHandler commandHandler = new EntrepriseCommandHandler(entrepriseLogic);
+        EntrepriseCommandHandler commandHandler = new EntrepriseCommandHandler(entrepriseLogic, entrepriseGUI);
         getCommand("entreprise").setExecutor(commandHandler);
 
         // Configuration du compléteur d'onglet pour la commande

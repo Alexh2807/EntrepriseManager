@@ -49,4 +49,5 @@ invitation:
 
 # Configuration des SIRET
 siret:
-  longueur: 14  # Longueur du numéro SIRET
+  longueur: 13  # Longueur du numéro SIRET
+rename-cost: 2500  # Coût pour renommer une entreprise

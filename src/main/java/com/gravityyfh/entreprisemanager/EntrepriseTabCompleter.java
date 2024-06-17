@@ -36,6 +36,8 @@ public class EntrepriseTabCompleter implements TabCompleter {
             completions.add("deposit");
             completions.add("leave");
             completions.add("kick");
+            completions.add("gui");
+            completions.add("rename"); // Ajouter l'option pour renommer une entreprise
         } else if (args.length == 2) {
             switch (args[0].toLowerCase()) {
                 case "create":
@@ -43,6 +45,7 @@ public class EntrepriseTabCompleter implements TabCompleter {
                     break;
                 case "delete":
                 case "info":
+                case "rename": // Gérer l'auto-complétion pour la commande rename
                     completions.addAll(entrepriseLogic.getGerantsAvecEntreprises());
                     break;
                 case "employee":
@@ -67,7 +70,7 @@ public class EntrepriseTabCompleter implements TabCompleter {
                 completions.addAll(entrepriseLogic.getTypesEntrepriseDuGerant(player.getName()));
             } else if ("create".equalsIgnoreCase(args[0])) {
                 completions.addAll(entrepriseLogic.getTypesEntreprise());
-            } else if ("delete".equalsIgnoreCase(args[0]) || "info".equalsIgnoreCase(args[0])) {
+            } else if ("delete".equalsIgnoreCase(args[0]) || "info".equalsIgnoreCase(args[0]) || "rename".equalsIgnoreCase(args[0])) {
                 String gerant = args[1];
                 completions.addAll(entrepriseLogic.getTypesEntrepriseDuGerant(gerant));
             }

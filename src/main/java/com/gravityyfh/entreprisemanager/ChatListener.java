@@ -12,12 +12,14 @@ import java.util.UUID;
 
 public class ChatListener implements Listener {
     private final EntrepriseManager plugin; // Référence au plugin principal
+    private final EntrepriseGUI entrepriseGUI; // Référence à l'interface GUI
     private Map<UUID, String> attenteMontantRetrait = new HashMap<>();
     private Map<UUID, String> attenteMontantDepot = new HashMap<>();
 
-    // Constructeur acceptant EntrepriseManager
-    public ChatListener(EntrepriseManager plugin) {
+    // Constructeur acceptant EntrepriseManager et EntrepriseGUI
+    public ChatListener(EntrepriseManager plugin, EntrepriseGUI entrepriseGUI) {
         this.plugin = plugin;
+        this.entrepriseGUI = entrepriseGUI;
     }
 
     public void attendreMontantRetrait(Player player, String entrepriseNom) {
@@ -42,6 +44,7 @@ public class ChatListener implements Listener {
             if (message.equalsIgnoreCase("cancel")) {
                 player.sendMessage(ChatColor.RED + "Retrait annulé.");
                 attenteMontantRetrait.remove(playerId);
+                entrepriseGUI.openMainMenu(player); // Réouvrir le menu principal après l'annulation
                 return;
             }
 
@@ -50,6 +53,7 @@ public class ChatListener implements Listener {
                 // Utilisation de la référence au plugin pour accéder à EntrepriseManagerLogic
                 plugin.getEntrepriseLogic().retirerArgent(player, attenteMontantRetrait.get(playerId), montant);
                 attenteMontantRetrait.remove(playerId);
+                entrepriseGUI.openMainMenu(player); // Réouvrir le menu principal après le retrait
             } catch (NumberFormatException e) {
                 player.sendMessage(ChatColor.RED + "Montant invalide. Veuillez réessayer.");
                 // Ne pas retirer le joueur de attenteMontantRetrait pour permettre une nouvelle saisie
@@ -61,6 +65,7 @@ public class ChatListener implements Listener {
             if (message.equalsIgnoreCase("cancel")) {
                 player.sendMessage(ChatColor.RED + "Dépôt annulé.");
                 attenteMontantDepot.remove(playerId);
+                entrepriseGUI.openMainMenu(player); // Réouvrir le menu principal après l'annulation
                 return;
             }
 
@@ -69,6 +74,7 @@ public class ChatListener implements Listener {
                 // Utilisation de la référence au plugin pour accéder à EntrepriseManagerLogic
                 plugin.getEntrepriseLogic().deposerArgent(player, attenteMontantDepot.get(playerId), montant);
                 attenteMontantDepot.remove(playerId);
+                entrepriseGUI.openMainMenu(player); // Réouvrir le menu principal après le dépôt
             } catch (NumberFormatException e) {
                 player.sendMessage(ChatColor.RED + "Montant invalide. Veuillez réessayer.");
                 // Ne pas retirer le joueur de attenteMontantDepot pour permettre une nouvelle saisie
