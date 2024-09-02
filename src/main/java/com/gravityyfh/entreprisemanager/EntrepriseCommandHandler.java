@@ -26,7 +26,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("Seules les joueurs peuvent exécuter cette commande.");
+            sender.sendMessage("Seuls les joueurs peuvent exécuter cette commande.");
             return true;
         }
 
@@ -97,17 +97,16 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                 }
                 break;
             case "rename":
-                if (args.length < 4) {
-                    player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <gerant> <type> <nouveauNom>");
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <NomEntreprise> <NouveauNom>");
                 } else {
-                    String gerant = args[1];
-                    String type = args[2];
-                    String nouveauNom = args[3];
-                    entrepriseLogic.renameEntreprise(player, gerant, type, nouveauNom);
+                    String entrepriseNom = args[1];
+                    String nouveauNom = args[2];
+                    entrepriseLogic.renameEntreprise(player, entrepriseNom, nouveauNom);
                 }
                 break;
             default:
-                player.sendMessage("Commande inconnue.");
+                player.sendMessage(ChatColor.RED + "Commande inconnue.");
                 return false;
         }
         return true;
