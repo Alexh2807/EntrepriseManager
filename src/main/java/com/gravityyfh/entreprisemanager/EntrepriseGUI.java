@@ -4,16 +4,21 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 public class EntrepriseGUI implements Listener {
@@ -78,89 +83,274 @@ public class EntrepriseGUI implements Listener {
         UUID playerId = player.getUniqueId();
         long currentTime = System.currentTimeMillis();
 
-        // Vérifiez si le joueur clique dans un de vos menus personnalisés
         String title = event.getView().getTitle();
 
-        // Si le titre de l'inventaire ne correspond pas à l'un des titres de vos menus, autorisez l'interaction
-        if (!title.startsWith(ChatColor.DARK_BLUE.toString())) {
-            return;  // Ne pas annuler l'événement si ce n'est pas un de vos menus
-        }
-
-        // Bloquer l'interaction si c'est un de vos menus
-        event.setCancelled(true);
-
-        // Ajout d'un délai pour empêcher les clics rapides
-        if (clickTimestamps.containsKey(playerId)) {
-            long lastClickTime = clickTimestamps.get(playerId);
-            if (currentTime - lastClickTime < CLICK_DELAY) {
-                return;
-            }
-        }
-        clickTimestamps.put(playerId, currentTime);
-
-        ItemStack clickedItem = event.getCurrentItem();
-        if (clickedItem == null || !clickedItem.hasItemMeta()) {
+        // Gérer les interactions dans le coffre de l'entreprise
+        if (title.startsWith(ChatColor.DARK_BLUE + "Coffre: ")) {
+            handleVirtualChestInteraction(event, player, title);
             return;
         }
 
-        Material type = clickedItem.getType();
+        // Bloquer l'interaction pour tous les autres menus sauf le coffre de l'entreprise
+        if (title.startsWith(ChatColor.DARK_BLUE.toString()) || title.startsWith(ChatColor.BLUE.toString())) {
+            event.setCancelled(true);
 
-        // Gestion des différents menus
-        if (title.equals(ChatColor.DARK_BLUE + "Gérer les employés")) {
-            handleManageEmployeesClick(event, player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Gérer " + currentEntreprise.get(player))) {
-            handleEmployeeManagementClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Définir le salaire")) {
-            handleSalarySelectionClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Recruter un salarié")) {
-            handleRecruitEmployeeClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le recrutement")) {
-            handleRecruitConfirmationClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Menu Entreprise")) {
-            handleMainMenuClick(player, type);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Créer une entreprise")) {
-            handleCreateEntrepriseClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Sélectionnez un gérant")) {
-            handleSelectGerantClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Sélectionnez un type")) {
-            handleSelectTypeClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Mes entreprises")) {
-            handleMyEntreprisesClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Liste des villes")) {
-            handleTownSelectionClick(player, clickedItem);
-        } else if (title.startsWith(ChatColor.DARK_BLUE + "Liste des entreprises - ")) {
-            handleListEntreprisesClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Admin")) {
-            handleAdminMenuClick(player, type);
-        } else if (title.startsWith(ChatColor.DARK_BLUE + "Gérer l'entreprise - ")) {
-            handleManageEntrepriseClick(event, player, clickedItem, title);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le renommage")) {
-            handleRenameConfirmationClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer la suppression")) {
-            handleDeleteConfirmationClick(player, clickedItem);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le nouveau nom")) {
-            handleConfirmNewNameClick(player, clickedItem);
-        } else if (title.equals(ChatColor.RED + "Retour")) {
-            openPreviousInventory(player);
-        } else if (title.equals(ChatColor.DARK_BLUE + "Retirer de l'argent")) {
-            handleWithdrawMoneyClick(player, clickedItem);
+            // Ajout d'un délai pour empêcher les clics rapides
+            if (clickTimestamps.containsKey(playerId)) {
+                long lastClickTime = clickTimestamps.get(playerId);
+                if (currentTime - lastClickTime < CLICK_DELAY) {
+                    return;
+                }
+            }
+            clickTimestamps.put(playerId, currentTime);
+
+            ItemStack clickedItem = event.getCurrentItem();
+            if (clickedItem == null || !clickedItem.hasItemMeta()) {
+                return;
+            }
+
+            Material type = clickedItem.getType();
+
+            // Gestion des différents menus
+            if (title.equals(ChatColor.DARK_BLUE + "Gérer les employés")) {
+                handleManageEmployeesClick(event, player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Gérer " + currentEntreprise.get(player))) {
+                handleEmployeeManagementClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Définir le salaire")) {
+                handleSalarySelectionClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Recruter un salarié")) {
+                handleRecruitEmployeeClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le recrutement")) {
+                handleRecruitConfirmationClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Menu Entreprise")) {
+                handleMainMenuClick(player, type);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Créer une entreprise")) {
+                handleCreateEntrepriseClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Sélectionnez un gérant")) {
+                handleSelectGerantClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Sélectionnez un type")) {
+                handleSelectTypeClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Mes entreprises")) {
+                handleMyEntreprisesClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Liste des villes")) {
+                handleTownSelectionClick(player, clickedItem);
+            } else if (title.startsWith(ChatColor.DARK_BLUE + "Liste des entreprises - ")) {
+                handleListEntreprisesClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Admin")) {
+                handleAdminMenuClick(player, type);
+            } else if (title.startsWith(ChatColor.DARK_BLUE + "Gérer l'entreprise - ")) {
+                handleManageEntrepriseClick(event, player, clickedItem, title);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le renommage")) {
+                handleRenameConfirmationClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer la suppression")) {
+                handleDeleteConfirmationClick(player, clickedItem);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le nouveau nom")) {
+                handleConfirmNewNameClick(player, clickedItem);
+            } else if (title.equals(ChatColor.RED + "Retour")) {
+                openPreviousInventory(player);
+            } else if (title.equals(ChatColor.DARK_BLUE + "Retirer de l'argent")) {
+                handleWithdrawMoneyClick(player, clickedItem);
+            } else if (title.startsWith(ChatColor.BLUE + "Entreprise: ")) {
+                handleEmployeInterfaceClick(player, clickedItem);
+            }
         }
+    }
+
+    private void handleVirtualChestInteraction(InventoryClickEvent event, Player player, String title) {
+        Inventory clickedInventory = event.getClickedInventory();
+        Inventory topInventory = player.getOpenInventory().getTopInventory();
+
+        // Vérifie si l'inventaire cliqué est le coffre virtuel de l'entreprise
+        if (topInventory != null && topInventory.equals(clickedInventory)) {
+            ItemStack clickedItem = event.getCurrentItem();
+            if (clickedItem == null) return;
+
+            // Empêcher le déplacement du bouton "Valider"
+            if (event.getSlot() == 26 && clickedItem.getType() == Material.GREEN_CONCRETE && ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).equals("Valider")) {
+                event.setCancelled(true);
+                validateAndSellItems(player, topInventory, title);
+                return;
+            }
+
+            // Empêcher de déposer des items non relatifs à l'entreprise
+            if (event.getAction() == InventoryAction.PLACE_ALL || event.getAction() == InventoryAction.PLACE_SOME || event.getAction() == InventoryAction.PLACE_ONE) {
+                ItemStack item = event.getCursor();
+                String entrepriseNom = ChatColor.stripColor(title.replace("Coffre: ", ""));
+                EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+                if (entreprise != null) {
+                    String typeEntreprise = entreprise.getType();
+                    List<String> authorizedBlocks = plugin.getConfig().getStringList("types-entreprise." + typeEntreprise + ".blocs-autorisés");
+
+                    if (!authorizedBlocks.contains(item.getType().name())) {
+                        player.sendMessage(ChatColor.RED + "Cet item n'est pas autorisé à être placé dans le coffre de cette entreprise.");
+                        event.setCancelled(true); // Bloque l'ajout de l'item
+                        return;
+                    }
+                }
+            }
+
+            // Permettre la manipulation des autres items dans le coffre
+            event.setCancelled(false);
+        }
+    }
+
+
+    private void validateAndSellItems(Player player, Inventory chestInventory, String title) {
+        // Récupérer le nom de l'entreprise à partir du titre de l'inventaire
+        String entrepriseNom = ChatColor.stripColor(title.replace("Coffre: ", ""));
+
+        // Récupérer l'entreprise via EntrepriseManagerLogic
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        // Vérification de l'existence de l'entreprise
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Erreur : entreprise '" + entrepriseNom + "' introuvable.");
+            return;
+        }
+
+        String typeEntreprise = entreprise.getType();
+        double totalMontant = 0;
+        List<ItemStack> soldItems = new ArrayList<>();
+
+        // Boucle pour parcourir le coffre virtuel et calculer la vente
+        for (int i = 0; i < chestInventory.getSize(); i++) {
+            ItemStack item = chestInventory.getItem(i);
+
+            // Ignorer les items null et les "air"
+            if (item == null || item.getType().equals(Material.AIR)) {
+                continue;
+            }
+
+            // Ignorer l'item "Valider" (GREEN_CONCRETE)
+            if (item.getType() == Material.GREEN_CONCRETE && ChatColor.stripColor(item.getItemMeta().getDisplayName()).equals("Valider")) {
+                continue;
+            }
+
+            Material material = item.getType();
+
+            // Vérifier si l'item fait partie des ressources que l'entreprise peut vendre
+            double paiement = plugin.getConfig().getDouble("types-entreprise." + typeEntreprise + ".paiement-ressources." + material.name(), 0);
+
+            if (paiement > 0) {
+                // Calcul du montant total pour cet item
+                double montantTotal = paiement * item.getAmount();
+
+                // Vérifier si l'entreprise a suffisamment d'argent
+                if (entreprise.getSolde() >= montantTotal) {
+                    totalMontant += montantTotal;
+                    soldItems.add(item); // Ajouter l'item à la liste des items vendus
+                    chestInventory.setItem(i, null); // Supprimer l'item du coffre
+                } else {
+                    player.sendMessage(ChatColor.RED + "L'entreprise n'a pas assez d'argent pour payer tous les items.");
+                    break;  // Sortir de la boucle si l'entreprise n'a pas assez d'argent
+                }
+            } else {
+                player.sendMessage(ChatColor.RED + "Cet item ne peut pas être vendu par cette entreprise : " + material.name());
+            }
+        }
+
+        // Paiement du joueur et enregistrement des items vendus
+        if (totalMontant > 0) {
+            entreprise.setSolde(entreprise.getSolde() - totalMontant);
+            EntrepriseManager.getEconomy().depositPlayer(player, totalMontant);
+            player.sendMessage(ChatColor.GREEN + "Vous avez été payé " + totalMontant + "€ pour les items déposés.");
+
+            // Sauvegarder les items vendus dans le coffre virtuel
+            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
+            virtualChest.addSoldItems(soldItems);
+
+            // Sauvegarder le coffre virtuel dans le fichier YAML de l'entreprise
+            File entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
+            YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
+            String path = "entreprises." + entrepriseNom; // Chemin pour le coffre virtuel dans la config
+            virtualChest.saveToConfig(entrepriseConfig, path); // Sauvegarde dans le fichier YAML
+
+            // Sauvegarder le fichier après mise à jour
+            try {
+                entrepriseConfig.save(entrepriseFile);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Erreur lors de la sauvegarde du coffre virtuel pour l'entreprise " + entrepriseNom + ": " + e.getMessage());
+            }
+        } else {
+            player.sendMessage(ChatColor.RED + "Aucun item n'a pu être vendu.");
+        }
+
+        player.closeInventory();  // Fermer l'inventaire après la transaction
+    }
+
+
+
+
+
+
+    private void handleEmployeeMenuClick(Player player, ItemStack clickedItem) {
+        String entrepriseNom = currentEntreprise.get(player);
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Erreur : l'entreprise n'a pas été trouvée.");
+            return;
+        }
+
+        switch (clickedItem.getType()) {
+            case CHEST:
+                openEmployeChest(player, entreprise); // Ouvre le coffre de l'employé
+                break;
+            case PAPER:
+                entrepriseLogic.getEntrepriseInfo(player, entreprise.getNom()); // Affiche les infos de l'entreprise
+                break;
+            case PLAYER_HEAD:
+                openEmployeeList(player, entreprise); // Ouvre la liste des employés
+                break;
+            case OAK_DOOR:
+                returnToPreviousMenu(player);
+                break;
+        }
+    }
+
+    private void handleEmployeeInterfaceClick(Player player, ItemStack clickedItem) {
+        String entrepriseNom = currentEntreprise.get(player);
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        switch (clickedItem.getType()) {
+            case CHEST:
+                openEmployeChest(player, entreprise); // Ouvrir le coffre virtuel pour l'employé
+                break;
+            case PAPER:
+                entrepriseLogic.getEntrepriseInfo(player, entrepriseNom); // Afficher les infos de l'entreprise
+                player.closeInventory();
+                break;
+            case PLAYER_HEAD:
+                openEmployeeList(player, entreprise); // Afficher la liste des employés
+                break;
+            case OAK_DOOR:
+                returnToPreviousMenu(player);
+                break;
+        }
+    }
+
+    private void openEmployeeList(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.BLUE + "Employés de " + entreprise.getNom());
+
+        for (String employeName : entreprise.getEmployes()) {
+            inv.addItem(createPlayerHead(employeName));
+        }
+        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+
+        previousInventories.put(player, player.getOpenInventory().getTopInventory());
+        player.openInventory(inv);
     }
 
     private void handleManageEntrepriseClick(InventoryClickEvent event, Player player, ItemStack clickedItem, String title) {
         String entrepriseNom = currentEntreprise.get(player);  // Récupère l'entreprise sélectionnée
 
-        // Débogage : Vérification du nom de l'entreprise
-        player.sendMessage(ChatColor.YELLOW + "[Debug] Nom de l'entreprise (extrait du titre) : " + entrepriseNom);
-
         EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
 
         if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "[Debug] Aucune entreprise trouvée avec le nom : " + entrepriseNom);
+            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée.");
             return;
         }
-
-        player.sendMessage(ChatColor.YELLOW + "[Debug] Entreprise trouvée : " + entreprise.getNom());
 
         switch (clickedItem.getType()) {
             case NAME_TAG:
@@ -169,6 +359,9 @@ public class EntrepriseGUI implements Listener {
             case PLAYER_HEAD:
                 openManageEmployeesMenu(player, entrepriseNom);
                 break;
+            case CHEST:
+                handleRetrieveItemsClick(player, entreprise);  // Récupérer les items
+                break;
             case PAPER:
                 openRenameConfirmationMenu(player, entrepriseNom);
                 break;
@@ -176,7 +369,7 @@ public class EntrepriseGUI implements Listener {
                 if (ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).equals("Retour")) {
                     returnToPreviousMenu(player);
                 } else {
-                    openDeleteConfirmationMenu(player, entrepriseNom);  // Appel du menu de confirmation de suppression
+                    openDeleteConfirmationMenu(player, entrepriseNom);
                 }
                 break;
             case GOLD_INGOT:
@@ -184,6 +377,8 @@ public class EntrepriseGUI implements Listener {
                 break;
         }
     }
+
+
 
 
     private void openWithdrawMoneyMenu(Player player, String entrepriseNom) {
@@ -496,6 +691,7 @@ public class EntrepriseGUI implements Listener {
     private void openMyEntreprisesMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Mes entreprises");
 
+        // Ajout des entreprises où le joueur est gérant
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntrepriseDuGerant(player.getName())) {
             ItemStack item = createMenuItem(Material.CHEST, ChatColor.GOLD + entreprise.getNom());
             ItemMeta meta = item.getItemMeta();
@@ -506,11 +702,27 @@ public class EntrepriseGUI implements Listener {
             item.setItemMeta(meta);
             inv.addItem(item);
         }
+
+        // Ajout des entreprises où le joueur est employé
+        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+            if (entreprise.getEmployes().contains(player.getName())) {
+                ItemStack item = createMenuItem(Material.PAPER, ChatColor.AQUA + entreprise.getNom());
+                ItemMeta meta = item.getItemMeta();
+                meta.setLore(List.of(
+                        ChatColor.YELLOW + "Employé",
+                        ChatColor.YELLOW + "Type: " + entreprise.getType()
+                ));
+                item.setItemMeta(meta);
+                inv.addItem(item);
+            }
+        }
+
         inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
 
-        previousInventories.put(player, player.getOpenInventory().getTopInventory()); // Enregistrer le menu précédent
+        previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
 
     private void openAdminMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Admin");
@@ -539,11 +751,62 @@ public class EntrepriseGUI implements Listener {
         inv.setItem(14, createMenuItem(Material.PAPER, ChatColor.GREEN + "Modifier le nom"));
         inv.setItem(16, createMenuItem(Material.BARRIER, ChatColor.RED + "Supprimer l'entreprise"));
         inv.setItem(20, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Retirer de l'argent"));
-        inv.setItem(22, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+        inv.setItem(22, createMenuItem(Material.CHEST, ChatColor.GOLD + "Récupérer les items")); // Nouveau bouton
+        inv.setItem(24, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
 
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
+    private void handleRetrieveItemsClick(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
+        List<ItemStack> soldItems = virtualChest.getSoldItems();
+
+        boolean hasTransferredItems = false;
+        List<ItemStack> remainingItems = new ArrayList<>();
+
+        for (ItemStack item : soldItems) {
+            HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(item);
+            if (remaining.isEmpty()) {
+                hasTransferredItems = true;
+            } else {
+                remainingItems.add(remaining.get(0)); // Garder les items restants si l'inventaire est plein
+            }
+        }
+
+        if (hasTransferredItems) {
+            player.sendMessage(ChatColor.GREEN + "Vous avez récupéré les items vendus par les employés de votre entreprise.");
+            virtualChest.getSoldItems().clear(); // Effacer la liste des items vendus
+            virtualChest.addSoldItems(remainingItems); // Remettre les items non transférés dans le coffre
+        } else {
+            player.sendMessage(ChatColor.RED + "Aucun item vendu n'a pu être récupéré.");
+        }
+
+        if (!remainingItems.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + "Votre inventaire est plein, certains items sont restés dans le coffre virtuel.");
+        }
+    }
+
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        Player player = (Player) event.getPlayer();
+        Inventory inventory = event.getInventory();
+
+        // Vérifiez si c'est le coffre virtuel
+        if (event.getView().getTitle().startsWith(ChatColor.DARK_BLUE + "Coffre: ")) {
+            // Parcourez tous les items du coffre
+            for (int i = 0; i < inventory.getSize(); i++) {
+                ItemStack item = inventory.getItem(i);
+                if (item != null && !item.getType().equals(Material.GREEN_CONCRETE)) {
+                    // Tentez de rendre les items au joueur
+                    player.getInventory().addItem(item);
+                    inventory.setItem(i, null); // Retire l'item du coffre
+                }
+            }
+        }
+    }
+
 
 
     private void openRecruitEmployeeMenu(Player player) {
@@ -669,16 +932,29 @@ public class EntrepriseGUI implements Listener {
         }
 
         String entrepriseNom = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+        player.sendMessage(ChatColor.YELLOW + "[Debug] Nom de l'entreprise cliquée : " + entrepriseNom);
+
         EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
         if (entreprise != null) {
+            player.sendMessage(ChatColor.YELLOW + "[Debug] Entreprise trouvée : " + entreprise.getNom());
             // Stocker le nom de l'entreprise sélectionnée pour une utilisation future
             currentEntreprise.put(player, entrepriseNom);
 
-            openManageEntrepriseMenu(player, entrepriseNom);
+            // Vérifiez si le joueur est le gérant de l'entreprise
+            if (entreprise.getGerant().equalsIgnoreCase(player.getName())) {
+                // Ouvre l'interface de gestion pour le gérant
+                openManageEntrepriseMenu(player, entrepriseNom);
+            } else {
+                // Ouvre l'interface d'employé pour les autres
+                openEmployeInterface(player, entreprise);
+            }
         } else {
-            player.sendMessage(ChatColor.RED + "Entreprise non trouvée.");
+            player.sendMessage(ChatColor.RED + "Erreur : l'entreprise n'a pas été trouvée.");
         }
     }
+
+
 
     private void handleListEntreprisesClick(Player player, ItemStack clickedItem) {
         if (clickedItem.getType() == Material.OAK_DOOR) {
@@ -868,4 +1144,85 @@ public class EntrepriseGUI implements Listener {
             openMainMenu(player); // Retourne au menu principal si aucun inventaire précédent n'est trouvé
         }
     }
+
+    private void openGerantChest(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        Inventory inv = entreprise.getVirtualChest().getInventory();
+        player.openInventory(inv);
+    }
+
+    private void openEmployeChest(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
+        Inventory chestInventory = virtualChest.getInventory();
+
+        if (chestInventory == null) {
+            player.sendMessage(ChatColor.RED + "Le coffre virtuel de l'entreprise n'a pas pu être ouvert.");
+            return;
+        }
+
+        // Ajouter le bouton "Valider" dans l'inventaire du coffre
+        ItemStack validateButton = createMenuItem(Material.GREEN_CONCRETE, ChatColor.GOLD + "Valider");
+        chestInventory.setItem(26, validateButton); // Positionne le bouton "Valider" dans la dernière case (index 26 dans un inventaire de 27 cases)
+
+        player.openInventory(chestInventory);
+    }
+
+
+
+    private void openEmployeInterface(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.BLUE + "Entreprise: " + entreprise.getNom());
+
+        inv.setItem(11, createMenuItem(Material.CHEST, ChatColor.GOLD + "Coffre"));
+        inv.setItem(13, createMenuItem(Material.PAPER, ChatColor.GOLD + "Infos Entreprise"));
+        inv.setItem(15, createMenuItem(Material.PLAYER_HEAD, ChatColor.GOLD + "Voir les Employés"));
+
+        previousInventories.put(player, player.getOpenInventory().getTopInventory());
+        player.openInventory(inv);
+    }
+
+
+
+    private void handleEmployeInterfaceClick(Player player, ItemStack clickedItem) {
+        String entrepriseNom = currentEntreprise.get(player);
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Erreur : l'entreprise n'a pas été trouvée.");
+            return;
+        }
+
+        switch (clickedItem.getType()) {
+            case CHEST:
+                openEmployeChest(player, entreprise);
+                break;
+            case PAPER:
+                displayEntrepriseInfo(player, entreprise);
+                break;
+            case PLAYER_HEAD:
+                openEmployeeList(player, entreprise);
+                break;
+            case OAK_DOOR:
+                returnToPreviousMenu(player);
+                break;
+            default:
+                player.sendMessage(ChatColor.RED + "Action non reconnue.");
+                break;
+        }
+    }
+
+    // Nouvelle méthode pour afficher les informations de l'entreprise
+    private void displayEntrepriseInfo(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Informations sur l'Entreprise ===");
+        player.sendMessage(ChatColor.YELLOW + "Nom: " + ChatColor.WHITE + entreprise.getNom());
+        player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + entreprise.getVille());
+        player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + entreprise.getType());
+        player.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + entreprise.getGerant());
+        player.sendMessage(ChatColor.YELLOW + "Nombre d'employés: " + ChatColor.WHITE + entreprise.getEmployes().size());
+        player.sendMessage(ChatColor.YELLOW + "Revenus BRUT/jour: " + ChatColor.GREEN + entreprise.getRevenusBrutsJournaliers() + "€");
+        player.sendMessage(ChatColor.YELLOW + "Montant d'argent dans la société: " + ChatColor.GREEN + entreprise.getSolde() + "€");
+        player.sendMessage(ChatColor.YELLOW + "Chiffre d'affaires total: " + ChatColor.GREEN + entreprise.getChiffreAffairesTotal() + "€");
+        player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
+        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "====================================");
+    }
+
+
 }

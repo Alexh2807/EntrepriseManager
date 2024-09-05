@@ -1,8 +1,11 @@
 package com.gravityyfh.entreprisemanager;
 
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
 
 public class EntrepriseManager extends JavaPlugin {
 
@@ -43,6 +46,20 @@ public class EntrepriseManager extends JavaPlugin {
         // Configuration des commandes
         setupCommands();
 
+        // Charger les entreprises et leurs coffres virtuels
+        entrepriseLogic.reloadEntreprises(); // Charger les entreprises depuis le fichier
+
+        // Charger les coffres virtuels pour chaque entreprise
+        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
+        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
+
+        // Parcours de chaque entreprise pour charger son coffre virtuel
+        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
+            String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
+            virtualChest.loadFromConfig(entrepriseConfig, path); // Charger le coffre virtuel depuis le fichier
+        }
+
         // Planifier les paiements journaliers selon la configuration
         entrepriseLogic.planifierPaiements();
 
@@ -53,6 +70,23 @@ public class EntrepriseManager extends JavaPlugin {
     public void onDisable() {
         // Sauvegarde des entreprises et autres données si nécessaire
         entrepriseLogic.saveEntreprises();
+
+        // Sauvegarder les coffres virtuels dans le fichier de configuration entreprise.yml
+        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
+        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
+
+        // Parcours de chaque entreprise pour sauvegarder son coffre virtuel
+        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
+            String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
+            virtualChest.saveToConfig(entrepriseConfig, path); // Sauvegarder le coffre virtuel dans la configuration
+        }
+
+        try {
+            entrepriseConfig.save(entrepriseFile); // Sauvegarder le fichier après avoir mis à jour les coffres virtuels
+        } catch (Exception e) {
+            getLogger().severe("Erreur lors de la sauvegarde des coffres virtuels : " + e.getMessage());
+        }
 
         getLogger().info("EntrepriseManager désactivé. Données sauvegardées.");
     }
@@ -85,7 +119,7 @@ public class EntrepriseManager extends JavaPlugin {
 
     public void reloadPlugin() {
         reloadConfig(); // Recharge le fichier config.yml
-        entrepriseLogic.reloadEntreprises(); // Méthode hypothétique pour recharger les entreprises depuis le fichier
+        entrepriseLogic.reloadEntreprises(); // Recharger les entreprises depuis le fichier
         getLogger().info("Le plugin EntrepriseManager a été rechargé.");
     }
 

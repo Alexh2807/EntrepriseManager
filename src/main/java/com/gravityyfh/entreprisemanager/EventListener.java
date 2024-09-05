@@ -1,6 +1,7 @@
 package com.gravityyfh.entreprisemanager;
 
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,28 +22,59 @@ public class EventListener implements Listener {
         this.entrepriseLogic = entrepriseLogic;
     }
 
+
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
+        UUID playerUUID = player.getUniqueId();
         Material blockType = event.getBlock().getType();
-        String playerUUIDString = player.getUniqueId().toString();
 
-        if (!entrepriseLogic.isActionAllowedForPlayer(blockType, UUID.fromString(playerUUIDString))) {
+        // Récupérer tous les types d'entreprises du joueur
+        List<String> typesEntreprises = entrepriseLogic.getTypesEntrepriseDuJoueur(player.getName());
+
+        // Debug: afficher tous les types d'entreprises du joueur
+        if (typesEntreprises.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "[DEBUG] Le joueur ne possède aucune entreprise.");
+        } else {
+            player.sendMessage(ChatColor.AQUA + "[DEBUG] Types d'entreprises du joueur: " + String.join(", ", typesEntreprises));
+        }
+
+        // Vérifier si le bloc fait partie d'une catégorie liée à une entreprise
+        String categorieActivite = entrepriseLogic.getCategorieActivite(blockType);
+
+        // Si aucune catégorie d'activité n'est trouvée, le joueur peut casser librement
+        if (categorieActivite == null) {
+            player.sendMessage(ChatColor.GREEN + "[DEBUG] Ce bloc n'est pas lié à une entreprise. Il peut être cassé librement.");
+            return;
+        }
+
+        // Vérifier si le joueur possède une entreprise correspondant à la catégorie d'activité
+        if (typesEntreprises.contains(categorieActivite)) {
+            player.sendMessage(ChatColor.GREEN + "[DEBUG] Le joueur est autorisé à casser le bloc sans restriction.");
+            return; // Le joueur peut casser le bloc sans restriction
+        }
+
+        // Si le joueur n'est pas membre d'une entreprise correspondant à la catégorie, on vérifie la limite horaire
+        boolean actionAllowed = entrepriseLogic.isActionAllowedForPlayer(blockType, playerUUID);
+        if (!actionAllowed) {
             event.setCancelled(true);
 
-            // Récupérer la catégorie d'activité basée sur le type de bloc
-            String categorieActivite = entrepriseLogic.getCategorieActivite(blockType);
-            if (categorieActivite != null) {
-                // Récupérer le message d'erreur personnalisé du fichier config pour cette catégorie
-                List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + categorieActivite + ".message-erreur");
-                if (!messagesErreur.isEmpty()) {
-                    // Envoyer chaque ligne du message d'erreur personnalisé
-                    messagesErreur.forEach(message -> player.sendMessage(ChatColor.translateAlternateColorCodes('&', message)));
-                    return; // Sortir de la méthode après l'envoi du message
-                }
+            // Afficher les messages d'erreur associés à cette catégorie
+            List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + categorieActivite + ".message-erreur");
+            for (String message : messagesErreur) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
             }
-            // Si aucun message personnalisé n'est configuré ou si la catégorie est inconnue, utiliser un message par défaut
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas autorisé à casser ce bloc. Rejoignez une entreprise appropriée pour avoir des permissions étendues.");
         }
     }
+
+
+
+
+
+
+
+
+
+
+
 }
