@@ -114,7 +114,8 @@ public class EntrepriseGUI implements Listener {
             // Gestion des différents menus
             if (title.equals(ChatColor.DARK_BLUE + "Gérer les employés")) {
                 handleManageEmployeesClick(event, player, clickedItem);
-            } else if (title.equals(ChatColor.DARK_BLUE + "Gérer " + currentEntreprise.get(player))) {
+            } if (title.equals(ChatColor.DARK_BLUE + "Gérer " + selectedEmployee.get(player))) {
+                event.setCancelled(false); // Permettre les clics dans ce menu
                 handleEmployeeManagementClick(player, clickedItem);
             } else if (title.equals(ChatColor.DARK_BLUE + "Définir le salaire")) {
                 handleSalarySelectionClick(player, clickedItem);
@@ -1043,59 +1044,71 @@ public class EntrepriseGUI implements Listener {
     }
 
     private void handleManageEmployeesClick(InventoryClickEvent event, Player player, ItemStack clickedItem) {
-        if (clickedItem.getType() == Material.OAK_DOOR) {
-            returnToPreviousMenu(player);
+        if (clickedItem == null || !clickedItem.hasItemMeta()) {
+            player.sendMessage(ChatColor.RED + "[Debug] Aucun item valide n'a été cliqué dans 'Gérer les employés'.");
             return;
         }
 
+        // Ajout de message de débogage pour vérifier quel employé est cliqué
         String employeNom = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+        player.sendMessage(ChatColor.YELLOW + "[Debug] Employé cliqué: " + employeNom);
+
         if (employeNom == null || employeNom.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Impossible de déterminer l'employé. Veuillez réessayer.");
-            returnToPreviousMenu(player);
+            player.sendMessage(ChatColor.RED + "[Debug] Aucun employé n'a été sélectionné.");
             return;
         }
 
         // Stocker le nom de l'employé sélectionné
         selectedEmployee.put(player, employeNom);
 
-        // Ouvrir le menu pour gérer l'employé (virer, définir salaire, etc.)
+        // Appeler la méthode pour ouvrir le sous-menu de gestion de l'employé
         openEmployeeManagementMenu(player, employeNom);
     }
 
+
     private void openEmployeeManagementMenu(Player player, String employeNom) {
+        player.sendMessage(ChatColor.YELLOW + "[Debug] Ouverture du menu pour gérer l'employé: " + employeNom);
+
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Gérer " + employeNom);
 
         inv.setItem(11, createMenuItem(Material.RED_CONCRETE, ChatColor.RED + "Virer l'employé"));
         inv.setItem(15, createMenuItem(Material.GOLD_INGOT, ChatColor.GREEN + "Définir le salaire"));
 
-        // Stocker l'employé en cours de gestion
-        currentEntreprise.put(player, employeNom);
-
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
 
+
     private void handleEmployeeManagementClick(Player player, ItemStack clickedItem) {
-        if (clickedItem.getType() == Material.OAK_DOOR) {
-            // Récupérer les informations stockées
-            String entrepriseNom = selectedEntreprise.get(player);
+        if (clickedItem == null || !clickedItem.hasItemMeta()) {
+            player.sendMessage(ChatColor.RED + "[Debug] Aucun item valide cliqué.");
+            return;
+        }
+
+        String displayName = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+        player.sendMessage(ChatColor.YELLOW + "[Debug] Item cliqué: " + displayName);
+
+        // Vérification des actions
+        if (clickedItem.getType() == Material.RED_CONCRETE && displayName.equals("Virer l'employé")) {
+            player.sendMessage(ChatColor.YELLOW + "[Debug] Tentative de suppression de l'employé.");
+            String entrepriseNom = currentEntreprise.get(player);
             String employeNom = selectedEmployee.get(player);
-
             if (entrepriseNom != null && employeNom != null) {
-                // Exécuter la commande pour virer l'employé
                 player.performCommand("entreprise confirmkick " + entrepriseNom + " " + employeNom);
-
-                player.sendMessage(ChatColor.GREEN + employeNom + " a été viré de " + entrepriseNom + ".");
-                returnToPreviousMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Erreur lors de la tentative de suppression de l'employé.");
-                returnToPreviousMenu(player);
+                player.sendMessage(ChatColor.RED + "[Debug] Erreur: L'entreprise ou l'employé est null.");
             }
-        } else if (clickedItem.getType() == Material.GOLD_INGOT) {
-            // Gérer la sélection du salaire, etc.
+        } else if (clickedItem.getType() == Material.GOLD_INGOT && displayName.equals("Définir le salaire")) {
+            player.sendMessage(ChatColor.YELLOW + "[Debug] Ouverture de l'interface de définition de salaire.");
             openSalarySelectionMenu(player, selectedEmployee.get(player));
+        } else {
+            player.sendMessage(ChatColor.RED + "[Debug] Aucun item reconnu pour l'action.");
         }
     }
+
+
+
+
 
     private void openSalarySelectionMenu(Player player, String employeNom) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Définir le salaire");
@@ -1112,7 +1125,7 @@ public class EntrepriseGUI implements Listener {
     }
 
     private void handleSalarySelectionClick(Player player, ItemStack clickedItem) {
-        String employeNom = currentEntreprise.get(player);
+        String employeNom = selectedEmployee.get(player);
         if (employeNom == null) {
             player.sendMessage(ChatColor.RED + "Une erreur est survenue. Veuillez réessayer.");
             returnToPreviousMenu(player);
@@ -1143,11 +1156,6 @@ public class EntrepriseGUI implements Listener {
         } else {
             openMainMenu(player); // Retourne au menu principal si aucun inventaire précédent n'est trouvé
         }
-    }
-
-    private void openGerantChest(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = entreprise.getVirtualChest().getInventory();
-        player.openInventory(inv);
     }
 
     private void openEmployeChest(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
