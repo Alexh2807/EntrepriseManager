@@ -43,7 +43,7 @@ public class EntrepriseManagerLogic {
         loadEntreprises();
         planifierPaiements();
     }
-    private Map<UUID, Map<String, Integer>> activitesJoueurs = new HashMap<>();
+    private final Map<UUID, Map<String, Integer>> activitesJoueurs = new HashMap<>();
     private Map<String, Set<Material>> blocsAutorisesParTypeEntreprise = new HashMap<>();
     private Map<UUID, String> joueursEntreprises = new HashMap<>();
     private Map<String, String> invitations = new HashMap<>();

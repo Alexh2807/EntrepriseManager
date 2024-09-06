@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -35,7 +36,8 @@ public class EntrepriseGUI implements Listener {
     private final Map<Player, String> currentEntreprise = new HashMap<>();
     private final Map<UUID, String> waitingForNameChange = new HashMap<>();
     private final Map<UUID, String> nameChangeConfirmations = new HashMap<>();
-    private final Map<Player, String> pendingRenames = new HashMap<>();
+    private final Map<UUID, String> pendingRenames = new HashMap<>();
+
     private Map<Player, String> selectedEmployee = new HashMap<>();
 
     private static final long CLICK_DELAY = 500;
@@ -67,6 +69,7 @@ public class EntrepriseGUI implements Listener {
         item.setItemMeta(meta);
         return item;
     }
+
 
     private ItemStack createPlayerHead(String playerName) {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
@@ -141,8 +144,6 @@ public class EntrepriseGUI implements Listener {
                 handleAdminMenuClick(player, type);
             } else if (title.startsWith(ChatColor.DARK_BLUE + "Gérer l'entreprise - ")) {
                 handleManageEntrepriseClick(event, player, clickedItem, title);
-            } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le renommage")) {
-                handleRenameConfirmationClick(player, clickedItem);
             } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer la suppression")) {
                 handleDeleteConfirmationClick(player, clickedItem);
             } else if (title.equals(ChatColor.DARK_BLUE + "Confirmer le nouveau nom")) {
@@ -156,6 +157,7 @@ public class EntrepriseGUI implements Listener {
             }
         }
     }
+
 
     private void handleVirtualChestInteraction(InventoryClickEvent event, Player player, String title) {
         Inventory clickedInventory = event.getClickedInventory();
@@ -281,56 +283,6 @@ public class EntrepriseGUI implements Listener {
     }
 
 
-
-
-
-
-    private void handleEmployeeMenuClick(Player player, ItemStack clickedItem) {
-        String entrepriseNom = currentEntreprise.get(player);
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
-
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Erreur : l'entreprise n'a pas été trouvée.");
-            return;
-        }
-
-        switch (clickedItem.getType()) {
-            case CHEST:
-                openEmployeChest(player, entreprise); // Ouvre le coffre de l'employé
-                break;
-            case PAPER:
-                entrepriseLogic.getEntrepriseInfo(player, entreprise.getNom()); // Affiche les infos de l'entreprise
-                break;
-            case PLAYER_HEAD:
-                openEmployeeList(player, entreprise); // Ouvre la liste des employés
-                break;
-            case OAK_DOOR:
-                returnToPreviousMenu(player);
-                break;
-        }
-    }
-
-    private void handleEmployeeInterfaceClick(Player player, ItemStack clickedItem) {
-        String entrepriseNom = currentEntreprise.get(player);
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
-
-        switch (clickedItem.getType()) {
-            case CHEST:
-                openEmployeChest(player, entreprise); // Ouvrir le coffre virtuel pour l'employé
-                break;
-            case PAPER:
-                entrepriseLogic.getEntrepriseInfo(player, entrepriseNom); // Afficher les infos de l'entreprise
-                player.closeInventory();
-                break;
-            case PLAYER_HEAD:
-                openEmployeeList(player, entreprise); // Afficher la liste des employés
-                break;
-            case OAK_DOOR:
-                returnToPreviousMenu(player);
-                break;
-        }
-    }
-
     private void openEmployeeList(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.BLUE + "Employés de " + entreprise.getNom());
 
@@ -363,8 +315,8 @@ public class EntrepriseGUI implements Listener {
             case CHEST:
                 handleRetrieveItemsClick(player, entreprise);  // Récupérer les items
                 break;
-            case PAPER:
-                openRenameConfirmationMenu(player, entrepriseNom);
+            case PAPER: // Le joueur souhaite renommer son entreprise
+                initiateRenameProcess(player, entrepriseNom);
                 break;
             case BARRIER:
                 if (ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).equals("Retour")) {
@@ -436,84 +388,47 @@ public class EntrepriseGUI implements Listener {
         player.openInventory(inv);
     }
 
-    private void handleSetSalaryClick(Player player, ItemStack clickedItem) {
-        if (clickedItem.getType() == Material.OAK_DOOR) {
-            openManageEntrepriseMenu(player, selectedGerant.get(player));
-            return;
-        }
 
-        int salary = Integer.parseInt(ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).replace("€", ""));
-        player.performCommand("salaire add " + selectedGerant.get(player) + " " + salary);
-        player.closeInventory();
-    }
-
-    private void handleRenameConfirmationClick(Player player, ItemStack clickedItem) {
-        if (clickedItem.getType() == Material.OAK_DOOR) {
-            returnToPreviousMenu(player);
-            pendingRenames.remove(player);
-            return;
-        }
-
-        if (clickedItem.getType() == Material.GREEN_CONCRETE) {
-            String nouveauNom = pendingRenames.get(player);
-            if (nouveauNom == null) {
-                player.sendMessage(ChatColor.RED + "Aucun nom de remplacement en attente trouvé.");
-                returnToPreviousMenu(player);
-                return;
-            }
-
-            double renameCost = plugin.getConfig().getDouble("rename-cost", 2500);
-            if (EntrepriseManager.getEconomy().has(player, renameCost)) {
-                EntrepriseManager.getEconomy().withdrawPlayer(player, renameCost);
-                entrepriseLogic.renameEntreprise(player, currentEntreprise.get(player), nouveauNom);
-                player.sendMessage(ChatColor.GREEN + "L'entreprise a été renommée avec succès en " + nouveauNom + ".");
-                pendingRenames.remove(player);
-            } else {
-                player.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent pour renommer l'entreprise.");
-            }
-
-            player.closeInventory();
-        }
-    }
 
     private void initiateRenameProcess(Player player, String entrepriseNom) {
-        player.sendMessage(ChatColor.YELLOW + "Veuillez écrire le nouveau nom de l'entreprise dans le chat. Tapez 'annuler' pour annuler.");
-        pendingRenames.put(player, entrepriseNom);  // Associe l'entreprise à renommer avec le joueur
-        player.closeInventory();
+        player.sendMessage(ChatColor.YELLOW + "Veuillez entrer le nouveau nom de votre entreprise dans le chat. Tapez 'annuler' pour annuler.");
+        pendingRenames.put(player.getUniqueId(), entrepriseNom);  // Associe l'entreprise à renommer avec le joueur
+        player.closeInventory();  // Fermer l'inventaire pour permettre l'entrée dans le chat
     }
+
 
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
 
-        if (pendingRenames.containsKey(player)) {
-            event.setCancelled(true); // Empêcher le message d'apparaître dans le chat général
+        if (pendingRenames.containsKey(playerId)) {
+            event.setCancelled(true);  // Empêche le message d'apparaître dans le chat général
 
             String nouveauNom = event.getMessage().trim();
 
             // Vérification si le joueur veut annuler
             if (nouveauNom.equalsIgnoreCase("annuler")) {
                 player.sendMessage(ChatColor.RED + "Renommage annulé.");
-                pendingRenames.remove(player);
+                pendingRenames.remove(playerId);
                 return;
             }
 
-            // Vérifiez si le nouveau nom est valide
-            if (nouveauNom.isEmpty() || nouveauNom.contains(" ")) {
-                player.sendMessage(ChatColor.RED + "Le nom de l'entreprise ne doit pas être vide ou contenir des espaces.");
+            // Vérifiez si le nom est valide (pas d'espaces, pas de caractères spéciaux)
+            if (!nouveauNom.matches("^[a-zA-Z0-9_-]+$")) {
+                player.sendMessage(ChatColor.RED + "Le nom de l'entreprise ne doit pas contenir d'espaces ou de caractères spéciaux.");
                 return;
             }
 
             // Stocker le nouveau nom pour confirmation
-            String entrepriseNom = pendingRenames.get(player);
-            pendingRenames.remove(player);
+            String entrepriseNom = pendingRenames.get(playerId);
+            pendingRenames.remove(playerId);
 
             // Exécuter la tâche de confirmation sur le thread principal
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                openConfirmNewNameMenu(player, entrepriseNom, nouveauNom);
-            });
+            Bukkit.getScheduler().runTask(plugin, () -> openConfirmNewNameMenu(player, entrepriseNom, nouveauNom));
         }
     }
+
 
     private void openConfirmNewNameMenu(Player player, String entrepriseNom, String newName) {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Confirmer le nouveau nom");
@@ -540,6 +455,7 @@ public class EntrepriseGUI implements Listener {
         player.openInventory(inv);
     }
 
+
     private void handleConfirmNewNameClick(Player player, ItemStack clickedItem) {
         if (clickedItem.getType() == Material.RED_CONCRETE) {
             player.sendMessage(ChatColor.RED + "Opération de renommage annulée.");
@@ -555,7 +471,6 @@ public class EntrepriseGUI implements Listener {
             if (EntrepriseManager.getEconomy().has(player, renameCost)) {
                 EntrepriseManager.getEconomy().withdrawPlayer(player, renameCost);
                 entrepriseLogic.renameEntreprise(player, entrepriseNom, newName);
-                player.sendMessage(ChatColor.GREEN + "L'entreprise a été renommée en '" + newName + "'.");
             } else {
                 player.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent pour renommer l'entreprise.");
             }
@@ -567,12 +482,12 @@ public class EntrepriseGUI implements Listener {
         }
     }
 
+
     private void handleDeleteConfirmationClick(Player player, ItemStack clickedItem) {
         if (clickedItem.getType() == Material.RED_CONCRETE) {
             returnToPreviousMenu(player);
             return;
         }
-
         if (clickedItem.getType() == Material.GREEN_CONCRETE) {
             String entrepriseNom = selectedEntreprise.get(player);  // Utilise l'entreprise sélectionnée
 
@@ -1036,12 +951,27 @@ public class EntrepriseGUI implements Listener {
             return;
         }
 
-        player.sendMessage(ChatColor.YELLOW + "[Debug] Recrutement pour l'entreprise : " + entrepriseNom);
+        // Récupérer l'entreprise via la logique de l'entreprise
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Erreur : l'entreprise n'a pas été trouvée.");
+            return;
+        }
 
         // Récupérer le nom du joueur à recruter
         String playerName = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+
+        // Vérifier si le joueur à recruter fait déjà partie de l'entreprise
+        if (entreprise.getEmployes().contains(playerName)) {
+            player.sendMessage(ChatColor.RED + "Ce joueur fait déjà partie de votre entreprise.");
+            return;
+        }
+
+        // Si le joueur n'est pas déjà employé, ouvrir la confirmation de recrutement
         openRecruitConfirmationMenu(player, playerName, entrepriseNom);
     }
+
 
     private void handleManageEmployeesClick(InventoryClickEvent event, Player player, ItemStack clickedItem) {
         if (clickedItem == null || !clickedItem.hasItemMeta()) {
@@ -1182,10 +1112,12 @@ public class EntrepriseGUI implements Listener {
         inv.setItem(11, createMenuItem(Material.CHEST, ChatColor.GOLD + "Coffre"));
         inv.setItem(13, createMenuItem(Material.PAPER, ChatColor.GOLD + "Infos Entreprise"));
         inv.setItem(15, createMenuItem(Material.PLAYER_HEAD, ChatColor.GOLD + "Voir les Employés"));
+        inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Quitter l'entreprise"));
 
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
 
 
 
@@ -1208,6 +1140,9 @@ public class EntrepriseGUI implements Listener {
             case PLAYER_HEAD:
                 openEmployeeList(player, entreprise);
                 break;
+            case BARRIER:
+                handleEmployeeLeaveCompany(player, entreprise);
+                break;
             case OAK_DOOR:
                 returnToPreviousMenu(player);
                 break;
@@ -1216,6 +1151,42 @@ public class EntrepriseGUI implements Listener {
                 break;
         }
     }
+
+    private void handleEmployeeLeaveCompany(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        String playerName = player.getName();
+
+        // Vérifier si le joueur fait partie des employés
+        if (!entreprise.getEmployes().contains(playerName)) {
+            player.sendMessage(ChatColor.RED + "Vous ne faites pas partie de cette entreprise.");
+            return;
+        }
+
+        // Supprimer l'employé de la liste des employés de l'entreprise
+        entreprise.getEmployes().remove(playerName);
+
+        // Mettre à jour le fichier players.yml pour supprimer l'entreprise de l'employé
+        File playersFile = new File(plugin.getDataFolder(), "players.yml");
+        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
+
+        // Supprimer l'entreprise associée à cet employé
+        playersConfig.set("players." + playerName + "." + entreprise.getNom(), null);
+
+        // Sauvegarder les modifications dans players.yml
+        try {
+            playersConfig.save(playersFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Sauvegarder les modifications des entreprises
+        entrepriseLogic.saveEntreprises();
+
+        // Informer le joueur qu'il a quitté l'entreprise
+        player.sendMessage(ChatColor.GREEN + "Vous avez quitté l'entreprise '" + entreprise.getNom() + "' avec succès.");
+    }
+
+
+
 
     // Nouvelle méthode pour afficher les informations de l'entreprise
     private void displayEntrepriseInfo(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
