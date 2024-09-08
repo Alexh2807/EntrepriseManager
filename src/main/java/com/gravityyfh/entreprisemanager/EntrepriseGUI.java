@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -13,6 +14,7 @@ import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -154,7 +156,11 @@ public class EntrepriseGUI implements Listener {
                 handleWithdrawMoneyClick(player, clickedItem);
             } else if (title.startsWith(ChatColor.BLUE + "Entreprise: ")) {
                 handleEmployeInterfaceClick(player, clickedItem);
+            }else if (title.equals(ChatColor.DARK_BLUE + "Définir la prime")) {
+                handlePrimeSelectionClick(player, clickedItem);
             }
+
+
         }
     }
 
@@ -1002,11 +1008,12 @@ public class EntrepriseGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Gérer " + employeNom);
 
         inv.setItem(11, createMenuItem(Material.RED_CONCRETE, ChatColor.RED + "Virer l'employé"));
-        inv.setItem(15, createMenuItem(Material.GOLD_INGOT, ChatColor.GREEN + "Définir le salaire"));
+        inv.setItem(15, createMenuItem(Material.GOLD_INGOT, ChatColor.GREEN + "Définir une prime quotidienne")); // Modifié de "salaire" à "prime"
 
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
 
 
     private void handleEmployeeManagementClick(Player player, ItemStack clickedItem) {
@@ -1028,9 +1035,9 @@ public class EntrepriseGUI implements Listener {
             } else {
                 player.sendMessage(ChatColor.RED + "[Debug] Erreur: L'entreprise ou l'employé est null.");
             }
-        } else if (clickedItem.getType() == Material.GOLD_INGOT && displayName.equals("Définir le salaire")) {
-            player.sendMessage(ChatColor.YELLOW + "[Debug] Ouverture de l'interface de définition de salaire.");
-            openSalarySelectionMenu(player, selectedEmployee.get(player));
+        } else if (clickedItem.getType() == Material.GOLD_INGOT && displayName.equals("Définir une prime quotidienne")) {
+            player.sendMessage(ChatColor.YELLOW + "[Debug] Ouverture de l'interface de définition de prime.");
+            openPrimeSelectionMenu(player, selectedEmployee.get(player));  // Utilise openPrimeSelectionMenu
         } else {
             player.sendMessage(ChatColor.RED + "[Debug] Aucun item reconnu pour l'action.");
         }
@@ -1076,6 +1083,57 @@ public class EntrepriseGUI implements Listener {
         }
     }
 
+    private void openPrimeSelectionMenu(Player player, String employeNom) {
+        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Définir la prime");
+
+        int[] primes = {0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000};
+        for (int prime : primes) {
+            inv.addItem(createMenuItem(Material.PAPER, ChatColor.GOLD + String.valueOf(prime) + " €"));
+        }
+
+        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+
+        previousInventories.put(player, player.getOpenInventory().getTopInventory());
+        player.openInventory(inv);
+    }
+
+    private void handlePrimeSelectionClick(Player player, ItemStack clickedItem) {
+        String employeNom = selectedEmployee.get(player);
+        if (employeNom == null) {
+            player.sendMessage(ChatColor.RED + "Une erreur est survenue. Veuillez réessayer.");
+            returnToPreviousMenu(player);
+            return;
+        }
+
+        if (clickedItem.getType() == Material.OAK_DOOR) {
+            returnToPreviousMenu(player);
+            return;
+        }
+
+        if (clickedItem.getType() == Material.PAPER) {
+            double prime = Double.parseDouble(ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).replace("€", "").trim());
+            String entrepriseNom = currentEntreprise.get(player);
+
+            // Obtenir le gérant et l'employé
+            Player gerant = player;  // Le joueur actuel est le gérant
+            OfflinePlayer employe = Bukkit.getOfflinePlayer(employeNom);  // Chercher l'employé (connecté ou non)
+
+            // Sauvegarder la prime dans le fichier entreprises.yml
+            entrepriseLogic.definirPrime(entrepriseNom, employeNom, prime);
+
+            // Envoyer un message de confirmation
+            player.sendMessage(ChatColor.GREEN + "La prime de " + employeNom + " a été définie à " + prime + " €.");
+            entrepriseLogic.envoyerMessagePrimesDefinie(gerant, employe, entrepriseNom, prime);
+
+            player.closeInventory();
+        }
+    }
+
+
+
+
+
+
     private void returnToPreviousMenu(Player player) {
         selectedEntreprise.remove(player);
         selectedEmployee.remove(player);
@@ -1109,7 +1167,10 @@ public class EntrepriseGUI implements Listener {
     private void openEmployeInterface(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.BLUE + "Entreprise: " + entreprise.getNom());
 
-        inv.setItem(11, createMenuItem(Material.CHEST, ChatColor.GOLD + "Coffre"));
+        // Afficher la prime de l'employé
+        double prime = entreprise.getPrimePourEmploye(player.getName());
+        inv.setItem(11, createMenuItem(Material.GOLD_INGOT, ChatColor.GOLD + "Votre prime: " + prime + " €"));
+
         inv.setItem(13, createMenuItem(Material.PAPER, ChatColor.GOLD + "Infos Entreprise"));
         inv.setItem(15, createMenuItem(Material.PLAYER_HEAD, ChatColor.GOLD + "Voir les Employés"));
         inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Quitter l'entreprise"));
@@ -1117,6 +1178,7 @@ public class EntrepriseGUI implements Listener {
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
 
 
 
@@ -1202,6 +1264,4 @@ public class EntrepriseGUI implements Listener {
         player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
         player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "====================================");
     }
-
-
 }

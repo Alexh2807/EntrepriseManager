@@ -80,6 +80,9 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "kick":
                 handleKickCommand(player);
                 break;
+            case "primenews":
+                handlePrimeNewsCommand(player);
+                break;
             case "confirmkick":
                 if (args.length < 3) {
                     player.sendMessage(ChatColor.RED + "Usage: /entreprise confirmkick <NomEntreprise> <NomEmployé>");
@@ -111,6 +114,14 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         }
         return true;
     }
+
+    private void handlePrimeNewsCommand(Player player) {
+        // Appeler directement la méthode pour envoyer les primes différées sans délai
+        entrepriseLogic.envoyerPrimesDifferreesGerants(player);
+        entrepriseLogic.envoyerPrimesDifferreesEmployes(player);
+
+    }
+
 
     private void handleRenameCommand(Player player, String[] args) {
         if (args.length < 4) {

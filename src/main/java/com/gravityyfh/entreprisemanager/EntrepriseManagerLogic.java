@@ -12,6 +12,7 @@ import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -670,12 +671,15 @@ public class EntrepriseManagerLogic {
     }
 
     public void traiterPaiementsJournaliers() {
+        // Calculer les paiements pour chaque entreprise
         for (Entreprise entreprise : entreprises.values()) {
-            entreprise.calculerPaiementJournalier();
-            // Affichage des logs pour le suivi
-            plugin.getLogger().info("Paiements journaliers traités pour l'entreprise: " + entreprise.getNom());
+            entreprise.calculerPaiementJournalier();  // Paiement à l'entreprise basé sur le nombre d'employés
         }
+
+        // Ensuite, payer les primes des employés
+        payerPrimesJournalières();
     }
+
 
     private Entreprise trouverEntrepriseParGerantEtType(String gerant, String type) {
         return entreprises.values().stream()
@@ -691,20 +695,38 @@ public class EntrepriseManagerLogic {
                 String ville = entrepriseConfig.getString(path + "ville");
                 String type = entrepriseConfig.getString(path + "type");
                 String gerant = entrepriseConfig.getString(path + "gerant");
-                List<String> employesList = entrepriseConfig.getStringList(path + "employes");
-                Set<String> employes = new HashSet<>(employesList);
+                Set<String> employes = new HashSet<>();
+                Map<String, Double> primes = new HashMap<>();
+
+                // Charger les employés et leurs primes
+                ConfigurationSection employesSection = entrepriseConfig.getConfigurationSection(path + "employes");
+                if (employesSection != null) {
+                    for (String employe : employesSection.getKeys(false)) {
+                        employes.add(employe);
+                        double prime = employesSection.getDouble(employe + ".prime", 0.0); // Charger la prime, par défaut 0
+                        primes.put(employe, prime);
+                    }
+                }
+
                 double solde = entrepriseConfig.getDouble(path + "solde", 0.0);
-                String siret = entrepriseConfig.getString(path + "siret", "Inconnu"); // Charge le SIRET
-                double chiffreAffairesTotal = entrepriseConfig.getDouble(path + "chiffreAffairesTotal", 0.0); // Charge le chiffre d'affaires total
+                String siret = entrepriseConfig.getString(path + "siret", "Inconnu");
+                double chiffreAffairesTotal = entrepriseConfig.getDouble(path + "chiffreAffairesTotal", 0.0);
 
                 Entreprise entreprise = new Entreprise(key, ville, type, gerant, employes, solde, siret);
-                entreprise.setChiffreAffairesTotal(chiffreAffairesTotal); // Assurez-vous d'ajouter cette méthode dans votre classe Entreprise si elle n'existe pas déjà
-                entreprise.getVirtualChest().loadFromConfig((YamlConfiguration) entrepriseConfig, path);
+                entreprise.setChiffreAffairesTotal(chiffreAffairesTotal);
+
+                // Charger les primes dans l'entreprise
+                for (Map.Entry<String, Double> entry : primes.entrySet()) {
+                    entreprise.setPrimePourEmploye(entry.getKey(), entry.getValue());
+                }
 
                 entreprises.put(key, entreprise);
             }
         }
     }
+
+
+
 
     public void recupererItemsDuCoffreVirtuel(Player gerant, String entrepriseNom) {
         Entreprise entreprise = getEntreprise(entrepriseNom);
@@ -757,7 +779,7 @@ public class EntrepriseManagerLogic {
     }
 
 
-    public void saveEntreprises() {
+    public static void saveEntreprises() {
         // Sauvegarde des entreprises dans le fichier entreprise.yml
         if (entrepriseConfig.contains("entreprises")) {
             entrepriseConfig.set("entreprises", null); // Suppression des anciennes données pour éviter les doublons
@@ -772,10 +794,15 @@ public class EntrepriseManagerLogic {
             entrepriseConfig.set(path + "ville", entreprise.getVille());
             entrepriseConfig.set(path + "type", entreprise.getType());
             entrepriseConfig.set(path + "gerant", entreprise.getGerant());
-            entrepriseConfig.set(path + "employes", new ArrayList<>(entreprise.getEmployes())); // Sauvegarder les employés
             entrepriseConfig.set(path + "solde", entreprise.getSolde());
             entrepriseConfig.set(path + "siret", entreprise.getSiret());
             entrepriseConfig.set(path + "chiffreAffairesTotal", entreprise.getChiffreAffairesTotal());
+
+            // Sauvegarder les employés et leurs primes directement dans la section employes
+            for (String employe : entreprise.getEmployes()) {
+                String employePath = path + "employes." + employe + ".";
+                entrepriseConfig.set(employePath + "prime", entreprise.getPrimePourEmploye(employe)); // Sauvegarde de la prime
+            }
         }
 
         // Sauvegarder le fichier entreprise.yml
@@ -815,6 +842,8 @@ public class EntrepriseManagerLogic {
             plugin.getLogger().severe("Impossible de sauvegarder le fichier des joueurs: " + e.getMessage());
         }
     }
+
+
 
 
 
@@ -908,7 +937,8 @@ public class EntrepriseManagerLogic {
                 FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
 
                 playersConfig.set("players." + joueurNom + "." + entrepriseNom + ".type-entreprise", entreprise.getType());
-
+                // Initialiser la prime à 0 par défaut pour le nouvel employé
+                entreprise.setPrimePourEmploye(joueurNom, 0.0);
                 // Sauvegarder le fichier
                 try {
                     playersConfig.save(playersFile);
@@ -1344,6 +1374,235 @@ public class EntrepriseManagerLogic {
 
         return typesEntreprises; // Retourner la liste des types d'entreprises
     }
+
+
+
+    // Sauvegarder la prime pour un employé dans l'entreprise
+    public void definirPrime(String entrepriseNom, String employeNom, double prime) {
+        Entreprise entreprise = entreprises.get(entrepriseNom);
+        if (entreprise != null) {
+            entreprise.setPrimePourEmploye(employeNom, prime);
+            saveEntreprises();  // Sauvegarder dans le fichier entreprises.yml
+        }
+    }
+
+    // Verser les primes à l'heure du paiement journalier
+    public void payerPrimesJournalières() {
+        for (Entreprise entreprise : entreprises.values()) {
+            for (String employeNom : entreprise.getEmployes()) {
+                double prime = entreprise.getPrimePourEmploye(employeNom);
+                if (prime > 0) {
+                    OfflinePlayer employe = Bukkit.getOfflinePlayer(employeNom);
+                    Player gerant = Bukkit.getPlayer(entreprise.getGerant());
+
+                    // Vérification si l'entreprise a suffisamment d'argent
+                    if (entreprise.getSolde() >= prime) {
+                        // Si l'employé est en ligne, on lui envoie la prime et le message
+                        if (employe.isOnline()) {
+                            // Payer la prime
+                            EntrepriseManager.getEconomy().depositPlayer(employe, prime);
+                            employe.getPlayer().sendMessage(ChatColor.GREEN + "Vous avez reçu une prime de " + prime + " € de l'entreprise " + entreprise.getNom() + ".");
+                        } else {
+                            // Si l'employé est hors ligne, on ajoute un message différé avec le montant
+                            ajouterMessageEmployeDifferre(employe.getName(), "Vous avez reçu une prime de " + prime + " € de l'entreprise " + entreprise.getNom() + " durant votre absence.", entreprise.getNom(), prime);
+
+                            // Payer la prime même s'il est hors ligne
+                            EntrepriseManager.getEconomy().depositPlayer(employe, prime);
+                        }
+
+                        // Envoyer un message au gérant
+                        if (gerant != null && gerant.isOnline()) {
+                            gerant.sendMessage(ChatColor.GREEN + "Votre entreprise " + entreprise.getNom() + " a versé une prime de " + prime + " € à " + employeNom + ".");
+                        } else {
+                            ajouterMessageGerantDifferre(entreprise.getGerant(), "Votre entreprise " + entreprise.getNom() + " a versé une prime de " + prime + " € à " + employeNom + " durant votre absence.", entreprise.getNom(), prime);
+                        }
+
+                        // Déduire la prime du solde de l'entreprise
+                        entreprise.setSolde(entreprise.getSolde() - prime);
+                    } else {
+                        // Si l'entreprise n'a pas assez d'argent, envoyer un message d'erreur
+                        if (employe.isOnline()) {
+                            employe.getPlayer().sendMessage(ChatColor.RED + "Votre entreprise " + entreprise.getNom() + " n'a pas pu vous verser la prime de " + prime + " € car son solde est insuffisant.");
+                        } else {
+                            ajouterMessageEmployeDifferre(employe.getName(), "Votre entreprise " + entreprise.getNom() + " n'a pas pu vous verser la prime de " + prime + " € car son solde est insuffisant.", entreprise.getNom(), prime);
+                        }
+
+                        if (gerant != null && gerant.isOnline()) {
+                            gerant.sendMessage(ChatColor.RED + "Votre entreprise " + entreprise.getNom() + " n'a pas pu verser la prime de " + prime + " € à " + employeNom + " car son solde est insuffisant.");
+                        } else {
+                            ajouterMessageGerantDifferre(entreprise.getGerant(), "Votre entreprise " + entreprise.getNom() + " n'a pas pu verser la prime de " + prime + " € à " + employeNom + " car son solde est insuffisant.", entreprise.getNom(), prime);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+
+
+    // Envoyer un message lorsqu'une prime est définie
+    public void envoyerMessagePrimesDefinie(Player gerant, OfflinePlayer employe, String entrepriseNom, double prime) {
+        String messageGerant = ChatColor.GREEN + "Vous avez défini une prime de " + prime + " € pour " + employe.getName() + " dans l'entreprise " + entrepriseNom + ".";
+        if (gerant != null && gerant.isOnline()) {
+            gerant.sendMessage(messageGerant);
+        } else {
+            ajouterMessageDifferre(gerant.getName(), messageGerant, entrepriseNom, prime);
+        }
+
+        String messageEmploye = ChatColor.GREEN + "Une prime de " + prime + " € vous a été définie par l'entreprise " + entrepriseNom + ".";
+        if (employe.isOnline()) {
+            employe.getPlayer().sendMessage(messageEmploye);
+        } else {
+            ajouterMessageDifferre(employe.getName(), messageEmploye, entrepriseNom, prime);
+        }
+    }
+
+    public void envoyerPrimesDifferrees(Player player) {
+        String playerName = player.getName();
+
+        // Charger le fichier messages.yml
+        File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Vérifier si le joueur a des messages de primes
+        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
+            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
+            if (primesSection != null) {
+                for (String entrepriseNom : primesSection.getKeys(false)) {
+                    double totalPrime = primesSection.getDouble(entrepriseNom);
+                    player.sendMessage(ChatColor.GREEN + "Vous avez reçu un total de " + totalPrime + " € en primes de l'entreprise " + entrepriseNom + " durant votre absence.");
+                }
+            }
+
+            // Supprimer les messages du joueur après les avoir envoyés
+            messagesConfig.set("messages.players." + playerName, null);
+            try {
+                messagesConfig.save(messagesFile);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Impossible de supprimer les messages différés pour le joueur " + playerName);
+            }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Aucune prime différée à afficher.");
+        }
+    }
+
+    public void ajouterMessageDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
+        File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Récupérer les primes actuelles du joueur ou créer une nouvelle section si elle n'existe pas
+        String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
+        double totalPrime = messagesConfig.getDouble(playerPath, 0);
+
+        // Ajouter la prime à la valeur actuelle
+        totalPrime += prime;
+        messagesConfig.set(playerPath, totalPrime);
+
+        try {
+            messagesConfig.save(messagesFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour le joueur " + joueurNom);
+        }
+    }
+//###########################################################
+public void ajouterMessageEmployeDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
+    File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
+    FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+    // Récupérer les primes actuelles du joueur ou créer une nouvelle section si elle n'existe pas
+    String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
+    double totalPrime = messagesConfig.getDouble(playerPath, 0);
+
+    // Ajouter la prime à la valeur actuelle
+    totalPrime += prime;
+    messagesConfig.set(playerPath, totalPrime);
+
+    try {
+        messagesConfig.save(messagesFile);
+    } catch (IOException e) {
+        plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour l'employé " + joueurNom);
+    }
+}
+
+    public void envoyerPrimesDifferreesEmployes(Player player) {
+        String playerName = player.getName();
+
+        // Charger le fichier messagesEmployes.yml
+        File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Vérifier si le joueur a des messages de primes
+        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
+            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
+            if (primesSection != null) {
+                for (String entrepriseNom : primesSection.getKeys(false)) {
+                    double totalPrime = primesSection.getDouble(entrepriseNom);
+                    player.sendMessage(ChatColor.GREEN + "Vous avez reçu un total de " + totalPrime + " € en primes de l'entreprise " + entrepriseNom + " durant votre absence.");
+                }
+            }
+
+            // Supprimer les messages du joueur après les avoir envoyés
+            messagesConfig.set("messages.players." + playerName, null);
+            try {
+                messagesConfig.save(messagesFile);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Impossible de supprimer les messages différés pour l'employé " + playerName);
+            }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Aucune prime différée à afficher.");
+        }
+    }
+    public void ajouterMessageGerantDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
+        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Récupérer les primes actuelles du gérant ou créer une nouvelle section si elle n'existe pas
+        String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
+        double totalPrime = messagesConfig.getDouble(playerPath, 0);
+
+        // Ajouter la prime à la valeur actuelle
+        totalPrime += prime;
+        messagesConfig.set(playerPath, totalPrime);
+
+        try {
+            messagesConfig.save(messagesFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour le gérant " + joueurNom);
+        }
+    }
+
+    public void envoyerPrimesDifferreesGerants(Player player) {
+        String playerName = player.getName();
+
+        // Charger le fichier messagesGerants.yml
+        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Vérifier si le gérant a des messages de primes
+        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
+            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
+            if (primesSection != null) {
+                for (String entrepriseNom : primesSection.getKeys(false)) {
+                    double totalPrime = primesSection.getDouble(entrepriseNom);
+                    player.sendMessage(ChatColor.GREEN + "Votre entreprise " + entrepriseNom + " a versé un total de " + totalPrime + " € en primes durant votre absence.");
+                }
+            }
+
+            // Supprimer les messages du gérant après les avoir envoyés
+            messagesConfig.set("messages.players." + playerName, null);
+            try {
+                messagesConfig.save(messagesFile);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Impossible de supprimer les messages différés pour le gérant " + playerName);
+            }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Aucun message de prime différée à afficher.");
+        }
+    }
+
+
+
     public static class Entreprise {
         private double chiffreAffairesTotal = 0;
         private String nom;
@@ -1353,6 +1612,8 @@ public class EntrepriseManagerLogic {
         private Set<String> employes;
         private double solde;
         private EntrepriseVirtualChest virtualChest;
+        private Map<String, Double> primes;  // Ajouter une Map pour stocker les primes des employés
+
 
         public Entreprise(String nom, String ville, String type, String gerant, Set<String> employes, double solde, String siret) {
             this.nom = nom;
@@ -1364,6 +1625,16 @@ public class EntrepriseManagerLogic {
             this.chiffreAffairesTotal = 0.0;
             this.siret = siret;
             this.virtualChest = new EntrepriseVirtualChest(this.nom);
+            this.primes = new HashMap<>();  // Initialiser la Map des primes
+
+        }
+
+        public double getPrimePourEmploye(String employeNom) {
+            return primes.getOrDefault(employeNom, 0.0);  // Retourne 0.0 si aucune prime n'est définie
+        }
+
+        public void setPrimePourEmploye(String employeNom, double prime) {
+            primes.put(employeNom, prime);
         }
 
         public Set<String> getGerantsAvecEntreprises() {
@@ -1410,12 +1681,14 @@ public class EntrepriseManagerLogic {
             double taxes = gainJournalier * (pourcentageTaxes / 100.0);
             double gainNet = gainJournalier - taxes;
 
-            // Mise à jour du solde
+            // Mise à jour du solde de l'entreprise
             solde += gainNet;
-            // Assurez-vous que les modifications du solde ET du chiffre d'affaires sont sauvegardées
+
+            // Sauvegarder le solde
             saveSolde();
-            // Notez que saveSolde() devrait idéalement appeler saveEntreprises() ou une logique similaire pour assurer la persistance de toutes les données
+            saveEntreprises();
         }
+
 
 
         // Méthode pour enregistrer le solde de l'entreprise dans le fichier de configuration
