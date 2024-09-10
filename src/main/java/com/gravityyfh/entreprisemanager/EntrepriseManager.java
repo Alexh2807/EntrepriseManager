@@ -15,6 +15,7 @@ public class EntrepriseManager extends JavaPlugin {
     private EntrepriseGUI entrepriseGUI;
     private static Economy econ = null; // Instance d'économie
 
+
     @Override
     public void onEnable() {
         instance = this; // Initialisation de l'instance singleton
@@ -42,7 +43,7 @@ public class EntrepriseManager extends JavaPlugin {
         getServer().getPluginManager().registerEvents(eventListener, this);
         getServer().getPluginManager().registerEvents(entrepriseGUI, this);
         entrepriseLogic.chargerBlocsAutorises();
-        getServer().getPluginManager().registerEvents(new TreeCutListener(entrepriseLogic), this);
+        getServer().getPluginManager().registerEvents(new TreeCutListener(new EntrepriseManagerLogic(this)), this);
         // Configuration des commandes
         setupCommands();
 

@@ -11,44 +11,37 @@ import pl.norbit.treecuter.api.listeners.TreeCutEvent;
 import java.util.Set;
 import java.util.UUID;
 
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 public class TreeCutListener implements Listener {
-    private EntrepriseManagerLogic entrepriseLogic; // Assurez-vous de l'initialiser correctement
 
-    public TreeCutListener(EntrepriseManagerLogic entrepriseLogic) {
-        this.entrepriseLogic = entrepriseLogic;
+    private EntrepriseManagerLogic entrepriseManager;
+
+    // Injectez votre logique d'entreprise dans le listener
+    public TreeCutListener(EntrepriseManagerLogic entrepriseManager) {
+        this.entrepriseManager = entrepriseManager;
     }
 
     @EventHandler
-    public void onTreeCut(TreeCutEvent e) {
-        Player player = e.getPlayer();
+    public void onTreeCut(TreeCutEvent event) {
+        Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
-        Set<Block> blocks = e.getBlocks();
+        Set<Block> blocks = event.getBlocks();
 
-        // Vérifier chaque bloc pour voir s'il est dans la liste autorisée
+        // Vérifiez si le joueur a le droit de couper des arbres dans votre système
+        boolean isAllowed = true;
+
+        // Vérifiez pour chaque bloc si l'action est autorisée
         for (Block block : blocks) {
-            Material blockType = block.getType();
-            if (!isActionAllowedForPlayer(blockType, playerUUID)) {
-                e.setCancelled(true);
-                break; // Pas besoin de vérifier les autres blocs une fois qu'un bloc est refusé
+            if (!entrepriseManager.isActionAllowedForPlayer(block.getType(), playerUUID)) {
+                isAllowed = false;
+                break;
             }
         }
-    }
 
-    private boolean isActionAllowedForPlayer(Material blockType, UUID playerUUID) {
-        String typeEntreprise = entrepriseLogic.getTypeEntrepriseDuJoueur(playerUUID.toString());
-        // Ici, utilisez getCategorieActivite de votre EntrepriseManagerLogic si elle fait déjà ce travail
-        String categorieActivite = entrepriseLogic.getCategorieActivite(blockType);
-
-        if (categorieActivite != null && categorieActivite.equals("Deforestation")) {
-            if (typeEntreprise != null && typeEntreprise.equals(categorieActivite)) {
-                return true; // Le joueur peut couper car il appartient à une entreprise de déforestation
-            }
-
-            // Vérifier la limite pour les non-membres si le joueur n'appartient à aucune entreprise ou n'a pas les permissions
-            return entrepriseLogic.checkDailyLimitForNonMembers(playerUUID, categorieActivite);
+        // Si le joueur n'est pas autorisé à couper l'arbre, annulez l'événement
+        if (!isAllowed) {
+            event.setCancelled(true);
         }
-
-        // Si la catégorie d'activité n'est pas déforestation ou n'est pas déterminée, autoriser par défaut
-        return true;
     }
 }

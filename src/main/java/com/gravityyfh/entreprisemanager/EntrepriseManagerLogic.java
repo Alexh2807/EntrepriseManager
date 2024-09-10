@@ -54,23 +54,27 @@ public class EntrepriseManagerLogic {
     }
 
     public boolean isActionAllowedForPlayer(Material blockType, UUID playerUUID) {
-        String joueurNom = Bukkit.getPlayer(playerUUID).getName();
+        Player player = Bukkit.getPlayer(playerUUID);
+        if (player == null) {
+            return false; // Si le joueur n'existe pas ou n'est pas en ligne
+        }
+        String joueurNom = player.getName();
 
-        // Récupérer les entreprises du joueur
+        // Récupérer les entreprises du joueur depuis players.yml
         File playersFile = new File(plugin.getDataFolder(), "players.yml");
         FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
         ConfigurationSection entreprisesSection = playersConfig.getConfigurationSection("players." + joueurNom);
 
-        // Catégorie d'activité liée au type de bloc cassé
+        // Déterminer la catégorie d'activité liée au type de bloc cassé (Ex: "Deforestation")
         String categorieActivite = getCategorieActivite(blockType);
 
-        // Debug: Afficher les informations sur l'entreprise
+        // Debug: Afficher les informations sur l'entreprise et la catégorie d'activité
         System.out.println("[DEBUG] Catégorie d'activité du bloc: " + categorieActivite);
 
+        // Si aucune catégorie d'activité n'est trouvée pour ce type de bloc, autoriser l'action par défaut
         if (categorieActivite == null) {
             System.out.println("[DEBUG] Aucune catégorie d'activité trouvée pour ce bloc.");
-            return true; // Autoriser par défaut
+            return true; // Par défaut, autoriser si le bloc n'est pas spécifié dans le fichier de config
         }
 
         // Si le joueur est dans une entreprise autorisant cette activité, autoriser l'action
@@ -79,16 +83,25 @@ public class EntrepriseManagerLogic {
                 String typeEntreprise = playersConfig.getString("players." + joueurNom + "." + entrepriseNom + ".type-entreprise");
                 if (typeEntreprise != null && typeEntreprise.equals(categorieActivite)) {
                     System.out.println("[DEBUG] Le joueur fait partie d'une entreprise autorisant cette activité.");
-                    return true;
+                    return true; // Le joueur est autorisé car il fait partie d'une entreprise liée à cette activité
                 }
             }
         }
 
-        // Vérification de la limite pour les non-membres si le joueur n'appartient pas à une entreprise autorisée
+        // Si le joueur n'est pas dans une entreprise autorisée, vérifier la limite journalière pour non-membres
         boolean actionAllowed = checkDailyLimitForNonMembers(playerUUID, categorieActivite);
         System.out.println("[DEBUG] Action autorisée en fonction de la limite pour non-membres ? " + actionAllowed);
-        return actionAllowed;
+
+        // Si le joueur dépasse sa limite, afficher un message et bloquer l'action
+        if (!actionAllowed) {
+            String messageErreur = plugin.getConfig().getStringList("types-entreprise." + categorieActivite + ".message-erreur")
+                    .stream().collect(Collectors.joining("\n"));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', messageErreur));
+        }
+
+        return actionAllowed; // Autoriser ou bloquer en fonction de la limite journalière
     }
+
 
 
     public List<String> getEntreprisesEmployeDuJoueur(String joueurNom) {
@@ -1600,6 +1613,8 @@ public void ajouterMessageEmployeDifferre(String joueurNom, String message, Stri
             player.sendMessage(ChatColor.YELLOW + "Aucun message de prime différée à afficher.");
         }
     }
+
+
 
 
 
