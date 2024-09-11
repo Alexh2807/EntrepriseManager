@@ -293,6 +293,21 @@ public class EntrepriseManagerLogic {
         return entreprisesInfo;
     }
 
+    public Set<String> getEntreprisesDuJoueur(String joueurNom) {
+        Set<String> entreprisesJoueur = new HashSet<>();
+
+        // Parcourir toutes les entreprises
+        for (Entreprise entreprise : this.entreprises.values()) {
+            if (entreprise.getGerant().equalsIgnoreCase(joueurNom) || entreprise.getEmployes().contains(joueurNom)) {
+                entreprisesJoueur.add(entreprise.getNom());
+            }
+        }
+
+        return entreprisesJoueur;
+    }
+
+
+
 
     public List<Entreprise> getEntrepriseDuGerant(String gerantNom) {
         // Créez une liste pour stocker les entreprises du gérant
@@ -1126,13 +1141,6 @@ public class EntrepriseManagerLogic {
             }
         }
         return count;
-    }
-
-    // Exemple de vérification du nombre d'entreprises où un joueur travaille déjà
-    public boolean peutTravaillerPourUneAutreEntreprise(String employe) {
-        int nombreEntreprisesOuEmployeTravaille = compterEntreprisesOuEmployeTravaille(employe);
-        int maxTravailJoueur = plugin.getConfig().getInt("finance.max-travail-joueur");
-        return nombreEntreprisesOuEmployeTravaille < maxTravailJoueur;
     }
 
     // Exemple de vérification du nombre maximum d'employés dans une entreprise

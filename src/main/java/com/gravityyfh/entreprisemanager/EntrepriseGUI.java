@@ -334,8 +334,12 @@ public class EntrepriseGUI implements Listener {
             case GOLD_INGOT:
                 openWithdrawMoneyMenu(player, entrepriseNom);
                 break;
+            case BOOK:  // Nouveau cas pour afficher les infos de l'entreprise
+                displayEntrepriseInfo(player, entreprise);
+                break;
         }
     }
+
 
 
 
@@ -673,12 +677,14 @@ public class EntrepriseGUI implements Listener {
         inv.setItem(14, createMenuItem(Material.PAPER, ChatColor.GREEN + "Modifier le nom"));
         inv.setItem(16, createMenuItem(Material.BARRIER, ChatColor.RED + "Supprimer l'entreprise"));
         inv.setItem(20, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Retirer de l'argent"));
-        inv.setItem(22, createMenuItem(Material.CHEST, ChatColor.GOLD + "Récupérer les items")); // Nouveau bouton
-        inv.setItem(24, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+        inv.setItem(22, createMenuItem(Material.CHEST, ChatColor.GOLD + "Récupérer les items"));
+        inv.setItem(24, createMenuItem(Material.BOOK, ChatColor.AQUA + "Informations de l'entreprise")); // Nouveau bouton pour les infos
+        inv.setItem(26, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
 
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
 
     private void handleRetrieveItemsClick(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
@@ -744,22 +750,33 @@ public class EntrepriseGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Recruter un salarié");
 
-        // Récupérer le gérant de l'entreprise pour le filtrer de la liste
+        // Récupérer l'entreprise sélectionnée
         EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+
+        // Récupérer le gérant de l'entreprise pour le filtrer de la liste
         String gerantName = entreprise.getGerant();
 
-        // Ajoutez les joueurs à recruter dans l'inventaire, en filtrant le gérant
+        // Récupérer les joueurs à proximité et les filtrer en fonction de la limite de travail
         Collection<String> nearbyPlayers = entrepriseLogic.getNearbyPlayers(player, plugin.getConfig().getInt("invitation.distance-max"));
         for (String playerName : nearbyPlayers) {
             if (!playerName.equals(gerantName)) {  // Exclure le gérant
+
+                // Vérifier si le joueur à inviter a atteint la limite du nombre d'entreprises dans lesquelles il peut travailler
+                int maxTravailJoueur = plugin.getConfig().getInt("finance.max-travail-joueur", 1);
+                int entreprisesActuelles = entrepriseLogic.getEntreprisesDuJoueur(playerName).size();
+
+                // Ajouter le joueur à l'inventaire de sélection s'il respecte les conditions
                 inv.addItem(createPlayerHead(playerName));
             }
         }
+
         inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
 
         previousInventories.put(player, player.getOpenInventory().getTopInventory());
         player.openInventory(inv);
     }
+
+
 
     private void openManageEmployeesMenu(Player player, String entrepriseNom) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Gérer les employés");
@@ -974,9 +991,19 @@ public class EntrepriseGUI implements Listener {
             return;
         }
 
-        // Si le joueur n'est pas déjà employé, ouvrir la confirmation de recrutement
+        // Vérifier si le joueur dépasse la limite d'entreprises dans lesquelles il peut travailler
+        int maxTravailJoueur = plugin.getConfig().getInt("finance.max-travail-joueur", 1);
+        int nbEntreprisesDuJoueur = entrepriseLogic.getEntreprisesDuJoueur(playerName).size();
+
+        if (nbEntreprisesDuJoueur >= maxTravailJoueur) {
+            player.sendMessage(ChatColor.RED + "Ce joueur ne peut pas rejoindre plus d'entreprises. Il a déjà atteint sa limite.");
+            return;
+        }
+
+        // Si le joueur n'est pas déjà employé et qu'il n'a pas dépassé la limite, ouvrir la confirmation de recrutement
         openRecruitConfirmationMenu(player, playerName, entrepriseNom);
     }
+
 
 
     private void handleManageEmployeesClick(InventoryClickEvent event, Player player, ItemStack clickedItem) {

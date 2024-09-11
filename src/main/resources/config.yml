@@ -50,8 +50,8 @@ types-entreprise:
 finance:
   gain-par-employe: 1000  # Montant gagné par jour pour chaque employé
   max-entreprises-par-gerant: 1  # Nombre maximum d'entreprises qu'un joueur peut posséder en tant que gérant
-  max-employer-par-entreprise: 10  # Nombre maximum d'employés qu'une entreprise peut avoir
-  max-travail-joueur: 2  # Nombre maximum d'entreprises pour lesquelles un joueur peut travailler simultanément
+  max-employer-par-entreprise: 1  # Nombre maximum d'employés qu'une entreprise peut avoir
+  max-travail-joueur: 1  # Nombre maximum d'entreprises pour lesquelles un joueur peut travailler simultanément
   pourcentage-taxes: 15  # Pourcentage de taxes lors du retrait d'argent de l'entreprise
   heure-paiement: 20  # Heure du jour pour le paiement journalier (format 24h)
 
