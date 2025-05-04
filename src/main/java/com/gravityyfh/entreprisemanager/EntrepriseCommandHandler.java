@@ -108,6 +108,13 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                     entrepriseLogic.renameEntreprise(player, entrepriseNom, nouveauNom);
                 }
                 break;
+            case "validercreation":
+                entrepriseLogic.validerCreationEntreprise(player);
+                break;
+            case "annulercreation":
+                entrepriseLogic.refuserCreationEntreprise(player);
+                break;
+
             default:
                 player.sendMessage(ChatColor.RED + "Commande inconnue.");
                 return false;
@@ -148,34 +155,46 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         String gerant = args[1];
         String type = args[2];
 
-        // Vérifier si le joueur est le maire de sa ville
+        // Vérifier si le joueur est maire
         if (!entrepriseLogic.estMaire(player)) {
             player.sendMessage(ChatColor.RED + "Vous devez être le maire de votre ville pour créer une entreprise.");
             return;
         }
-        // Vérifier si le gérant est membre de la ville du maire
-        if (!entrepriseLogic.estMembreDeLaVille(gerant, entrepriseLogic.getTownNameFromPlayer(player))) {
-            player.sendMessage(ChatColor.RED + "Le gérant spécifié doit être membre de votre ville.");
-            return;
-        }
-        // Vérifier si le gérant peut avoir une autre entreprise
-        Player gerantPlayer = Bukkit.getPlayerExact(gerant);
-        if (gerantPlayer == null || !entrepriseLogic.peutCreerEntreprise(gerantPlayer)) {
-            player.sendMessage(ChatColor.RED + "Le gérant a déjà atteint le nombre maximum d'entreprises autorisées ou n'est pas en ligne.");
-            return;
-        }
 
-        // Vérifier si le type d'entreprise est valide
+        // Vérifier si le type est valide
         if (!entrepriseLogic.getTypesEntreprise().contains(type)) {
             player.sendMessage(ChatColor.RED + "Type d'entreprise invalide.");
             return;
         }
 
-        // Créer l'entreprise
+        // Vérifier si le gérant est membre de la ville
+        String ville = entrepriseLogic.getTownNameFromPlayer(player);
+        if (!entrepriseLogic.estMembreDeLaVille(gerant, ville)) {
+            player.sendMessage(ChatColor.RED + "Le gérant spécifié doit être membre de votre ville.");
+            return;
+        }
+
+        // Vérifier si le joueur est en ligne
+        Player gerantPlayer = Bukkit.getPlayerExact(gerant);
+        if (gerantPlayer == null || !gerantPlayer.isOnline()) {
+            player.sendMessage(ChatColor.RED + "Le gérant doit être en ligne pour signer les papiers.");
+            return;
+        }
+
+        // Vérifier s’il peut avoir une entreprise
+        if (!entrepriseLogic.peutCreerEntreprise(gerantPlayer)) {
+            player.sendMessage(ChatColor.RED + "Le gérant a déjà atteint la limite d’entreprises.");
+            return;
+        }
+
+        // Générer un nom et SIRET
         String nomEntreprise = "Entreprise_" + UUID.randomUUID().toString().substring(0, 5);
         String siret = entrepriseLogic.generateSiret();
-        entrepriseLogic.declareEntreprise(player, entrepriseLogic.getTownNameFromPlayer(player), nomEntreprise, type, gerant, siret);
+
+        // Proposer la création (demande à signer)
+        entrepriseLogic.proposerCreationEntreprise(player, gerantPlayer, type, ville, nomEntreprise, siret);
     }
+
     private HashMap<UUID, String> entrepriseSelectionneePourRetrait = new HashMap<>();
 
     private void handleWithdrawCommand(Player player) {

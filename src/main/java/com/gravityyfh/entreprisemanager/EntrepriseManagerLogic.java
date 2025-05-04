@@ -47,6 +47,8 @@ public class EntrepriseManagerLogic {
     private Map<String, Set<Material>> blocsAutorisesParTypeEntreprise = new HashMap<>();
     private Map<UUID, String> joueursEntreprises = new HashMap<>();
     private Map<String, String> invitations = new HashMap<>();
+    private final Map<UUID, DemandeCreation> demandesEnAttente = new HashMap<>();
+
 
     public Entreprise getEntreprise(String nomEntreprise) {
         return entreprises.get(nomEntreprise);
@@ -1428,6 +1430,114 @@ public void ajouterMessageEmployeDifferre(String joueurNom, String message, Stri
             player.sendMessage(ChatColor.YELLOW + "Aucun message de prime différée à afficher.");
         }
     }
+
+    public void proposerCreationEntreprise(Player maire, Player gerant, String type, String ville, String nomEntreprise, String siret) {
+        double cout = plugin.getConfig().getDouble("types-entreprise." + type + ".cout-creation", 0.0);
+        double distanceMax = plugin.getConfig().getDouble("invitation.distance-max", 10.0);
+
+        if (maire.getLocation().distance(gerant.getLocation()) > distanceMax) {
+            maire.sendMessage(ChatColor.RED + "Le gérant spécifié est trop éloigné pour signer les papiers et effectuer le paiement de création de l'entreprise.");
+            return;
+        }
+
+        DemandeCreation demande = new DemandeCreation(maire, gerant, type, ville, siret, nomEntreprise, cout, 60000);
+        demandesEnAttente.put(gerant.getUniqueId(), demande);
+
+        // --- MAIRE ---
+        maire.sendMessage(ChatColor.GOLD + "==============================");
+        maire.sendMessage(ChatColor.YELLOW + "    PROPOSITION DE CRÉATION");
+        maire.sendMessage(ChatColor.GOLD + "==============================");
+        maire.sendMessage(ChatColor.AQUA + "Type d'entreprise : " + ChatColor.WHITE + type);
+        maire.sendMessage(ChatColor.AQUA + "Gérant pressenti  : " + ChatColor.WHITE + gerant.getName());
+        maire.sendMessage(ChatColor.AQUA + "Coût de création  : " + ChatColor.GREEN + String.format("%.2f€", cout));
+        maire.sendMessage(ChatColor.AQUA + "Nom prévu         : " + ChatColor.WHITE + nomEntreprise);
+        maire.sendMessage(ChatColor.AQUA + "SIRET attribué    : " + ChatColor.WHITE + siret);
+        maire.sendMessage(ChatColor.GRAY + "Le contrat a été envoyé à " + gerant.getName() + " pour validation.");
+        maire.sendMessage(ChatColor.GRAY + "Délai maximum pour signature : 60 secondes.");
+        maire.sendMessage(ChatColor.GOLD + "==============================");
+
+        // --- GÉRANT ---
+        gerant.sendMessage(ChatColor.GOLD + "==============================");
+        gerant.sendMessage(ChatColor.YELLOW + "    CONTRAT DE GÉRANCE");
+        gerant.sendMessage(ChatColor.GOLD + "==============================");
+        gerant.sendMessage(ChatColor.AQUA + "Ville de rattachement : " + ChatColor.WHITE + ville);
+        gerant.sendMessage(ChatColor.AQUA + "Type d'entreprise     : " + ChatColor.WHITE + type);
+        gerant.sendMessage(ChatColor.AQUA + "Nom prévu             : " + ChatColor.WHITE + nomEntreprise);
+        gerant.sendMessage(ChatColor.AQUA + "SIRET                 : " + ChatColor.WHITE + siret);
+        gerant.sendMessage(ChatColor.AQUA + "Coût à régler         : " + ChatColor.GREEN + String.format("%.2f€", cout));
+        gerant.sendMessage(ChatColor.YELLOW + "Vous disposez de 60 secondes pour accepter ou refuser ce contrat.");
+        gerant.sendMessage(ChatColor.RED + "Passé ce délai, l'offre sera automatiquement refusée.");
+        gerant.sendMessage(ChatColor.GOLD + "==============================");
+
+        TextComponent msg = new TextComponent(ChatColor.YELLOW + "Souhaitez-vous accepter ce contrat de gérance ? ");
+        TextComponent accept = new TextComponent(ChatColor.GREEN + "[Accepter]");
+        accept.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise validercreation"));
+        accept.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Signer et payer " + cout + "€").create()));
+
+        TextComponent refuse = new TextComponent(ChatColor.RED + " [Refuser]");
+        refuse.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise annulercreation"));
+        refuse.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Refuser l'offre").create()));
+
+        msg.addExtra(accept);
+        msg.addExtra(refuse);
+        gerant.spigot().sendMessage(msg);
+
+        // ⏳ Expiration automatique après 60 secondes
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (demandesEnAttente.containsKey(gerant.getUniqueId())) {
+                demandesEnAttente.remove(gerant.getUniqueId());
+                gerant.sendMessage(ChatColor.RED + "Le contrat a expiré. Vous n'avez pas signé à temps.");
+                maire.sendMessage(ChatColor.RED + "La création d'entreprise a échoué : " + gerant.getName() + " n'a pas signé à temps.");
+            }
+        }, 20 * 60); // 60 secondes
+    }
+
+
+    public void validerCreationEntreprise(Player gerant) {
+        UUID uuid = gerant.getUniqueId();
+
+        if (!demandesEnAttente.containsKey(uuid)) {
+            gerant.sendMessage(ChatColor.RED + "Aucune demande de création d'entreprise en attente.");
+            return;
+        }
+
+        DemandeCreation demande = demandesEnAttente.remove(uuid);
+
+        if (demande.isExpired()) {
+            gerant.sendMessage(ChatColor.RED + "La demande a expiré.");
+            demande.maire.sendMessage(ChatColor.RED + "La demande pour " + gerant.getName() + " a expiré.");
+            return;
+        }
+
+        if (!EntrepriseManager.getEconomy().has(gerant, demande.cout)) {
+            gerant.sendMessage(ChatColor.RED + "Vous n’avez pas assez d’argent (" + demande.cout + "€ requis).");
+            demande.maire.sendMessage(ChatColor.RED + "La création d’entreprise a échoué : fonds insuffisants.");
+            return;
+        }
+
+        // Retirer argent
+        EntrepriseManager.getEconomy().withdrawPlayer(gerant, demande.cout);
+
+        // Créer l’entreprise
+        declareEntreprise(demande.maire, demande.ville, demande.nomEntreprise, demande.type, demande.gerant.getName(), demande.siret);
+
+        gerant.sendMessage(ChatColor.GREEN + "Vous avez accepté la création de l'entreprise " + demande.nomEntreprise + " !");
+        demande.maire.sendMessage(ChatColor.GREEN + gerant.getName() + " a accepté et payé la création de l’entreprise " + demande.nomEntreprise + ".");
+    }
+
+    public void refuserCreationEntreprise(Player gerant) {
+        UUID uuid = gerant.getUniqueId();
+
+        if (!demandesEnAttente.containsKey(uuid)) {
+            gerant.sendMessage(ChatColor.RED + "Aucune demande en attente.");
+            return;
+        }
+
+        DemandeCreation demande = demandesEnAttente.remove(uuid);
+        gerant.sendMessage(ChatColor.RED + "Vous avez refusé la création de l’entreprise.");
+        demande.maire.sendMessage(ChatColor.RED + gerant.getName() + " a refusé la création de l’entreprise.");
+    }
+
 
 
 

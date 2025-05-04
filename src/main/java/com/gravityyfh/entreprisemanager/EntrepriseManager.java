@@ -1,101 +1,79 @@
 package com.gravityyfh.entreprisemanager;
 
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 
-public class EntrepriseManager extends JavaPlugin {
+public class EntrepriseManager extends JavaPlugin implements Listener {
 
-    private static EntrepriseManager instance; // Singleton instance pour faciliter l'accès depuis d'autres classes
+    private static EntrepriseManager instance;
     private EntrepriseManagerLogic entrepriseLogic;
     private ChatListener chatListener;
     private EntrepriseGUI entrepriseGUI;
-    private static Economy econ = null; // Instance d'économie
-
+    private static Economy econ = null;
 
     @Override
     public void onEnable() {
-        instance = this; // Initialisation de l'instance singleton
-        getLogger().info("EntrepriseManager activé !");
+        instance = this;
+        getLogger().info("✅ Chargement du plugin EntrepriseManager...");
 
-        // Assurez-vous que Vault est présent
+        // Vérification de Vault
         if (!setupEconomy()) {
-            getLogger().severe("Vault est nécessaire pour ce plugin, mais il n'a pas été trouvé !");
+            getLogger().severe("❌ Vault est requis pour EntrepriseManager !");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-        // Assurez-vous que le dossier de configuration existe et sauvegardez la configuration par défaut
-        if (!getDataFolder().exists()) {
-            getDataFolder().mkdir();
-        }
+        // Sauvegarde de la configuration par défaut
         saveDefaultConfig();
 
-        // Initialisation de la logique principale du plugin et des écouteurs d'événements
+        // Initialisation logique + GUI + Events
         entrepriseLogic = new EntrepriseManagerLogic(this);
-        entrepriseGUI = new EntrepriseGUI(this, entrepriseLogic); // Initialiser l'interface GUI
-        chatListener = new ChatListener(this, entrepriseGUI); // Passez 'entrepriseGUI' pour accéder à EntrepriseManager depuis ChatListener
-        EventListener eventListener = new EventListener(this, entrepriseLogic);
-        getServer().getPluginManager().registerEvents(chatListener, this);
-        getServer().getPluginManager().registerEvents(eventListener, this);
-        getServer().getPluginManager().registerEvents(entrepriseGUI, this);
-        entrepriseLogic.chargerBlocsAutorises();
-        getServer().getPluginManager().registerEvents(new TreeCutListener(new EntrepriseManagerLogic(this)), this);
-        // Configuration des commandes
+        entrepriseGUI = new EntrepriseGUI(this, entrepriseLogic);
+        chatListener = new ChatListener(this, entrepriseGUI);
+
+        // Enregistrement des listeners
+        registerEvents();
+        getServer().getPluginManager().registerEvents(this, this); // Pour capter PlayerCommandPreprocessEvent
+
+        // Enregistrement des commandes
         setupCommands();
 
-        // Charger les entreprises et leurs coffres virtuels
-        entrepriseLogic.reloadEntreprises(); // Charger les entreprises depuis le fichier
+        // Chargement des entreprises
+        entrepriseLogic.reloadEntreprises();
 
-        // Charger les coffres virtuels pour chaque entreprise
-        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
-        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
-
-        // Parcours de chaque entreprise pour charger son coffre virtuel
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
-        }
-
-        // Planifier les paiements journaliers selon la configuration
+        // Planification des paiements journaliers
         entrepriseLogic.planifierPaiements();
 
-        getLogger().info("EntrepriseManager est maintenant actif.");
+        getLogger().info("✅ Plugin EntrepriseManager activé avec succès !");
     }
 
     @Override
     public void onDisable() {
-        // Sauvegarde des entreprises et autres données si nécessaire
         entrepriseLogic.saveEntreprises();
+        saveVirtualChests();
+        getLogger().info("🛑 Plugin EntrepriseManager désactivé et les données ont été sauvegardées.");
+    }
 
-        // Sauvegarder les coffres virtuels dans le fichier de configuration entreprise.yml
-        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
-        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
-
-        // Parcours de chaque entreprise pour sauvegarder son coffre virtuel
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
-        }
-
-        try {
-            entrepriseConfig.save(entrepriseFile); // Sauvegarder le fichier après avoir mis à jour les coffres virtuels
-        } catch (Exception e) {
-            getLogger().severe("Erreur lors de la sauvegarde des coffres virtuels : " + e.getMessage());
-        }
-
-        getLogger().info("EntrepriseManager désactivé. Données sauvegardées.");
+    private void registerEvents() {
+        getServer().getPluginManager().registerEvents(chatListener, this);
+        getServer().getPluginManager().registerEvents(new EventListener(this, entrepriseLogic), this);
+        getServer().getPluginManager().registerEvents(entrepriseGUI, this);
+        getServer().getPluginManager().registerEvents(new TreeCutListener(entrepriseLogic), this);
     }
 
     private void setupCommands() {
-        // Initialisation et enregistrement du gestionnaire de commandes
         EntrepriseCommandHandler commandHandler = new EntrepriseCommandHandler(entrepriseLogic, entrepriseGUI);
         getCommand("entreprise").setExecutor(commandHandler);
-
-        // Configuration du compléteur d'onglet pour la commande
-        EntrepriseTabCompleter tabCompleter = new EntrepriseTabCompleter(entrepriseLogic);
-        getCommand("entreprise").setTabCompleter(tabCompleter);
+        getCommand("entreprise").setTabCompleter(new EntrepriseTabCompleter(entrepriseLogic));
     }
 
     private boolean setupEconomy() {
@@ -103,24 +81,48 @@ public class EntrepriseManager extends JavaPlugin {
             return false;
         }
         RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) {
-            return false;
-        }
+        if (rsp == null) return false;
         econ = rsp.getProvider();
         return econ != null;
     }
 
-    public static Economy getEconomy() {
-        return econ;
+    private void saveVirtualChests() {
+        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
+        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
+
+        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+            String path = "entreprises." + entreprise.getNom();
+            // TODO: sauvegarder les données du coffre ici
+        }
+
+        try {
+            entrepriseConfig.save(entrepriseFile);
+        } catch (Exception e) {
+            getLogger().severe("❌ Erreur lors de la sauvegarde des coffres virtuels : " + e.getMessage());
+        }
     }
 
     public void reloadPlugin() {
-        reloadConfig(); // Recharge le fichier config.yml
-        entrepriseLogic.reloadEntreprises(); // Recharger les entreprises depuis le fichier
-        getLogger().info("Le plugin EntrepriseManager a été rechargé.");
+        reloadConfig();
+        entrepriseLogic.reloadEntreprises();
+        getLogger().info("🔄 Plugin EntrepriseManager rechargé.");
     }
 
-    // Getters pour accéder aux instances depuis d'autres parties du plugin
+    @EventHandler
+    public void onCommandPreprocess(PlayerCommandPreprocessEvent event) {
+        String message = event.getMessage().toLowerCase();
+        Player player = event.getPlayer();
+
+        if (message.startsWith("/qs create") || message.startsWith("/quickshop create")) {
+            boolean estGerant = entrepriseLogic.getEntrepriseDuGerant(player.getName()).size() > 0;
+
+            if (!estGerant) {
+                player.sendMessage(ChatColor.RED + "❌ Seuls les gérants d'une entreprise peuvent créer un shop.");
+                event.setCancelled(true);
+            }
+        }
+    }
+
     public static EntrepriseManager getInstance() {
         return instance;
     }
@@ -131,5 +133,9 @@ public class EntrepriseManager extends JavaPlugin {
 
     public ChatListener getChatListener() {
         return chatListener;
+    }
+
+    public static Economy getEconomy() {
+        return econ;
     }
 }

@@ -2,6 +2,10 @@ name: EntrepriseManager
 version: '${project.version}'
 main: com.gravityyfh.entreprisemanager.EntrepriseManager
 api-version: 1.20
+
+softdepend: [QuickShop]
+
+
 commands:
   entreprise:
     description: Commande principale de l'EntrepriseManager, inclut les fonctionnalités pour les joueurs et les administrateurs

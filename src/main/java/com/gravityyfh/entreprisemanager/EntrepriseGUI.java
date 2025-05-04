@@ -402,6 +402,9 @@ public class EntrepriseGUI implements Listener {
             case BOOK:
                 openListTownsMenu(player);
                 break;
+            case CHEST:  // <<== AJOUTER CE BLOC
+                openMyEntreprisesMenu(player);
+                break;
             case EMERALD:
                 if (player.hasPermission("entreprisemanager.admin")) {
                     openAdminMenu(player);
@@ -411,6 +414,7 @@ public class EntrepriseGUI implements Listener {
                 break;
         }
     }
+
 
     private void openCreateEntrepriseMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Créer une entreprise");
