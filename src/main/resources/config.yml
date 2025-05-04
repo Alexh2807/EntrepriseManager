@@ -13,10 +13,7 @@ types-entreprise:
       - "&4ou"
       - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
     limite-non-membre-par-heure: 3
-    paiement-ressources:
-      STONE: 1       # Prix par unité de STONE
-      COAL_ORE: 10   # Prix par unité de COAL_ORE
-      IRON_ORE: 20   # Prix par unité de IRON_ORE
+
 
   Agriculture:
     blocs-autorisés:
@@ -28,9 +25,7 @@ types-entreprise:
       - "&4ou"
       - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
     limite-non-membre-par-heure: 3
-    paiement-ressources:
-      WHEAT: 5       # Prix par unité de WHEAT
-      CARROTS: 4     # Prix par unité de CARROTS
+
 
   Deforestation:
     blocs-autorisés:
@@ -42,9 +37,7 @@ types-entreprise:
       - "&4ou"
       - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
     limite-non-membre-par-heure: 3
-    paiement-ressources:
-      OAK_LOG: 8     # Prix par unité de OAK_LOG
-      SPRUCE_LOG: 8  # Prix par unité de SPRUCE_LOG
+
 
 # Configuration financière
 finance:

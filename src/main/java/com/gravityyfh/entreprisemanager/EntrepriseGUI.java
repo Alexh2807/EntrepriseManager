@@ -90,11 +90,6 @@ public class EntrepriseGUI implements Listener {
 
         String title = event.getView().getTitle();
 
-        // Gérer les interactions dans le coffre de l'entreprise
-        if (title.startsWith(ChatColor.DARK_BLUE + "Coffre: ")) {
-            handleVirtualChestInteraction(event, player, title);
-            return;
-        }
 
         // Bloquer l'interaction pour tous les autres menus sauf le coffre de l'entreprise
         if (title.startsWith(ChatColor.DARK_BLUE.toString()) || title.startsWith(ChatColor.BLUE.toString())) {
@@ -165,129 +160,6 @@ public class EntrepriseGUI implements Listener {
     }
 
 
-    private void handleVirtualChestInteraction(InventoryClickEvent event, Player player, String title) {
-        Inventory clickedInventory = event.getClickedInventory();
-        Inventory topInventory = player.getOpenInventory().getTopInventory();
-
-        // Vérifie si l'inventaire cliqué est le coffre virtuel de l'entreprise
-        if (topInventory != null && topInventory.equals(clickedInventory)) {
-            ItemStack clickedItem = event.getCurrentItem();
-            if (clickedItem == null) return;
-
-            // Empêcher le déplacement du bouton "Valider"
-            if (event.getSlot() == 26 && clickedItem.getType() == Material.GREEN_CONCRETE && ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName()).equals("Valider")) {
-                event.setCancelled(true);
-                validateAndSellItems(player, topInventory, title);
-                return;
-            }
-
-            // Empêcher de déposer des items non relatifs à l'entreprise
-            if (event.getAction() == InventoryAction.PLACE_ALL || event.getAction() == InventoryAction.PLACE_SOME || event.getAction() == InventoryAction.PLACE_ONE) {
-                ItemStack item = event.getCursor();
-                String entrepriseNom = ChatColor.stripColor(title.replace("Coffre: ", ""));
-                EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
-
-                if (entreprise != null) {
-                    String typeEntreprise = entreprise.getType();
-                    List<String> authorizedBlocks = plugin.getConfig().getStringList("types-entreprise." + typeEntreprise + ".blocs-autorisés");
-
-                    if (!authorizedBlocks.contains(item.getType().name())) {
-                        player.sendMessage(ChatColor.RED + "Cet item n'est pas autorisé à être placé dans le coffre de cette entreprise.");
-                        event.setCancelled(true); // Bloque l'ajout de l'item
-                        return;
-                    }
-                }
-            }
-
-            // Permettre la manipulation des autres items dans le coffre
-            event.setCancelled(false);
-        }
-    }
-
-
-    private void validateAndSellItems(Player player, Inventory chestInventory, String title) {
-        // Récupérer le nom de l'entreprise à partir du titre de l'inventaire
-        String entrepriseNom = ChatColor.stripColor(title.replace("Coffre: ", ""));
-
-        // Récupérer l'entreprise via EntrepriseManagerLogic
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
-
-        // Vérification de l'existence de l'entreprise
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Erreur : entreprise '" + entrepriseNom + "' introuvable.");
-            return;
-        }
-
-        String typeEntreprise = entreprise.getType();
-        double totalMontant = 0;
-        List<ItemStack> soldItems = new ArrayList<>();
-
-        // Boucle pour parcourir le coffre virtuel et calculer la vente
-        for (int i = 0; i < chestInventory.getSize(); i++) {
-            ItemStack item = chestInventory.getItem(i);
-
-            // Ignorer les items null et les "air"
-            if (item == null || item.getType().equals(Material.AIR)) {
-                continue;
-            }
-
-            // Ignorer l'item "Valider" (GREEN_CONCRETE)
-            if (item.getType() == Material.GREEN_CONCRETE && ChatColor.stripColor(item.getItemMeta().getDisplayName()).equals("Valider")) {
-                continue;
-            }
-
-            Material material = item.getType();
-
-            // Vérifier si l'item fait partie des ressources que l'entreprise peut vendre
-            double paiement = plugin.getConfig().getDouble("types-entreprise." + typeEntreprise + ".paiement-ressources." + material.name(), 0);
-
-            if (paiement > 0) {
-                // Calcul du montant total pour cet item
-                double montantTotal = paiement * item.getAmount();
-
-                // Vérifier si l'entreprise a suffisamment d'argent
-                if (entreprise.getSolde() >= montantTotal) {
-                    totalMontant += montantTotal;
-                    soldItems.add(item); // Ajouter l'item à la liste des items vendus
-                    chestInventory.setItem(i, null); // Supprimer l'item du coffre
-                } else {
-                    player.sendMessage(ChatColor.RED + "L'entreprise n'a pas assez d'argent pour payer tous les items.");
-                    break;  // Sortir de la boucle si l'entreprise n'a pas assez d'argent
-                }
-            } else {
-                player.sendMessage(ChatColor.RED + "Cet item ne peut pas être vendu par cette entreprise : " + material.name());
-            }
-        }
-
-        // Paiement du joueur et enregistrement des items vendus
-        if (totalMontant > 0) {
-            entreprise.setSolde(entreprise.getSolde() - totalMontant);
-            EntrepriseManager.getEconomy().depositPlayer(player, totalMontant);
-            player.sendMessage(ChatColor.GREEN + "Vous avez été payé " + totalMontant + "€ pour les items déposés.");
-
-            // Sauvegarder les items vendus dans le coffre virtuel
-            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
-            virtualChest.addSoldItems(soldItems);
-
-            // Sauvegarder le coffre virtuel dans le fichier YAML de l'entreprise
-            File entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
-            YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
-            String path = "entreprises." + entrepriseNom; // Chemin pour le coffre virtuel dans la config
-            virtualChest.saveToConfig(entrepriseConfig, path); // Sauvegarde dans le fichier YAML
-
-            // Sauvegarder le fichier après mise à jour
-            try {
-                entrepriseConfig.save(entrepriseFile);
-            } catch (IOException e) {
-                plugin.getLogger().severe("Erreur lors de la sauvegarde du coffre virtuel pour l'entreprise " + entrepriseNom + ": " + e.getMessage());
-            }
-        } else {
-            player.sendMessage(ChatColor.RED + "Aucun item n'a pu être vendu.");
-        }
-
-        player.closeInventory();  // Fermer l'inventaire après la transaction
-    }
-
 
     private void openEmployeeList(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.BLUE + "Employés de " + entreprise.getNom());
@@ -317,9 +189,6 @@ public class EntrepriseGUI implements Listener {
                 break;
             case PLAYER_HEAD:
                 openManageEmployeesMenu(player, entrepriseNom);
-                break;
-            case CHEST:
-                handleRetrieveItemsClick(player, entreprise);  // Récupérer les items
                 break;
             case PAPER: // Le joueur souhaite renommer son entreprise
                 initiateRenameProcess(player, entrepriseNom);
@@ -533,9 +402,6 @@ public class EntrepriseGUI implements Listener {
             case BOOK:
                 openListTownsMenu(player);
                 break;
-            case CHEST:
-                openMyEntreprisesMenu(player);
-                break;
             case EMERALD:
                 if (player.hasPermission("entreprisemanager.admin")) {
                     openAdminMenu(player);
@@ -677,7 +543,6 @@ public class EntrepriseGUI implements Listener {
         inv.setItem(14, createMenuItem(Material.PAPER, ChatColor.GREEN + "Modifier le nom"));
         inv.setItem(16, createMenuItem(Material.BARRIER, ChatColor.RED + "Supprimer l'entreprise"));
         inv.setItem(20, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Retirer de l'argent"));
-        inv.setItem(22, createMenuItem(Material.CHEST, ChatColor.GOLD + "Récupérer les items"));
         inv.setItem(24, createMenuItem(Material.BOOK, ChatColor.AQUA + "Informations de l'entreprise")); // Nouveau bouton pour les infos
         inv.setItem(26, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
 
@@ -686,34 +551,6 @@ public class EntrepriseGUI implements Listener {
     }
 
 
-    private void handleRetrieveItemsClick(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
-        EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
-        List<ItemStack> soldItems = virtualChest.getSoldItems();
-
-        boolean hasTransferredItems = false;
-        List<ItemStack> remainingItems = new ArrayList<>();
-
-        for (ItemStack item : soldItems) {
-            HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(item);
-            if (remaining.isEmpty()) {
-                hasTransferredItems = true;
-            } else {
-                remainingItems.add(remaining.get(0)); // Garder les items restants si l'inventaire est plein
-            }
-        }
-
-        if (hasTransferredItems) {
-            player.sendMessage(ChatColor.GREEN + "Vous avez récupéré les items vendus par les employés de votre entreprise.");
-            virtualChest.getSoldItems().clear(); // Effacer la liste des items vendus
-            virtualChest.addSoldItems(remainingItems); // Remettre les items non transférés dans le coffre
-        } else {
-            player.sendMessage(ChatColor.RED + "Aucun item vendu n'a pu être récupéré.");
-        }
-
-        if (!remainingItems.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + "Votre inventaire est plein, certains items sont restés dans le coffre virtuel.");
-        }
-    }
 
 
     @EventHandler
@@ -1173,23 +1010,6 @@ public class EntrepriseGUI implements Listener {
         }
     }
 
-    private void openEmployeChest(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
-        EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
-        Inventory chestInventory = virtualChest.getInventory();
-
-        if (chestInventory == null) {
-            player.sendMessage(ChatColor.RED + "Le coffre virtuel de l'entreprise n'a pas pu être ouvert.");
-            return;
-        }
-
-        // Ajouter le bouton "Valider" dans l'inventaire du coffre
-        ItemStack validateButton = createMenuItem(Material.GREEN_CONCRETE, ChatColor.GOLD + "Valider");
-        chestInventory.setItem(26, validateButton); // Positionne le bouton "Valider" dans la dernière case (index 26 dans un inventaire de 27 cases)
-
-        player.openInventory(chestInventory);
-    }
-
-
 
     private void openEmployeInterface(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.BLUE + "Entreprise: " + entreprise.getNom());
@@ -1220,9 +1040,6 @@ public class EntrepriseGUI implements Listener {
         }
 
         switch (clickedItem.getType()) {
-            case CHEST:
-                openEmployeChest(player, entreprise);
-                break;
             case PAPER:
                 displayEntrepriseInfo(player, entreprise);
                 break;

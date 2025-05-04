@@ -26,6 +26,13 @@ public class EventListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
+
+        // Vérifiez si le joueur est en mode créatif
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            player.sendMessage(ChatColor.YELLOW + "[DEBUG] Vous êtes en mode créatif, vous pouvez casser librement.");
+            return; // Ne rien faire et permettre au joueur de casser n'importe quel bloc
+        }
+
         UUID playerUUID = player.getUniqueId();
         Material blockType = event.getBlock().getType();
 
@@ -66,6 +73,7 @@ public class EventListener implements Listener {
             }
         }
     }
+
 
 
 }

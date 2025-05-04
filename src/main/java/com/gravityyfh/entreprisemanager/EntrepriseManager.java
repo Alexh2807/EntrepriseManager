@@ -56,9 +56,7 @@ public class EntrepriseManager extends JavaPlugin {
 
         // Parcours de chaque entreprise pour charger son coffre virtuel
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
             String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
-            virtualChest.loadFromConfig(entrepriseConfig, path); // Charger le coffre virtuel depuis le fichier
         }
 
         // Planifier les paiements journaliers selon la configuration
@@ -78,9 +76,7 @@ public class EntrepriseManager extends JavaPlugin {
 
         // Parcours de chaque entreprise pour sauvegarder son coffre virtuel
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            EntrepriseVirtualChest virtualChest = entreprise.getVirtualChest();
             String path = "entreprises." + entreprise.getNom(); // Définit le chemin pour le coffre dans la configuration
-            virtualChest.saveToConfig(entrepriseConfig, path); // Sauvegarder le coffre virtuel dans la configuration
         }
 
         try {

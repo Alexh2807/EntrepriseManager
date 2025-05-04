@@ -44,7 +44,6 @@ public class EntrepriseManagerLogic {
         loadEntreprises();
         planifierPaiements();
     }
-    private final Map<UUID, Map<String, Integer>> activitesJoueurs = new HashMap<>();
     private Map<String, Set<Material>> blocsAutorisesParTypeEntreprise = new HashMap<>();
     private Map<UUID, String> joueursEntreprises = new HashMap<>();
     private Map<String, String> invitations = new HashMap<>();
@@ -755,23 +754,6 @@ public class EntrepriseManagerLogic {
 
 
 
-
-    public void recupererItemsDuCoffreVirtuel(Player gerant, String entrepriseNom) {
-        Entreprise entreprise = getEntreprise(entrepriseNom);
-        if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(gerant.getName())) {
-            gerant.sendMessage(ChatColor.RED + "Entreprise introuvable ou vous n'êtes pas le gérant.");
-            return;
-        }
-
-        EntrepriseVirtualChest coffre = entreprise.getVirtualChest();
-        for (ItemStack item : coffre.getItems()) {
-            gerant.getInventory().addItem(item);
-        }
-        coffre.clear();  // Vider le coffre après récupération
-        saveEntreprises();
-        gerant.sendMessage(ChatColor.GREEN + "Vous avez récupéré les items du coffre virtuel de " + entrepriseNom + ".");
-    }
-
     public Set<String> getTypesEntreprise() {
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("types-entreprise");
         if (section != null) {
@@ -908,16 +890,7 @@ public class EntrepriseManagerLogic {
                 .filter(entreprise -> entreprise.getGerant().equals(gerant))
                 .count();
     }
-    public String trouverNomEntrepriseParTypeEtVille(String gerant, String type, String ville) {
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getGerant().equalsIgnoreCase(gerant) &&
-                    entreprise.getType().equalsIgnoreCase(type) &&
-                    entreprise.getVille().equalsIgnoreCase(ville)) {
-                return entreprise.getNom();
-            }
-        }
-        return null; // Aucune entreprise trouvée correspondant aux critères
-    }
+
     public void closeEntreprise(Player joueur, String ville, String nomEntreprise) {
         Entreprise entreprise = entreprises.get(nomEntreprise);
         if (entreprise != null && entreprise.getVille().equalsIgnoreCase(ville)) {
@@ -985,18 +958,6 @@ public class EntrepriseManagerLogic {
         }
     }
 
-
-
-    public boolean appartientAEntreprise(String joueurNom, String entrepriseNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        List<String> entreprisesGerant = playersConfig.getStringList("players." + joueurNom + ".gerant-entreprises");
-        List<String> entreprisesEmploye = playersConfig.getStringList("players." + joueurNom + ".employe-entreprises");
-
-        // Vérifier si le joueur est soit gérant, soit employé de l'entreprise
-        return entreprisesGerant.contains(entrepriseNom) || entreprisesEmploye.contains(entrepriseNom);
-    }
 
 
     public void envoyerInvitationDansChat(Player joueurInvite, String entrepriseNom, String gerantNom, String typeEntreprise) {
@@ -1101,22 +1062,6 @@ public class EntrepriseManagerLogic {
                 .collect(Collectors.toList());
     }
 
-    public Collection<String> getPlayersInGerantEnterprise(Player player) {
-        Collection<Entreprise> entreprisesDuGerant = getEntreprisesDuGerant(player.getName());
-
-        // Vérifiez si le gérant a des entreprises
-        if (entreprisesDuGerant.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Vous ne gérez aucune entreprise.");
-            return Collections.emptyList(); // Utilisez Collections.emptyList pour retourner une collection immuable vide
-        } else {
-            // Créez un ensemble pour éviter les doublons si un employé travaille pour plusieurs entreprises du même gérant
-            Set<String> employes = new HashSet<>();
-            for (Entreprise entreprise : entreprisesDuGerant) {
-                employes.addAll(entreprise.getEmployes());
-            }
-            return employes;
-        }
-    }
 
 
     private Collection<Entreprise> getEntreprisesDuGerant(String gerantNom) {
@@ -1255,116 +1200,6 @@ public class EntrepriseManagerLogic {
 
 
 
-    public void payerEmployePourDepot(Player employe, Entreprise entreprise, ItemStack item) {
-        String typeEntreprise = entreprise.getType();
-        Material material = item.getType();
-
-        double prix = plugin.getConfig().getDouble("paiement-ressources." + typeEntreprise + "." + material.name(), 0);
-        if (prix > 0 && entreprise.getSolde() >= prix) {
-            entreprise.setSolde(entreprise.getSolde() - prix);
-            EntrepriseManager.getEconomy().depositPlayer(employe, prix);
-            employe.sendMessage(ChatColor.GREEN + "Vous avez été payé " + prix + "€ pour avoir déposé " + item.getAmount() + " " + material.name());
-            entreprise.getVirtualChest().addItem(item);
-        } else {
-            employe.sendMessage(ChatColor.RED + "L'entreprise ne peut pas vous payer ou le matériel n'est pas reconnu.");
-        }
-
-    }
-
-    // Méthode pour déposer un item dans le coffre virtuel de l'entreprise et payer l'employé
-    public void deposerItemDansCoffreVirtuel(Player employe, String entrepriseNom, ItemStack item) {
-        Entreprise entreprise = getEntreprise(entrepriseNom);
-        if (entreprise == null) {
-            employe.sendMessage(ChatColor.RED + "Entreprise introuvable.");
-            return;
-        }
-
-        double paiement = obtenirPaiementPourItem(entreprise, item.getType());
-        if (paiement > 0 && entreprise.getSolde() >= paiement) {
-            entreprise.setSolde(entreprise.getSolde() - paiement);
-            EntrepriseManager.getEconomy().depositPlayer(employe, paiement);
-            employe.sendMessage(ChatColor.GREEN + "Vous avez été payé " + paiement + "€ pour avoir déposé " + item.getAmount() + " " + item.getType().name() + ".");
-            ajouterItemAuCoffreVirtuel(entreprise, item);
-            saveEntreprises();
-        } else {
-            employe.sendMessage(ChatColor.RED + "L'entreprise ne peut pas vous payer ou l'item n'est pas accepté.");
-        }
-    }
-
-    // Méthode pour récupérer les items du coffre virtuel de l'entreprise
-
-
-
-    // Méthode pour obtenir le montant du paiement pour un item spécifique
-    public double obtenirPaiementPourItem(Entreprise entreprise, Material itemType) {
-        String typeEntreprise = entreprise.getType();
-        return plugin.getConfig().getDouble("paiement-ressources." + typeEntreprise + "." + itemType.name(), 0);
-    }
-
-    // Méthode pour ajouter un item au coffre virtuel de l'entreprise
-    public void ajouterItemAuCoffreVirtuel(Entreprise entreprise, ItemStack item) {
-        EntrepriseVirtualChest coffre = obtenirCoffreVirtuel(entreprise);
-        coffre.addItem(item);
-        saveEntreprises();
-    }
-
-    // Méthode pour obtenir le coffre virtuel de l'entreprise
-    public EntrepriseVirtualChest obtenirCoffreVirtuel(Entreprise entreprise) {
-        return entreprise.getVirtualChest();
-    }
-
-    public boolean estDansEntrepriseType(String joueurNom, String typeEntreprise) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        ConfigurationSection entreprisesSection = playersConfig.getConfigurationSection("players." + joueurNom);
-        if (entreprisesSection == null) {
-            return false; // Le joueur n'appartient à aucune entreprise
-        }
-
-        for (String entrepriseNom : entreprisesSection.getKeys(false)) {
-            String type = playersConfig.getString("players." + joueurNom + "." + entrepriseNom + ".type-entreprise");
-            if (type != null && type.equalsIgnoreCase(typeEntreprise)) {
-                System.out.println("[DEBUG] Le joueur '" + joueurNom + "' fait partie de l'entreprise '" + entrepriseNom + "' de type '" + typeEntreprise + "'.");
-                return true;
-            }
-        }
-
-        System.out.println("[DEBUG] Le joueur '" + joueurNom + "' ne fait partie d'aucune entreprise de type '" + typeEntreprise + "'.");
-        return false;
-    }
-
-
-    public void addJoueurAEntreprise(String joueurNom, String entrepriseNom, String typeEntreprise) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Ajouter l'entreprise et son type pour ce joueur
-        playersConfig.set("players." + joueurNom + "." + entrepriseNom + ".type-entreprise", typeEntreprise);
-
-        try {
-            playersConfig.save(playersFile);
-            System.out.println("[DEBUG] Le fichier players.yml a été mis à jour pour ajouter l'entreprise '" + entrepriseNom + "' au joueur '" + joueurNom + "'.");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void removeJoueurDeEntreprise(String joueurNom, String entrepriseNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Retirer l'entreprise pour ce joueur
-        playersConfig.set("players." + joueurNom + "." + entrepriseNom, null);
-
-        try {
-            playersConfig.save(playersFile);
-            System.out.println("[DEBUG] Le fichier players.yml a été mis à jour pour retirer l'entreprise '" + entrepriseNom + "' du joueur '" + joueurNom + "'.");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     public Set<String> getEmployes(String entrepriseNom) {
         Entreprise entreprise = entreprises.get(entrepriseNom);
         if (entreprise != null) {
@@ -1479,34 +1314,6 @@ public class EntrepriseManagerLogic {
         }
     }
 
-    public void envoyerPrimesDifferrees(Player player) {
-        String playerName = player.getName();
-
-        // Charger le fichier messages.yml
-        File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
-        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-        // Vérifier si le joueur a des messages de primes
-        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
-            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
-            if (primesSection != null) {
-                for (String entrepriseNom : primesSection.getKeys(false)) {
-                    double totalPrime = primesSection.getDouble(entrepriseNom);
-                    player.sendMessage(ChatColor.GREEN + "Vous avez reçu un total de " + totalPrime + " € en primes de l'entreprise " + entrepriseNom + " durant votre absence.");
-                }
-            }
-
-            // Supprimer les messages du joueur après les avoir envoyés
-            messagesConfig.set("messages.players." + playerName, null);
-            try {
-                messagesConfig.save(messagesFile);
-            } catch (IOException e) {
-                plugin.getLogger().severe("Impossible de supprimer les messages différés pour le joueur " + playerName);
-            }
-        } else {
-            player.sendMessage(ChatColor.YELLOW + "Aucune prime différée à afficher.");
-        }
-    }
 
     public void ajouterMessageDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
         File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
@@ -1634,7 +1441,6 @@ public void ajouterMessageEmployeDifferre(String joueurNom, String message, Stri
         private String gerant;
         private Set<String> employes;
         private double solde;
-        private EntrepriseVirtualChest virtualChest;
         private Map<String, Double> primes;  // Ajouter une Map pour stocker les primes des employés
 
 
@@ -1647,7 +1453,6 @@ public void ajouterMessageEmployeDifferre(String joueurNom, String message, Stri
             this.solde = solde;
             this.chiffreAffairesTotal = 0.0;
             this.siret = siret;
-            this.virtualChest = new EntrepriseVirtualChest(this.nom);
             this.primes = new HashMap<>();  // Initialiser la Map des primes
 
         }
@@ -1742,7 +1547,6 @@ public void ajouterMessageEmployeDifferre(String joueurNom, String message, Stri
         public String getGerant() { return gerant; }
         public Set<String> getEmployes() { return employes; }
         public double getSolde() { return solde; }
-        public EntrepriseVirtualChest getVirtualChest() { return virtualChest; }
         private String siret; // Attribut pour stocker le SIRET
 
         public void setSolde(double solde) { this.solde = solde; }
