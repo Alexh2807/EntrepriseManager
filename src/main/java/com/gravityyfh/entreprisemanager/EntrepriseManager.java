@@ -43,7 +43,8 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
         // Enregistrement des listeners
         registerEvents();
         getServer().getPluginManager().registerEvents(this, this); // Pour capter PlayerCommandPreprocessEvent
-
+        getServer().getPluginManager().registerEvents(new com.gravityyfh.entreprisemanager.TownyListener(this, entrepriseLogic), this);
+        getLogger().info("Listener pour Towny enregistré."); // Message de confirmation
         // Enregistrement des commandes
         setupCommands();
 
@@ -59,7 +60,6 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         entrepriseLogic.saveEntreprises();
-        saveVirtualChests();
         getLogger().info("🛑 Plugin EntrepriseManager désactivé et les données ont été sauvegardées.");
     }
 
@@ -86,21 +86,7 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
         return econ != null;
     }
 
-    private void saveVirtualChests() {
-        File entrepriseFile = new File(getDataFolder(), "entreprise.yml");
-        YamlConfiguration entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
 
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            String path = "entreprises." + entreprise.getNom();
-            // TODO: sauvegarder les données du coffre ici
-        }
-
-        try {
-            entrepriseConfig.save(entrepriseFile);
-        } catch (Exception e) {
-            getLogger().severe("❌ Erreur lors de la sauvegarde des coffres virtuels : " + e.getMessage());
-        }
-    }
 
     public void reloadPlugin() {
         reloadConfig();

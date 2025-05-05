@@ -54,6 +54,122 @@ public class EntrepriseManagerLogic {
         return entreprises.get(nomEntreprise);
     }
 
+    public void handleEntrepriseRemoval(Entreprise entreprise, String reason) {
+        // Vérification initiale
+        if (entreprise == null) {
+            plugin.getLogger().warning("Tentative de suppression d'une entreprise null. Raison: " + reason);
+            return;
+        }
+
+        String nomEntreprise = entreprise.getNom();
+        String gerantNom = entreprise.getGerant(); // Le nom du gérant
+
+        plugin.getLogger().info("Début de la suppression de l'entreprise '" + nomEntreprise + "' pour le gérant '" + gerantNom + "'. Raison: " + reason);
+
+        // --- 1. Vérifier et potentiellement supprimer les shops AVANT de modifier l'état des entreprises ---
+        checkAndRemoveShopsIfNeeded(gerantNom, nomEntreprise);
+
+        // --- 2. Supprimer l'entreprise de la structure de données principale ---
+        // La map 'entreprises' contient l'état actuel. On retire l'entrée.
+        Entreprise removed = entreprises.remove(nomEntreprise);
+        if (removed == null) {
+            // Log si l'entreprise n'était pas trouvée, mais on continue pour nettoyer players.yml au cas où.
+            plugin.getLogger().warning("L'entreprise '" + nomEntreprise + "' n'était pas dans la map 'entreprises' lors de la tentative de suppression effective.");
+        }
+
+        // --- 3. Nettoyer le fichier players.yml ---
+        File playersFile = new File(plugin.getDataFolder(), "players.yml");
+        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
+
+        // Supprime la référence à cette entreprise pour le gérant
+        playersConfig.set("players." + gerantNom + "." + nomEntreprise, null);
+        // Optionnel: Nettoyer la section du gérant si elle devient vide
+        if (playersConfig.getConfigurationSection("players." + gerantNom) != null && playersConfig.getConfigurationSection("players." + gerantNom).getKeys(false).isEmpty()) {
+            playersConfig.set("players." + gerantNom, null);
+            plugin.getLogger().fine("Section vide pour le joueur '" + gerantNom + "' nettoyée dans players.yml.");
+        }
+
+        // Supprime la référence pour chaque employé
+        // Important: Itérer sur une COPIE pour éviter ConcurrentModificationException si la liste originale est modifiée
+        for (String employeNom : new ArrayList<>(entreprise.getEmployes())) {
+            playersConfig.set("players." + employeNom + "." + nomEntreprise, null);
+            // Optionnel: Nettoyer la section de l'employé si elle devient vide
+            if (playersConfig.getConfigurationSection("players." + employeNom) != null && playersConfig.getConfigurationSection("players." + employeNom).getKeys(false).isEmpty()) {
+                playersConfig.set("players." + employeNom, null);
+                plugin.getLogger().fine("Section vide pour le joueur '" + employeNom + "' nettoyée dans players.yml.");
+            }
+
+            // Informer l'employé s'il est connecté
+            Player employePlayer = Bukkit.getPlayerExact(employeNom);
+            if (employePlayer != null && employePlayer.isOnline()) {
+                employePlayer.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' pour laquelle vous travailliez a été dissoute. Raison: " + reason);
+            }
+        }
+
+        // Sauvegarde du fichier players.yml nettoyé
+        try {
+            playersConfig.save(playersFile);
+            plugin.getLogger().fine("Fichier players.yml mis à jour après suppression de '" + nomEntreprise + "'.");
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Impossible de sauvegarder players.yml après suppression de l'entreprise '" + nomEntreprise + "': ", e);
+        }
+
+        // --- 4. Sauvegarder l'état actuel des entreprises (sans celle supprimée) ---
+        // Votre méthode saveEntreprises() va maintenant écrire l'état sans l'entreprise retirée à l'étape 2.
+        saveEntreprises();
+
+        plugin.getLogger().info("Suppression de l'entreprise '" + nomEntreprise + "' terminée.");
+
+        // --- 5. Informer le gérant (s'il est en ligne) ---
+        Player gerantPlayer = Bukkit.getPlayerExact(gerantNom);
+        if (gerantPlayer != null && gerantPlayer.isOnline()) {
+            gerantPlayer.sendMessage(ChatColor.RED + "Votre entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason);
+        }
+    }
+
+
+    /**
+     * Vérifie si le gérant possède d'autres entreprises que celle en cours de suppression.
+     * Si c'était sa dernière, exécute "/quickshop removeall <nom_du_gerant>" via la console.
+     * @param gerantNom Le nom du gérant à vérifier.
+     * @param entrepriseEnCoursDeSuppression Le nom de l'entreprise qui va être supprimée (pour l'exclure du compte).
+     */
+    private void checkAndRemoveShopsIfNeeded(String gerantNom, String entrepriseEnCoursDeSuppression) {
+        int autresEntreprisesGerees = 0;
+        // Parcourt toutes les entreprises ACTUELLEMENT chargées en mémoire (AVANT la suppression de 'entrepriseEnCoursDeSuppression')
+        for (Entreprise e : entreprises.values()) {
+            // Vérifie si l'entreprise 'e' appartient au bon gérant ET si ce n'est PAS celle qu'on est en train de supprimer
+            if (e.getGerant().equalsIgnoreCase(gerantNom) && !e.getNom().equalsIgnoreCase(entrepriseEnCoursDeSuppression)) {
+                autresEntreprisesGerees++;
+            }
+        }
+
+        plugin.getLogger().fine("Vérification des shops pour " + gerantNom + ". Il/Elle gère " + autresEntreprisesGerees + " autre(s) entreprise(s) (excluant '" + entrepriseEnCoursDeSuppression + "').");
+
+        // Si le compte est à 0, cela signifie que 'entrepriseEnCoursDeSuppression' était la dernière
+        if (autresEntreprisesGerees == 0) {
+            // Construction de la commande QuickShop
+            String command = "quickshop removeall " + gerantNom;
+            plugin.getLogger().info("'" + gerantNom + "' n'a plus d'entreprise après suppression de '" + entrepriseEnCoursDeSuppression + "'. Exécution de la commande : " + command);
+
+            // Exécution de la commande par la console du serveur
+            try {
+                // Utilise le scheduler pour exécuter la commande au prochain tick serveur, évite certains problèmes potentiels
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    boolean success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                    if (success) {
+                        plugin.getLogger().info("Commande de suppression des shops pour '" + gerantNom + "' exécutée.");
+                    } else {
+                        // L'échec peut être dû à QuickShop non installé, commande désactivée, ou permissions console.
+                        plugin.getLogger().warning("La commande '" + command + "' n'a pas pu être exécutée par la console (vérifiez si QuickShop est présent et la commande activée).");
+                    }
+                });
+            } catch (Exception e) {
+                // Capture les erreurs inattendues lors de la tentative d'exécution
+                plugin.getLogger().log(Level.SEVERE, "Erreur lors de la tentative d'exécution de la commande QuickShop '" + command + "': ", e);
+            }
+        }
+    }
     public boolean isActionAllowedForPlayer(Material blockType, UUID playerUUID) {
         Player player = Bukkit.getPlayer(playerUUID);
         if (player == null) {
@@ -893,35 +1009,24 @@ public class EntrepriseManagerLogic {
                 .count();
     }
 
-    public void closeEntreprise(Player joueur, String ville, String nomEntreprise) {
+    public void closeEntreprise(Player joueurQuiFerme, String ville, String nomEntreprise) {
+        // 1. Récupérer l'objet Entreprise
         Entreprise entreprise = entreprises.get(nomEntreprise);
+
+        // 2. Vérifier si l'entreprise existe ET si elle est dans la bonne ville
         if (entreprise != null && entreprise.getVille().equalsIgnoreCase(ville)) {
-            // Mettre à jour players.yml pour supprimer l'entreprise du gérant et des employés
-            File playersFile = new File(plugin.getDataFolder(), "players.yml");
-            FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
+            // Note importante : La vérification des permissions spécifiques
+            // (ex: joueurQuiFerme est-il le maire de entreprise.getVille() ?)
+            // DOIT être faite dans EntrepriseCommandHandler AVANT d'appeler cette méthode.
+            // Cette méthode suppose que l'appel est légitime si elle est atteinte.
 
-            // Retirer l'entreprise des employés
-            for (String employe : entreprise.getEmployes()) {
-                playersConfig.set("players." + employe + "." + nomEntreprise, null);
-            }
+            // 3. Appeler la méthode centrale de suppression
+            // Le message au joueur sera géré dans handleEntrepriseRemoval
+            handleEntrepriseRemoval(entreprise, "Fermeture/Suppression initiée par " + joueurQuiFerme.getName() + ".");
 
-            // Retirer l'entreprise du gérant
-            playersConfig.set("players." + entreprise.getGerant() + "." + nomEntreprise, null);
-
-            // Sauvegarder le fichier
-            try {
-                playersConfig.save(playersFile);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            // Supprimer l'entreprise
-            entreprises.remove(nomEntreprise);
-            saveEntreprises();
-
-            joueur.sendMessage(ChatColor.GREEN + "L'entreprise " + nomEntreprise + " à " + ville + " a été fermée.");
         } else {
-            joueur.sendMessage(ChatColor.RED + "L'entreprise n'existe pas ou n'est pas dans cette ville.");
+            // Informer si l'entreprise n'est pas trouvée ou pas dans la bonne ville
+            joueurQuiFerme.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas ou n'est pas dans la ville '" + ville + "'.");
         }
     }
 
@@ -982,38 +1087,59 @@ public class EntrepriseManagerLogic {
         joueurInvite.spigot().sendMessage(message);
     }
 
+// Dans EntrepriseManagerLogic.java
+
     public void declareEntreprise(Player joueur, String ville, String nomEntreprise, String type, String gerantNom, String siret) {
+        // Vérification si le nom existe déjà
         if (this.entreprises.containsKey(nomEntreprise)) {
             joueur.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
             return;
         }
 
-        Set<String> employes = new HashSet<>(); // Commencez avec une liste vide d'employés
-        double soldeInitial = 0.0; // Le solde initial de l'entreprise
+        Set<String> employes = new HashSet<>(); // Nouvelle entreprise -> pas d'employés au début
+        double soldeInitial = 0.0; // Solde initial à 0
 
+        // Vérification si le gérant est en ligne (déjà fait dans validerCreation mais revérification par sécurité)
         Player gerant = Bukkit.getPlayerExact(gerantNom);
         if (gerant == null) {
+            // Ce message est surtout pour le maire qui lance la commande initiale via declareEntreprise
+            // Normalement, on passe par validerCreation où le gérant est forcément en ligne.
             joueur.sendMessage(ChatColor.RED + "Le gérant spécifié n'est pas en ligne ou n'existe pas.");
             return;
         }
 
+        // Création de l'objet Entreprise
         Entreprise nouvelleEntreprise = new Entreprise(nomEntreprise, ville, type, gerantNom, employes, soldeInitial, siret);
+        // Ajout à la Map en mémoire
         this.entreprises.put(nomEntreprise, nouvelleEntreprise);
+        plugin.getLogger().fine("Nouvelle entreprise '" + nomEntreprise + "' ajoutée à la map en mémoire.");
 
-        // Ajouter l'entreprise dans players.yml pour le gérant
+        // --- Mise à jour de players.yml ---
         File playersFile = new File(plugin.getDataFolder(), "players.yml");
         FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
+        // Ajout de l'entrée pour le gérant
         playersConfig.set("players." + gerant.getName() + "." + nomEntreprise + ".type-entreprise", type);
 
-        // Sauvegarder le fichier
+        // Sauvegarde explicite de players.yml (Note : redondant si saveEntreprises le fait, mais ne nuit pas)
         try {
             playersConfig.save(playersFile);
+            plugin.getLogger().fine("Fichier players.yml mis à jour pour le nouveau gérant : " + gerant.getName());
         } catch (IOException e) {
-            e.printStackTrace();
+            plugin.getLogger().log(Level.SEVERE, "Impossible de sauvegarder players.yml lors de la déclaration de l'entreprise '" + nomEntreprise + "': " + e.getMessage());
+            // Pas de e.printStackTrace() ici pour éviter de spammer la console si ça arrive souvent
         }
+        // --- Fin Mise à jour players.yml ---
 
-        joueur.sendMessage(ChatColor.GREEN + "Entreprise '" + nomEntreprise + "' de type '" + type + "' a été créée avec succès pour le gérant '" + gerantNom + "' avec le SIRET: " + siret);
+
+        // *** LIGNE AJOUTÉE CRUCIALE ***
+        saveEntreprises(); // Sauvegarde TOUT l'état actuel (entreprise.yml ET players.yml reconstruit)
+        plugin.getLogger().info("Sauvegarde complète effectuée après la déclaration de l'entreprise '" + nomEntreprise + "'.");
+
+
+        // Message de confirmation pour le maire (celui qui a lancé la proposition initiale)
+        // Le message pour le gérant est envoyé dans validerCreationEntreprise
+        joueur.sendMessage(ChatColor.GREEN + "Confirmation : Entreprise '" + nomEntreprise + "' de type '" + type + "' créée pour le gérant '" + gerantNom + "' avec le SIRET: " + siret);
+
     }
 
 
@@ -1168,36 +1294,24 @@ public class EntrepriseManagerLogic {
     }
 
     public void supprimerEntreprise(Player player, String nomEntreprise) {
+        // 1. Récupérer l'objet Entreprise correspondant au nom fourni
         Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable ou vous n'êtes pas le gérant.");
-            return;
+
+        // 2. Vérifier si l'entreprise existe
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' est introuvable.");
+            return; // Arrêter si l'entreprise n'existe pas
         }
 
-        // Supprimer l'entreprise du fichier players.yml
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Supprimer pour le gérant
-        playersConfig.set("players." + entreprise.getGerant() + "." + nomEntreprise, null);
-
-        // Supprimer pour chaque employé
-        for (String employe : entreprise.getEmployes()) {
-            playersConfig.set("players." + employe + "." + nomEntreprise, null);
+        // 3. Vérifier si le joueur qui exécute la commande est bien le gérant
+        if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) {
+            player.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant de l'entreprise '" + nomEntreprise + "'.");
+            return; // Arrêter si le joueur n'est pas le gérant
         }
 
-        // Sauvegarder le fichier
-        try {
-            playersConfig.save(playersFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Supprimer l'entreprise des données internes
-        entreprises.remove(nomEntreprise);
-        saveEntreprises();
-
-        player.sendMessage(ChatColor.GREEN + "L'entreprise " + nomEntreprise + " a été supprimée avec succès.");
+        // 4. Si les vérifications sont passées, appeler la méthode centrale de suppression
+        // Le message de succès au joueur sera géré dans handleEntrepriseRemoval
+        handleEntrepriseRemoval(entreprise, "Suppression par le gérant (" + player.getName() + ") via commande/GUI.");
     }
 
 
