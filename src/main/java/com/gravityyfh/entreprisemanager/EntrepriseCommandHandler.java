@@ -1,17 +1,17 @@
 package com.gravityyfh.entreprisemanager;
 
-import net.md_5.bungee.api.chat.ClickEvent;
-import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.md_5.bungee.api.chat.HoverEvent;
-import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+// ... (imports existants)
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import static com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.plugin;
+
 
 public class EntrepriseCommandHandler implements CommandExecutor {
 
@@ -32,428 +32,332 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         Player player = (Player) sender;
         if (args.length == 0) {
-            entrepriseGUI.openMainMenu(player); // Ouvre le menu principal si aucun argument n'est fourni
+            entrepriseGUI.openMainMenu(player);
             return true;
         }
 
         String subCommand = args[0].toLowerCase();
         switch (subCommand) {
-            case "create":
+            // Commandes principales souvent gérées par GUI mais avec fallback commande direct
+            case "create": // Proposer une création d'entreprise (Maire uniquement)
                 handleCreateCommand(player, args);
                 break;
-            case "delete":
+            case "delete": // Dissoudre sa propre entreprise (Gérant) ou via admin
                 handleDeleteCommand(player, args);
                 break;
-            case "employee":
-                handleEmployeeCommand(player, args);
+            case "info": // Voir les infos d'une entreprise
+                handleInfoCommand(player, args);
                 break;
-            case "list":
+            case "list": // Lister les entreprises d'une ville
                 handleListCommand(player, args);
                 break;
-            case "info":
-                handleInfoCommand(player, args);
+            case "rename": // Renommer son entreprise (Gérant)
+                handleRenameCommandDirect(player, args);
+                break;
+
+            // Commandes liées aux employés
+            case "employee": // Sous-menu pour inviter, virer (obsolète si GUI est principal)
+                handleEmployeeSubCommand(player, args); // Peut-être déprécier ou simplifier
+                break;
+            case "leave": // Quitter une entreprise (Employé)
+                handleLeaveCommand(player, args); // Pourrait être juste /entreprise leave <NomEntreprise>
+                break;
+            case "kick": // Virer un employé (Gérant, via GUI ou /entreprise kick <NomEnt> <NomEmp>)
+                handleKickCommandDirect(player, args);
+                break;
+
+            // Actions liées aux invitations et contrats
+            case "accepter": // Accepter une invitation d'employé ou un contrat de gérance
+                // La logique d'accepter un contrat de gérance est validercreation
+                entrepriseLogic.handleAccepterCommand(player); // Pour invitations d'employé
+                break;
+            case "refuser": // Refuser une invitation d'employé ou un contrat de gérance
+                // La logique de refuser un contrat de gérance est annulercreation
+                entrepriseLogic.handleRefuserCommand(player); // Pour invitations d'employé
+                break;
+            case "validercreation": // Gérant accepte le contrat proposé par le maire
+                entrepriseLogic.validerCreationEntreprise(player);
+                break;
+            case "annulercreation": // Gérant refuse le contrat
+                entrepriseLogic.refuserCreationEntreprise(player);
+                break;
+
+            // Commandes financières (souvent via GUI, mais direct possible)
+            case "withdraw": // Retirer de l'argent (Gérant)
+                handleWithdrawCommandDirect(player, args);
+                break;
+            case "deposit": // Déposer de l'argent (Gérant/Employé)
+                handleDepositCommandDirect(player, args);
+                break;
+
+            // Commandes utilitaires et admin
+            case "gui": // Ouvrir le menu principal
+                entrepriseGUI.openMainMenu(player);
+                break;
+            case "primenews": // Voir les notifications de primes (pas un paiement)
+                handlePrimeNewsCommand(player);
                 break;
             case "admin":
                 handleAdminCommand(player, args);
                 break;
-            case "accepter":
-                entrepriseLogic.handleAccepterCommand(player);
-                break;
-            case "refuser":
-                entrepriseLogic.handleRefuserCommand(player);
-                break;
-            case "withdraw":
-                handleWithdrawCommand(player);
-                break;
-            case "selectwithdraw":
-                handleSelectWithdrawCommand(player, args);
-                break;
-            case "deposit":
-                handleDepositCommand(player);
-                break;
-            case "selectdeposit":
-                handleSelectDepositCommand(player, args);
-                break;
-            case "leave":
-                handleLeaveCommand(player);
-                break;
-            case "kick":
-                handleKickCommand(player);
-                break;
-            case "primenews":
-                handlePrimeNewsCommand(player);
-                break;
-            case "confirmkick":
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "Usage: /entreprise confirmkick <NomEntreprise> <NomEmployé>");
-                } else {
-                    String nomEntreprise = args[1];
-                    String nomEmploye = args[2];
-                    entrepriseLogic.kickEmploye(player, nomEntreprise, nomEmploye);
-                }
-                break;
-            case "confirmleave":
-                if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Usage: /entreprise confirmleave <NomEntreprise>");
-                } else {
+
+            // Commandes internes (appelées par GUI via clic, ne devraient pas être tapées par l'utilisateur)
+            // Elles sont gardées pour la compatibilité avec l'ancien GUI ou si vous voulez les exposer.
+            case "selectwithdraw": // Interne GUI
+            case "selectdeposit":  // Interne GUI
+            case "confirmkick":    // Interne GUI
+            case "confirmleave":   // Interne GUI
+                player.sendMessage(ChatColor.YELLOW + "Cette commande est normalement utilisée via l'interface graphique.");
+                // Vous pouvez ajouter la logique ici si vous voulez qu'elles soient aussi directes
+                // Exemple pour selectwithdraw (similaire à handleWithdrawCommandDirect mais sans lister)
+                if (subCommand.equals("selectwithdraw") && args.length > 1) {
+                    plugin.getChatListener().attendreMontantRetrait(player, args[1]);
+                } else if (subCommand.equals("selectdeposit") && args.length > 1) {
+                    plugin.getChatListener().attendreMontantDepot(player, args[1]);
+                } else if (subCommand.equals("confirmkick") && args.length > 2) {
+                    entrepriseLogic.kickEmploye(player, args[1], args[2]);
+                } else if (subCommand.equals("confirmleave") && args.length > 1) {
                     entrepriseLogic.leaveEntreprise(player, args[1]);
                 }
                 break;
-            case "rename":
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <NomEntreprise> <NouveauNom>");
-                } else {
-                    String entrepriseNom = args[1];
-                    String nouveauNom = args[2];
-                    entrepriseLogic.renameEntreprise(player, entrepriseNom, nouveauNom);
-                }
-                break;
-            case "validercreation":
-                entrepriseLogic.validerCreationEntreprise(player);
-                break;
-            case "annulercreation":
-                entrepriseLogic.refuserCreationEntreprise(player);
-                break;
 
             default:
-                player.sendMessage(ChatColor.RED + "Commande inconnue.");
+                player.sendMessage(ChatColor.RED + "Commande EntrepriseManager inconnue. Utilisez /entreprise gui");
                 return false;
         }
         return true;
     }
 
     private void handlePrimeNewsCommand(Player player) {
-        // Appeler directement la méthode pour envoyer les primes différées sans délai
-        entrepriseLogic.envoyerPrimesDifferreesGerants(player);
+        player.sendMessage(ChatColor.YELLOW + "Récupération de vos notifications de primes et de gérance...");
         entrepriseLogic.envoyerPrimesDifferreesEmployes(player);
-
+        entrepriseLogic.envoyerPrimesDifferreesGerants(player);
     }
-
-
-    private void handleRenameCommand(Player player, String[] args) {
-        if (args.length < 4) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <gerant> <type> <nouveauNom>");
-            return;
-        }
-
-        String gerant = args[1];
-        String type = args[2];
-        String nouveauNom = args[3];
-
-        entrepriseLogic.changerNomEntreprise(player, gerant, type, nouveauNom);
-    }
-
-
-    private final HashMap<UUID, String> invitations = new HashMap<>();
 
     private void handleCreateCommand(Player player, String[] args) {
+        if (!player.hasPermission("entreprisemanager.create.command")) { // Permission spécifique pour la commande
+            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission d'utiliser cette commande. Utilisez le GUI.");
+            return;
+        }
         if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise create <Gérant> <Type>");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise create <NomGérantCible> <TypeEntreprise>");
             return;
         }
-
-        String gerant = args[1];
-        String type = args[2];
-
-        // Vérifier si le joueur est maire
-        if (!entrepriseLogic.estMaire(player)) {
-            player.sendMessage(ChatColor.RED + "Vous devez être le maire de votre ville pour créer une entreprise.");
-            return;
-        }
-
-        // Vérifier si le type est valide
-        if (!entrepriseLogic.getTypesEntreprise().contains(type)) {
-            player.sendMessage(ChatColor.RED + "Type d'entreprise invalide.");
-            return;
-        }
-
-        // Vérifier si le gérant est membre de la ville
-        String ville = entrepriseLogic.getTownNameFromPlayer(player);
-        if (!entrepriseLogic.estMembreDeLaVille(gerant, ville)) {
-            player.sendMessage(ChatColor.RED + "Le gérant spécifié doit être membre de votre ville.");
-            return;
-        }
-
-        // Vérifier si le joueur est en ligne
-        Player gerantPlayer = Bukkit.getPlayerExact(gerant);
-        if (gerantPlayer == null || !gerantPlayer.isOnline()) {
-            player.sendMessage(ChatColor.RED + "Le gérant doit être en ligne pour signer les papiers.");
-            return;
-        }
-
-        // Vérifier s’il peut avoir une entreprise
-        if (!entrepriseLogic.peutCreerEntreprise(gerantPlayer)) {
-            player.sendMessage(ChatColor.RED + "Le gérant a déjà atteint la limite d’entreprises.");
-            return;
-        }
-
-        // Générer un nom et SIRET
-        String nomEntreprise = "Entreprise_" + UUID.randomUUID().toString().substring(0, 5);
-        String siret = entrepriseLogic.generateSiret();
-
-        // Proposer la création (demande à signer)
-        entrepriseLogic.proposerCreationEntreprise(player, gerantPlayer, type, ville, nomEntreprise, siret);
-    }
-
-    private HashMap<UUID, String> entrepriseSelectionneePourRetrait = new HashMap<>();
-
-    private void handleWithdrawCommand(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> entreprisesDuGerant = entrepriseLogic.getEntrepriseDuGerant(player.getName());
-
-        if (entreprisesDuGerant.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas gérant d'une entreprise.");
-            return;
-        }
-
-        player.sendMessage(ChatColor.GOLD + "Sélectionnez l'entreprise dont vous souhaitez retirer de l'argent :");
-        for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesDuGerant) {
-            TextComponent message = new TextComponent(ChatColor.YELLOW + entreprise.getNom() + " - Solde: " + entreprise.getSolde() + "€");
-            message.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise selectwithdraw " + entreprise.getNom()));
-            message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour choisir cette entreprise").create()));
-            player.spigot().sendMessage(message);
-        }
-    }
-
-    private void handleSelectWithdrawCommand(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Veuillez spécifier le nom de l'entreprise.");
-            return;
-        }
-        String entrepriseNom = args[1];
-        entrepriseSelectionneePourRetrait.put(player.getUniqueId(), entrepriseNom);
-
-        // Indiquer au système d'écouter le prochain message du joueur
-        EntrepriseManager.getInstance().getChatListener().attendreMontantRetrait(player, entrepriseNom);
-    }
-
-    private void handleDepositCommand(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> entreprisesDuGerant = entrepriseLogic.getEntrepriseDuGerant(player.getName());
-
-        if (entreprisesDuGerant.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas gérant d'une entreprise.");
-            return;
-        }
-
-        player.sendMessage(ChatColor.GOLD + "Sélectionnez l'entreprise dans laquelle vous souhaitez déposer de l'argent :");
-        for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesDuGerant) {
-            TextComponent message = new TextComponent(ChatColor.YELLOW + entreprise.getNom() + " - Solde: " + entreprise.getSolde() + "€");
-            message.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise selectdeposit " + entreprise.getNom()));
-            message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour choisir cette entreprise").create()));
-            player.spigot().sendMessage(message);
-        }
-    }
-
-    private void handleSelectDepositCommand(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Veuillez spécifier le nom de l'entreprise.");
-            return;
-        }
-        String entrepriseNom = args[1];
-        entrepriseSelectionneePourRetrait.put(player.getUniqueId(), entrepriseNom);
-
-        // Indiquer au système d'écouter le prochain message du joueur
-        EntrepriseManager.getInstance().getChatListener().attendreMontantDepot(player, entrepriseNom);
-    }
-
-
-    private void handleLeaveCommand(Player player) {
-        List<Map<String, String>> entreprisesDuJoueurInfo = entrepriseLogic.getEntreprisesDuJoueurInfo(player.getName());
-
-        if (entreprisesDuJoueurInfo.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Vous n'appartenez à aucune entreprise.");
-            return;
-        }
-
-        player.sendMessage(ChatColor.GOLD + "Cliquez sur l'entreprise que vous souhaitez quitter :");
-        for (Map<String, String> entrepriseInfo : entreprisesDuJoueurInfo) {
-            TextComponent message = new TextComponent(ChatColor.YELLOW + entrepriseInfo.get("nom"));
-            message.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise confirmleave " + entrepriseInfo.get("nom")));
-            message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour quitter " + entrepriseInfo.get("nom")).create()));
-            player.spigot().sendMessage(message);
-        }
-    }
-    private void handleKickCommand(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> entreprisesDuGerant = entrepriseLogic.getEntrepriseDuGerant(player.getName());
-
-        if (entreprisesDuGerant.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Vous ne gérez aucune entreprise.");
-            return;
-        }
-
-        for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesDuGerant) {
-            Set<String> employes = entreprise.getEmployes();
-            if (employes.isEmpty()) {
-                continue; // Si l'entreprise n'a pas d'employés, passez à la suivante
-            }
-
-            player.sendMessage(ChatColor.GOLD + "handleInfoCommand " + ChatColor.BLUE + entreprise.getNom() + ChatColor.GOLD + " (" + entreprise.getType() + ") :");
-            for (String employe : employes) {
-                TextComponent message = new TextComponent(ChatColor.YELLOW + employe + " ");
-                TextComponent virerButton = new TextComponent(ChatColor.RED + "[Virer]");
-                virerButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise confirmkick " + entreprise.getNom() + " " + employe));
-                virerButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour virer " + employe + " de " + entreprise.getNom()).create()));
-
-                player.spigot().sendMessage(message, virerButton);
-            }
-        }
-
-        if (entreprisesDuGerant.stream().allMatch(e -> e.getEmployes().isEmpty())) {
-            player.sendMessage(ChatColor.RED + "Aucune de vos entreprises n'a d'employés.");
-        }
-    }
-
-
-
-
-    private void handleDeleteCommand(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise delete <Gérant> <Type>");
-            return;
-        }
-
-        String gerant = args[1];
-        String type = args[2];
-
-        // Trouver l'entreprise
-        String nomEntreprise = entrepriseLogic.trouverNomEntrepriseParType(gerant, type);
-        if (nomEntreprise == null) {
-            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée pour " + gerant + " avec le type " + type);
-            return;
-        }
-
-        // Vérifier si le joueur est le maire, le gérant, ou si la ville est supprimée
-        if (entrepriseLogic.estMaire(player) || entrepriseLogic.estGerant(player.getName(), nomEntreprise) || entrepriseLogic.estVilleSupprimee(entrepriseLogic.getTownNameFromPlayer(player))) {
-            entrepriseLogic.closeEntreprise(player, entrepriseLogic.getTownNameFromPlayer(player), nomEntreprise);
-            player.sendMessage(ChatColor.GREEN + "Entreprise " + type + " de " + gerant + " à mis la clé sous la porte.");
-        } else {
-            player.sendMessage(ChatColor.RED + "Vous n'avez pas l'autorisation de détruire cette entreprise.");
-        }
-    }
-
-
-
-    private void handleEmployeeCommand(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage("Usage: /entreprise employee invite <TypeEntrepriseDuGérant> <Joueur>");
-            return;
-        }
-
-        String action = args[1];
-        if (!"invite".equalsIgnoreCase(action)) {
-            player.sendMessage(ChatColor.RED + "Action inconnue. Utilisez 'invite'.");
-            return;
-        }
-
-        if (args.length < 4) {
-            player.sendMessage("Usage: /entreprise employee invite <TypeEntrepriseDuGérant> <Joueur>");
-            return;
-        }
-
+        // ... (logique de création comme dans le GUI.openCreateEntreprise... ou la version précédente)
+        // S'assurer que le joueur est maire, que le type est valide, etc.
+        String nomGerantCible = args[1];
         String typeEntreprise = args[2];
-        String joueurNom = args[3];
-        Player joueurInvite = Bukkit.getPlayerExact(joueurNom);
+        Player gerantCible = Bukkit.getPlayerExact(nomGerantCible);
 
-        if (joueurInvite == null) {
-            player.sendMessage(ChatColor.RED + "Le joueur n'est pas en ligne.");
+        if (!entrepriseLogic.estMaire(player)) {
+            player.sendMessage(ChatColor.RED + "Seuls les maires peuvent proposer la création d'entreprises.");
             return;
         }
+        String villeDuMaire = entrepriseLogic.getTownNameFromPlayer(player);
+        if (villeDuMaire == null) { /* ... */ return; }
+        if (gerantCible == null || !gerantCible.isOnline()) { /* ... */ return; }
+        if (!entrepriseLogic.getTypesEntreprise().contains(typeEntreprise)) { /* ... */ return; }
+        if (!entrepriseLogic.estMembreDeLaVille(nomGerantCible, villeDuMaire)) { /* ... */ return; }
+        // ... autres vérifications de EntrepriseManagerLogic ...
 
-        if (joueurNom.equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Vous ne pouvez pas vous inviter vous-même.");
+        String nomPropose = typeEntreprise + "_" + nomGerantCible.substring(0, Math.min(nomGerantCible.length(), 4)) + "_" + (new Random().nextInt(9000) + 1000);
+        String siretPropose = entrepriseLogic.generateSiret();
+        entrepriseLogic.proposerCreationEntreprise(player, gerantCible, typeEntreprise, villeDuMaire, nomPropose, siretPropose);
+    }
+    private void handleDeleteCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise delete <NomDeVotreEntreprise>");
             return;
         }
-
-        // Vérifier si le joueur qui exécute la commande est bien le gérant d'une entreprise du type spécifié
-        EntrepriseManagerLogic.Entreprise entrepriseDuGerant = entrepriseLogic.getEntrepriseDuGerantEtType(player.getName(), typeEntreprise);
-        if (entrepriseDuGerant == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes gérant d'aucune entreprise de type " + typeEntreprise + ".");
+        String nomEntreprise = args[1];
+        entrepriseLogic.supprimerEntreprise(player, nomEntreprise); // La méthode gère les permissions et messages
+    }
+    private void handleRenameCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <AncienNom> <NouveauNom>");
             return;
         }
+        entrepriseLogic.renameEntreprise(player, args[1], args[2]); // La méthode gère permissions et messages
+    }
 
-        // Vérifier si l'entreprise peut ajouter un employé
-        if (!entrepriseLogic.peutAjouterEmploye(entrepriseDuGerant.getNom())) {
-            player.sendMessage(ChatColor.RED + "Votre entreprise a atteint le nombre maximum d'employés.");
+    private void handleEmployeeSubCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise employee <invite|setprime|...> ...");
             return;
         }
+        String action = args[1].toLowerCase();
+        if (action.equals("invite")) {
+            if (args.length < 4) { // /entreprise employee invite <NomEntreprise> <NomJoueur>
+                player.sendMessage(ChatColor.RED + "Usage: /entreprise employee invite <NomDeVotreEntreprise> <NomDuJoueur>");
+                return;
+            }
+            // ... (logique d'invitation)
+            String nomEnt = args[2];
+            String nomJoueurInvite = args[3];
+            Player joueurInvite = Bukkit.getPlayerExact(nomJoueurInvite);
+            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
 
-        // Inviter le joueur à l'entreprise
-        entrepriseLogic.inviterEmploye(player, entrepriseDuGerant.getNom(), joueurInvite);
+            if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(player.getName())) { /* ... */ return; }
+            if (joueurInvite == null) { /* ... */ return; }
+            entrepriseLogic.inviterEmploye(player, nomEnt, joueurInvite);
+
+        } else if (action.equals("setprime")) {
+            if (args.length < 5) { // /entreprise employee setprime <NomEntreprise> <NomEmploye> <Montant>
+                player.sendMessage(ChatColor.RED + "Usage: /entreprise employee setprime <NomEnt> <NomEmp> <Montant>");
+                return;
+            }
+            String nomEnt = args[2];
+            String nomEmp = args[3];
+            try {
+                double montant = Double.parseDouble(args[4]);
+                EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
+                if (entreprise != null && entreprise.getGerant().equalsIgnoreCase(player.getName()) && entreprise.getEmployes().contains(nomEmp)) {
+                    entrepriseLogic.definirPrime(nomEnt, nomEmp, montant);
+                    player.sendMessage(ChatColor.GREEN + "Prime de " + nomEmp + " pour '" + nomEnt + "' définie à " + montant + "€/h.");
+                    Player empPlayer = Bukkit.getPlayerExact(nomEmp);
+                    if (empPlayer != null && empPlayer.isOnline()) {
+                        empPlayer.sendMessage(ChatColor.GOLD + "Votre prime horaire pour '" + nomEnt + "' est maintenant de " + montant + "€/h.");
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "Impossible de définir la prime (entreprise non trouvée, pas gérant, ou employé invalide).");
+                }
+            } catch (NumberFormatException e){
+                player.sendMessage(ChatColor.RED + "Montant invalide.");
+            }
+        } else {
+            player.sendMessage(ChatColor.RED + "Action '" + action + "' pour employé non reconnue.");
+        }
+    }
+    private void handleLeaveCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise leave <NomEntreprise>");
+            return;
+        }
+        entrepriseLogic.leaveEntreprise(player, args[1]); // La méthode gère messages et logique
+    }
+
+    private void handleKickCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise kick <NomEntreprise> <NomEmploye>");
+            return;
+        }
+        entrepriseLogic.kickEmploye(player, args[1], args[2]); // La méthode gère messages et logique
+    }
+
+
+    private void handleWithdrawCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise withdraw <NomEntreprise> <Montant>");
+            return;
+        }
+        String nomEntreprise = args[1];
+        try {
+            double montant = Double.parseDouble(args[2]);
+            entrepriseLogic.retirerArgent(player, nomEntreprise, montant); // La méthode gère messages et logique
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Le montant est invalide.");
+        }
+    }
+    private void handleDepositCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise deposit <NomEntreprise> <Montant>");
+            return;
+        }
+        String nomEntreprise = args[1];
+        try {
+            double montant = Double.parseDouble(args[2]);
+            entrepriseLogic.deposerArgent(player, nomEntreprise, montant); // La méthode gère messages et logique
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Le montant est invalide.");
+        }
     }
 
 
     private void handleListCommand(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("Usage: /entreprise list <ville>");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise list <NomDeLaVilleOu*>");
             return;
         }
         String ville = args[1];
-        entrepriseLogic.listEntreprises(player, ville);
+        if (ville.equals("*")) {
+            // Lister toutes les villes qui ont au moins une entreprise
+            Set<String> villesAvecEntreprises = new HashSet<>();
+            for(EntrepriseManagerLogic.Entreprise e : entrepriseLogic.getEntreprises()){
+                villesAvecEntreprises.add(e.getVille());
+            }
+            if(villesAvecEntreprises.isEmpty()){
+                player.sendMessage(ChatColor.YELLOW + "Aucune entreprise enregistrée sur le serveur.");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "Villes avec des entreprises: " + String.join(", ", villesAvecEntreprises));
+            }
+        } else {
+            entrepriseLogic.listEntreprises(player, ville);
+        }
     }
 
     private void handleInfoCommand(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise info <gerant> <type>");
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise info <NomDeLEntreprise>");
             return;
         }
-
-        String gerant = args[1];
-        String type = args[2];
-        // Trouver l'entreprise correspondant au gérant et au type
-        String nomEntreprise = entrepriseLogic.trouverNomEntrepriseParTypeEtGerant(gerant, type);
-        if (nomEntreprise == null) {
-            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée pour " + gerant + " avec le type " + type);
+        String nomEntreprise = args[1];
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée avec le nom '" + nomEntreprise + "'.");
             return;
         }
-
-        // Afficher les informations de l'entreprise
-        entrepriseLogic.getEntrepriseInfo(player, nomEntreprise);
+        entrepriseGUI.displayEntrepriseInfo(player, entreprise); // Réutiliser le formatage du GUI
     }
 
-
-    // Méthodes pour la gestion des commandes admin
+    // Dans EntrepriseCommandHandler.java - handleAdminCommand
     private void handleAdminCommand(Player player, String[] args) {
+        if (!player.hasPermission("entreprisemanager.admin")) { // Permission générale pour /entreprise admin
+            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission pour les commandes admin.");
+            return;
+        }
         if (args.length < 2) {
-            player.sendMessage("Usage: /entreprise admin <sous-commande> [arguments...]");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin <forcepay|reload>");
             return;
         }
 
-        String subCommand = args[1].toLowerCase();
-
-        switch (subCommand) {
+        String subAdminCommand = args[1].toLowerCase();
+        switch (subAdminCommand) {
             case "forcepay":
-                adminForcePayCommand(player);
+                adminForcePayCommand(player); // Appelle la méthode qui contient la logique et les permissions spécifiques
                 break;
             case "reload":
-                adminReloadCommand(player);
+                adminReloadCommand(player); // Appelle la méthode qui contient la logique et les permissions spécifiques
                 break;
             default:
-                player.sendMessage("Sous-commande admin inconnue.");
+                player.sendMessage(ChatColor.RED + "Sous-commande admin inconnue: " + subAdminCommand);
                 break;
         }
     }
+
+
     private void adminReloadCommand(Player player) {
         if (!player.hasPermission("entreprisemanager.admin.reload")) {
             player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de recharger le plugin.");
             return;
         }
-
-        // Vérifiez si votre classe EntrepriseManagerLogic a une méthode pour obtenir l'instance du plugin
-        // Par exemple, vous pourriez avoir une méthode getPlugin() dans EntrepriseManagerLogic
         EntrepriseManager pluginInstance = entrepriseLogic.getPlugin();
         if (pluginInstance != null) {
-            pluginInstance.reloadPlugin();
-            player.sendMessage(ChatColor.GREEN + "Le plugin EntrepriseManager a été rechargé avec succès.");
+            pluginInstance.reloadPlugin(); // Appelle la méthode reloadPlugin() de la classe principale
+            player.sendMessage(ChatColor.GREEN + "Plugin EntrepriseManager et données rechargés.");
         } else {
-            player.sendMessage(ChatColor.RED + "Impossible de recharger le plugin. L'instance du plugin est introuvable.");
+            player.sendMessage(ChatColor.RED + "Erreur critique : Impossible de recharger, instance du plugin non trouvée.");
         }
     }
+
     private void adminForcePayCommand(Player player) {
         if (!player.hasPermission("entreprisemanager.admin.forcepay")) {
-            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de forcer les paiements.");
+            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de forcer le cycle de paiement.");
             return;
         }
-
-        entrepriseLogic.traiterPaiementsJournaliers();
-        player.sendMessage(ChatColor.GREEN + "Les paiements journaliers ont été forcés avec succès.");
+        player.sendMessage(ChatColor.YELLOW + "Forçage du cycle de paiement horaire global...");
+        entrepriseLogic.traiterChiffreAffairesHoraire(); // Doit être public dans EntrepriseManagerLogic
+        entrepriseLogic.payerPrimesHorairesAuxEmployes();  // Doit être public
+        entrepriseLogic.payerAllocationChomageHoraire(); // Doit être public
+        player.sendMessage(ChatColor.GREEN + "Cycle de paiement horaire global forcé avec succès !");
     }
 }

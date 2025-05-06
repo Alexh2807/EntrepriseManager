@@ -18,16 +18,16 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
-import java.util.HashSet;
-import java.util.Set;
 
 public class EntrepriseManagerLogic {
     static EntrepriseManager plugin;
@@ -35,6 +35,12 @@ public class EntrepriseManagerLogic {
     private static File entrepriseFile;
     private static FileConfiguration entrepriseConfig;
 
+    private final Map<String, Double> activiteHoraireValeur = new ConcurrentHashMap<>();
+    private Map<String, Set<Material>> blocsAutorisesParTypeEntreprise = new HashMap<>();
+    private Map<String, String> invitations = new HashMap<>();
+    private final Map<UUID, DemandeCreation> demandesEnAttente = new HashMap<>();
+    private Map<UUID, Map<String, ActionInfo>> joueurActivites = new HashMap<>();
+    private BukkitTask hourlyTask;
 
     public EntrepriseManagerLogic(EntrepriseManager plugin) {
         EntrepriseManagerLogic.plugin = plugin;
@@ -42,1760 +48,1261 @@ public class EntrepriseManagerLogic {
         entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
         entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
         loadEntreprises();
-        planifierPaiements();
+        chargerRestrictionsActions();
+        planifierTachesHoraires();
     }
-    private Map<String, Set<Material>> blocsAutorisesParTypeEntreprise = new HashMap<>();
-    private Map<UUID, String> joueursEntreprises = new HashMap<>();
-    private Map<String, String> invitations = new HashMap<>();
-    private final Map<UUID, DemandeCreation> demandesEnAttente = new HashMap<>();
+
+    // --- DEBUT: Idées 1 & 4 : Revenu d'Entreprise par Activité Physique ---
+    public void enregistrerActionProductive(Player player, String actionType, Material material, int quantite) {
+        if (player == null || material == null || quantite <= 0) return;
+        String nomEntrepriseJoueur = getNomEntrepriseDuMembre(player.getName());
+        if (nomEntrepriseJoueur == null) return;
+        Entreprise entreprise = entreprises.get(nomEntrepriseJoueur);
+        if (entreprise == null) {
+            plugin.getLogger().warning("Aucune entreprise trouvée pour " + nomEntrepriseJoueur + " lors de l'enregistrement d'action.");
+            return;
+        }
+        String typeEntreprise = entreprise.getType();
+        String basePathConfig = "types-entreprise." + typeEntreprise + ".activites-payantes." + actionType.toUpperCase();
+        String materialPathConfig = basePathConfig + "." + material.name();
+        if (!plugin.getConfig().contains(materialPathConfig)) return;
+        double valeurUnitaire = plugin.getConfig().getDouble(materialPathConfig, 0.0);
+        if (valeurUnitaire <= 0) return;
+        double valeurTotaleAction = valeurUnitaire * quantite;
+        activiteHoraireValeur.merge(nomEntrepriseJoueur, valeurTotaleAction, Double::sum);
+    }
+
+    public String getNomEntrepriseDuMembre(String nomJoueur) {
+        if (nomJoueur == null) return null;
+        for (Entreprise entreprise : entreprises.values()) {
+            if (entreprise.getGerant().equalsIgnoreCase(nomJoueur) || entreprise.getEmployes().contains(nomJoueur)) {
+                return entreprise.getNom();
+            }
+        }
+        return null;
+    }
+    // --- FIN: Idées 1 & 4 ---
+
+    // --- DEBUT: Idées 1, 2 & 5 : Tâches Horaires (CA, Primes, Chômage) ---
+    private void planifierTachesHoraires() {
+        if (hourlyTask != null && !hourlyTask.isCancelled()) {
+            hourlyTask.cancel();
+        }
+        long ticksParHeure = 20L * 60L * 60L;
+        hourlyTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                plugin.getLogger().info("[EntrepriseManager] Début du cycle horaire des activités économiques...");
+                traiterChiffreAffairesHoraire();
+                payerPrimesHorairesAuxEmployes();
+                payerAllocationChomageHoraire();
+                plugin.getLogger().info("[EntrepriseManager] Fin du cycle horaire des activités économiques.");
+            }
+        }.runTaskTimer(plugin, ticksParHeure, ticksParHeure);
+        plugin.getLogger().info("[EntrepriseManager] Tâches horaires (CA, Primes, Chômage) planifiées.");
+    }
 
 
+    public void traiterChiffreAffairesHoraire() {
+        this.plugin.getLogger().info("[EntrepriseManager] Traitement du chiffre d'affaires horaire...");
+        if (this.entreprises.isEmpty()) {
+            this.plugin.getLogger().info("[EntrepriseManager] Aucune entreprise, aucun CA à traiter.");
+            this.activiteHoraireValeur.clear(); // S'assurer que c'est vide si aucune entreprise
+            return;
+        }
+
+        double pourcentageTaxes = this.plugin.getConfig().getDouble("finance.pourcentage-taxes", 15.0);
+        boolean caTraiteGlobal = false; // Pour savoir si au moins une entreprise a eu un CA traité
+
+        // Itérer sur une copie pour éviter ConcurrentModificationException si la map est modifiée ailleurs
+        // Bien que dans ce flux séquentiel, ce ne soit pas strictement nécessaire si rien d'autre ne touche à activiteHoraireValeur.
+        for (Map.Entry<String, Double> entry : new HashMap<>(this.activiteHoraireValeur).entrySet()) {
+            String nomEntreprise = entry.getKey();
+            double caBrutHoraire = entry.getValue();
+
+            if (caBrutHoraire <= 0) {
+                this.activiteHoraireValeur.put(nomEntreprise, 0.0); // Réinitialiser même si 0 pour la propreté
+                continue; // Pas de CA à traiter pour cette entreprise
+            }
+
+            Entreprise entreprise = this.entreprises.get(nomEntreprise);
+            if (entreprise == null) {
+                this.plugin.getLogger().warning("[EntrepriseManager] Entreprise '" + nomEntreprise + "' non trouvée lors du traitement du CA horaire, mais avait une activité enregistrée (valeur: " + caBrutHoraire + "). Cette valeur sera perdue.");
+                this.activiteHoraireValeur.remove(nomEntreprise); // Nettoyer l'entrée pour éviter des problèmes futurs
+                continue;
+            }
+
+            caTraiteGlobal = true; // Au moins une entreprise a du CA
+            double ancienSolde = entreprise.getSolde();
+            double taxesCalculees = caBrutHoraire * (pourcentageTaxes / 100.0);
+            double caNetHoraire = caBrutHoraire - taxesCalculees;
+
+            entreprise.setSolde(ancienSolde + caNetHoraire);
+            entreprise.setChiffreAffairesTotal(entreprise.getChiffreAffairesTotal() + caBrutHoraire); // Ajouter au CA brut total de l'entreprise
+
+            this.plugin.getLogger().info(String.format(
+                    "[EntrepriseManager] Rapport Entreprise '%s': Ancien Solde: %.2f€ | CA Brut: +%.2f€ | Taxes (%.1f%%): -%.2f€ | CA Net: +%.2f€ | Nouveau Solde: %.2f€",
+                    nomEntreprise, ancienSolde, caBrutHoraire, pourcentageTaxes, taxesCalculees, caNetHoraire, entreprise.getSolde()
+            ));
+
+            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
+            String messageTitreGerant = "&6&l[Rapport Horaire] &e" + entreprise.getNom();
+            String messageDetailsGerant = String.format(
+                    "&7-----------------------------------\n" +
+                            "&bAncien Solde: &f%.2f€\n" +
+                            "&bChiffre d'Affaires Brut (cette heure): &f+%.2f€\n" +
+                            "&cTaxes Prélevées (%.1f%%): &f-%.2f€\n" +
+                            "&aChiffre d'Affaires Net Ajouté: &f+%.2f€\n" +
+                            "&bNouveau Solde de l'Entreprise: &f&l%.2f€\n" +
+                            "&7-----------------------------------",
+                    ancienSolde, caBrutHoraire, pourcentageTaxes, taxesCalculees, caNetHoraire, entreprise.getSolde()
+            );
+
+            if (gerantPlayer != null && gerantPlayer.isOnline()) {
+                gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', messageTitreGerant));
+                for(String line : messageDetailsGerant.split("\n")){
+                    gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', line));
+                }
+            } else {
+                OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(entreprise.getGerant()); // Utilise le nom du gérant
+                if (offlineGerant.hasPlayedBefore()) {
+                    String resumePourHorsLigne = String.format("Rapport Horaire pour '%s': CA Net +%.2f€. Nouveau Solde: %.2f€.",
+                            entreprise.getNom(), caNetHoraire, entreprise.getSolde());
+                    ajouterMessageGerantDifferre(entreprise.getGerant(), ChatColor.GREEN + resumePourHorsLigne, nomEntreprise, caNetHoraire);
+                }
+            }
+            // Réinitialiser le compteur d'activité pour la prochaine heure pour CETTE entreprise
+            this.activiteHoraireValeur.put(nomEntreprise, 0.0);
+        }
+
+        if (!caTraiteGlobal && !this.activiteHoraireValeur.isEmpty()) {
+            // Si aucune activité positive n'a été traitée mais que la map n'est pas vide (contient des 0 ou des entrées pour des ent. supprimées)
+            // On s'assure de vider pour toutes les entreprises connues au cas où (celles qui existent encore)
+            for(String nomEntExistant : this.entreprises.keySet()){
+                this.activiteHoraireValeur.put(nomEntExistant, 0.0);
+            }
+            this.plugin.getLogger().info("[EntrepriseManager] Aucune activité positive à traiter, tous les compteurs d'activité horaire ont été réinitialisés.");
+        } else if (this.activiteHoraireValeur.isEmpty() && !this.entreprises.isEmpty()){
+            this.plugin.getLogger().info("[EntrepriseManager] Aucune activité enregistrée pour les entreprises cette heure (map vide).");
+        }
+
+
+        if (caTraiteGlobal) { // Sauvegarder seulement si des changements ont eu lieu
+            saveEntreprises();
+        }
+        this.plugin.getLogger().info("[EntrepriseManager] Fin du traitement du chiffre d'affaires horaire.");
+    }
+
+
+    public void payerPrimesHorairesAuxEmployes() {
+        this.plugin.getLogger().info("[EntrepriseManager] Début du cycle de paiement des primes horaires...");
+        if (this.entreprises.isEmpty()) {
+            this.plugin.getLogger().info("[EntrepriseManager] Aucune entreprise pour le paiement des primes.");
+            return;
+        }
+
+        boolean primesOntEtePayeesGlobal = false;
+
+        for (Entreprise entreprise : this.entreprises.values()) {
+            if (entreprise.getEmployes().isEmpty()) {
+                continue; // Pas d'employés, pas de primes pour cette entreprise
+            }
+
+            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant()); // Pour notification au gérant
+
+            // Utiliser une copie pour éviter ConcurrentModificationException si un employé est kick/leave pendant ce processus
+            for (String employeNom : new HashSet<>(entreprise.getEmployes())) {
+                double primeConfigurée = entreprise.getPrimePourEmploye(employeNom);
+
+                if (primeConfigurée > 0) {
+                    OfflinePlayer employeOffline = Bukkit.getOfflinePlayer(employeNom);
+
+                    if (!employeOffline.hasPlayedBefore() && !employeOffline.isOnline()) {
+                        this.plugin.getLogger().warning("[EntrepriseManager] Tentative de paiement de prime à un joueur '" + employeNom + "' qui n'a jamais joué ou n'est pas reconnu. Prime non versée.");
+                        continue;
+                    }
+
+                    if (entreprise.getSolde() >= primeConfigurée) {
+                        EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(employeOffline, primeConfigurée);
+                        if (er.transactionSuccess()) {
+                            double soldeEntrepriseAvantPrime = entreprise.getSolde();
+                            entreprise.setSolde(soldeEntrepriseAvantPrime - primeConfigurée);
+                            primesOntEtePayeesGlobal = true;
+
+                            String msgSuccesEmploye = String.format("&aVous avez reçu votre prime horaire de &e%.2f€&a de l'entreprise '&6%s&a'.", primeConfigurée, entreprise.getNom());
+                            String msgSuccesGerant = String.format("&bPrime horaire de &e%.2f€&b versée à &3%s&b (Ent: '&6%s&b'). Solde entreprise: &e%.2f€ &7-> &e%.2f€",
+                                    primeConfigurée, employeNom, entreprise.getNom(), soldeEntrepriseAvantPrime, entreprise.getSolde());
+
+                            if (employeOffline.isOnline()) {
+                                employeOffline.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', msgSuccesEmploye));
+                            } else {
+                                ajouterMessageEmployeDifferre(employeNom, ChatColor.translateAlternateColorCodes('&', msgSuccesEmploye), entreprise.getNom(), primeConfigurée);
+                            }
+
+                            if (gerantPlayer != null && gerantPlayer.isOnline()) {
+                                gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', msgSuccesGerant));
+                            } else {
+                                OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(entreprise.getGerant());
+                                if (offlineGerant.hasPlayedBefore()) {
+                                    ajouterMessageGerantDifferre(entreprise.getGerant(), ChatColor.translateAlternateColorCodes('&', msgSuccesGerant), entreprise.getNom(), primeConfigurée);
+                                }
+                            }
+                            this.plugin.getLogger().info("[EntrepriseManager] Prime de " + primeConfigurée + "€ payée à " + employeNom + " (Entreprise: " + entreprise.getNom() + ").");
+                        } else {
+                            this.plugin.getLogger().severe("[EntrepriseManager] Échec du dépôt Vault pour la prime de " + employeNom + " (Ent: " + entreprise.getNom() + "): " + er.errorMessage);
+                            if (gerantPlayer != null && gerantPlayer.isOnline()) {
+                                gerantPlayer.sendMessage(ChatColor.RED + "Erreur lors du versement de la prime à " + employeNom + " pour '" + entreprise.getNom() + "': " + er.errorMessage);
+                            }
+                        }
+                    } else {
+                        // Solde insuffisant
+                        String msgEchecSoldeEmploye = String.format("&cL'entreprise '&6%s&c' n'a pas pu vous verser votre prime de &e%.2f€&c (solde insuffisant).", entreprise.getNom(), primeConfigurée);
+                        String msgEchecSoldeGerant = String.format("&cL'entreprise '&6%s&c' n'a pas pu verser la prime de &e%.2f€&c à &3%s&c (solde actuel: %.2f€).", entreprise.getNom(), primeConfigurée, employeNom, entreprise.getSolde());
+
+                        if (employeOffline.isOnline()) {
+                            employeOffline.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', msgEchecSoldeEmploye));
+                        } else {
+                            ajouterMessageEmployeDifferre(employeNom, ChatColor.translateAlternateColorCodes('&', msgEchecSoldeEmploye), entreprise.getNom(), 0); // 0 car non payé
+                        }
+
+                        if (gerantPlayer != null && gerantPlayer.isOnline()) {
+                            gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', msgEchecSoldeGerant));
+                        } else {
+                            OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(entreprise.getGerant());
+                            if (offlineGerant.hasPlayedBefore()) {
+                                ajouterMessageGerantDifferre(entreprise.getGerant(), ChatColor.translateAlternateColorCodes('&', msgEchecSoldeGerant), entreprise.getNom(), 0);
+                            }
+                        }
+                        this.plugin.getLogger().warning("[EntrepriseManager] Solde insuffisant ("+entreprise.getSolde()+") pour payer la prime de " + primeConfigurée + " à " + employeNom + " (Entreprise: " + entreprise.getNom() + ").");
+                    }
+                }
+            }
+        }
+
+        if (primesOntEtePayeesGlobal) { // Sauvegarder seulement si des changements de solde ont eu lieu
+            saveEntreprises();
+        }
+        this.plugin.getLogger().info("[EntrepriseManager] Fin du cycle de paiement des primes horaires.");
+    }
+
+
+    public void payerAllocationChomageHoraire() {
+        this.plugin.getLogger().info("[EntrepriseManager] Début du versement de l'allocation chômage horaire...");
+        double montantAllocation = this.plugin.getConfig().getDouble("finance.allocation-chomage-horaire", 0);
+
+        if (montantAllocation <= 0) {
+            this.plugin.getLogger().info("[EntrepriseManager] Allocation chômage désactivée (montant <= 0).");
+            return;
+        }
+
+        int joueursPayes = 0;
+        for (Player joueurConnecte : Bukkit.getOnlinePlayers()) {
+            if (getNomEntrepriseDuMembre(joueurConnecte.getName()) == null) { // Si ni gérant, ni employé
+                double ancienSoldeJoueur = EntrepriseManager.getEconomy().getBalance(joueurConnecte);
+                EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(joueurConnecte, montantAllocation);
+
+                if (er.transactionSuccess()) {
+                    double nouveauSoldeJoueur = EntrepriseManager.getEconomy().getBalance(joueurConnecte); // Récupérer après dépôt
+                    joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6&l[Allocation Chômage]"));
+                    joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', String.format("&bAncien solde: &f%.2f€", ancienSoldeJoueur)));
+                    joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', String.format("&aAllocation horaire reçue: &f+%.2f€", montantAllocation)));
+                    joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', String.format("&bNouveau solde: &f&l%.2f€", nouveauSoldeJoueur)));
+                    joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7--------------------------"));
+                    joueursPayes++;
+                } else {
+                    this.plugin.getLogger().warning("[EntrepriseManager] Impossible de verser l'allocation chômage à " + joueurConnecte.getName() + ": " + er.errorMessage);
+                    joueurConnecte.sendMessage(ChatColor.RED + "Erreur lors du versement de votre allocation chômage. Veuillez contacter un administrateur.");
+                }
+            }
+        }
+
+        if (joueursPayes > 0) {
+            this.plugin.getLogger().info("[EntrepriseManager] " + joueursPayes + " joueur(s) ont reçu l'allocation chômage ("+String.format("%,.2f", montantAllocation)+"€ chacun).");
+        } else {
+            this.plugin.getLogger().info("[EntrepriseManager] Aucun joueur en ligne éligible pour l'allocation chômage cette heure.");
+        }
+    }
+    // --- FIN: Idées 1, 2 & 5 ---
+
+    // --- DEBUT: Idée 3 : Restrictions d'Actions et Limites Horaires ---
+    private void chargerRestrictionsActions() {
+        blocsAutorisesParTypeEntreprise.clear();
+        ConfigurationSection typesSection = plugin.getConfig().getConfigurationSection("types-entreprise");
+        if (typesSection != null) {
+            for (String typeKey : typesSection.getKeys(false)) {
+                List<String> blocStrings = typesSection.getStringList(typeKey + ".blocs-autorisés");
+                Set<Material> materials = new HashSet<>();
+                for (String blocStr : blocStrings) {
+                    Material mat = Material.matchMaterial(blocStr.toUpperCase());
+                    if (mat != null) materials.add(mat);
+                    else plugin.getLogger().warning("[EntrepriseManager] Matériel non reconnu dans config (blocs-autorisés) pour " + typeKey + ": " + blocStr);
+                }
+                blocsAutorisesParTypeEntreprise.put(typeKey, materials);
+            }
+        }
+        plugin.getLogger().info("[EntrepriseManager] Restrictions d'actions (legacy blocs-autorisés) chargées.");
+    }
+
+    public boolean verifierEtGererRestrictionAction(Player player, String actionTypeString, Material material, int quantite) {
+        String nomEntrepriseJoueur = getNomEntrepriseDuMembre(player.getName());
+        ConfigurationSection typesEntreprisesConfig = plugin.getConfig().getConfigurationSection("types-entreprise");
+        if (typesEntreprisesConfig == null) return false;
+
+        for (String typeEntrepriseSpecialise : typesEntreprisesConfig.getKeys(false)) {
+            String restrictionPath = "types-entreprise." + typeEntrepriseSpecialise + ".action_restrictions." + actionTypeString + "." + material.name();
+            if (plugin.getConfig().contains(restrictionPath)) {
+                boolean estMembreDuTypeSpecialise = false;
+                if (nomEntrepriseJoueur != null) {
+                    Entreprise entrepriseJoueurObj = entreprises.get(nomEntrepriseJoueur);
+                    if (entrepriseJoueurObj != null && entrepriseJoueurObj.getType().equals(typeEntrepriseSpecialise)) {
+                        estMembreDuTypeSpecialise = true;
+                    }
+                }
+                if (estMembreDuTypeSpecialise) return false;
+                else {
+                    int limiteNonMembre = plugin.getConfig().getInt("types-entreprise." + typeEntrepriseSpecialise + ".limite-non-membre-par-heure", 0);
+                    if (limiteNonMembre <= 0) return false;
+
+                    String actionIdentifier = typeEntrepriseSpecialise + "_" + actionTypeString + "_" + material.name();
+                    ActionInfo info = joueurActivites.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>())
+                            .computeIfAbsent(actionIdentifier, k -> new ActionInfo());
+                    LocalDateTime maintenant = LocalDateTime.now();
+                    if (info.getDernierActionHeure().getHour() != maintenant.getHour()) {
+                        info.reinitialiserActions(maintenant);
+                    }
+                    if (info.getNombreActions() + quantite > limiteNonMembre) {
+                        List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + typeEntrepriseSpecialise + ".message-erreur-restriction");
+                        if (messagesErreur.isEmpty()) messagesErreur = plugin.getConfig().getStringList("types-entreprise." + typeEntrepriseSpecialise + ".message-erreur");
+                        for (String msg : messagesErreur) player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg));
+                        player.sendMessage(ChatColor.GRAY + "(Limite: " + info.getNombreActions() + "/" + limiteNonMembre + " pour " + material.name() + ")");
+                        return true;
+                    } else {
+                        info.incrementerActions(quantite);
+                        return false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean isActionAllowedForPlayer(Material blockType, UUID playerUUID) {
+        Player player = Bukkit.getPlayer(playerUUID);
+        if (player == null) return false;
+        String categorieActivite = getCategorieActivitePourBlocAutorise(blockType);
+        if (categorieActivite != null) {
+            String nomEntrepriseJoueur = getNomEntrepriseDuMembre(player.getName());
+            if (nomEntrepriseJoueur != null) {
+                Entreprise entrepriseJoueurObj = entreprises.get(nomEntrepriseJoueur);
+                if (entrepriseJoueurObj != null && entrepriseJoueurObj.getType().equals(categorieActivite)) {
+                    return true;
+                }
+            }
+            String actionIdentifier = categorieActivite + "_BLOCK_BREAK_LEGACY_" + blockType.name();
+            ActionInfo info = joueurActivites.computeIfAbsent(playerUUID, k -> new HashMap<>())
+                    .computeIfAbsent(actionIdentifier, k -> new ActionInfo());
+            LocalDateTime maintenant = LocalDateTime.now();
+            if (info.getDernierActionHeure().getHour() != maintenant.getHour()) {
+                info.reinitialiserActions(maintenant);
+            }
+            int limite = plugin.getConfig().getInt("types-entreprise." + categorieActivite + ".limite-non-membre-par-heure", 3);
+            if (info.getNombreActions() < limite) {
+                info.incrementerActions(1); return true;
+            } else {
+                List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + categorieActivite + ".message-erreur");
+                for (String message : messagesErreur) {
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String getCategorieActivitePourBlocAutorise(Material blockType) {
+        if (blocsAutorisesParTypeEntreprise == null) return null;
+        for (Map.Entry<String, Set<Material>> entry : blocsAutorisesParTypeEntreprise.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().contains(blockType)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    public String getCategorieActivite(Material blockType) {
+        ConfigurationSection typesSection = plugin.getConfig().getConfigurationSection("types-entreprise");
+        if (typesSection == null) return null;
+        for (String categorie : typesSection.getKeys(false)) {
+            List<String> blocsAutorises = plugin.getConfig().getStringList("types-entreprise." + categorie + ".blocs-autorisés");
+            if (blocsAutorises.contains(blockType.name())) return categorie;
+            if (plugin.getConfig().contains("types-entreprise." + categorie + ".action_restrictions.BLOCK_BREAK." + blockType.name())) return categorie;
+        }
+        return null;
+    }
+    // --- FIN: Idée 3 ---
+
+    // --- DEBUT: Méthodes de gestion d'entreprise (CRUD, employés, etc.) ---
     public Entreprise getEntreprise(String nomEntreprise) {
         return entreprises.get(nomEntreprise);
     }
 
     public void handleEntrepriseRemoval(Entreprise entreprise, String reason) {
-        // Vérification initiale
-        if (entreprise == null) {
-            plugin.getLogger().warning("Tentative de suppression d'une entreprise null. Raison: " + reason);
-            return;
-        }
-
+        if (entreprise == null) { plugin.getLogger().warning("[EntrepriseManager] Tentative de suppression d'une entreprise null. Raison: " + reason); return; }
         String nomEntreprise = entreprise.getNom();
-        String gerantNom = entreprise.getGerant(); // Le nom du gérant
-
-        plugin.getLogger().info("Début de la suppression de l'entreprise '" + nomEntreprise + "' pour le gérant '" + gerantNom + "'. Raison: " + reason);
-
-        // --- 1. Vérifier et potentiellement supprimer les shops AVANT de modifier l'état des entreprises ---
+        String gerantNom = entreprise.getGerant();
+        plugin.getLogger().info("[EntrepriseManager] Suppression de '" + nomEntreprise + "' (Gérant: " + gerantNom + "). Raison: " + reason);
         checkAndRemoveShopsIfNeeded(gerantNom, nomEntreprise);
-
-        // --- 2. Supprimer l'entreprise de la structure de données principale ---
-        // La map 'entreprises' contient l'état actuel. On retire l'entrée.
-        Entreprise removed = entreprises.remove(nomEntreprise);
-        if (removed == null) {
-            // Log si l'entreprise n'était pas trouvée, mais on continue pour nettoyer players.yml au cas où.
-            plugin.getLogger().warning("L'entreprise '" + nomEntreprise + "' n'était pas dans la map 'entreprises' lors de la tentative de suppression effective.");
-        }
-
-        // --- 3. Nettoyer le fichier players.yml ---
+        entreprises.remove(nomEntreprise);
+        activiteHoraireValeur.remove(nomEntreprise);
         File playersFile = new File(plugin.getDataFolder(), "players.yml");
         FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Supprime la référence à cette entreprise pour le gérant
-        playersConfig.set("players." + gerantNom + "." + nomEntreprise, null);
-        // Optionnel: Nettoyer la section du gérant si elle devient vide
-        if (playersConfig.getConfigurationSection("players." + gerantNom) != null && playersConfig.getConfigurationSection("players." + gerantNom).getKeys(false).isEmpty()) {
-            playersConfig.set("players." + gerantNom, null);
-            plugin.getLogger().fine("Section vide pour le joueur '" + gerantNom + "' nettoyée dans players.yml.");
+        ConfigurationSection gerantSection = playersConfig.getConfigurationSection("players." + gerantNom);
+        if (gerantSection != null) {
+            gerantSection.set(nomEntreprise, null);
+            if (gerantSection.getKeys(false).isEmpty()) playersConfig.set("players." + gerantNom, null);
         }
-
-        // Supprime la référence pour chaque employé
-        // Important: Itérer sur une COPIE pour éviter ConcurrentModificationException si la liste originale est modifiée
         for (String employeNom : new ArrayList<>(entreprise.getEmployes())) {
-            playersConfig.set("players." + employeNom + "." + nomEntreprise, null);
-            // Optionnel: Nettoyer la section de l'employé si elle devient vide
-            if (playersConfig.getConfigurationSection("players." + employeNom) != null && playersConfig.getConfigurationSection("players." + employeNom).getKeys(false).isEmpty()) {
-                playersConfig.set("players." + employeNom, null);
-                plugin.getLogger().fine("Section vide pour le joueur '" + employeNom + "' nettoyée dans players.yml.");
+            ConfigurationSection employeSection = playersConfig.getConfigurationSection("players." + employeNom);
+            if (employeSection != null) {
+                employeSection.set(nomEntreprise, null);
+                if (employeSection.getKeys(false).isEmpty()) playersConfig.set("players." + employeNom, null);
             }
-
-            // Informer l'employé s'il est connecté
             Player employePlayer = Bukkit.getPlayerExact(employeNom);
-            if (employePlayer != null && employePlayer.isOnline()) {
-                employePlayer.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' pour laquelle vous travailliez a été dissoute. Raison: " + reason);
-            }
+            if (employePlayer != null && employePlayer.isOnline()) employePlayer.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason);
         }
-
-        // Sauvegarde du fichier players.yml nettoyé
-        try {
-            playersConfig.save(playersFile);
-            plugin.getLogger().fine("Fichier players.yml mis à jour après suppression de '" + nomEntreprise + "'.");
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Impossible de sauvegarder players.yml après suppression de l'entreprise '" + nomEntreprise + "': ", e);
-        }
-
-        // --- 4. Sauvegarder l'état actuel des entreprises (sans celle supprimée) ---
-        // Votre méthode saveEntreprises() va maintenant écrire l'état sans l'entreprise retirée à l'étape 2.
+        try { playersConfig.save(playersFile); } catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "[EntrepriseManager] Erreur sauvegarde players.yml après suppression '" + nomEntreprise + "'.", e); }
         saveEntreprises();
-
-        plugin.getLogger().info("Suppression de l'entreprise '" + nomEntreprise + "' terminée.");
-
-        // --- 5. Informer le gérant (s'il est en ligne) ---
         Player gerantPlayer = Bukkit.getPlayerExact(gerantNom);
-        if (gerantPlayer != null && gerantPlayer.isOnline()) {
-            gerantPlayer.sendMessage(ChatColor.RED + "Votre entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason);
+        if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.RED + "Votre entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason);
+        plugin.getLogger().info("[EntrepriseManager] Suppression de '" + nomEntreprise + "' terminée.");
+    }
+
+    public void supprimerEntreprise(Player initiator, String nomEntreprise) {
+        Entreprise entrepriseASupprimer = entreprises.get(nomEntreprise);
+        if (entrepriseASupprimer == null) {
+            initiator.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
+            return;
+        }
+        if (!entrepriseASupprimer.getGerant().equalsIgnoreCase(initiator.getName()) && !initiator.hasPermission("entreprisemanager.admin.deleteany")) {
+            initiator.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de supprimer cette entreprise.");
+            return;
+        }
+        String reason = "Dissolution par " + initiator.getName();
+        if(initiator.hasPermission("entreprisemanager.admin.deleteany") && !entrepriseASupprimer.getGerant().equalsIgnoreCase(initiator.getName())) {
+            reason += " (Admin)";
+        } else {
+            reason += " (Gérant)";
+        }
+        handleEntrepriseRemoval(entrepriseASupprimer, reason);
+        if(initiator.hasPermission("entreprisemanager.admin.deleteany") && !entrepriseASupprimer.getGerant().equalsIgnoreCase(initiator.getName())){
+            initiator.sendMessage(ChatColor.GREEN + "L'entreprise '" + nomEntreprise + "' (gérant: "+entrepriseASupprimer.getGerant()+") a été dissoute par vos soins.");
         }
     }
 
-
-    /**
-     * Vérifie si le gérant possède d'autres entreprises que celle en cours de suppression.
-     * Si c'était sa dernière, exécute "/quickshop removeall <nom_du_gerant>" via la console.
-     * @param gerantNom Le nom du gérant à vérifier.
-     * @param entrepriseEnCoursDeSuppression Le nom de l'entreprise qui va être supprimée (pour l'exclure du compte).
-     */
     private void checkAndRemoveShopsIfNeeded(String gerantNom, String entrepriseEnCoursDeSuppression) {
-        int autresEntreprisesGerees = 0;
-        // Parcourt toutes les entreprises ACTUELLEMENT chargées en mémoire (AVANT la suppression de 'entrepriseEnCoursDeSuppression')
-        for (Entreprise e : entreprises.values()) {
-            // Vérifie si l'entreprise 'e' appartient au bon gérant ET si ce n'est PAS celle qu'on est en train de supprimer
-            if (e.getGerant().equalsIgnoreCase(gerantNom) && !e.getNom().equalsIgnoreCase(entrepriseEnCoursDeSuppression)) {
-                autresEntreprisesGerees++;
-            }
-        }
-
-        plugin.getLogger().fine("Vérification des shops pour " + gerantNom + ". Il/Elle gère " + autresEntreprisesGerees + " autre(s) entreprise(s) (excluant '" + entrepriseEnCoursDeSuppression + "').");
-
-        // Si le compte est à 0, cela signifie que 'entrepriseEnCoursDeSuppression' était la dernière
+        long autresEntreprisesGerees = entreprises.values().stream()
+                .filter(e -> e.getGerant().equalsIgnoreCase(gerantNom) && !e.getNom().equalsIgnoreCase(entrepriseEnCoursDeSuppression))
+                .count();
         if (autresEntreprisesGerees == 0) {
-            // Construction de la commande QuickShop
             String command = "quickshop removeall " + gerantNom;
-            plugin.getLogger().info("'" + gerantNom + "' n'a plus d'entreprise après suppression de '" + entrepriseEnCoursDeSuppression + "'. Exécution de la commande : " + command);
-
-            // Exécution de la commande par la console du serveur
-            try {
-                // Utilise le scheduler pour exécuter la commande au prochain tick serveur, évite certains problèmes potentiels
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    boolean success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                    if (success) {
-                        plugin.getLogger().info("Commande de suppression des shops pour '" + gerantNom + "' exécutée.");
-                    } else {
-                        // L'échec peut être dû à QuickShop non installé, commande désactivée, ou permissions console.
-                        plugin.getLogger().warning("La commande '" + command + "' n'a pas pu être exécutée par la console (vérifiez si QuickShop est présent et la commande activée).");
-                    }
-                });
-            } catch (Exception e) {
-                // Capture les erreurs inattendues lors de la tentative d'exécution
-                plugin.getLogger().log(Level.SEVERE, "Erreur lors de la tentative d'exécution de la commande QuickShop '" + command + "': ", e);
-            }
-        }
-    }
-    public boolean isActionAllowedForPlayer(Material blockType, UUID playerUUID) {
-        Player player = Bukkit.getPlayer(playerUUID);
-        if (player == null) {
-            return false; // Si le joueur n'existe pas ou n'est pas en ligne
-        }
-        String joueurNom = player.getName();
-
-        // Récupérer les entreprises du joueur depuis players.yml
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-        ConfigurationSection entreprisesSection = playersConfig.getConfigurationSection("players." + joueurNom);
-
-        // Déterminer la catégorie d'activité liée au type de bloc cassé (Ex: "Deforestation")
-        String categorieActivite = getCategorieActivite(blockType);
-
-        // Debug: Afficher les informations sur l'entreprise et la catégorie d'activité
-        System.out.println("[DEBUG] Catégorie d'activité du bloc: " + categorieActivite);
-
-        // Si aucune catégorie d'activité n'est trouvée pour ce type de bloc, autoriser l'action par défaut
-        if (categorieActivite == null) {
-            System.out.println("[DEBUG] Aucune catégorie d'activité trouvée pour ce bloc.");
-            return true; // Par défaut, autoriser si le bloc n'est pas spécifié dans le fichier de config
-        }
-
-        // Si le joueur est dans une entreprise autorisant cette activité, autoriser l'action
-        if (entreprisesSection != null) {
-            for (String entrepriseNom : entreprisesSection.getKeys(false)) {
-                String typeEntreprise = playersConfig.getString("players." + joueurNom + "." + entrepriseNom + ".type-entreprise");
-                if (typeEntreprise != null && typeEntreprise.equals(categorieActivite)) {
-                    System.out.println("[DEBUG] Le joueur fait partie d'une entreprise autorisant cette activité.");
-                    return true; // Le joueur est autorisé car il fait partie d'une entreprise liée à cette activité
-                }
-            }
-        }
-
-        // Si le joueur n'est pas dans une entreprise autorisée, vérifier la limite journalière pour non-membres
-        boolean actionAllowed = checkDailyLimitForNonMembers(playerUUID, categorieActivite);
-        System.out.println("[DEBUG] Action autorisée en fonction de la limite pour non-membres ? " + actionAllowed);
-
-        // Si le joueur dépasse sa limite, afficher un message et bloquer l'action
-        if (!actionAllowed) {
-            String messageErreur = plugin.getConfig().getStringList("types-entreprise." + categorieActivite + ".message-erreur")
-                    .stream().collect(Collectors.joining("\n"));
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', messageErreur));
-        }
-
-        return actionAllowed; // Autoriser ou bloquer en fonction de la limite journalière
-    }
-
-
-
-    public List<String> getEntreprisesEmployeDuJoueur(String joueurNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        List<String> entreprisesEmploye = playersConfig.getStringList("players." + joueurNom + ".employe-entreprises");
-        System.out.println("[DEBUG] Entreprises où " + joueurNom + " est employé: " + entreprisesEmploye);
-
-        return entreprisesEmploye;
-    }
-
-    public String getTypeEntrepriseDuGerant(String joueurNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Récupérer la liste des entreprises où le joueur est gérant
-        List<String> entreprisesGerant = playersConfig.getStringList("players." + joueurNom + ".gerant-entreprises");
-        System.out.println("[DEBUG] Entreprises où " + joueurNom + " est gérant: " + entreprisesGerant);
-
-        if (!entreprisesGerant.isEmpty()) {
-            // Retourner le type de la première entreprise gérée
-            return entreprisesGerant.get(0);
-        }
-
-        return null;
-    }
-
-
-
-
-
-
-    public String getCategorieActivite(Material blockType) {
-        // Exemple de logique pour déterminer la catégorie en fonction du type de bloc
-        // Cela suppose que vous avez défini les catégories et les types de blocs autorisés dans votre fichier de configuration
-        for (String categorie : plugin.getConfig().getConfigurationSection("types-entreprise").getKeys(false)) {
-            List<String> blocsAutorises = plugin.getConfig().getStringList("types-entreprise." + categorie + ".blocs-autorisés");
-            if (blocsAutorises.contains(blockType.name())) {
-                return categorie;
-            }
-        }
-        return null; // Retourne null si le bloc ne correspond à aucune catégorie
-    }
-
-    public boolean checkDailyLimitForNonMembers(UUID joueurUUID, String categorie) {
-        LocalDateTime maintenant = LocalDateTime.now();
-        Map<String, ActionInfo> activites = joueurActivites.computeIfAbsent(joueurUUID, k -> new HashMap<>());
-        ActionInfo info = activites.computeIfAbsent(categorie, k -> new ActionInfo());
-
-        if (info.getDernierActionHeure().getHour() != maintenant.getHour()) {
-            // Réinitialise le compteur si nous sommes dans une nouvelle heure
-            info.setNombreActions(0);
-            info.setDernierActionHeure(maintenant);
-        }
-
-        int limite = plugin.getConfig().getInt("types-entreprise." + categorie + ".limite-non-membre-par-heure");
-        if (info.getNombreActions() < limite) {
-            // Incrémente le compteur et autorise l'action
-            info.setNombreActions(info.getNombreActions() + 1);
-            return true;
-        } else {
-            // Limite atteinte, action non autorisée
-            return false;
+            plugin.getLogger().info("[EntrepriseManager] Plus d'entreprise pour " + gerantNom + ". Exécution: " + command);
+            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command));
         }
     }
 
+    public void declareEntreprise(Player maireCreateur, String ville, String nomEntreprise, String type, String nomGerant, String siret) {
+        if (this.entreprises.containsKey(nomEntreprise)) { maireCreateur.sendMessage(ChatColor.RED + "Nom d'entreprise '" + nomEntreprise + "' déjà pris."); return; }
+        OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(nomGerant);
+        if (!offlineGerant.hasPlayedBefore() && !offlineGerant.isOnline()) { maireCreateur.sendMessage(ChatColor.RED + "Joueur '" + nomGerant + "' inconnu."); return; }
 
-
-    public String getTypeEntrepriseDuJoueur(String joueurNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Récupérer les sections correspondant aux entreprises du joueur
-        ConfigurationSection entreprisesSection = playersConfig.getConfigurationSection("players." + joueurNom);
-
-        if (entreprisesSection != null) {
-            // Parcourir les entreprises pour trouver leur type
-            for (String entrepriseNom : entreprisesSection.getKeys(false)) {
-                String typeEntreprise = playersConfig.getString("players." + joueurNom + "." + entrepriseNom + ".type-entreprise");
-                if (typeEntreprise != null) {
-                    return typeEntreprise; // Retourner le type de la première entreprise trouvée
-                }
-            }
-        }
-        return null; // Le joueur n'appartient à aucune entreprise
-    }
-
-
-
-    public void chargerJoueurs() {
-        File fichierJoueurs = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration configJoueurs = YamlConfiguration.loadConfiguration(fichierJoueurs);
-
-        if (configJoueurs.contains("players")) {
-            for (String uuid : configJoueurs.getConfigurationSection("players").getKeys(false)) {
-                String entreprise = configJoueurs.getString("players." + uuid + ".entreprise");
-                joueursEntreprises.put(UUID.fromString(uuid), entreprise);
-            }
-        }
-    }
-
-    public void sauvegarderJoueurs() {
-        File fichierJoueurs = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration configJoueurs = YamlConfiguration.loadConfiguration(fichierJoueurs);
-
-        for (Map.Entry<UUID, String> entry : joueursEntreprises.entrySet()) {
-            configJoueurs.set("players." + entry.getKey().toString() + ".entreprise", entry.getValue());
-        }
-
-        try {
-            configJoueurs.save(fichierJoueurs);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    public void kickEmploye(Player gerant, String nomEntreprise, String nomEmploye) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null) {
-            gerant.sendMessage(ChatColor.RED + "L'entreprise " + nomEntreprise + " n'existe pas.");
-            return;
-        }
-
-        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName())) {
-            gerant.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant de l'entreprise " + nomEntreprise + ".");
-            return;
-        }
-
-        if (!entreprise.getEmployes().contains(nomEmploye)) {
-            gerant.sendMessage(ChatColor.RED + "L'employé " + nomEmploye + " ne fait pas partie de l'entreprise " + nomEntreprise + ".");
-            return;
-        }
-
-        // Retirer l'employé de l'entreprise
-        entreprise.getEmployes().remove(nomEmploye);
-
-        // Mettre à jour le fichier players.yml
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-        playersConfig.set("players." + nomEmploye + "." + nomEntreprise, null);
-
-        // Sauvegarder le fichier
-        try {
-            playersConfig.save(playersFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Sauvegarder les modifications des entreprises
+        Entreprise nouvelleEntreprise = new Entreprise(nomEntreprise, ville, type, nomGerant, new HashSet<>(), 0.0, siret);
+        this.entreprises.put(nomEntreprise, nouvelleEntreprise);
+        this.activiteHoraireValeur.put(nomEntreprise, 0.0);
         saveEntreprises();
-
-        gerant.sendMessage(ChatColor.GREEN + "L'employé " + nomEmploye + " a été viré de l'entreprise " + nomEntreprise + ".");
-        Player employePlayer = Bukkit.getPlayerExact(nomEmploye);
-        if (employePlayer != null) {
-            employePlayer.sendMessage(ChatColor.RED + "Vous avez été viré de l'entreprise " + nomEntreprise + ".");
-        }
+        maireCreateur.sendMessage(ChatColor.GREEN + "Entreprise '" + nomEntreprise + "' (" + type + ") proposée pour " + nomGerant + ".");
     }
 
-
-
-
-
-
-    public void chargerBlocsAutorises() {
-        FileConfiguration config = plugin.getConfig();
-        for (String typeEntreprise : config.getConfigurationSection("types-entreprise").getKeys(false)) {
-            Set<Material> blocsAutorises = config.getStringList("types-entreprise." + typeEntreprise + ".blocs-autorisés").stream()
-                    .map(Material::matchMaterial)
-                    .collect(Collectors.toSet());
-            blocsAutorisesParTypeEntreprise.put(typeEntreprise, blocsAutorises);
+    public void inviterEmploye(Player gerant, String nomEntreprise, Player joueurInvite) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) { gerant.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' introuvable."); return; }
+        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName())) { gerant.sendMessage(ChatColor.RED + "Pas le gérant."); return; }
+        if (gerant.getName().equalsIgnoreCase(joueurInvite.getName())) { gerant.sendMessage(ChatColor.RED + "Impossible de s'auto-inviter."); return; }
+        if (getNomEntrepriseDuMembre(joueurInvite.getName()) != null) { gerant.sendMessage(ChatColor.RED + joueurInvite.getName() + " est déjà dans une entreprise."); return; }
+        if (entreprise.getEmployes().size() >= plugin.getConfig().getInt("finance.max-employer-par-entreprise", 10)) { gerant.sendMessage(ChatColor.RED + "Limite d'employés atteinte."); return; }
+        double distanceMax = plugin.getConfig().getDouble("invitation.distance-max", 10.0);
+        if (!gerant.getWorld().equals(joueurInvite.getWorld()) || gerant.getLocation().distanceSquared(joueurInvite.getLocation()) > distanceMax * distanceMax) {
+            gerant.sendMessage(ChatColor.RED + joueurInvite.getName() + " trop loin."); return;
         }
+        invitations.put(joueurInvite.getName(), nomEntreprise);
+        envoyerInvitationVisuelle(joueurInvite, nomEntreprise, gerant.getName(), entreprise.getType());
+        gerant.sendMessage(ChatColor.GREEN + "Invitation envoyée à " + joueurInvite.getName() + " pour '" + nomEntreprise + "'.");
     }
 
-    public List<Map<String, String>> getEntreprisesDuJoueurInfo(String joueurNom) {
-        List<Map<String, String>> entreprisesInfo = new ArrayList<>();
-
-        // Parcourir toutes les entreprises
-        for (Entreprise entreprise : entreprises.values()) {
-            // Vérifier si le joueur est gérant ou employé de cette entreprise
-            if (entreprise.getEmployes().contains(joueurNom) || entreprise.getGerant().equalsIgnoreCase(joueurNom)) {
-                Map<String, String> entrepriseInfo = new HashMap<>();
-                entrepriseInfo.put("nom", entreprise.getNom());
-                entrepriseInfo.put("gerant", entreprise.getGerant());
-                entrepriseInfo.put("type", entreprise.getType());
-                entreprisesInfo.add(entrepriseInfo);
-            }
-        }
-
-        return entreprisesInfo;
+    private void envoyerInvitationVisuelle(Player joueurInvite, String nomEntreprise, String nomGerant, String typeEntreprise) {
+        joueurInvite.sendMessage(ChatColor.GOLD + "------------------------------------------");
+        joueurInvite.sendMessage(ChatColor.YELLOW + nomGerant + " (Gérant de '" + nomEntreprise + "', type: " + typeEntreprise + ") vous invite à rejoindre son entreprise !");
+        TextComponent accepterMsg = new TextComponent("        [ACCEPTER]");
+        accepterMsg.setColor(net.md_5.bungee.api.ChatColor.GREEN);
+        accepterMsg.setBold(true);
+        accepterMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise accepter"));
+        accepterMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour accepter").color(net.md_5.bungee.api.ChatColor.GRAY).create()));
+        TextComponent refuserMsg = new TextComponent("   [REFUSER]");
+        refuserMsg.setColor(net.md_5.bungee.api.ChatColor.RED);
+        refuserMsg.setBold(true);
+        refuserMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise refuser"));
+        refuserMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour refuser").color(net.md_5.bungee.api.ChatColor.GRAY).create()));
+        TextComponent ligneActions = new TextComponent("");
+        ligneActions.addExtra(accepterMsg);
+        ligneActions.addExtra(refuserMsg);
+        joueurInvite.spigot().sendMessage(ligneActions);
+        joueurInvite.sendMessage(ChatColor.GOLD + "------------------------------------------");
     }
-
-    public Set<String> getEntreprisesDuJoueur(String joueurNom) {
-        Set<String> entreprisesJoueur = new HashSet<>();
-
-        // Parcourir toutes les entreprises
-        for (Entreprise entreprise : this.entreprises.values()) {
-            if (entreprise.getGerant().equalsIgnoreCase(joueurNom) || entreprise.getEmployes().contains(joueurNom)) {
-                entreprisesJoueur.add(entreprise.getNom());
-            }
-        }
-
-        return entreprisesJoueur;
-    }
-
-
-
-
-    public List<Entreprise> getEntrepriseDuGerant(String gerantNom) {
-        // Créez une liste pour stocker les entreprises du gérant
-        List<Entreprise> entreprisesDuGerant = new ArrayList<>();
-
-        // Parcourez toutes les entreprises et ajoutez celles gérées par le gérant spécifié
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getGerant().equalsIgnoreCase(gerantNom)) {
-                entreprisesDuGerant.add(entreprise);
-            }
-        }
-
-        return entreprisesDuGerant;
-    }
-
-
-    public void retirerArgent(Player player, String entrepriseNom, double montant) {
-        Entreprise entreprise = getEntreprise(entrepriseNom);
-        if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable ou vous n'êtes pas le gérant.");
-            return;
-        }
-        if (montant <= 0 || montant > entreprise.getSolde()) {
-            player.sendMessage(ChatColor.RED + "Montant invalide ou solde insuffisant.");
-            return;
-        }
-
-        // Retirer l'argent de l'entreprise
-        entreprise.setSolde(entreprise.getSolde() - montant);
-        saveEntreprises();
-
-        // Utilisation de Vault pour ajouter de l'argent au joueur
-        EconomyResponse response = EntrepriseManager.getEconomy().depositPlayer(player, montant);
-        if (response.transactionSuccess()) {
-            player.sendMessage(ChatColor.GREEN + "Vous avez retiré " + montant + "€ de " + entrepriseNom + ".");
-        } else {
-            // Si la transaction échoue, remettre l'argent à l'entreprise
-            entreprise.setSolde(entreprise.getSolde() + montant);
-            saveEntreprises();
-            player.sendMessage(ChatColor.RED + "Erreur lors de la transaction : " + response.errorMessage);
-        }
-    }
-
-    public void deposerArgent(Player player, String entrepriseNom, double montant) {
-        Entreprise entreprise = getEntreprise(entrepriseNom);
-        if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable ou vous n'êtes pas le gérant.");
-            return;
-        }
-        if (montant <= 0) {
-            player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
-            return;
-        }
-
-        // Utilisation de Vault pour retirer de l'argent au joueur
-        EconomyResponse response = EntrepriseManager.getEconomy().withdrawPlayer(player, montant);
-        if (response.transactionSuccess()) {
-            // Ajouter l'argent à l'entreprise
-            entreprise.setSolde(entreprise.getSolde() + montant);
-            saveEntreprises();
-            player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + montant + "€ dans " + entrepriseNom + ".");
-        } else {
-            player.sendMessage(ChatColor.RED + "Erreur lors de la transaction : " + response.errorMessage);
-        }
-    }
-
-    public Collection<Entreprise> getEntreprises() {
-        return entreprises.values();
-    }
-
-    public List<Entreprise> getEntreprisesByVille(String ville) {
-        List<Entreprise> entreprisesDansVille = new ArrayList<>();
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getVille().equalsIgnoreCase(ville)) {
-                entreprisesDansVille.add(entreprise);
-            }
-        }
-        return entreprisesDansVille;
-    }
-
-
-    public void leaveEntreprise(Player joueur, String nomEntreprise) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null) {
-            joueur.sendMessage(ChatColor.RED + "L'entreprise spécifiée n'existe pas.");
-            return;
-        }
-
-        String joueurUUIDString = joueur.getUniqueId().toString();
-        if (!entreprise.getEmployes().contains(joueurUUIDString)) {
-            joueur.sendMessage(ChatColor.RED + "Vous n'êtes pas un employé de cette entreprise.");
-            return;
-        }
-
-        // Vérifier si le joueur est le gérant (si c'est le cas, ne pas permettre de quitter de cette manière)
-        if (entreprise.getGerant().equalsIgnoreCase(joueur.getName())) {
-            joueur.sendMessage(ChatColor.RED + "En tant que gérant, vous ne pouvez pas quitter l'entreprise. Utilisez '/entreprise delete' pour supprimer l'entreprise.");
-            return;
-        }
-
-        // Supprimer le joueur de la liste des employés de l'entreprise
-        entreprise.getEmployes().remove(joueurUUIDString);
-
-        // Mettre à jour la liste des joueurs dans le fichier players.yml
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-        playersConfig.set("players." + joueurUUIDString + ".entreprise", null); // Supprime l'entreprise associée au joueur
-        try {
-            playersConfig.save(playersFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        saveEntreprises(); // Sauvegardez les modifications des entreprises
-        joueur.sendMessage(ChatColor.GREEN + "Vous avez quitté l'entreprise " + nomEntreprise + ".");
-    }
-
-    public String trouverNomEntrepriseParTypeEtGerant(String gerant, String type) {
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getGerant().equalsIgnoreCase(gerant) && entreprise.getType().equalsIgnoreCase(type)) {
-                return entreprise.getNom();
-            }
-        }
-        return null; // Retourne null si aucune entreprise correspondante n'est trouvée
-    }
-
-    public Set<String> getGerantsAvecEntreprises() {
-        Set<String> gerants = new HashSet<>();
-        for (Entreprise entreprise : entreprises.values()) {
-            gerants.add(entreprise.getGerant());
-        }
-        return gerants;
-    }
-    public void reloadEntreprises() {
-        // Étape 1: Recharger le fichier entreprise.yml
-        if (entrepriseFile == null) {
-            entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
-        }
-        entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
-
-        // Étape 2: Réinitialiser l'état actuel
-        entreprises.clear(); // Assurez-vous que 'entreprises' est votre Map ou List stockant les objets Entreprise
-        loadEntreprises();
-
-        // Log pour indiquer le succès du rechargement
-        plugin.getLogger().info("Entreprises rechargées avec succès depuis le fichier.");
-    }
-
-
-    public void inviterEmploye(Player gerant, String entrepriseNom, Player joueurInvite) {
-        // Assurez-vous que l'entreprise existe
-        Entreprise entreprise = getEntreprise(entrepriseNom);
-        if (entreprise == null) {
-            gerant.sendMessage(ChatColor.RED + "L'entreprise n'existe pas.");
-            return;
-        }
-
-        // Vérifier que le gérant ne tente pas de s'inviter lui-même
-        if (gerant.getName().equals(joueurInvite.getName())) {
-            gerant.sendMessage(ChatColor.RED + "Vous ne pouvez pas vous inviter dans votre propre entreprise.");
-            return;
-        }
-
-        // Le reste du code pour inviter un employé
-        if (!estGerant(gerant.getName(), entrepriseNom)) {
-            gerant.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant de cette entreprise.");
-            return;
-        }
-
-        if (gerant.getLocation().distance(joueurInvite.getLocation()) > plugin.getConfig().getDouble("invitation.distance-max")) {
-            gerant.sendMessage(ChatColor.RED + "Le joueur est trop loin pour être invité.");
-            return;
-        }
-
-        invitations.put(joueurInvite.getName(), entrepriseNom);
-        envoyerInvitationDansChat(joueurInvite, entrepriseNom, gerant.getName(), entreprise.getType());
-        gerant.sendMessage(ChatColor.GREEN + "Une invitation a été envoyée à " + joueurInvite.getName() + " pour rejoindre l'entreprise " + entrepriseNom + ".");
-    }
-
-
-
-
-
-
 
     public void handleAccepterCommand(Player joueur) {
         String joueurNom = joueur.getName();
+        if (!invitations.containsKey(joueurNom)) {
+            joueur.sendMessage(ChatColor.RED + "Vous n'avez aucune invitation en attente ou elle a expiré.");
+            return;
+        }
 
-        if (invitations.containsKey(joueurNom)) {
-            String entrepriseNom = invitations.get(joueurNom);
+        String nomEntreprise = invitations.remove(joueurNom);
+        Entreprise entreprise = getEntreprise(nomEntreprise);
 
-            // Ajouter l'employé à l'entreprise
-            this.addEmploye(entrepriseNom, joueurNom);
-            joueur.sendMessage(ChatColor.GREEN + "Vous avez accepté l'invitation de l'entreprise " + entrepriseNom + ".");
+        if (entreprise == null) {
+            joueur.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe plus. L'invitation est annulée.");
+            return;
+        }
 
-            // Notification au gérant
-            Entreprise entreprise = this.getEntreprise(entrepriseNom);
-            if (entreprise != null) {
-                Player gerant = Bukkit.getServer().getPlayerExact(entreprise.getGerant());
-                if (gerant != null) {
-                    gerant.sendMessage(ChatColor.GREEN + joueurNom + " a accepté l'invitation à rejoindre l'entreprise " + entrepriseNom + ".");
-                }
+        int maxEmployes = plugin.getConfig().getInt("finance.max-employer-par-entreprise", 10);
+        if (entreprise.getEmployes().size() >= maxEmployes) { // getEmployes() ici est OK car c'est pour une vérification de taille
+            joueur.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' a atteint sa limite d'employés pendant que vous considériez l'invitation.");
+            Player gerantP = Bukkit.getPlayerExact(entreprise.getGerant());
+            if (gerantP != null && gerantP.isOnline()) {
+                gerantP.sendMessage(ChatColor.YELLOW + joueurNom + " a tenté de rejoindre '" + nomEntreprise + "', mais l'entreprise est pleine.");
             }
+            return;
+        }
 
-            invitations.remove(joueurNom);
+        // Appel correct à addEmploye
+        addEmploye(nomEntreprise, joueurNom);
 
-            // Mise à jour des permissions du joueur en fonction de l'entreprise
-            mettreAJourPermissions(joueur.getUniqueId());
-        } else {
-            joueur.sendMessage(ChatColor.RED + "Aucune invitation trouvée ou elle a expiré.");
+        joueur.sendMessage(ChatColor.GREEN + "Vous avez rejoint l'entreprise '" + nomEntreprise + "' !");
+
+        Player gerantP = Bukkit.getPlayerExact(entreprise.getGerant());
+        if (gerantP != null && gerantP.isOnline()) {
+            gerantP.sendMessage(ChatColor.GREEN + joueurNom + " a accepté votre invitation et a rejoint '" + nomEntreprise + "'.");
         }
     }
 
-    public void mettreAJourPermissions(UUID playerUUID) {
-        // Logique pour recharger les permissions du joueur en fonction de l'entreprise qu'il vient de rejoindre
-        // Cela peut inclure l'actualisation des limites journalières et l'accès aux blocs autorisés
-        Player player = Bukkit.getPlayer(playerUUID);
-        if (player != null) {
-            // Par exemple, tu pourrais actualiser ici les autorisations d'accès aux blocs
-            String typeEntreprise = getTypeEntrepriseDuJoueur(playerUUID.toString());
-
-            if (typeEntreprise != null) {
-                player.sendMessage(ChatColor.GREEN + "Vos permissions d'entreprise ont été mises à jour.");
-            }
-        }
-    }
-
-
-
-
-    void handleRefuserCommand(Player joueur) {
+    public void handleRefuserCommand(Player joueur) {
         String joueurNom = joueur.getName();
+        if (!invitations.containsKey(joueurNom)) { joueur.sendMessage(ChatColor.RED + "Aucune invitation valide."); return; }
+        String nomEntreprise = invitations.remove(joueurNom);
+        joueur.sendMessage(ChatColor.YELLOW + "Vous avez refusé l'invitation pour '" + nomEntreprise + "'.");
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise != null) {
+            Player gerantP = Bukkit.getPlayerExact(entreprise.getGerant());
+            if (gerantP != null) gerantP.sendMessage(ChatColor.YELLOW + joueurNom + " a refusé l'invitation pour '" + nomEntreprise + "'.");
+        }
+    }
 
-        if (invitations.containsKey(joueurNom)) {
-            String entrepriseNom = invitations.get(joueurNom);
+    public void addEmploye(String nomEntreprise, String nomJoueur) {
+        Entreprise entreprise = entreprises.get(nomEntreprise);
+        if (entreprise != null) {
+            // Utiliser la méthode interne pour modifier la collection d'employés
+            Set<String> employesModifiables = entreprise.getEmployesInternal();
+            if (employesModifiables.add(nomJoueur)) { // True si l'employé n'était pas déjà présent et a été ajouté
+                entreprise.setPrimePourEmploye(nomJoueur, 0.0); // Prime par défaut à 0
+                plugin.getLogger().info("[EntrepriseManager] " + nomJoueur + " ajouté comme employé à '" + nomEntreprise + "'.");
+                saveEntreprises(); // Sauvegarder les changements
+            } else {
+                plugin.getLogger().warning("[EntrepriseManager] " + nomJoueur + " est déjà un employé de '" + nomEntreprise + "', ajout ignoré.");
+                // Optionnel : informer le joueur/gérant si l'employé était déjà là
+            }
+        } else {
+            plugin.getLogger().severe("[EntrepriseManager] Tentative d'ajout d'un employé à une entreprise non existante: " + nomEntreprise);
+        }
+    }
 
-            // Notification au gérant
-            Entreprise entreprise = this.getEntreprise(entrepriseNom);
-            if (entreprise != null) {
-                Player gerant = Bukkit.getServer().getPlayerExact(entreprise.getGerant());
-                if (gerant != null) {
-                    gerant.sendMessage(ChatColor.RED + joueurNom + " a refusé l'invitation à rejoindre l'entreprise " + entrepriseNom + ".");
+    public void kickEmploye(Player gerant, String nomEntreprise, String nomEmployeAKick) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) { gerant.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' introuvable."); return; }
+        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName())) { gerant.sendMessage(ChatColor.RED + "Pas le gérant."); return; }
+        if (!entreprise.getEmployes().contains(nomEmployeAKick)) { gerant.sendMessage(ChatColor.RED + nomEmployeAKick + " n'est pas employé ici."); return; }
+
+        Set<String> employesModifiables = entreprise.getEmployesInternal(); // Accéder à la collection modifiable
+        if (employesModifiables.remove(nomEmployeAKick)) {
+            entreprise.retirerPrimeEmploye(nomEmployeAKick);
+            plugin.getLogger().info("[EntrepriseManager] " + nomEmployeAKick + " retiré de '" + nomEntreprise + "'.");
+            saveEntreprises();
+            gerant.sendMessage(ChatColor.GREEN + nomEmployeAKick + " viré de '" + nomEntreprise + "'.");
+            Player employeKickeP = Bukkit.getPlayerExact(nomEmployeAKick);
+            if (employeKickeP != null) employeKickeP.sendMessage(ChatColor.RED + "Viré de '" + nomEntreprise + "'.");
+        } else {
+            gerant.sendMessage(ChatColor.RED + "Erreur lors du licenciement de " + nomEmployeAKick + ".");
+        }
+    }
+
+    public void leaveEntreprise(Player joueur, String nomEntreprise) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) { joueur.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' introuvable."); return; }
+        if (entreprise.getGerant().equalsIgnoreCase(joueur.getName())) { joueur.sendMessage(ChatColor.RED + "Gérant, utilisez /entreprise delete <NomEntreprise>."); return; }
+        if (!entreprise.getEmployes().contains(joueur.getName())) { joueur.sendMessage(ChatColor.RED + "Pas employé ici."); return; }
+
+        Set<String> employesModifiables = entreprise.getEmployesInternal(); // Accéder à la collection modifiable
+        if (employesModifiables.remove(joueur.getName())) {
+            entreprise.retirerPrimeEmploye(joueur.getName());
+            plugin.getLogger().info("[EntrepriseManager] " + joueur.getName() + " a quitté '" + nomEntreprise + "'.");
+            saveEntreprises();
+            joueur.sendMessage(ChatColor.GREEN + "Quitté '" + nomEntreprise + "'.");
+            Player gerantP = Bukkit.getPlayerExact(entreprise.getGerant());
+            if (gerantP != null) gerantP.sendMessage(ChatColor.YELLOW + joueur.getName() + " a quitté '" + nomEntreprise + "'.");
+        } else {
+            joueur.sendMessage(ChatColor.RED + "Erreur en quittant l'entreprise.");
+        }
+    }
+    // --- FIN: Méthodes de gestion d'entreprise ---
+
+    // --- DEBUT: Commandes de création d'entreprise et validation ---
+    public void proposerCreationEntreprise(Player maire, Player gerantCible, String type, String ville, String nomEntreprisePropose, String siret) {
+        double coutCreation = plugin.getConfig().getDouble("types-entreprise." + type + ".cout-creation", 0.0);
+        double distanceMax = plugin.getConfig().getDouble("invitation.distance-max", 10.0);
+        if (!gerantCible.isOnline()) { maire.sendMessage(ChatColor.RED + gerantCible.getName() + " doit être en ligne."); return; }
+        if (!maire.getWorld().equals(gerantCible.getWorld()) || maire.getLocation().distanceSquared(gerantCible.getLocation()) > distanceMax * distanceMax) {
+            maire.sendMessage(ChatColor.RED + gerantCible.getName() + " est trop loin."); return;
+        }
+        if (getNomEntrepriseDuMembre(gerantCible.getName()) != null) { maire.sendMessage(ChatColor.RED + gerantCible.getName() + " est déjà dans une entreprise."); return; }
+        int maxEnt = plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1);
+        if (entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(gerantCible.getName())).count() >= maxEnt) {
+            maire.sendMessage(ChatColor.RED + gerantCible.getName() + " a atteint la limite d'entreprises gérées (" + maxEnt + ")."); return;
+        }
+
+        DemandeCreation demande = new DemandeCreation(maire, gerantCible, type, ville, siret, nomEntreprisePropose, coutCreation, 60000L);
+        demandesEnAttente.put(gerantCible.getUniqueId(), demande);
+        maire.sendMessage(ChatColor.GREEN + "Proposition de création envoyée à " + gerantCible.getName() + " pour l'entreprise '" + nomEntreprisePropose + "'.");
+        envoyerInvitationVisuelleContrat(gerantCible, demande);
+    }
+
+    private void envoyerInvitationVisuelleContrat(Player gerantCible, DemandeCreation demande) {
+        gerantCible.sendMessage(ChatColor.GOLD + "---------------- Contrat de Gérance ----------------");
+        gerantCible.sendMessage(ChatColor.AQUA + "Maire: " + ChatColor.WHITE + demande.maire.getName() + ChatColor.AQUA + " Ville: " + ChatColor.WHITE + demande.ville);
+        gerantCible.sendMessage(ChatColor.AQUA + "Type: " + ChatColor.WHITE + demande.type + ChatColor.AQUA + " Nom: " + ChatColor.WHITE + demande.nomEntreprise);
+        gerantCible.sendMessage(ChatColor.AQUA + "SIRET: " + ChatColor.WHITE + demande.siret);
+        gerantCible.sendMessage(ChatColor.AQUA + "Coût de création à régler: " + ChatColor.GREEN + String.format("%,.2f€", demande.cout));
+        gerantCible.sendMessage(ChatColor.YELLOW + "Vous avez 60 secondes pour accepter ou refuser.");
+
+        TextComponent accepterMsg = new TextComponent("        [VALIDER LE CONTRAT]");
+        accepterMsg.setColor(net.md_5.bungee.api.ChatColor.GREEN);
+        accepterMsg.setBold(true);
+        accepterMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise validercreation"));
+        accepterMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour signer et payer " + String.format("%,.2f€", demande.cout)).create()));
+
+        TextComponent refuserMsg = new TextComponent("   [REFUSER LE CONTRAT]");
+        refuserMsg.setColor(net.md_5.bungee.api.ChatColor.RED);
+        refuserMsg.setBold(true);
+        refuserMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise annulercreation"));
+        refuserMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour refuser l'offre de gérance").create()));
+
+        TextComponent ligneActions = new TextComponent("");
+        ligneActions.addExtra(accepterMsg);
+        ligneActions.addExtra(refuserMsg);
+        gerantCible.spigot().sendMessage(ligneActions);
+        gerantCible.sendMessage(ChatColor.GOLD + "--------------------------------------------------");
+        // Expiration automatique
+        UUID gerantUUID = gerantCible.getUniqueId();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (demandesEnAttente.containsKey(gerantUUID)) {
+                DemandeCreation d = demandesEnAttente.remove(gerantUUID);
+                d.gerant.sendMessage(ChatColor.RED + "Le contrat pour '" + d.nomEntreprise + "' a expiré.");
+                d.maire.sendMessage(ChatColor.RED + "Le contrat pour '" + d.nomEntreprise + "' (gérant: " + d.gerant.getName() + ") a expiré.");
+            }
+        }, 20L * 60L); // 60 secondes
+    }
+
+    public void validerCreationEntreprise(Player gerantSignataire) {
+        UUID uuid = gerantSignataire.getUniqueId();
+        if (!demandesEnAttente.containsKey(uuid)) { gerantSignataire.sendMessage(ChatColor.RED + "Aucune demande de création en attente."); return; }
+        DemandeCreation demande = demandesEnAttente.remove(uuid);
+        if (demande.isExpired()) { gerantSignataire.sendMessage(ChatColor.RED + "La demande a expiré."); demande.maire.sendMessage(ChatColor.RED + "La demande pour " + gerantSignataire.getName() + " a expiré."); return; }
+        if (!EntrepriseManager.getEconomy().has(gerantSignataire, demande.cout)) { gerantSignataire.sendMessage(ChatColor.RED + "Fonds insuffisants (" + demande.cout + "€ requis)."); demande.maire.sendMessage(ChatColor.RED + "Création échouée: fonds insuffisants pour " + gerantSignataire.getName()); return; }
+        EconomyResponse er = EntrepriseManager.getEconomy().withdrawPlayer(gerantSignataire, demande.cout);
+        if (!er.transactionSuccess()) { gerantSignataire.sendMessage(ChatColor.RED + "Erreur paiement: " + er.errorMessage); demande.maire.sendMessage(ChatColor.RED + "Échec paiement par " + gerantSignataire.getName()); return; }
+        declareEntreprise(demande.maire, demande.ville, demande.nomEntreprise, demande.type, demande.gerant.getName(), demande.siret);
+        gerantSignataire.sendMessage(ChatColor.GREEN + "Contrat accepté et payé (" + String.format("%,.2f€", demande.cout) + "). Entreprise '" + demande.nomEntreprise + "' créée !");
+        demande.maire.sendMessage(ChatColor.GREEN + gerantSignataire.getName() + " a validé et payé la création de '" + demande.nomEntreprise + "'.");
+    }
+
+    public void refuserCreationEntreprise(Player gerantSignataire) {
+        UUID uuid = gerantSignataire.getUniqueId();
+        if (!demandesEnAttente.containsKey(uuid)) { gerantSignataire.sendMessage(ChatColor.RED + "Aucune demande en attente."); return; }
+        DemandeCreation demande = demandesEnAttente.remove(uuid);
+        gerantSignataire.sendMessage(ChatColor.RED + "Vous avez refusé le contrat de gérance pour '" + demande.nomEntreprise + "'.");
+        demande.maire.sendMessage(ChatColor.RED + gerantSignataire.getName() + " a refusé le contrat de gérance pour '" + demande.nomEntreprise + "'.");
+    }
+    // --- FIN: Commandes de création ---
+
+    // --- DEBUT: Getters et utilitaires divers ---
+    public Collection<Entreprise> getEntreprises() {
+        return Collections.unmodifiableCollection(entreprises.values());
+    }
+
+    public List<Entreprise> getEntreprisesByVille(String ville) {
+        return entreprises.values().stream().filter(e -> e.getVille().equalsIgnoreCase(ville)).collect(Collectors.toList());
+    }
+
+    public String trouverNomEntrepriseParTypeEtGerant(String gerant, String type) {
+        return entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(gerant) && e.getType().equalsIgnoreCase(type)).map(Entreprise::getNom).findFirst().orElse(null);
+    }
+
+    public Set<String> getGerantsAvecEntreprises() {
+        return entreprises.values().stream().map(Entreprise::getGerant).collect(Collectors.toSet());
+    }
+
+    public Set<String> getTypesEntreprise() {
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection("types-entreprise");
+        return (section != null) ? section.getKeys(false) : Collections.emptySet();
+    }
+
+    public Entreprise getEntrepriseDuGerantEtType(String gerant, String type) {
+        return entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(gerant) && e.getType().equalsIgnoreCase(type)).findFirst().orElse(null);
+    }
+
+    public Collection<String> getPlayersInMayorTown(Player mayor) {
+        if (!estMaire(mayor)) return Collections.emptyList();
+        try {
+            Town town = TownyAPI.getInstance().getResident(mayor.getName()).getTown();
+            if (town != null) return town.getResidents().stream().map(Resident::getName).collect(Collectors.toList());
+        } catch (NotRegisteredException e) { /* ignore */ }
+        return Collections.emptyList();
+    }
+
+    public Collection<String> getAllOnlinePlayersNames() {
+        return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
+    }
+
+    public Collection<String> getAllTownsNames() {
+        if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return Collections.emptyList();
+        return TownyAPI.getInstance().getTowns().stream().map(Town::getName).collect(Collectors.toList());
+    }
+
+    public List<Entreprise> getEntreprisesGereesPar(String nomGerant) {
+        return entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(nomGerant)).collect(Collectors.toList());
+    }
+
+    public List<String> getNomDesEntreprisesGereesPar(String nomGerant) {
+        return entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(nomGerant)).map(Entreprise::getNom).collect(Collectors.toList());
+    }
+
+    public boolean peutCreerEntreprise(Player gerantPotentiel) {
+        long count = entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(gerantPotentiel.getName())).count();
+        return count < plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1);
+    }
+
+    public boolean peutAjouterEmploye(String nomEntreprise) {
+        Entreprise e = getEntreprise(nomEntreprise);
+        if (e == null) return false;
+        return e.getEmployes().size() < plugin.getConfig().getInt("finance.max-employer-par-entreprise", 10);
+    }
+
+    public boolean joueurPeutRejoindreAutreEntreprise(String nomJoueur) {
+        long count = 0;
+        for(Entreprise e : entreprises.values()){
+            if(e.getGerant().equalsIgnoreCase(nomJoueur) || e.getEmployes().contains(nomJoueur)){
+                count++;
+            }
+        }
+        return count < plugin.getConfig().getInt("finance.max-travail-joueur", 1);
+    }
+
+    public void renameEntreprise(Player gerant, String ancienNom, String nouveauNom) {
+        Entreprise entreprise = getEntreprise(ancienNom);
+        if (entreprise == null) { gerant.sendMessage(ChatColor.RED + "L'entreprise '" + ancienNom + "' n'existe pas."); return; }
+        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName()) && !gerant.hasPermission("entreprisemanager.admin.renameany")) {
+            gerant.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant ou n'avez pas la permission."); return;
+        }
+        if (ancienNom.equalsIgnoreCase(nouveauNom)) { gerant.sendMessage(ChatColor.RED + "Nouveau nom identique à l'ancien."); return; }
+        if (entreprises.containsKey(nouveauNom)) { gerant.sendMessage(ChatColor.RED + "Nom '" + nouveauNom + "' déjà pris."); return; }
+        if (!nouveauNom.matches("^[a-zA-Z0-9_\\-]+$")) { gerant.sendMessage(ChatColor.RED + "Nom invalide (lettres, chiffres, _, -)."); return; }
+        double coutRenommage = plugin.getConfig().getDouble("rename-cost", 2500);
+        boolean adminRename = gerant.hasPermission("entreprisemanager.admin.renameany");
+        if(!adminRename){
+            if (!EntrepriseManager.getEconomy().has(gerant, coutRenommage)) { gerant.sendMessage(ChatColor.RED + "Pas assez d'argent (" + String.format("%,.2f", coutRenommage) + "€)."); return; }
+            EconomyResponse er = EntrepriseManager.getEconomy().withdrawPlayer(gerant, coutRenommage);
+            if (!er.transactionSuccess()) { gerant.sendMessage(ChatColor.RED + "Erreur paiement: " + er.errorMessage); return; }
+        }
+        entreprises.remove(ancienNom);
+        Double caPotentiel = activiteHoraireValeur.remove(ancienNom);
+        entreprise.setNom(nouveauNom);
+        entreprises.put(nouveauNom, entreprise);
+        if (caPotentiel != null) activiteHoraireValeur.put(nouveauNom, caPotentiel);
+        else activiteHoraireValeur.put(nouveauNom, 0.0);
+        saveEntreprises();
+        String messageFinal = ChatColor.GREEN + "'" + ancienNom + "' renommée en '" + nouveauNom + "'";
+        if(!adminRename) messageFinal += " pour " + String.format("%.2f€", coutRenommage);
+        messageFinal += ".";
+        gerant.sendMessage(messageFinal);
+    }
+
+    public void definirPrime(String nomEntreprise, String nomEmploye, double montantPrime) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) return;
+        if (!entreprise.getEmployes().contains(nomEmploye)) {
+            plugin.getLogger().warning("[EntrepriseManager] Tentative de définir prime pour '"+nomEmploye+"' non employé de '"+nomEntreprise+"'.");
+            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
+            if(gerantPlayer != null && gerantPlayer.isOnline()) {
+                gerantPlayer.sendMessage(ChatColor.RED + "L'employé '" + nomEmploye + "' ne fait plus partie de l'entreprise '" + nomEntreprise + "'.");
+            }
+            return;
+        }
+        entreprise.setPrimePourEmploye(nomEmploye, montantPrime);
+        saveEntreprises();
+    }
+
+    public String getTownNameFromPlayer(Player player) {
+        if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return null;
+        try {
+            Resident resident = TownyAPI.getInstance().getResident(player.getName());
+            if (resident != null && resident.hasTown()) return resident.getTown().getName();
+        } catch (NotRegisteredException e) { /* ignore */ }
+        return null;
+    }
+
+    public String generateSiret() {
+        int longueurSiret = plugin.getConfig().getInt("siret.longueur", 14);
+        return UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(longueurSiret, 32));
+    }
+
+    public boolean estMaire(Player joueur) {
+        if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return false;
+        Resident resident = TownyAPI.getInstance().getResident(joueur.getName());
+        return resident != null && resident.isMayor();
+    }
+
+    public boolean estMembreDeLaVille(String nomJoueur, String nomVille) {
+        if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return false;
+        try {
+            Resident resident = TownyAPI.getInstance().getResident(nomJoueur);
+            return resident != null && resident.hasTown() && resident.getTown().getName().equalsIgnoreCase(nomVille);
+        } catch (NotRegisteredException e) { return false; }
+    }
+
+    public EntrepriseManager getPlugin() {
+        return plugin;
+    }
+
+    public Collection<String> getTypesEntrepriseGereesPar(String nomGerant) {
+        return entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(nomGerant)).map(Entreprise::getType).distinct().collect(Collectors.toList());
+    }
+
+    public Set<String> getEmployesDeLEntreprise(String nomEntreprise) {
+        Entreprise e = getEntreprise(nomEntreprise);
+        return (e != null) ? e.getEmployes() : Collections.emptySet();
+    }
+
+    public List<String> getTypesEntrepriseDuJoueur(String nomJoueur) {
+        List<String> types = new ArrayList<>();
+        for (Entreprise e : entreprises.values()) {
+            if (e.getGerant().equalsIgnoreCase(nomJoueur) || e.getEmployes().contains(nomJoueur)) {
+                types.add(e.getType());
+            }
+        }
+        return types.stream().distinct().collect(Collectors.toList());
+    }
+
+    public void afficherSoldeEntreprise(Player player, String nomEntreprise){
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if(entreprise == null){ player.sendMessage(ChatColor.RED + "Entreprise introuvable."); return; }
+        player.sendMessage(ChatColor.GREEN + "Solde de l'entreprise " + nomEntreprise + ": " + String.format("%,.2f", entreprise.getSolde()) + "€");
+    }
+
+    public void retirerArgent(Player player, String nomEntreprise, double montant) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) { player.sendMessage(ChatColor.RED + "Entreprise introuvable."); return; }
+        if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) { player.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant."); return; }
+        if (montant <= 0) { player.sendMessage(ChatColor.RED + "Montant invalide."); return; }
+        if (entreprise.getSolde() < montant) { player.sendMessage(ChatColor.RED + "Solde insuffisant (Solde: " + String.format("%,.2f", entreprise.getSolde()) + "€)."); return; }
+        EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(player, montant);
+        if (er.transactionSuccess()) {
+            entreprise.setSolde(entreprise.getSolde() - montant);
+            saveEntreprises();
+            player.sendMessage(ChatColor.GREEN + "Retiré " + String.format("%,.2f", montant) + "€ de '" + nomEntreprise + "'. Nouveau solde ent.: " + String.format("%,.2f", entreprise.getSolde()) + "€.");
+        } else {
+            player.sendMessage(ChatColor.RED + "Erreur dépôt sur votre compte: " + er.errorMessage);
+        }
+    }
+
+    public void deposerArgent(Player player, String nomEntreprise, double montant) {
+        Entreprise entreprise = getEntreprise(nomEntreprise);
+        if (entreprise == null) { player.sendMessage(ChatColor.RED + "Entreprise introuvable."); return; }
+        if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) { player.sendMessage(ChatColor.RED + "Seul le gérant peut déposer."); return; }
+        if (montant <= 0) { player.sendMessage(ChatColor.RED + "Montant invalide."); return; }
+        if (!EntrepriseManager.getEconomy().has(player, montant)) { player.sendMessage(ChatColor.RED + "Pas assez d'argent (Requis: " + String.format("%,.2f", montant) + "€)."); return; }
+        EconomyResponse er = EntrepriseManager.getEconomy().withdrawPlayer(player, montant);
+        if (er.transactionSuccess()) {
+            entreprise.setSolde(entreprise.getSolde() + montant);
+            saveEntreprises();
+            player.sendMessage(ChatColor.GREEN + "Déposé " + String.format("%,.2f", montant) + "€ dans '" + nomEntreprise + "'. Nouveau solde ent.: " + String.format("%,.2f", entreprise.getSolde()) + "€.");
+        } else {
+            player.sendMessage(ChatColor.RED + "Erreur retrait de votre compte: " + er.errorMessage);
+        }
+    }
+    // --- FIN: Getters et utilitaires ---
+
+    // --- DEBUT: Sauvegarde et Chargement ---
+    private void loadEntreprises() {
+        entreprises.clear();
+        activiteHoraireValeur.clear();
+        if (!entrepriseFile.exists()) { plugin.getLogger().info("[EntrepriseManager] entreprise.yml non trouvé. Aucune entreprise chargée."); return; }
+        entrepriseConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
+        ConfigurationSection entreprisesSection = entrepriseConfig.getConfigurationSection("entreprises");
+        if (entreprisesSection == null) { plugin.getLogger().info("[EntrepriseManager] Section 'entreprises' vide ou manquante."); return; }
+        for (String nomEntrepriseKey : entreprisesSection.getKeys(false)) {
+            String path = "entreprises." + nomEntrepriseKey + ".";
+            String ville = entrepriseConfig.getString(path + "ville");
+            String type = entrepriseConfig.getString(path + "type");
+            String gerant = entrepriseConfig.getString(path + "gerant");
+            double solde = entrepriseConfig.getDouble(path + "solde", 0.0);
+            String siret = entrepriseConfig.getString(path + "siret", generateSiret());
+            double caTotal = entrepriseConfig.getDouble(path + "chiffreAffairesTotal", 0.0);
+            double caHorairePotentiel = entrepriseConfig.getDouble(path + "activiteHoraireValeur", 0.0);
+            Set<String> employesSet = new HashSet<>();
+            Map<String, Double> primesMap = new HashMap<>();
+            ConfigurationSection employesFileSection = entrepriseConfig.getConfigurationSection(path + "employes");
+            if (employesFileSection != null) {
+                for (String nomEmployeKey : employesFileSection.getKeys(false)) {
+                    employesSet.add(nomEmployeKey);
+                    primesMap.put(nomEmployeKey, employesFileSection.getDouble(nomEmployeKey + ".prime", 0.0));
                 }
             }
-
-            invitations.remove(joueurNom);
-            joueur.sendMessage(ChatColor.RED + "Vous avez refusé l'invitation de l'entreprise.");
-
-        } else {
-            joueur.sendMessage(ChatColor.RED + "Aucune invitation trouvée ou elle a expiré.");
+            if (gerant == null || type == null || ville == null) {
+                plugin.getLogger().severe("[EntrepriseManager] Données corrompues pour '" + nomEntrepriseKey + "'. Non chargée."); continue;
+            }
+            Entreprise entreprise = new Entreprise(nomEntrepriseKey, ville, type, gerant, employesSet, solde, siret);
+            entreprise.setChiffreAffairesTotal(caTotal);
+            entreprise.setPrimes(primesMap);
+            entreprises.put(nomEntrepriseKey, entreprise);
+            activiteHoraireValeur.put(nomEntrepriseKey, caHorairePotentiel);
         }
+        plugin.getLogger().info("[EntrepriseManager] " + entreprises.size() + " entreprises chargées.");
+    }
+
+    // Rendue non-statique
+    public void saveEntreprises() {
+        if (entrepriseConfig == null || entrepriseFile == null || plugin == null) {
+            plugin.getLogger().severe("[EntrepriseManager] ERREUR CRITIQUE: Config/Fichier/Plugin null. Sauvegarde annulée.");
+            return;
+        }
+        entrepriseConfig.set("entreprises", null);
+        for (Map.Entry<String, Entreprise> entry : entreprises.entrySet()) {
+            String nomEnt = entry.getKey();
+            Entreprise ent = entry.getValue();
+            String path = "entreprises." + nomEnt + ".";
+            entrepriseConfig.set(path + "ville", ent.getVille());
+            entrepriseConfig.set(path + "type", ent.getType());
+            entrepriseConfig.set(path + "gerant", ent.getGerant());
+            entrepriseConfig.set(path + "solde", ent.getSolde());
+            entrepriseConfig.set(path + "siret", ent.getSiret());
+            entrepriseConfig.set(path + "chiffreAffairesTotal", ent.getChiffreAffairesTotal());
+            if (this.activiteHoraireValeur.containsKey(nomEnt)) {
+                entrepriseConfig.set(path + "activiteHoraireValeur", this.activiteHoraireValeur.get(nomEnt));
+            }
+            ConfigurationSection employesCfgSection = entrepriseConfig.createSection(path + "employes");
+            // Correction : Vérifier si l'objet est null avant d'y accéder
+            if (ent.getEmployes() != null && (!ent.getEmployes().isEmpty() || (ent.getPrimes() != null && !ent.getPrimes().isEmpty())) ) {
+                for (String empNom : ent.getEmployes()) {
+                    employesCfgSection.set(empNom + ".prime", ent.getPrimePourEmploye(empNom));
+                }
+            }
+        }
+        try { entrepriseConfig.save(entrepriseFile); } catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "[EntrepriseManager] Erreur sauvegarde entreprise.yml", e); }
+
+        File playersFile = new File(plugin.getDataFolder(), "players.yml");
+        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
+        playersConfig.set("players", null);
+        for (Entreprise ent : entreprises.values()) {
+            String pGerantPath = "players." + ent.getGerant() + "." + ent.getNom();
+            playersConfig.set(pGerantPath + ".role", "gerant");
+            playersConfig.set(pGerantPath + ".type-entreprise", ent.getType());
+            if (ent.getEmployes() != null) { // Vérifier si la liste d'employés n'est pas null
+                for (String empNom : ent.getEmployes()) {
+                    String pEmpPath = "players." + empNom + "." + ent.getNom();
+                    playersConfig.set(pEmpPath + ".role", "employe");
+                    playersConfig.set(pEmpPath + ".type-entreprise", ent.getType());
+                }
+            }
+        }
+        try { playersConfig.save(playersFile); } catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "[EntrepriseManager] Erreur sauvegarde players.yml", e); }
+    }
+
+    public void reloadPluginData() {
+        plugin.reloadConfig();
+        loadEntreprises();
+        chargerRestrictionsActions();
+        planifierTachesHoraires();
+        plugin.getLogger().info("[EntrepriseManager] Données du plugin rechargées.");
+    }
+    // --- FIN: Sauvegarde et Chargement ---
+
+    // --- DEBUT: Méthodes pour les messages différés (primes hors-ligne) ---
+    public void ajouterMessageEmployeDifferre(String joueurNom, String message, String entrepriseNom, double montantPrime) {
+        File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        // Utiliser un chemin plus simple pour la liste, par ex. messages.<joueur>.<entreprise>
+        String listPath = "messages." + joueurNom + "." + entrepriseNom + ".list";
+        List<String> messagesActuels = messagesConfig.getStringList(listPath);
+        if (messagesActuels == null) { // Initialiser si n'existe pas
+            messagesActuels = new ArrayList<>();
+        }
+        messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().toLocalDate().toString() + " " + LocalDateTime.now().toLocalTime().toString().substring(0,5) + ": " + message));
+        messagesConfig.set(listPath, messagesActuels);
+
+        // Stocker aussi le montant total si besoin de l'afficher séparément
+        String totalPrimePath = "messages." + joueurNom + "." + entrepriseNom + ".totalPrime";
+        double totalPrimeCumulee = messagesConfig.getDouble(totalPrimePath, 0.0);
+        if (montantPrime > 0) {
+            messagesConfig.set(totalPrimePath, totalPrimeCumulee + montantPrime);
+        }
+
+        try {
+            messagesConfig.save(messagesFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("[EntrepriseManager] Erreur sauvegarde message différé employé " + joueurNom + ": " + e.getMessage());
+        }
+    }
+
+    public void envoyerPrimesDifferreesEmployes(Player player) {
+        String playerName = player.getName();
+        File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
+        if (!messagesFile.exists()) return;
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        String basePath = "messages." + playerName; // Chemin simplifié
+        if (!messagesConfig.contains(basePath)) {
+            player.sendMessage(ChatColor.YELLOW + "Vous n'avez aucun message de prime d'entreprise en attente.");
+            return;
+        }
+        ConfigurationSection entreprisesMessagesSection = messagesConfig.getConfigurationSection(basePath);
+        boolean aRecuMessage = false;
+        if(entreprisesMessagesSection != null) {
+            for (String nomEnt : entreprisesMessagesSection.getKeys(false)) {
+                // Vérifier si l'entrée est bien une section (qui contient list et totalPrime)
+                if(entreprisesMessagesSection.isConfigurationSection(nomEnt)){
+                    List<String> messages = entreprisesMessagesSection.getStringList(nomEnt + ".list");
+                    double totalPrime = entreprisesMessagesSection.getDouble(nomEnt + ".totalPrime", 0.0);
+                    if (!messages.isEmpty()) {
+                        player.sendMessage(ChatColor.GOLD + "--- Primes/Messages de '" + nomEnt + "' reçus hors-ligne ---");
+                        for (String msg : messages) player.sendMessage(ChatColor.AQUA + "- " + msg);
+                        if(totalPrime > 0) player.sendMessage(ChatColor.GREEN + "Un total de " + String.format("%,.2f",totalPrime) + "€ de primes de '"+nomEnt+"' a été crédité.");
+                        player.sendMessage(ChatColor.GOLD + "--------------------------------------------------");
+                        aRecuMessage = true;
+                    }
+                }
+            }
+        }
+        if(aRecuMessage){
+            messagesConfig.set(basePath, null);
+            try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("[EntrepriseManager] Erreur suppression messages différés pour " + playerName + ": " + e.getMessage()); }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Vous n'avez aucun nouveau message de prime d'entreprise.");
+        }
+    }
+
+    public void ajouterMessageGerantDifferre(String joueurNom, String message, String entrepriseNom, double montantConcerne) {
+        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        String listPath = "messages." + joueurNom + "." + entrepriseNom + ".list"; // Chemin simplifié
+        List<String> messagesActuels = messagesConfig.getStringList(listPath);
+        if (messagesActuels == null) {
+            messagesActuels = new ArrayList<>();
+        }
+        messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().toLocalDate().toString() + " " + LocalDateTime.now().toLocalTime().toString().substring(0,5) + ": " + message));
+        messagesConfig.set(listPath, messagesActuels);
+        // Optionnel: stocker montantConcerne pour résumé
+        // String montantPath = "messages." + joueurNom + "." + entrepriseNom + ".montantTotal";
+        // double montantCumule = messagesConfig.getDouble(montantPath, 0.0);
+        // messagesConfig.set(montantPath, montantCumule + montantConcerne);
+        try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("[EntrepriseManager] Erreur sauvegarde message différé gérant " + joueurNom + ": " + e.getMessage()); }
+    }
+
+    public void envoyerPrimesDifferreesGerants(Player player) {
+        String playerName = player.getName();
+        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
+        if (!messagesFile.exists()) return;
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        String basePath = "messages." + playerName; // Chemin simplifié
+        if (!messagesConfig.contains(basePath)) {
+            player.sendMessage(ChatColor.YELLOW + "Vous n'avez aucun message de gérance d'entreprise en attente.");
+            return;
+        }
+        ConfigurationSection entreprisesMessagesSection = messagesConfig.getConfigurationSection(basePath);
+        boolean aRecuMessage = false;
+        if(entreprisesMessagesSection != null) {
+            for (String nomEnt : entreprisesMessagesSection.getKeys(false)) {
+                if(entreprisesMessagesSection.isConfigurationSection(nomEnt)){ // Vérifier que c'est une section
+                    List<String> messages = entreprisesMessagesSection.getStringList(nomEnt + ".list");
+                    if (!messages.isEmpty()) {
+                        player.sendMessage(ChatColor.BLUE + "--- Notifications pour votre entreprise '" + nomEnt + "' ---");
+                        for (String msg : messages) player.sendMessage(ChatColor.AQUA + "- " + msg);
+                        player.sendMessage(ChatColor.BLUE + "----------------------------------------------------");
+                        aRecuMessage = true;
+                    }
+                }
+            }
+        }
+        if(aRecuMessage){
+            messagesConfig.set(basePath, null);
+            try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("[EntrepriseManager] Erreur suppression messages différés gérant " + playerName + ": " + e.getMessage()); }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Vous n'avez aucun nouveau message de gérance d'entreprise.");
+        }
+    }
+    // --- FIN: Méthodes pour les messages différés ---
+
+    // --- DEBUT: Getters et méthodes utilitaires ajoutés/corrigés ---
+    public double getActiviteHoraireValeurPour(String nomEntreprise) {
+        return this.activiteHoraireValeur.getOrDefault(nomEntreprise, 0.0);
     }
 
     public void listEntreprises(Player player, String ville) {
-        // Création du composant principal qui contiendra tout le message
-        TextComponent message = new TextComponent();
-
-        // Ajout de l'en-tête
-        message.addExtra(createMessageComponent(ChatColor.GOLD + "====================================================\n"));
-        message.addExtra(createMessageComponent(ChatColor.YELLOW + "Entreprises présentes dans la ville de " + ChatColor.AQUA + ville + ChatColor.YELLOW + " :\n"));
-
-        boolean entrepriseTrouvee = false;
-
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getVille().equalsIgnoreCase(ville)) {
-                // Création d'un composant cliquable pour chaque entreprise
-                TextComponent entrepriseInfo = new TextComponent(ChatColor.GREEN + entreprise.getNom());
-                entrepriseInfo.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise info " + entreprise.getGerant() + " " + entreprise.getType()));
-
-                message.addExtra(entrepriseInfo);
-                message.addExtra(createMessageComponent(ChatColor.GRAY + " -> Type : " + ChatColor.WHITE + entreprise.getType() + ChatColor.GRAY + " --- Gérant : " + ChatColor.WHITE + entreprise.getGerant() + ChatColor.GRAY + " --- Chiffre affaires : " + ChatColor.GREEN + String.format("%.2f€", entreprise.getChiffreAffairesTotal()) + "\n"));
-
-                entrepriseTrouvee = true;
-            }
+        TextComponent messageList = new TextComponent();
+        messageList.addExtra(ChatColor.GOLD + "=== Entreprises à " + ChatColor.AQUA + ville + ChatColor.GOLD + " ===\n");
+        boolean found = false;
+        for (Entreprise e : getEntreprisesByVille(ville)) {
+            TextComponent entComp = new TextComponent(ChatColor.AQUA + e.getNom() + ChatColor.GRAY + " (Type: " + e.getType() + ", Gérant: " + e.getGerant() + ")");
+            entComp.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise info " + e.getNom()));
+            entComp.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Voir infos pour " + e.getNom()).create()));
+            messageList.addExtra(entComp);
+            messageList.addExtra("\n");
+            found = true;
         }
-
-        // Ajout du pied de page
-        message.addExtra(createMessageComponent(ChatColor.GOLD + "===================================================="));
-
-        if (!entrepriseTrouvee) {
-            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée dans la ville " + ville + ".");
-        } else {
-            player.spigot().sendMessage(message);
+        if (!found) {
+            messageList.addExtra(ChatColor.YELLOW + "Aucune entreprise trouvée dans cette ville.");
         }
+        player.spigot().sendMessage(messageList);
     }
 
-    private TextComponent createMessageComponent(String text) {
-        return new TextComponent(TextComponent.fromLegacyText(text));
+    public Collection<String> getNearbyPlayers(Player player, int distanceMax) {
+        List<String> nearby = new ArrayList<>();
+        if (player == null || player.getWorld() == null) return nearby;
+        for (Player onlineP : Bukkit.getOnlinePlayers()) {
+            if (onlineP.getWorld().equals(player.getWorld()) && onlineP.getLocation().distanceSquared(player.getLocation()) <= (long)distanceMax * distanceMax) {
+                if (!onlineP.equals(player)) {
+                    nearby.add(onlineP.getName());
+                }
+            }
+        }
+        return nearby;
     }
 
     public void getEntrepriseInfo(Player joueur, String nomEntreprise) {
         Entreprise entreprise = entreprises.get(nomEntreprise);
         if (entreprise != null) {
-            joueur.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Informations sur l'Entreprise ===");
-            joueur.sendMessage(ChatColor.YELLOW + "Nom: " + ChatColor.WHITE + entreprise.getNom());
+            joueur.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Infos: " + ChatColor.AQUA + entreprise.getNom() + ChatColor.GOLD + " ===");
             joueur.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + entreprise.getVille());
             joueur.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + entreprise.getType());
             joueur.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + entreprise.getGerant());
-            joueur.sendMessage(ChatColor.YELLOW + "Nombre d'employés: " + ChatColor.WHITE + entreprise.getEmployes().size());
-            joueur.sendMessage(ChatColor.YELLOW + "Revenus BRUT/jour: " + ChatColor.GREEN + entreprise.getRevenusBrutsJournaliers() + "€");
-            joueur.sendMessage(ChatColor.YELLOW + "Montant d'argent dans la société: " + ChatColor.GREEN + entreprise.getSolde() + "€");
-            joueur.sendMessage(ChatColor.YELLOW + "Chiffre d'affaires total: " + ChatColor.GREEN + entreprise.getChiffreAffairesTotal() + "€");
+            joueur.sendMessage(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + entreprise.getEmployes().size());
+            joueur.sendMessage(ChatColor.YELLOW + "Solde: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€");
+            joueur.sendMessage(ChatColor.YELLOW + "CA Potentiel (heure): " + ChatColor.AQUA + String.format("%,.2f", getActiviteHoraireValeurPour(entreprise.getNom())) + "€");
+            joueur.sendMessage(ChatColor.YELLOW + "CA Total (brut): " + ChatColor.DARK_GREEN + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€");
             joueur.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
-            joueur.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "====================================");
+            if (!entreprise.getPrimes().isEmpty() && (entreprise.getGerant().equalsIgnoreCase(joueur.getName()) || joueur.hasPermission("entreprisemanager.admin.info"))) {
+                joueur.sendMessage(ChatColor.GOLD + "Primes Horaires:");
+                entreprise.getPrimes().forEach((emp, prime) -> joueur.sendMessage(ChatColor.GRAY + "  - " + emp + ": " + ChatColor.YELLOW + String.format("%,.2f", prime) + "€/h"));
+            }
+            joueur.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=============================");
         } else {
-            joueur.sendMessage(ChatColor.RED + "L'entreprise spécifiée n'existe pas.");
+            joueur.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
         }
     }
-    public void afficherSoldeEntreprise(Player player, String nomEntreprise) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable.");
-            return;
-        }
-        player.sendMessage(ChatColor.GREEN + "Solde de l'entreprise " + nomEntreprise + ": " + entreprise.getSolde());
-    }
-    public void retirerArgentAdmin(Player player, String nomEntreprise, double montant) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable.");
-            return;
-        }
+    // --- FIN: Getters et méthodes utilitaires ajoutés/corrigés ---
 
-        if (montant <= 0 || montant > entreprise.getSolde()) {
-            player.sendMessage(ChatColor.RED + "Montant invalide ou insuffisant dans le solde de l'entreprise.");
-            return;
-        }
-
-        entreprise.setSolde(entreprise.getSolde() - montant);
-        player.sendMessage(ChatColor.GREEN + "Retiré " + montant + " de l'entreprise " + nomEntreprise + ".");
-        this.saveEntreprises();
-    }
-    public void deposerArgentAdmin(Player player, String nomEntreprise, double montant) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Entreprise introuvable.");
-            return;
-        }
-
-        if (montant <= 0) {
-            player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
-            return;
-        }
-
-        entreprise.setSolde(entreprise.getSolde() + montant);
-        player.sendMessage(ChatColor.GREEN + "Déposé " + montant + " dans l'entreprise " + nomEntreprise + ".");
-        this.saveEntreprises();
-    }
-
-    public boolean estGerant(String nomJoueur, String nomEntreprise) {
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-        return entreprise != null && entreprise.getGerant().equalsIgnoreCase(nomJoueur);
-    }
-    public EntrepriseManager getPlugin() {
-        return plugin;
-    }
-
-    void planifierPaiements() {
-        BukkitScheduler scheduler = plugin.getServer().getScheduler();
-
-        // Obtenir l'heure de paiement à partir de la configuration
-        int heurePaiement = plugin.getConfig().getInt("finance.heure-paiement");
-
-        // Calculer le délai avant le prochain paiement
-        long delay = calculerDelaiAvantPaiement(heurePaiement);
-
-        // Planifier la tâche pour se répéter toutes les 24 heures (20 ticks * 60 secondes * 60 minutes * 24 heures)
-        long period = 20L * 60L * 60L * 24L;
-
-        scheduler.scheduleSyncRepeatingTask(plugin, this::traiterPaiementsJournaliers, delay, period);
-    }
-
-    private long calculerDelaiAvantPaiement(int heurePaiement) {
-        // Créer une instance de Calendar pour maintenant et pour l'heure de paiement aujourd'hui
-        Calendar maintenant = Calendar.getInstance();
-        Calendar prochainPaiement = (Calendar) maintenant.clone();
-        prochainPaiement.set(Calendar.HOUR_OF_DAY, heurePaiement);
-        prochainPaiement.set(Calendar.MINUTE, 0);
-        prochainPaiement.set(Calendar.SECOND, 0);
-
-        // Si l'heure de paiement est passée aujourd'hui, planifier pour demain
-        if (maintenant.after(prochainPaiement)) {
-            prochainPaiement.add(Calendar.DAY_OF_MONTH, 1);
-        }
-
-        // Calculer le délai en millisecondes et le convertir en ticks (1 seconde = 20 ticks)
-        long delayMillis = prochainPaiement.getTimeInMillis() - maintenant.getTimeInMillis();
-        return delayMillis / 50L; // Convertir en ticks
-    }
-
-    public void traiterPaiementsJournaliers() {
-        // Calculer les paiements pour chaque entreprise
-        for (Entreprise entreprise : entreprises.values()) {
-            entreprise.calculerPaiementJournalier();  // Paiement à l'entreprise basé sur le nombre d'employés
-        }
-
-        // Ensuite, payer les primes des employés
-        payerPrimesJournalières();
-    }
-
-
-    private Entreprise trouverEntrepriseParGerantEtType(String gerant, String type) {
-        return entreprises.values().stream()
-                .filter(e -> e.getGerant().equals(gerant) && e.getType().equals(type))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private void loadEntreprises() {
-        if (entrepriseConfig.contains("entreprises")) {
-            for (String key : entrepriseConfig.getConfigurationSection("entreprises").getKeys(false)) {
-                String path = "entreprises." + key + ".";
-                String ville = entrepriseConfig.getString(path + "ville");
-                String type = entrepriseConfig.getString(path + "type");
-                String gerant = entrepriseConfig.getString(path + "gerant");
-                Set<String> employes = new HashSet<>();
-                Map<String, Double> primes = new HashMap<>();
-
-                // Charger les employés et leurs primes
-                ConfigurationSection employesSection = entrepriseConfig.getConfigurationSection(path + "employes");
-                if (employesSection != null) {
-                    for (String employe : employesSection.getKeys(false)) {
-                        employes.add(employe);
-                        double prime = employesSection.getDouble(employe + ".prime", 0.0); // Charger la prime, par défaut 0
-                        primes.put(employe, prime);
-                    }
-                }
-
-                double solde = entrepriseConfig.getDouble(path + "solde", 0.0);
-                String siret = entrepriseConfig.getString(path + "siret", "Inconnu");
-                double chiffreAffairesTotal = entrepriseConfig.getDouble(path + "chiffreAffairesTotal", 0.0);
-
-                Entreprise entreprise = new Entreprise(key, ville, type, gerant, employes, solde, siret);
-                entreprise.setChiffreAffairesTotal(chiffreAffairesTotal);
-
-                // Charger les primes dans l'entreprise
-                for (Map.Entry<String, Double> entry : primes.entrySet()) {
-                    entreprise.setPrimePourEmploye(entry.getKey(), entry.getValue());
-                }
-
-                entreprises.put(key, entreprise);
-            }
-        }
-    }
-
-
-
-    public Set<String> getTypesEntreprise() {
-        ConfigurationSection section = plugin.getConfig().getConfigurationSection("types-entreprise");
-        if (section != null) {
-            return section.getKeys(false);
-        }
-        return new HashSet<>();
-    }
-
-    public boolean estMaire(Player joueur) {
-        try {
-            Resident resident = TownyAPI.getInstance().getResident(joueur.getName());
-            return resident != null && resident.isMayor();
-        } catch (Exception e) {
-            joueur.sendMessage(ChatColor.RED + "Erreur de vérification du statut de maire.");
-            return false;
-        }
-    }
-
-    public boolean estMembreDeLaVille(String gerantNom, String villeNom) {
-        try {
-            Resident gerant = TownyAPI.getInstance().getResident(gerantNom);
-            return gerant != null && gerant.hasTown() && gerant.getTown().getName().equalsIgnoreCase(villeNom);
-        } catch (NotRegisteredException e) {
-            return false;
-        }
-    }
-
-    public boolean estVilleSupprimee(String ville) {
-        // Vérifier si la ville existe dans Towny
-        // Cette logique dépend de comment Towny gère les villes supprimées.
-        // Vous devez adapter cette méthode en fonction de votre implémentation spécifique.
-        return ville == null || TownyAPI.getInstance().getTown(ville) == null;
-    }
-
-
-    public static void saveEntreprises() {
-        // Sauvegarde des entreprises dans le fichier entreprise.yml
-        if (entrepriseConfig.contains("entreprises")) {
-            entrepriseConfig.set("entreprises", null); // Suppression des anciennes données pour éviter les doublons
-        }
-
-        // Parcourir et sauvegarder chaque entreprise dans entreprise.yml
-        for (Map.Entry<String, Entreprise> entry : entreprises.entrySet()) {
-            String entrepriseNom = entry.getKey();
-            Entreprise entreprise = entry.getValue();
-            String path = "entreprises." + entrepriseNom + ".";
-
-            entrepriseConfig.set(path + "ville", entreprise.getVille());
-            entrepriseConfig.set(path + "type", entreprise.getType());
-            entrepriseConfig.set(path + "gerant", entreprise.getGerant());
-            entrepriseConfig.set(path + "solde", entreprise.getSolde());
-            entrepriseConfig.set(path + "siret", entreprise.getSiret());
-            entrepriseConfig.set(path + "chiffreAffairesTotal", entreprise.getChiffreAffairesTotal());
-
-            // Sauvegarder les employés et leurs primes directement dans la section employes
-            for (String employe : entreprise.getEmployes()) {
-                String employePath = path + "employes." + employe + ".";
-                entrepriseConfig.set(employePath + "prime", entreprise.getPrimePourEmploye(employe)); // Sauvegarde de la prime
-            }
-        }
-
-        // Sauvegarder le fichier entreprise.yml
-        try {
-            entrepriseConfig.save(entrepriseFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Impossible de sauvegarder les entreprises: " + e.getMessage());
-        }
-
-        // Sauvegarde des joueurs dans le fichier players.yml
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Suppression des anciennes données des joueurs pour éviter les doublons
-        playersConfig.set("players", null);
-
-        // Sauvegarde des données des joueurs (gérants et employés)
-        for (Map.Entry<String, Entreprise> entry : entreprises.entrySet()) {
-            String entrepriseNom = entry.getKey();
-            Entreprise entreprise = entry.getValue();
-            String typeEntreprise = entreprise.getType();
-
-            // Ajouter l'entreprise pour le gérant
-            String gerant = entreprise.getGerant();
-            playersConfig.set("players." + gerant + "." + entrepriseNom + ".type-entreprise", typeEntreprise);
-
-            // Ajouter l'entreprise pour chaque employé
-            for (String employe : entreprise.getEmployes()) {
-                playersConfig.set("players." + employe + "." + entrepriseNom + ".type-entreprise", typeEntreprise);
-            }
-        }
-
-        // Sauvegarder le fichier players.yml
-        try {
-            playersConfig.save(playersFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Impossible de sauvegarder le fichier des joueurs: " + e.getMessage());
-        }
-    }
-
-
-
-
-
-    public String getTownNameFromPlayer(Player player) {
-        try {
-            Resident resident = TownyAPI.getInstance().getResident(player.getName());
-            if (resident != null && resident.hasTown()) {
-                return resident.getTown().getName();
-            }
-        } catch (Exception e) {
-            player.sendMessage(ChatColor.RED + "Erreur lors de la récupération des informations de ville.");
-        }
-        return null;
-    }
-    public String generateSiret() {
-        return UUID.randomUUID().toString().substring(0, 14);
-    }
-    public boolean aDejaEntrepriseDuType(String gerant, String type) {
-        // Parcourir la liste des entreprises et vérifier si le gérant a déjà une entreprise de ce type.
-        // Retourner true si trouvé, false sinon.
-        return entreprises.values().stream()
-                .anyMatch(entreprise -> entreprise.getGerant().equals(gerant) && entreprise.getType().equals(type));
-    }
-    public String trouverNomEntrepriseParType(String gerant, String type) {
-        // Parcourir les entreprises pour trouver une correspondance de type pour le gérant donné.
-        return entreprises.values().stream()
-                .filter(entreprise -> entreprise.getGerant().equals(gerant) && entreprise.getType().equals(type))
-                .map(Entreprise::getNom)
-                .findFirst()
-                .orElse(null);
-    }
-    public int compterEntreprisesDuGerant(String gerant) {
-        return (int) entreprises.values().stream()
-                .filter(entreprise -> entreprise.getGerant().equals(gerant))
-                .count();
-    }
-
-    public void closeEntreprise(Player joueurQuiFerme, String ville, String nomEntreprise) {
-        // 1. Récupérer l'objet Entreprise
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-
-        // 2. Vérifier si l'entreprise existe ET si elle est dans la bonne ville
-        if (entreprise != null && entreprise.getVille().equalsIgnoreCase(ville)) {
-            // Note importante : La vérification des permissions spécifiques
-            // (ex: joueurQuiFerme est-il le maire de entreprise.getVille() ?)
-            // DOIT être faite dans EntrepriseCommandHandler AVANT d'appeler cette méthode.
-            // Cette méthode suppose que l'appel est légitime si elle est atteinte.
-
-            // 3. Appeler la méthode centrale de suppression
-            // Le message au joueur sera géré dans handleEntrepriseRemoval
-            handleEntrepriseRemoval(entreprise, "Fermeture/Suppression initiée par " + joueurQuiFerme.getName() + ".");
-
-        } else {
-            // Informer si l'entreprise n'est pas trouvée ou pas dans la bonne ville
-            joueurQuiFerme.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas ou n'est pas dans la ville '" + ville + "'.");
-        }
-    }
-
-
-
-    public void addEmploye(String entrepriseNom, String joueurNom) {
-        Entreprise entreprise = entreprises.get(entrepriseNom);
-        if (entreprise != null) {
-            // Vérifier si l'employé n'est pas déjà dans l'entreprise
-            if (!entreprise.getEmployes().contains(joueurNom)) {
-                // Ajouter l'employé à la liste de l'entreprise
-                entreprise.getEmployes().add(joueurNom);
-
-                // Mettre à jour le fichier players.yml
-                File playersFile = new File(plugin.getDataFolder(), "players.yml");
-                FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-                playersConfig.set("players." + joueurNom + "." + entrepriseNom + ".type-entreprise", entreprise.getType());
-                // Initialiser la prime à 0 par défaut pour le nouvel employé
-                entreprise.setPrimePourEmploye(joueurNom, 0.0);
-                // Sauvegarder le fichier
-                try {
-                    playersConfig.save(playersFile);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-                // Sauvegarder les modifications dans les données internes
-                saveEntreprises();
-
-            } else {
-                System.out.println("L'employé " + joueurNom + " est déjà dans l'entreprise " + entrepriseNom);
-            }
-        } else {
-            System.out.println("Entreprise " + entrepriseNom + " non trouvée.");
-        }
-    }
-
-
-
-    public void envoyerInvitationDansChat(Player joueurInvite, String entrepriseNom, String gerantNom, String typeEntreprise) {
-        TextComponent message = new TextComponent("L'entreprise de " + typeEntreprise + " de " + gerantNom + " vous invite à rejoindre son entreprise : ");
-
-        TextComponent accepter = new TextComponent("[Accepter]");
-        accepter.setColor(net.md_5.bungee.api.ChatColor.GREEN);
-        accepter.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise accepter"));
-        accepter.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour accepter").create()));
-
-        TextComponent refuser = new TextComponent("[Refuser]");
-        refuser.setColor(net.md_5.bungee.api.ChatColor.RED);
-        refuser.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise refuser"));
-        refuser.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Cliquez pour refuser").create()));
-
-        message.addExtra(accepter);
-        message.addExtra(" ");
-        message.addExtra(refuser);
-
-        joueurInvite.spigot().sendMessage(message);
-    }
-
-// Dans EntrepriseManagerLogic.java
-
-    public void declareEntreprise(Player joueur, String ville, String nomEntreprise, String type, String gerantNom, String siret) {
-        // Vérification si le nom existe déjà
-        if (this.entreprises.containsKey(nomEntreprise)) {
-            joueur.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
-            return;
-        }
-
-        Set<String> employes = new HashSet<>(); // Nouvelle entreprise -> pas d'employés au début
-        double soldeInitial = 0.0; // Solde initial à 0
-
-        // Vérification si le gérant est en ligne (déjà fait dans validerCreation mais revérification par sécurité)
-        Player gerant = Bukkit.getPlayerExact(gerantNom);
-        if (gerant == null) {
-            // Ce message est surtout pour le maire qui lance la commande initiale via declareEntreprise
-            // Normalement, on passe par validerCreation où le gérant est forcément en ligne.
-            joueur.sendMessage(ChatColor.RED + "Le gérant spécifié n'est pas en ligne ou n'existe pas.");
-            return;
-        }
-
-        // Création de l'objet Entreprise
-        Entreprise nouvelleEntreprise = new Entreprise(nomEntreprise, ville, type, gerantNom, employes, soldeInitial, siret);
-        // Ajout à la Map en mémoire
-        this.entreprises.put(nomEntreprise, nouvelleEntreprise);
-        plugin.getLogger().fine("Nouvelle entreprise '" + nomEntreprise + "' ajoutée à la map en mémoire.");
-
-        // --- Mise à jour de players.yml ---
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-        // Ajout de l'entrée pour le gérant
-        playersConfig.set("players." + gerant.getName() + "." + nomEntreprise + ".type-entreprise", type);
-
-        // Sauvegarde explicite de players.yml (Note : redondant si saveEntreprises le fait, mais ne nuit pas)
-        try {
-            playersConfig.save(playersFile);
-            plugin.getLogger().fine("Fichier players.yml mis à jour pour le nouveau gérant : " + gerant.getName());
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Impossible de sauvegarder players.yml lors de la déclaration de l'entreprise '" + nomEntreprise + "': " + e.getMessage());
-            // Pas de e.printStackTrace() ici pour éviter de spammer la console si ça arrive souvent
-        }
-        // --- Fin Mise à jour players.yml ---
-
-
-        // *** LIGNE AJOUTÉE CRUCIALE ***
-        saveEntreprises(); // Sauvegarde TOUT l'état actuel (entreprise.yml ET players.yml reconstruit)
-        plugin.getLogger().info("Sauvegarde complète effectuée après la déclaration de l'entreprise '" + nomEntreprise + "'.");
-
-
-        // Message de confirmation pour le maire (celui qui a lancé la proposition initiale)
-        // Le message pour le gérant est envoyé dans validerCreationEntreprise
-        joueur.sendMessage(ChatColor.GREEN + "Confirmation : Entreprise '" + nomEntreprise + "' de type '" + type + "' créée pour le gérant '" + gerantNom + "' avec le SIRET: " + siret);
-
-    }
-
-
-
-
-
-    public Collection<String> getTypesEntrepriseDuGerant(String gerant) {
-        return entreprises.values().stream()
-                .filter(entreprise -> entreprise.getGerant().equalsIgnoreCase(gerant))
-                .map(Entreprise::getType)
-                .distinct()
-                .collect(Collectors.toList());
-    }
-
-    public Entreprise getEntrepriseDuGerantEtType(String gerant, String type) {
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getGerant().equalsIgnoreCase(gerant) && entreprise.getType().equalsIgnoreCase(type)) {
-                return entreprise;
-            }
-        }
-        return null; // Aucune entreprise correspondante n'a été trouvée
-    }
-
-    public Collection<String> getPlayersInMayorTown(Player player) {
-        try {
-            Resident mayor = TownyAPI.getInstance().getResident(player.getName());
-            if (mayor != null && mayor.isMayor()) {
-                Town town = mayor.getTown();
-                return town.getResidents().stream()
-                        .map(Resident::getName)
-                        .collect(Collectors.toList());
-            }
-        } catch (Exception e) {
-            player.sendMessage(ChatColor.RED + "Erreur lors de la récupération des résidents de la ville.");
-        }
-        return List.of();
-    }
-
-    public Collection<String> getAllPlayers() {
-        return Bukkit.getOnlinePlayers().stream()
-                .map(Player::getName)
-                .collect(Collectors.toList());
-    }
-
-    public Collection<String> getAllTowns() {
-        return TownyAPI.getInstance().getTowns().stream()
-                .map(Town::getName)
-                .collect(Collectors.toList());
-    }
-
-
-
-    private Collection<Entreprise> getEntreprisesDuGerant(String gerantNom) {
-        // Utilisez un flux pour filtrer les entreprises et collecter celles qui correspondent au gérant
-        return entreprises.values().stream()
-                .filter(entreprise -> entreprise.getGerant().equalsIgnoreCase(gerantNom))
-                .collect(Collectors.toList());
-    }
-
-    // Exemple de vérification du nombre maximum d'entreprises par gérant
-    public boolean peutCreerEntreprise(Player gerant) {
-        int nombreEntreprises = compterEntreprisesDuGerant(gerant.getName());
-        int maxEntreprisesParGerant = plugin.getConfig().getInt("finance.max-entreprises-par-gerant");
-        return nombreEntreprises < maxEntreprisesParGerant;
-    }
-
-    private int compterEntreprisesOuEmployeTravaille(String name) {
-        int count = 0;
-        for (Entreprise entreprise : entreprises.values()) {
-            if (entreprise.getEmployes().contains(name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    // Exemple de vérification du nombre maximum d'employés dans une entreprise
-    public boolean peutAjouterEmploye(String nomEntreprise) {
-        Entreprise entreprise = getEntreprise(nomEntreprise);
-        if (entreprise == null) {
-            // Gérer le cas où aucune entreprise correspondante n'est trouvée
-            return false;
-        }
-        int nombreEmployes = entreprise.getEmployes().size();
-        int maxEmployerParEntreprise = plugin.getConfig().getInt("finance.max-employer-par-entreprise");
-        return nombreEmployes < maxEmployerParEntreprise;
-    }
-
-    public void changerNomEntreprise(Player player, String gerant, String type, String nouveauNom) {
-        Entreprise entreprise = trouverEntrepriseParGerantEtType(gerant, type);
-
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "L'entreprise spécifiée n'existe pas.");
-            return;
-        }
-
-        if (!entreprise.getGerant().equals(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Vous devez être le gérant de l'entreprise pour changer son nom.");
-            return;
-        }
-
-        if (entreprises.containsKey(nouveauNom)) {
-            player.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
-            return;
-        }
-
-        // Changer le nom de l'entreprise
-        entreprises.remove(entreprise.getNom());
-        entreprise.setNom(nouveauNom);
-        entreprises.put(nouveauNom, entreprise);
-
-        player.sendMessage(ChatColor.GREEN + "Le nom de l'entreprise a été changé en " + nouveauNom + ".");
-    }
-
-    public void renameEntreprise(Player player, String entrepriseNom, String nouveauNom) {
-        Entreprise entreprise = entreprises.get(entrepriseNom);
-
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Aucune entreprise trouvée avec ce nom.");
-            return;
-        }
-
-        // Vérifier si le nouveau nom est déjà pris
-        if (entreprises.containsKey(nouveauNom)) {
-            player.sendMessage(ChatColor.RED + "Une entreprise avec ce nom existe déjà.");
-            return;
-        }
-
-        // Vérification et application du nom
-        if (nouveauNom.equalsIgnoreCase(entrepriseNom)) {
-            player.sendMessage(ChatColor.RED + "Le nouveau nom doit être différent de l'ancien.");
-            return;
-        }
-
-        // Renommer l'entreprise
-        entreprises.remove(entreprise.getNom());
-        entreprise.setNom(nouveauNom);
-        entreprises.put(nouveauNom, entreprise);
-
-        player.sendMessage(ChatColor.GREEN + "L'entreprise a été renommée avec succès de '" + entrepriseNom + "' à '" + nouveauNom + "'.");
-    }
-
-
-    public Collection<String> getNearbyPlayers(Player player, int distanceMax) {
-        List<String> nearbyPlayers = new ArrayList<>();
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (onlinePlayer.getWorld().equals(player.getWorld()) && onlinePlayer.getLocation().distance(player.getLocation()) <= distanceMax) {
-                nearbyPlayers.add(onlinePlayer.getName());
-            }
-        }
-        return nearbyPlayers;
-    }
-
-    public void supprimerEntreprise(Player player, String nomEntreprise) {
-        // 1. Récupérer l'objet Entreprise correspondant au nom fourni
-        Entreprise entreprise = entreprises.get(nomEntreprise);
-
-        // 2. Vérifier si l'entreprise existe
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' est introuvable.");
-            return; // Arrêter si l'entreprise n'existe pas
-        }
-
-        // 3. Vérifier si le joueur qui exécute la commande est bien le gérant
-        if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas le gérant de l'entreprise '" + nomEntreprise + "'.");
-            return; // Arrêter si le joueur n'est pas le gérant
-        }
-
-        // 4. Si les vérifications sont passées, appeler la méthode centrale de suppression
-        // Le message de succès au joueur sera géré dans handleEntrepriseRemoval
-        handleEntrepriseRemoval(entreprise, "Suppression par le gérant (" + player.getName() + ") via commande/GUI.");
-    }
-
-
-
-    public Set<String> getEmployes(String entrepriseNom) {
-        Entreprise entreprise = entreprises.get(entrepriseNom);
-        if (entreprise != null) {
-            return entreprise.getEmployes();  // Ceci retourne les noms des joueurs
-        }
-        return Collections.emptySet();  // Retourne un ensemble vide si l'entreprise n'existe pas
-    }
-
-    public List<String> getTypesEntrepriseDuJoueur(String joueurNom) {
-        File playersFile = new File(plugin.getDataFolder(), "players.yml");
-        FileConfiguration playersConfig = YamlConfiguration.loadConfiguration(playersFile);
-
-        // Créer une liste pour stocker les types d'entreprises
-        List<String> typesEntreprises = new ArrayList<>();
-
-        // Récupérer les sections correspondant aux entreprises du joueur
-        ConfigurationSection entreprisesSection = playersConfig.getConfigurationSection("players." + joueurNom);
-
-        if (entreprisesSection != null) {
-            // Parcourir les entreprises et ajouter leurs types à la liste
-            for (String entrepriseNom : entreprisesSection.getKeys(false)) {
-                String typeEntreprise = playersConfig.getString("players." + joueurNom + "." + entrepriseNom + ".type-entreprise");
-                if (typeEntreprise != null) {
-                    typesEntreprises.add(typeEntreprise);
-                }
-            }
-        }
-
-        return typesEntreprises; // Retourner la liste des types d'entreprises
-    }
-
-
-
-    // Sauvegarder la prime pour un employé dans l'entreprise
-    public void definirPrime(String entrepriseNom, String employeNom, double prime) {
-        Entreprise entreprise = entreprises.get(entrepriseNom);
-        if (entreprise != null) {
-            entreprise.setPrimePourEmploye(employeNom, prime);
-            saveEntreprises();  // Sauvegarder dans le fichier entreprises.yml
-        }
-    }
-
-    // Verser les primes à l'heure du paiement journalier
-    public void payerPrimesJournalières() {
-        for (Entreprise entreprise : entreprises.values()) {
-            for (String employeNom : entreprise.getEmployes()) {
-                double prime = entreprise.getPrimePourEmploye(employeNom);
-                if (prime > 0) {
-                    OfflinePlayer employe = Bukkit.getOfflinePlayer(employeNom);
-                    Player gerant = Bukkit.getPlayer(entreprise.getGerant());
-
-                    // Vérification si l'entreprise a suffisamment d'argent
-                    if (entreprise.getSolde() >= prime) {
-                        // Si l'employé est en ligne, on lui envoie la prime et le message
-                        if (employe.isOnline()) {
-                            // Payer la prime
-                            EntrepriseManager.getEconomy().depositPlayer(employe, prime);
-                            employe.getPlayer().sendMessage(ChatColor.GREEN + "Vous avez reçu une prime de " + prime + " € de l'entreprise " + entreprise.getNom() + ".");
-                        } else {
-                            // Si l'employé est hors ligne, on ajoute un message différé avec le montant
-                            ajouterMessageEmployeDifferre(employe.getName(), "Vous avez reçu une prime de " + prime + " € de l'entreprise " + entreprise.getNom() + " durant votre absence.", entreprise.getNom(), prime);
-
-                            // Payer la prime même s'il est hors ligne
-                            EntrepriseManager.getEconomy().depositPlayer(employe, prime);
-                        }
-
-                        // Envoyer un message au gérant
-                        if (gerant != null && gerant.isOnline()) {
-                            gerant.sendMessage(ChatColor.GREEN + "Votre entreprise " + entreprise.getNom() + " a versé une prime de " + prime + " € à " + employeNom + ".");
-                        } else {
-                            ajouterMessageGerantDifferre(entreprise.getGerant(), "Votre entreprise " + entreprise.getNom() + " a versé une prime de " + prime + " € à " + employeNom + " durant votre absence.", entreprise.getNom(), prime);
-                        }
-
-                        // Déduire la prime du solde de l'entreprise
-                        entreprise.setSolde(entreprise.getSolde() - prime);
-                    } else {
-                        // Si l'entreprise n'a pas assez d'argent, envoyer un message d'erreur
-                        if (employe.isOnline()) {
-                            employe.getPlayer().sendMessage(ChatColor.RED + "Votre entreprise " + entreprise.getNom() + " n'a pas pu vous verser la prime de " + prime + " € car son solde est insuffisant.");
-                        } else {
-                            ajouterMessageEmployeDifferre(employe.getName(), "Votre entreprise " + entreprise.getNom() + " n'a pas pu vous verser la prime de " + prime + " € car son solde est insuffisant.", entreprise.getNom(), prime);
-                        }
-
-                        if (gerant != null && gerant.isOnline()) {
-                            gerant.sendMessage(ChatColor.RED + "Votre entreprise " + entreprise.getNom() + " n'a pas pu verser la prime de " + prime + " € à " + employeNom + " car son solde est insuffisant.");
-                        } else {
-                            ajouterMessageGerantDifferre(entreprise.getGerant(), "Votre entreprise " + entreprise.getNom() + " n'a pas pu verser la prime de " + prime + " € à " + employeNom + " car son solde est insuffisant.", entreprise.getNom(), prime);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-
-
-    // Envoyer un message lorsqu'une prime est définie
-    public void envoyerMessagePrimesDefinie(Player gerant, OfflinePlayer employe, String entrepriseNom, double prime) {
-        String messageGerant = ChatColor.GREEN + "Vous avez défini une prime de " + prime + " € pour " + employe.getName() + " dans l'entreprise " + entrepriseNom + ".";
-        if (gerant != null && gerant.isOnline()) {
-            gerant.sendMessage(messageGerant);
-        } else {
-            ajouterMessageDifferre(gerant.getName(), messageGerant, entrepriseNom, prime);
-        }
-
-        String messageEmploye = ChatColor.GREEN + "Une prime de " + prime + " € vous a été définie par l'entreprise " + entrepriseNom + ".";
-        if (employe.isOnline()) {
-            employe.getPlayer().sendMessage(messageEmploye);
-        } else {
-            ajouterMessageDifferre(employe.getName(), messageEmploye, entrepriseNom, prime);
-        }
-    }
-
-
-    public void ajouterMessageDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
-        File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
-        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-        // Récupérer les primes actuelles du joueur ou créer une nouvelle section si elle n'existe pas
-        String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
-        double totalPrime = messagesConfig.getDouble(playerPath, 0);
-
-        // Ajouter la prime à la valeur actuelle
-        totalPrime += prime;
-        messagesConfig.set(playerPath, totalPrime);
-
-        try {
-            messagesConfig.save(messagesFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour le joueur " + joueurNom);
-        }
-    }
-//###########################################################
-public void ajouterMessageEmployeDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
-    File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
-    FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-    // Récupérer les primes actuelles du joueur ou créer une nouvelle section si elle n'existe pas
-    String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
-    double totalPrime = messagesConfig.getDouble(playerPath, 0);
-
-    // Ajouter la prime à la valeur actuelle
-    totalPrime += prime;
-    messagesConfig.set(playerPath, totalPrime);
-
-    try {
-        messagesConfig.save(messagesFile);
-    } catch (IOException e) {
-        plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour l'employé " + joueurNom);
-    }
-}
-
-    public void envoyerPrimesDifferreesEmployes(Player player) {
-        String playerName = player.getName();
-
-        // Charger le fichier messagesEmployes.yml
-        File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml");
-        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-        // Vérifier si le joueur a des messages de primes
-        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
-            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
-            if (primesSection != null) {
-                for (String entrepriseNom : primesSection.getKeys(false)) {
-                    double totalPrime = primesSection.getDouble(entrepriseNom);
-                    player.sendMessage(ChatColor.GREEN + "Vous avez reçu un total de " + totalPrime + " € en primes de l'entreprise " + entrepriseNom + " durant votre absence.");
-                }
-            }
-
-            // Supprimer les messages du joueur après les avoir envoyés
-            messagesConfig.set("messages.players." + playerName, null);
-            try {
-                messagesConfig.save(messagesFile);
-            } catch (IOException e) {
-                plugin.getLogger().severe("Impossible de supprimer les messages différés pour l'employé " + playerName);
-            }
-        } else {
-            player.sendMessage(ChatColor.YELLOW + "Aucune prime différée à afficher.");
-        }
-    }
-    public void ajouterMessageGerantDifferre(String joueurNom, String message, String entrepriseNom, double prime) {
-        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
-        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-        // Récupérer les primes actuelles du gérant ou créer une nouvelle section si elle n'existe pas
-        String playerPath = "messages.players." + joueurNom + ".primes." + entrepriseNom;
-        double totalPrime = messagesConfig.getDouble(playerPath, 0);
-
-        // Ajouter la prime à la valeur actuelle
-        totalPrime += prime;
-        messagesConfig.set(playerPath, totalPrime);
-
-        try {
-            messagesConfig.save(messagesFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Impossible de sauvegarder les messages différés pour le gérant " + joueurNom);
-        }
-    }
-
-    public void envoyerPrimesDifferreesGerants(Player player) {
-        String playerName = player.getName();
-
-        // Charger le fichier messagesGerants.yml
-        File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml");
-        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
-
-        // Vérifier si le gérant a des messages de primes
-        if (messagesConfig.contains("messages.players." + playerName + ".primes")) {
-            ConfigurationSection primesSection = messagesConfig.getConfigurationSection("messages.players." + playerName + ".primes");
-            if (primesSection != null) {
-                for (String entrepriseNom : primesSection.getKeys(false)) {
-                    double totalPrime = primesSection.getDouble(entrepriseNom);
-                    player.sendMessage(ChatColor.GREEN + "Votre entreprise " + entrepriseNom + " a versé un total de " + totalPrime + " € en primes durant votre absence.");
-                }
-            }
-
-            // Supprimer les messages du gérant après les avoir envoyés
-            messagesConfig.set("messages.players." + playerName, null);
-            try {
-                messagesConfig.save(messagesFile);
-            } catch (IOException e) {
-                plugin.getLogger().severe("Impossible de supprimer les messages différés pour le gérant " + playerName);
-            }
-        } else {
-            player.sendMessage(ChatColor.YELLOW + "Aucun message de prime différée à afficher.");
-        }
-    }
-
-    public void proposerCreationEntreprise(Player maire, Player gerant, String type, String ville, String nomEntreprise, String siret) {
-        double cout = plugin.getConfig().getDouble("types-entreprise." + type + ".cout-creation", 0.0);
-        double distanceMax = plugin.getConfig().getDouble("invitation.distance-max", 10.0);
-
-        if (maire.getLocation().distance(gerant.getLocation()) > distanceMax) {
-            maire.sendMessage(ChatColor.RED + "Le gérant spécifié est trop éloigné pour signer les papiers et effectuer le paiement de création de l'entreprise.");
-            return;
-        }
-
-        DemandeCreation demande = new DemandeCreation(maire, gerant, type, ville, siret, nomEntreprise, cout, 60000);
-        demandesEnAttente.put(gerant.getUniqueId(), demande);
-
-        // --- MAIRE ---
-        maire.sendMessage(ChatColor.GOLD + "==============================");
-        maire.sendMessage(ChatColor.YELLOW + "    PROPOSITION DE CRÉATION");
-        maire.sendMessage(ChatColor.GOLD + "==============================");
-        maire.sendMessage(ChatColor.AQUA + "Type d'entreprise : " + ChatColor.WHITE + type);
-        maire.sendMessage(ChatColor.AQUA + "Gérant pressenti  : " + ChatColor.WHITE + gerant.getName());
-        maire.sendMessage(ChatColor.AQUA + "Coût de création  : " + ChatColor.GREEN + String.format("%.2f€", cout));
-        maire.sendMessage(ChatColor.AQUA + "Nom prévu         : " + ChatColor.WHITE + nomEntreprise);
-        maire.sendMessage(ChatColor.AQUA + "SIRET attribué    : " + ChatColor.WHITE + siret);
-        maire.sendMessage(ChatColor.GRAY + "Le contrat a été envoyé à " + gerant.getName() + " pour validation.");
-        maire.sendMessage(ChatColor.GRAY + "Délai maximum pour signature : 60 secondes.");
-        maire.sendMessage(ChatColor.GOLD + "==============================");
-
-        // --- GÉRANT ---
-        gerant.sendMessage(ChatColor.GOLD + "==============================");
-        gerant.sendMessage(ChatColor.YELLOW + "    CONTRAT DE GÉRANCE");
-        gerant.sendMessage(ChatColor.GOLD + "==============================");
-        gerant.sendMessage(ChatColor.AQUA + "Ville de rattachement : " + ChatColor.WHITE + ville);
-        gerant.sendMessage(ChatColor.AQUA + "Type d'entreprise     : " + ChatColor.WHITE + type);
-        gerant.sendMessage(ChatColor.AQUA + "Nom prévu             : " + ChatColor.WHITE + nomEntreprise);
-        gerant.sendMessage(ChatColor.AQUA + "SIRET                 : " + ChatColor.WHITE + siret);
-        gerant.sendMessage(ChatColor.AQUA + "Coût à régler         : " + ChatColor.GREEN + String.format("%.2f€", cout));
-        gerant.sendMessage(ChatColor.YELLOW + "Vous disposez de 60 secondes pour accepter ou refuser ce contrat.");
-        gerant.sendMessage(ChatColor.RED + "Passé ce délai, l'offre sera automatiquement refusée.");
-        gerant.sendMessage(ChatColor.GOLD + "==============================");
-
-        TextComponent msg = new TextComponent(ChatColor.YELLOW + "Souhaitez-vous accepter ce contrat de gérance ? ");
-        TextComponent accept = new TextComponent(ChatColor.GREEN + "[Accepter]");
-        accept.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise validercreation"));
-        accept.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Signer et payer " + cout + "€").create()));
-
-        TextComponent refuse = new TextComponent(ChatColor.RED + " [Refuser]");
-        refuse.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise annulercreation"));
-        refuse.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Refuser l'offre").create()));
-
-        msg.addExtra(accept);
-        msg.addExtra(refuse);
-        gerant.spigot().sendMessage(msg);
-
-        // ⏳ Expiration automatique après 60 secondes
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (demandesEnAttente.containsKey(gerant.getUniqueId())) {
-                demandesEnAttente.remove(gerant.getUniqueId());
-                gerant.sendMessage(ChatColor.RED + "Le contrat a expiré. Vous n'avez pas signé à temps.");
-                maire.sendMessage(ChatColor.RED + "La création d'entreprise a échoué : " + gerant.getName() + " n'a pas signé à temps.");
-            }
-        }, 20 * 60); // 60 secondes
-    }
-
-
-    public void validerCreationEntreprise(Player gerant) {
-        UUID uuid = gerant.getUniqueId();
-
-        if (!demandesEnAttente.containsKey(uuid)) {
-            gerant.sendMessage(ChatColor.RED + "Aucune demande de création d'entreprise en attente.");
-            return;
-        }
-
-        DemandeCreation demande = demandesEnAttente.remove(uuid);
-
-        if (demande.isExpired()) {
-            gerant.sendMessage(ChatColor.RED + "La demande a expiré.");
-            demande.maire.sendMessage(ChatColor.RED + "La demande pour " + gerant.getName() + " a expiré.");
-            return;
-        }
-
-        if (!EntrepriseManager.getEconomy().has(gerant, demande.cout)) {
-            gerant.sendMessage(ChatColor.RED + "Vous n’avez pas assez d’argent (" + demande.cout + "€ requis).");
-            demande.maire.sendMessage(ChatColor.RED + "La création d’entreprise a échoué : fonds insuffisants.");
-            return;
-        }
-
-        // Retirer argent
-        EntrepriseManager.getEconomy().withdrawPlayer(gerant, demande.cout);
-
-        // Créer l’entreprise
-        declareEntreprise(demande.maire, demande.ville, demande.nomEntreprise, demande.type, demande.gerant.getName(), demande.siret);
-
-        gerant.sendMessage(ChatColor.GREEN + "Vous avez accepté la création de l'entreprise " + demande.nomEntreprise + " !");
-        demande.maire.sendMessage(ChatColor.GREEN + gerant.getName() + " a accepté et payé la création de l’entreprise " + demande.nomEntreprise + ".");
-    }
-
-    public void refuserCreationEntreprise(Player gerant) {
-        UUID uuid = gerant.getUniqueId();
-
-        if (!demandesEnAttente.containsKey(uuid)) {
-            gerant.sendMessage(ChatColor.RED + "Aucune demande en attente.");
-            return;
-        }
-
-        DemandeCreation demande = demandesEnAttente.remove(uuid);
-        gerant.sendMessage(ChatColor.RED + "Vous avez refusé la création de l’entreprise.");
-        demande.maire.sendMessage(ChatColor.RED + gerant.getName() + " a refusé la création de l’entreprise.");
-    }
-
-
-
-
-
-
+    // --- Classe interne Entreprise ---
     public static class Entreprise {
-        private double chiffreAffairesTotal = 0;
         private String nom;
         private String ville;
         private String type;
         private String gerant;
-        private Set<String> employes;
+        private Set<String> employes; // Utiliser Set<String> pour les noms d'employés
         private double solde;
-        private Map<String, Double> primes;  // Ajouter une Map pour stocker les primes des employés
-
+        private String siret;
+        private double chiffreAffairesTotal;
+        private Map<String, Double> primes;
 
         public Entreprise(String nom, String ville, String type, String gerant, Set<String> employes, double solde, String siret) {
             this.nom = nom;
             this.ville = ville;
             this.type = type;
             this.gerant = gerant;
-            this.employes = employes;
+            this.employes = (employes != null) ? new HashSet<>(employes) : new HashSet<>(); // Assurer l'initialisation
             this.solde = solde;
-            this.chiffreAffairesTotal = 0.0;
             this.siret = siret;
-            this.primes = new HashMap<>();  // Initialiser la Map des primes
-
+            this.chiffreAffairesTotal = 0.0;
+            this.primes = new HashMap<>();
         }
 
-        public double getPrimePourEmploye(String employeNom) {
-            return primes.getOrDefault(employeNom, 0.0);  // Retourne 0.0 si aucune prime n'est définie
-        }
-
-        public void setPrimePourEmploye(String employeNom, double prime) {
-            primes.put(employeNom, prime);
-        }
-
-        public Set<String> getGerantsAvecEntreprises() {
-            Set<String> gerants = new HashSet<>();
-            for (Entreprise entreprise : entreprises.values()) {
-                gerants.add(entreprise.getGerant());
-            }
-            return gerants;
-        }
-
-        public List<String> getTypesEntrepriseDuGerant(String gerantNom) {
-            return entreprises.values().stream()
-                    .filter(entreprise -> entreprise.getGerant().equalsIgnoreCase(gerantNom))
-                    .map(Entreprise::getType)
-                    .distinct()
-                    .collect(Collectors.toList());
-        }
-
-        public List<String> getTypesEntreprise() {
-            // Assurez-vous que votre plugin a accès à son fichier config.yml
-            // Retourner la liste des types d'entreprise depuis le fichier config.yml
-            return plugin.getConfig().getStringList("types-entreprise");
-        }
-
-        public String getSiret() {
-            return siret;
-        }
-
-        // Méthode pour calculer le paiement journalier des employés et appliquer les taxes
-        public double getRevenusBrutsJournaliers() {
-            return getEmployes().size() * plugin.getConfig().getDouble("finance.gain-par-employe");
-        }
-
-
-        public void calculerPaiementJournalier() {
-            double gainParEmploye = plugin.getConfig().getDouble("finance.gain-par-employe");
-            double gainJournalier = employes.size() * gainParEmploye;
-
-            // Mise à jour du chiffre d'affaires brut total
-            chiffreAffairesTotal += gainJournalier;
-
-            // Calcul et application des taxes
-            double pourcentageTaxes = plugin.getConfig().getDouble("finance.pourcentage-taxes");
-            double taxes = gainJournalier * (pourcentageTaxes / 100.0);
-            double gainNet = gainJournalier - taxes;
-
-            // Mise à jour du solde de l'entreprise
-            solde += gainNet;
-
-            // Sauvegarder le solde
-            saveSolde();
-            saveEntreprises();
-        }
-
-
-
-        // Méthode pour enregistrer le solde de l'entreprise dans le fichier de configuration
-        private void saveSolde() {
-            // Sauvegarde du solde
-            entrepriseConfig.set("entreprises." + nom + ".solde", solde);
-            // Sauvegarde du chiffre d'affaires total
-            entrepriseConfig.set("entreprises." + nom + ".chiffreAffairesTotal", chiffreAffairesTotal);
-
-            try {
-                entrepriseConfig.save(entrepriseFile);
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Erreur lors de la sauvegarde pour l'entreprise " + nom, e);
-            }
-        }
-        // Getters et Setters
-
-        public double getChiffreAffairesTotal() {
-            return this.chiffreAffairesTotal;
-        }
+        // Getters
         public String getNom() { return nom; }
-
-        public void setNom(String nom) {
-            this.nom = nom;
-        }
         public String getVille() { return ville; }
         public String getType() { return type; }
         public String getGerant() { return gerant; }
-        public Set<String> getEmployes() { return employes; }
+        public Set<String> getEmployes() { return Collections.unmodifiableSet(employes); } // Retourner une vue non modifiable
+        // Méthode pour obtenir la collection modifiable (usage interne à EntrepriseManagerLogic)
+        protected Set<String> getEmployesInternal() { return this.employes; }
         public double getSolde() { return solde; }
-        private String siret; // Attribut pour stocker le SIRET
+        public String getSiret() { return siret; }
+        public double getChiffreAffairesTotal() { return chiffreAffairesTotal; }
+        public Map<String, Double> getPrimes() { return Collections.unmodifiableMap(primes); } // Retourner une vue non modifiable
 
+        // Setters
+        public void setNom(String nom) { this.nom = nom; }
         public void setSolde(double solde) { this.solde = solde; }
-        public void setChiffreAffairesTotal(double chiffreAffairesTotal) {
-            this.chiffreAffairesTotal = chiffreAffairesTotal;
+        public void setChiffreAffairesTotal(double chiffreAffairesTotal) { this.chiffreAffairesTotal = chiffreAffairesTotal; }
+
+        // Gestion des primes
+        public double getPrimePourEmploye(String nomEmploye) { return this.primes.getOrDefault(nomEmploye, 0.0); }
+        public void setPrimePourEmploye(String nomEmploye, double montantPrime) {
+            if (montantPrime < 0) montantPrime = 0;
+            this.primes.put(nomEmploye, montantPrime);
+        }
+        public void retirerPrimeEmploye(String nomEmploye) { this.primes.remove(nomEmploye); }
+        public void setPrimes(Map<String, Double> nouvellesPrimes) { // Pour chargement
+            this.primes.clear();
+            if (nouvellesPrimes != null) this.primes.putAll(nouvellesPrimes);
+        }
+
+        // Méthode getRevenusBrutsJournaliers (Obsolète avec V2, mais gardée pour référence si utilisée ailleurs)
+        public double getRevenusBrutsJournaliers() {
+            // Si la config 'gain-par-employe' existe encore pour un calcul différent du CA
+            if (plugin != null && plugin.getConfig().contains("finance.gain-par-employe")) {
+                return getEmployes().size() * plugin.getConfig().getDouble("finance.gain-par-employe", 0);
+            }
+            return 0; // Retourner 0 si non pertinent
+        }
+
+        @Override
+        public String toString() {
+            return "Entreprise{nom='" + nom + "', type='" + type + "', gerant='" + gerant + "', solde=" + solde + "}";
         }
     }
 
-    private Map<UUID, Map<String, ActionInfo>> joueurActivites = new HashMap<>();
-
+    // --- Classe interne ActionInfo ---
     public static class ActionInfo {
         private int nombreActions;
         private LocalDateTime dernierActionHeure;
-
         public ActionInfo() {
             this.nombreActions = 0;
             this.dernierActionHeure = LocalDateTime.now();
         }
-
-        // Getters et Setters
         public int getNombreActions() { return nombreActions; }
-        public void setNombreActions(int nombreActions) { this.nombreActions = nombreActions; }
         public LocalDateTime getDernierActionHeure() { return dernierActionHeure; }
-        public void setDernierActionHeure(LocalDateTime dernierActionHeure) { this.dernierActionHeure = dernierActionHeure; }
+        public void incrementerActions(int quantite) { this.nombreActions += quantite; }
+        public void reinitialiserActions(LocalDateTime heureActuelle) {
+            this.nombreActions = 0;
+            this.dernierActionHeure = heureActuelle;
+        }
+        @Override
+        public String toString() {
+            return "ActionInfo{actions=" + nombreActions + ", heureReset=" + dernierActionHeure.getHour() + "h}";
+        }
     }
-
-
 }

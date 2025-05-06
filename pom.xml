@@ -6,7 +6,7 @@
 
     <groupId>com.gravityyfh.entreprisemanager</groupId>
     <artifactId>EntrepriseManager</artifactId>
-    <version>0.68-BETA</version>
+    <version>0.69-BETA</version>
     <packaging>jar</packaging>
 
     <name>EntrepriseManager</name>

@@ -1,58 +1,205 @@
-# Configuration pour EntrepriseManager
+# Configuration pour EntrepriseManager V2 (Productivité & Spécialisation)
+# Date de génération de cet exemple : 2025-05-06
 
+#--------------------------------------------------------------------------------------------------
+# TYPES D'ENTREPRISE
+# Chaque section définit un type d'entreprise que les joueurs peuvent créer.
+#--------------------------------------------------------------------------------------------------
 types-entreprise:
   Minage:
+    # [Optionnel] Ancien système de restriction basé sur les blocs cassés.
+    # Peut coexister ou être remplacé par 'action_restrictions'.
     blocs-autorisés:
       - STONE
       - COAL_ORE
-      - IRON_ORE
-    message-erreur:
-      - "&4&lSTOP ! Vous avez assez miner pour cette heure !"
-      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Minage'."
-      - "&4ou"
-      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
-    limite-non-membre-par-heure: 3
-    cout-creation: 10000
-
+      - RAW_IRON_ORE # Utiliser les items bruts si version 1.17+
+      - RAW_GOLD_ORE
+      - RAW_COPPER_ORE
+      - DIAMOND_ORE
+      - LAPIS_ORE
+      - REDSTONE_ORE
+      - EMERALD_ORE
+      - NETHER_QUARTZ_ORE
+      - ANCIENT_DEBRIS
+    # [Nouveau] Définit les actions dont la production en masse est réservée
+    # aux membres de ce type d'entreprise.
+    action_restrictions:
+      BLOCK_BREAK: # Seules les actions de CASSAGE DE BLOC
+        DIAMOND_ORE: {} # Syntaxe vide signifie "restreint à ce type"
+        ANCIENT_DEBRIS: {}
+    # [Nouveau] Définit la valeur générée pour le CA de l'entreprise par action de membre.
+    activites-payantes:
+      BLOCK_BREAK: # Pour chaque bloc cassé par un membre
+        STONE: 0.10
+        COAL_ORE: 0.50
+        RAW_IRON_ORE: 1.20
+        RAW_GOLD_ORE: 2.50
+        RAW_COPPER_ORE: 0.80
+        DIAMOND_ORE: 15.00
+        LAPIS_ORE: 3.00
+        REDSTONE_ORE: 0.70
+        EMERALD_ORE: 20.00
+        NETHER_QUARTZ_ORE: 0.60
+        ANCIENT_DEBRIS: 75.00
+    # Message si la limite horaire est atteinte pour un non-membre essayant une action définie
+    # dans 'blocs-autorisés' (ancien système) OU 'action_restrictions'.
+    message-erreur: # Message générique si 'message-erreur-restriction' n'est pas défini
+      - "&c&l[!] LIMITE ATTEINTE [!]"
+      - "&eVous avez atteint votre quota horaire pour cette ressource."
+      - "&7Rejoignez une entreprise de type &6Minage &7ou attendez la prochaine heure."
+    message-erreur-restriction: # Message spécifique si bloqué par 'action_restrictions'
+      - "&4&l[!] ACTION SPÉCIALISÉE [!]"
+      - "&cSeuls les membres d'une entreprise de type &6Minage &cpeuvent exploiter cette ressource en quantité."
+      - "&eVous pouvez en obtenir une quantité limitée chaque heure."
+    # Limite horaire pour les joueurs n'appartenant PAS à ce type d'entreprise,
+    # lorsqu'ils effectuent une action listée dans 'blocs-autorisés' OU 'action_restrictions' de ce type.
+    limite-non-membre-par-heure: 16 # Exemple: un non-mineur peut casser 16 diamants/heure.
+    cout-creation: 10000.0
 
   Agriculture:
-    blocs-autorisés:
+    blocs-autorisés: # Blocs récoltés (quand ils sont matures)
       - WHEAT
       - CARROTS
+      - POTATOES
+      - BEETROOTS
+      - NETHER_WART
+      - COCOA_BEANS # Le bloc de cacao sur le tronc
+      - PUMPKIN
+      - MELON
+    action_restrictions:
+      BLOCK_BREAK: # Pour la récolte
+        WHEAT: {}
+        CARROTS: {}
+        POTATOES: {}
+    activites-payantes:
+      BLOCK_BREAK: # Valeur pour la récolte (bloc mature)
+        WHEAT: 0.20 # Par item de blé obtenu (ajuster si l'event donne plusieurs items)
+        CARROTS: 0.15
+        POTATOES: 0.15
+        BEETROOTS: 0.18
+        NETHER_WART: 0.50
+        COCOA_BEANS: 0.25 # Pour chaque fève
+        PUMPKIN: 1.00 # Pour un bloc citrouille
+        MELON_SLICE: 0.10 # Pour chaque tranche de melon (si event donne des tranches)
+        MELON: 0.80 # Si event donne le bloc melon entier
     message-erreur:
-      - "&4&lSTOP ! Vous avez recolter assez pour cette heure !"
-      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Agriculture'."
-      - "&4ou"
-      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
-    limite-non-membre-par-heure: 3
-    cout-creation: 10000
+      - "&c&l[!] LIMITE ATTEINTE [!]"
+      - "&eVous avez assez récolté pour cette heure."
+      - "&7Rejoignez une entreprise de type &2Agriculture &7ou attendez."
+    message-erreur-restriction:
+      - "&4&l[!] RÉCOLTE SPÉCIALISÉE [!]"
+      - "&cSeuls les membres d'une entreprise &2Agriculture &cpeuvent récolter ceci en masse."
+    limite-non-membre-par-heure: 64
+    cout-creation: 7500.0
 
-
-  Deforestation:
+  Bucheronnage: # Anciennement Deforestation
     blocs-autorisés:
       - OAK_LOG
       - SPRUCE_LOG
+      - BIRCH_LOG
+      - JUNGLE_LOG
+      - ACACIA_LOG
+      - DARK_OAK_LOG
+      - MANGROVE_LOG
+      - CHERRY_LOG
+    action_restrictions:
+      BLOCK_BREAK:
+        OAK_LOG: {}
+        DARK_OAK_LOG: {}
+    activites-payantes:
+      BLOCK_BREAK:
+        OAK_LOG: 0.30
+        SPRUCE_LOG: 0.35
+        BIRCH_LOG: 0.30
+        JUNGLE_LOG: 0.40
+        ACACIA_LOG: 0.40
+        DARK_OAK_LOG: 0.45
+        MANGROVE_LOG: 0.50
+        CHERRY_LOG: 0.45
     message-erreur:
-      - "&4&lSTOP ! Vous avez besoin de vous reposer !"
-      - "&6Pour en obtenir d'avantage, rejoignez une entreprise de type 'Deforestation'."
-      - "&4ou"
-      - "&6Attendez l'heure suivante le temps de récupérer de l'énergie."
-    limite-non-membre-par-heure: 3
-    cout-creation: 10000
+      - "&c&l[!] LIMITE ATTEINTE [!]"
+      - "&eVous avez assez coupé de bois pour l'heure."
+      - "&7Rejoignez une entreprise de &6Bucheronnage &7ou attendez."
+    message-erreur-restriction:
+      - "&4&l[!] COUPE SPÉCIALISÉE [!]"
+      - "&cSeuls les &6Bûcherons &cpeuvent abattre ce type de bois en quantité."
+    limite-non-membre-par-heure: 48
+    cout-creation: 8000.0
 
+  Boulangerie:
+    # Pas de 'blocs-autorisés' ici, focus sur CRAFT_ITEM
+    action_restrictions:
+      CRAFT_ITEM: # Restreindre le craft en masse de certains items
+        BREAD: {}
+        CAKE: {}
+    activites-payantes:
+      CRAFT_ITEM: # Valeur générée par item crafté
+        BREAD: 0.50      # Par pain
+        COOKIE: 0.05     # Par cookie (attention, une recette donne 8 cookies)
+        CAKE: 3.00       # Par gâteau
+        PUMPKIN_PIE: 1.50 # Par tarte à la citrouille
+    message-erreur-restriction:
+      - "&4&l[!] PRODUCTION ARTISANALE LIMITÉE [!]"
+      - "&cSeuls les membres d'une &eBoulangerie &cpeuvent produire ceci en grande quantité."
+      - "&7Pour vos besoins personnels, votre limite horaire est de %limite%." # %limite% sera remplacé
+    limite-non-membre-par-heure: 10 # Ex: 10 pains/heure pour non-boulanger
+    cout-creation: 12000.0
 
+  Construction:
+    # Pas de 'blocs-autorisés' typiques, focus sur BLOCK_PLACE
+    action_restrictions:
+      BLOCK_PLACE: # Restreindre la pose en masse de certains blocs (si souhaité)
+        STONE_BRICKS: {}
+        QUARTZ_BLOCK: {}
+    activites-payantes:
+      BLOCK_PLACE: # Valeur générée par bloc posé par un membre
+        STONE: 0.01          # Blocs très communs, valeur faible
+        DIRT: 0.005
+        COBBLESTONE: 0.01
+        OAK_PLANKS: 0.02
+        STONE_BRICKS: 0.05   # Blocs plus transformés
+        GLASS: 0.04
+        TERRACOTTA: 0.03     # Toutes les couleurs de terre cuite
+        CONCRETE: 0.04       # Toutes les couleurs de béton
+        QUARTZ_BLOCK: 0.08
+    message-erreur-restriction:
+      - "&4&l[!] EXPERTISE REQUISE [!]"
+      - "&cSeuls les membres d'une entreprise de &3Construction &cpeuvent utiliser ce bloc en grande quantité."
+    limite-non-membre-par-heure: 128 # Limite de pose pour non-spécialistes
+    cout-creation: 15000.0
+
+#--------------------------------------------------------------------------------------------------
+# FINANCE ET PARAMÈTRES GLOBAUX
+#--------------------------------------------------------------------------------------------------
 finance:
-  gain-par-employe: 1000
-  max-entreprises-par-gerant: 1
-  max-employer-par-entreprise: 1
-  max-travail-joueur: 1
-  pourcentage-taxes: 15
-  heure-paiement: 20
+  # gain-par-employe: 1000.0 # Obsolète avec le système de CA par activité.
+  # Peut être réactivé pour un revenu fixe journalier EN PLUS du CA par activité.
+  # Nécessiterait d'adapter/réactiver traiterPaiementsJournaliersFixes() dans la logique.
 
+  max-entreprises-par-gerant: 1      # Nombre max d'entreprises qu'un joueur peut gérer.
+  max-employer-par-entreprise: 10    # Nombre max d'employés par entreprise.
+  max-travail-joueur: 1              # Nombre max d'entreprises où un joueur peut être (gérant OU employé).
+
+  pourcentage-taxes: 15.0            # Pourcentage (ex: 15.0 pour 15%) des taxes sur le CA brut horaire.
+  # Le CA net est (CA_Brut - Taxes).
+
+  # heure-paiement: 20 # Obsolète, les paiements de CA et primes sont maintenant horaires.
+
+  allocation-chomage-horaire: 50.0  # Montant versé chaque heure aux joueurs en ligne sans emploi. Mettre 0 pour désactiver.
+
+#--------------------------------------------------------------------------------------------------
+# INVITATIONS
+#--------------------------------------------------------------------------------------------------
 invitation:
-  distance-max: 10
+  distance-max: 15         # Distance maximale (en blocs) pour pouvoir inviter un joueur dans une entreprise.
 
+#--------------------------------------------------------------------------------------------------
+# SIRET (Identifiant unique d'entreprise)
+#--------------------------------------------------------------------------------------------------
 siret:
-  longueur: 13
+  longueur: 14             # Longueur du SIRET généré automatiquement.
 
-rename-cost: 2500
+#--------------------------------------------------------------------------------------------------
+# DIVERS
+#--------------------------------------------------------------------------------------------------
+rename-cost: 2500.0        # Coût pour renommer une entreprise.
