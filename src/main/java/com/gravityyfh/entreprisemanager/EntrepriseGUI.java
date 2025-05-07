@@ -803,14 +803,44 @@ public class EntrepriseGUI implements Listener {
         }
     }
 
+    // Dans EntrepriseGUI.java
     public void displayEntrepriseInfo(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
         player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Informations Entreprise: " + ChatColor.AQUA + entreprise.getNom() + ChatColor.GOLD + " ===");
         player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + entreprise.getVille());
         player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + entreprise.getType());
-        // ... autres informations ...
+        player.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + entreprise.getGerant());
+        player.sendMessage(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + entreprise.getEmployes().size() + "/" + plugin.getConfig().getInt("finance.max-employer-par-entreprise", 10));
+        player.sendMessage(ChatColor.YELLOW + "Solde Actuel: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€");
+
+        double caPotentiel = entrepriseLogic.getActiviteHoraireValeurPour(entreprise.getNom());
+        player.sendMessage(ChatColor.YELLOW + "CA Potentiel (cette heure): " + ChatColor.AQUA + String.format("%,.2f", caPotentiel) + "€");
+        player.sendMessage(ChatColor.YELLOW + "Chiffre d'Affaires Total (brut): " + ChatColor.DARK_GREEN + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€");
+        player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
+
+        if (entreprise.getGerant().equalsIgnoreCase(player.getName()) || player.hasPermission("entreprisemanager.admin.info")) {
+            if (!entreprise.getPrimes().isEmpty()) {
+                player.sendMessage(ChatColor.GOLD + "Primes Horaires des Employés:");
+                for (Map.Entry<String, Double> primeEntry : entreprise.getPrimes().entrySet()) {
+                    player.sendMessage(ChatColor.GRAY + "  - " + primeEntry.getKey() + ": " + ChatColor.YELLOW + String.format("%,.2f", primeEntry.getValue()) + "€/h");
+                }
+            } else {
+                player.sendMessage(ChatColor.GOLD + "Primes Horaires: " + ChatColor.GRAY + "Aucune définie.");
+            }
+            // Pour afficher la liste des employés et leurs noms :
+            if (!entreprise.getEmployes().isEmpty()) {
+                player.sendMessage(ChatColor.GOLD + "Liste des Employés:");
+                for (String nomEmploye : entreprise.getEmployes()) {
+                    // Récupérer la prime de l'employé pour l'afficher à côté si souhaité
+                    double primeEmploye = entreprise.getPrimePourEmploye(nomEmploye);
+                    player.sendMessage(ChatColor.GRAY + "  - " + nomEmploye + ChatColor.YELLOW + " (Prime: " + String.format("%,.2f", primeEmploye) + "€/h)");
+                }
+            } else {
+                player.sendMessage(ChatColor.GOLD + "Liste des Employés: " + ChatColor.GRAY + "Aucun employé.");
+            }
+
+        }
         player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "==============================================");
     }
-
     @EventHandler // Gestion du renommage via chat (si ChatListener ne le fait pas)
     public void onAsyncPlayerChatForRename(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
