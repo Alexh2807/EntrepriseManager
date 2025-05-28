@@ -6,7 +6,7 @@
 
     <groupId>com.gravityyfh.entreprisemanager</groupId>
     <artifactId>EntrepriseManager</artifactId>
-    <version>0.71-BETA</version>
+    <version>0.74-BETA</version>
     <packaging>jar</packaging>
 
     <name>EntrepriseManager</name>
@@ -37,6 +37,8 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -59,21 +61,17 @@
             <url>https://oss.sonatype.org/content/groups/public/</url>
         </repository>
         <repository>
-            <id>glaremasters-repo</id>
-            <url>https://repo.glaremasters.me/repository/towny/</url>
+            <id>glaremasters-repo</id> <url>https://repo.glaremasters.me/repository/towny/</url>
         </repository>
         <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
+            <id>jitpack.io</id> <url>https://jitpack.io</url>
         </repository>
         <repository>
-            <id>codemc</id>
-            <url>https://repo.codemc.io/repository/maven-public/</url>
+            <id>codemc</id> <url>https://repo.codemc.io/repository/maven-public/</url>
         </repository>
     </repositories>
 
     <dependencies>
-        <!-- Spigot API -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
@@ -81,7 +79,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Towny -->
         <dependency>
             <groupId>com.palmergames.bukkit.towny</groupId>
             <artifactId>towny</artifactId>
@@ -89,7 +86,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Vault -->
         <dependency>
             <groupId>com.github.MilkBowl</groupId>
             <artifactId>VaultAPI</artifactId>
@@ -97,16 +93,11 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Treecuter (lib perso) -->
         <dependency>
-            <groupId>com.treecuter</groupId>
-            <artifactId>treecuter</artifactId>
-            <version>1.7.0</version>
-            <scope>system</scope>
+            <groupId>com.treecuter</groupId> <artifactId>treecuter</artifactId> <version>1.7.0</version> <scope>system</scope>
             <systemPath>${project.basedir}/libs/treecuter-v1.7.0.jar</systemPath>
         </dependency>
 
-        <!-- ✅ QuickShop-Hikari local .jar -->
         <dependency>
             <groupId>com.ghostchu</groupId>
             <artifactId>quickshop-bukkit</artifactId>
@@ -119,5 +110,13 @@
             <version>6.2.0.9-RELEASE-1</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>net.coreprotect</groupId> <artifactId>coreprotect</artifactId>
+            <version>22.4</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/CoreProtect-22.4.jar</systemPath>
+        </dependency>
+
     </dependencies>
 </project>

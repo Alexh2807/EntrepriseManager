@@ -1,23 +1,21 @@
 package com.gravityyfh.entreprisemanager;
 
-import org.bukkit.ChatColor;
-import org.bukkit.GameMode; // Ajout pour vérifier le GameMode
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import pl.norbit.treecuter.api.listeners.TreeCutEvent; // Assurez-vous que cet import est correct pour votre API TreeCuter
+import pl.norbit.treecuter.api.listeners.TreeCutEvent; // Assurez-vous que cet import est correct
 
-import java.util.List; // Pour les messages d'erreur
 import java.util.Set;
-// UUID n'est plus directement utilisé car on passe l'objet Player
+import java.util.logging.Level; // Ajout pour les logs
 
 public class TreeCutListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;
-    private final EntrepriseManager plugin; // Référence au plugin principal pour accéder à la config
+    private final EntrepriseManager plugin;
 
     public TreeCutListener(EntrepriseManagerLogic entrepriseLogic, EntrepriseManager plugin) {
         this.entrepriseLogic = entrepriseLogic;
@@ -29,50 +27,62 @@ public class TreeCutListener implements Listener {
         Player player = event.getPlayer();
 
         if (player.getGameMode() == GameMode.CREATIVE) {
+            plugin.getLogger().log(Level.FINER, "TreeCutEvent ignoré (Joueur en créatif : " + player.getName() + ")");
             return; // Pas de restrictions ou de CA en créatif
         }
 
         Set<Block> blocksCut = event.getBlocks(); // Blocs qui vont être coupés par l'API TreeCuter
 
-        // Il faut vérifier la restriction sur le premier bloc de type LOG pour déterminer si l'action globale est permise.
-        // L'API TreeCuter gère la coupe de l'arbre entier. Si la première action est bloquée, on annule tout.
-        Material firstLogType = null;
+        // Trouver le premier bloc de type LOG ou STEM pour vérifier les restrictions
+        Block firstLogBlock = null;
+        Material firstLogMaterial = null;
         for (Block block : blocksCut) {
-            if (block.getType().name().endsWith("_LOG") || block.getType().name().endsWith("_WOOD") || block.getType().name().contains("STEM")) { // Détecter les bûches/tiges
-                firstLogType = block.getType();
+            Material type = block.getType();
+            // Détection plus large des types de bois/tiges
+            if (type.name().endsWith("_LOG") || type.name().endsWith("_WOOD") || type.name().contains("STEM") || type == Material.MANGROVE_ROOTS || type == Material.MUDDY_MANGROVE_ROOTS) {
+                firstLogBlock = block;
+                firstLogMaterial = type;
                 break;
             }
         }
 
-        if (firstLogType == null) {
-            // Pas une bûche ? Ou l'API a un comportement inattendu. On ignore pour éviter des erreurs.
-            return;
+        if (firstLogBlock == null || firstLogMaterial == null) {
+            plugin.getLogger().log(Level.FINER, "TreeCutEvent ignoré (Aucun bloc de type LOG/STEM/WOOD trouvé dans la liste) pour " + player.getName());
+            return; // Pas une bûche ? Ou comportement API inattendu. Ignorer.
         }
 
-        // Idée 3: Vérifier les restrictions pour le type de bûche principal
-        // On considère la coupe de l'arbre comme UNE action pour la limite non-membre. Quantité = 1 pour la vérification.
-        if (entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", firstLogType, 1)) {
+        String firstLogMaterialName = firstLogMaterial.name(); // Obtenir le nom du matériau en String
+        plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Événement : " + player.getName() + " coupe un arbre (type principal : " + firstLogMaterialName + ")");
+
+
+        // Vérifier les restrictions pour le type de bûche principal.
+        // Utiliser la surcharge qui prend le nom du matériau (String).
+        // On vérifie la restriction pour 1 unité, car la coupe d'arbre est une seule action du point de vue de la limite horaire.
+        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", firstLogMaterialName, 1);
+
+        plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Résultat vérification restriction pour " + player.getName() + " coupant " + firstLogMaterialName + " : " + (isBlocked ? "BLOQUÉ" : "AUTORISÉ"));
+
+        if (isBlocked) {
             event.setCancelled(true); // Action bloquée (limite non-membre atteinte pour ce type de bois)
+            plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Action bloquée, événement TreeCut annulé pour " + player.getName() + " coupant " + firstLogMaterialName);
             // Le message d'erreur est déjà envoyé par verifierEtGererRestrictionAction.
-            // On peut ajouter un message spécifique à TreeCut si besoin.
-            // player.sendMessage(ChatColor.RED + "Vous avez atteint votre limite de coupe pour ce type de bois cette heure.");
             return;
         }
 
-        // Si l'action n'est pas bloquée, alors Idées 1 & 4: Enregistrer l'action productive pour CHAQUE bûche
-        // Cela suppose que l'API TreeCuter ne cancelle pas l'événement si on ne le fait pas ici.
-        // Et que l'événement est bien déclenché AVANT que les blocs ne soient réellement cassés par l'API.
+        // Si l'action n'est pas bloquée, enregistrer l'action productive pour CHAQUE bloc pertinent coupé.
         int logsCounted = 0;
         for (Block block : blocksCut) {
             Material blockType = block.getType();
-            // Enregistrer uniquement les bûches/bois pour le CA (pas les feuilles, etc.)
-            if (blockType.name().endsWith("_LOG") || blockType.name().endsWith("_WOOD") || blockType.name().contains("STEM")) {
-                entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1);
+            // Enregistrer uniquement les bûches/bois/tiges pour le CA
+            if (blockType.name().endsWith("_LOG") || blockType.name().endsWith("_WOOD") || blockType.name().contains("STEM") || blockType == Material.MANGROVE_ROOTS || blockType == Material.MUDDY_MANGROVE_ROOTS) {
+                // Utiliser la surcharge de enregistrerActionProductive qui prend le Block en argument.
+                plugin.getLogger().log(Level.FINER, "[DEBUG TreeCut] Enregistrement action pour " + player.getName() + " : bûche " + blockType.name());
+                entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1, block);
                 logsCounted++;
             }
         }
         if (logsCounted > 0) {
-            // player.sendMessage(ChatColor.DARK_AQUA + "[DEBUG] TreeCut: " + logsCounted + " bûches enregistrées pour le CA."); // Debug
+            plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] " + logsCounted + " bûches/tiges enregistrées pour " + player.getName());
         }
     }
 }

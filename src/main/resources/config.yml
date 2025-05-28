@@ -1,205 +1,327 @@
-# Configuration pour EntrepriseManager V2 (Productivité & Spécialisation)
-# Date de génération de cet exemple : 2025-05-06
+# Configuration pour les entreprises (Productivité & Spécialisation)
+# Mise à jour pour économie RP équilibrée (plafond 100k, améliorations moins chères) : 2025-05-26
+# Ajout de l'entreprise Armurerie
 
 #--------------------------------------------------------------------------------------------------
 # TYPES D'ENTREPRISE
-# Chaque section définit un type d'entreprise que les joueurs peuvent créer.
 #--------------------------------------------------------------------------------------------------
 types-entreprise:
+
   Minage:
-    # [Optionnel] Ancien système de restriction basé sur les blocs cassés.
-    # Peut coexister ou être remplacé par 'action_restrictions'.
-    blocs-autorisés:
-      - STONE
-      - COAL_ORE
-      - RAW_IRON_ORE # Utiliser les items bruts si version 1.17+
-      - RAW_GOLD_ORE
-      - RAW_COPPER_ORE
-      - DIAMOND_ORE
-      - LAPIS_ORE
-      - REDSTONE_ORE
-      - EMERALD_ORE
-      - NETHER_QUARTZ_ORE
-      - ANCIENT_DEBRIS
-    # [Nouveau] Définit les actions dont la production en masse est réservée
-    # aux membres de ce type d'entreprise.
     action_restrictions:
-      BLOCK_BREAK: # Seules les actions de CASSAGE DE BLOC
-        DIAMOND_ORE: {} # Syntaxe vide signifie "restreint à ce type"
+      BLOCK_BREAK:
+        COAL_ORE: {}
+        RAW_COPPER_ORE: {}
+        RAW_IRON_ORE: {}
+        RAW_GOLD_ORE: {}
+        LAPIS_ORE: {}
+        REDSTONE_ORE: {}
+        DIAMOND_ORE: {}
+        EMERALD_ORE: {}
+        NETHER_QUARTZ_ORE: {}
         ANCIENT_DEBRIS: {}
-    # [Nouveau] Définit la valeur générée pour le CA de l'entreprise par action de membre.
     activites-payantes:
-      BLOCK_BREAK: # Pour chaque bloc cassé par un membre
-        STONE: 0.10
-        COAL_ORE: 0.50
-        RAW_IRON_ORE: 1.20
-        RAW_GOLD_ORE: 2.50
-        RAW_COPPER_ORE: 0.80
-        DIAMOND_ORE: 15.00
-        LAPIS_ORE: 3.00
-        REDSTONE_ORE: 0.70
-        EMERALD_ORE: 20.00
-        NETHER_QUARTZ_ORE: 0.60
-        ANCIENT_DEBRIS: 75.00
-    # Message si la limite horaire est atteinte pour un non-membre essayant une action définie
-    # dans 'blocs-autorisés' (ancien système) OU 'action_restrictions'.
-    message-erreur: # Message générique si 'message-erreur-restriction' n'est pas défini
-      - "&c&l[!] LIMITE ATTEINTE [!]"
-      - "&eVous avez atteint votre quota horaire pour cette ressource."
-      - "&7Rejoignez une entreprise de type &6Minage &7ou attendez la prochaine heure."
-    message-erreur-restriction: # Message spécifique si bloqué par 'action_restrictions'
-      - "&4&l[!] ACTION SPÉCIALISÉE [!]"
-      - "&cSeuls les membres d'une entreprise de type &6Minage &cpeuvent exploiter cette ressource en quantité."
-      - "&eVous pouvez en obtenir une quantité limitée chaque heure."
-    # Limite horaire pour les joueurs n'appartenant PAS à ce type d'entreprise,
-    # lorsqu'ils effectuent une action listée dans 'blocs-autorisés' OU 'action_restrictions' de ce type.
-    limite-non-membre-par-heure: 16 # Exemple: un non-mineur peut casser 16 diamants/heure.
-    cout-creation: 10000.0
+      BLOCK_BREAK:
+        DEEPSLATE: 0.09
+        COAL_ORE: 0.70
+        RAW_COPPER_ORE: 1.20
+        RAW_IRON_ORE: 2.80
+        RAW_GOLD_ORE: 4.00
+        LAPIS_ORE: 3.80
+        REDSTONE_ORE: 1.20
+        EMERALD_ORE: 30.00
+        DIAMOND_ORE: 60.00
+        NETHER_QUARTZ_ORE: 0.90
+        ANCIENT_DEBRIS: 180.00
+    message-erreur:
+      - "&c&l[!] ZONE MINIÈRE PROTÉGÉE [!]"
+      - "&eVous ne pouvez pas exploiter cette ressource en tant que non-membre."
+      - "&7Rejoignez une entreprise de &6Minage &7ou attendez la prochaine heure pour une petite quantité."
+    message-erreur-restriction:
+      - "&4&l[!] EXPLOITATION MINIÈRE SPÉCIALISÉE [!]"
+      - "&cSeuls les membres d'une entreprise de &6Minage &cpeuvent exploiter cette ressource."
+      - "&eVous pouvez en obtenir une quantité très limitée chaque heure en dehors d'une entreprise."
+    limite-non-membre-par-heure: 8
+    cout-creation: 12000.0
 
   Agriculture:
-    blocs-autorisés: # Blocs récoltés (quand ils sont matures)
-      - WHEAT
-      - CARROTS
-      - POTATOES
-      - BEETROOTS
-      - NETHER_WART
-      - COCOA_BEANS # Le bloc de cacao sur le tronc
-      - PUMPKIN
-      - MELON
     action_restrictions:
-      BLOCK_BREAK: # Pour la récolte
+      BLOCK_BREAK:
         WHEAT: {}
         CARROTS: {}
         POTATOES: {}
+        BEETROOTS: {}
+        NETHER_WART: {}
+        COCOA_BEANS: {}
+        PUMPKIN: {}
+        MELON: {}
+        SUGAR_CANE: {}
+        BAMBOO: {}
+        CACTUS: {}
     activites-payantes:
-      BLOCK_BREAK: # Valeur pour la récolte (bloc mature)
-        WHEAT: 0.20 # Par item de blé obtenu (ajuster si l'event donne plusieurs items)
-        CARROTS: 0.15
-        POTATOES: 0.15
-        BEETROOTS: 0.18
-        NETHER_WART: 0.50
-        COCOA_BEANS: 0.25 # Pour chaque fève
-        PUMPKIN: 1.00 # Pour un bloc citrouille
-        MELON_SLICE: 0.10 # Pour chaque tranche de melon (si event donne des tranches)
-        MELON: 0.80 # Si event donne le bloc melon entier
+      BLOCK_BREAK:
+        WHEAT: 0.28
+        CARROTS: 0.22
+        POTATOES: 0.22
+        BEETROOTS: 0.25
+        NETHER_WART: 0.80
+        COCOA_BEANS: 0.35
+        PUMPKIN: 1.60
+        MELON: 1.30
+        SUGAR_CANE: 0.18
+        BAMBOO: 0.12
+        CACTUS: 0.22
     message-erreur:
-      - "&c&l[!] LIMITE ATTEINTE [!]"
-      - "&eVous avez assez récolté pour cette heure."
-      - "&7Rejoignez une entreprise de type &2Agriculture &7ou attendez."
+      - "&c&l[!] LIMITE DE RÉCOLTE [!]"
+      - "&eVous avez assez récolté pour cette heure en dehors d'une ferme spécialisée."
+      - "&7Rejoignez une entreprise &2Agricole &7ou attendez."
     message-erreur-restriction:
-      - "&4&l[!] RÉCOLTE SPÉCIALISÉE [!]"
-      - "&cSeuls les membres d'une entreprise &2Agriculture &cpeuvent récolter ceci en masse."
-    limite-non-membre-par-heure: 64
-    cout-creation: 7500.0
+      - "&4&l[!] CULTURE SPÉCIALISÉE [!]"
+      - "&cSeuls les membres d'une entreprise &2Agricole &cpeuvent cultiver ceci en masse."
+    limite-non-membre-par-heure: 12
+    cout-creation: 6000.0
 
-  Bucheronnage: # Anciennement Deforestation
-    blocs-autorisés:
-      - OAK_LOG
-      - SPRUCE_LOG
-      - BIRCH_LOG
-      - JUNGLE_LOG
-      - ACACIA_LOG
-      - DARK_OAK_LOG
-      - MANGROVE_LOG
-      - CHERRY_LOG
+  Armurerie:
+    action_restrictions:
+      CRAFT_ITEM:
+        # Outils et Armes en Diamant
+        DIAMOND_SWORD: {}
+        DIAMOND_PICKAXE: {}
+        DIAMOND_AXE: {}
+        DIAMOND_SHOVEL: {}
+        DIAMOND_HOE: {}
+        DIAMOND_HELMET: {}
+        DIAMOND_CHESTPLATE: {}
+        DIAMOND_LEGGINGS: {}
+        DIAMOND_BOOTS: {}
+        # Outils et Armes en Netherite
+        NETHERITE_SWORD: {}
+        NETHERITE_PICKAXE: {}
+        NETHERITE_AXE: {}
+        NETHERITE_SHOVEL: {}
+        NETHERITE_HOE: {}
+        NETHERITE_HELMET: {}
+        NETHERITE_CHESTPLATE: {}
+        NETHERITE_LEGGINGS: {}
+        NETHERITE_BOOTS: {}
+        # Divers
+        SHIELD: {}
+        BOW: {}
+        CROSSBOW: {}
+    activites-payantes: # Les prix reflètent une marge sur le coût des matériaux (ex: fer @~3.5/lingot, diamant @60)
+      CRAFT_ITEM:
+        # Fer (Coût lingot estimé ~3.5)
+        IRON_SWORD: 12.0       # Mat: ~7.0
+        IRON_PICKAXE: 18.0     # Mat: ~10.5
+        IRON_AXE: 18.0         # Mat: ~10.5
+        IRON_SHOVEL: 7.0       # Mat: ~3.5
+        IRON_HOE: 12.0         # Mat: ~7.0
+        IRON_HELMET: 28.0      # Mat: ~17.5
+        IRON_CHESTPLATE: 45.0  # Mat: ~28.0
+        IRON_LEGGINGS: 38.0    # Mat: ~24.5
+        IRON_BOOTS: 22.0       # Mat: ~14.0
+        # Diamant (Coût diamant estimé ~60)
+        DIAMOND_SWORD: 160.0    # Mat: ~120
+        DIAMOND_PICKAXE: 240.0  # Mat: ~180
+        DIAMOND_AXE: 240.0      # Mat: ~180
+        DIAMOND_SHOVEL: 80.0    # Mat: ~60
+        DIAMOND_HOE: 150.0      # Mat: ~120
+        DIAMOND_HELMET: 380.0   # Mat: ~300
+        DIAMOND_CHESTPLATE: 600.0 # Mat: ~480
+        DIAMOND_LEGGINGS: 520.0 # Mat: ~420
+        DIAMOND_BOOTS: 300.0    # Mat: ~240
+        # Netherite (Coût lingot estimé ~740 + item diamant)
+        NETHERITE_SWORD: 1050.0 # (Mat DSword ~120 + Lingot ~740 = ~860)
+        NETHERITE_PICKAXE: 1150.0 # (Mat DPick ~180 + Lingot ~740 = ~920)
+        NETHERITE_AXE: 1150.0
+        NETHERITE_SHOVEL: 900.0
+        NETHERITE_HOE: 1020.0
+        NETHERITE_HELMET: 1250.0 # (Mat DHelmet ~300 + Lingot ~740 = ~1040)
+        NETHERITE_CHESTPLATE: 1500.0
+        NETHERITE_LEGGINGS: 1400.0
+        NETHERITE_BOOTS: 1180.0
+        # Divers
+        SHIELD: 10.0            # Mat: ~4-5 (planches + 1 fer)
+        BOW: 15.0
+        CROSSBOW: 30.0
+    message-erreur-restriction:
+      - "&4&l[!] EXPERTISE D'ARMURIER REQUISE [!]"
+      - "&cSeuls les maîtres Armuriers peuvent forger cet équipement en quantité."
+      - "&7Votre capacité de production personnelle est limitée à %limite% par heure."
+    limite-non-membre-par-heure: 0 # Très restrictif pour les équipements spécialisés
+    cout-creation: 18000.0 # Coût élevé pour refléter la valeur des productions
+
+  Bucheronnage:
     action_restrictions:
       BLOCK_BREAK:
         OAK_LOG: {}
+        SPRUCE_LOG: {}
+        BIRCH_LOG: {}
+        JUNGLE_LOG: {}
+        ACACIA_LOG: {}
         DARK_OAK_LOG: {}
+        MANGROVE_LOG: {}
+        CHERRY_LOG: {}
+        CRIMSON_STEM: {}
+        WARPED_STEM: {}
     activites-payantes:
       BLOCK_BREAK:
-        OAK_LOG: 0.30
-        SPRUCE_LOG: 0.35
-        BIRCH_LOG: 0.30
-        JUNGLE_LOG: 0.40
-        ACACIA_LOG: 0.40
-        DARK_OAK_LOG: 0.45
-        MANGROVE_LOG: 0.50
-        CHERRY_LOG: 0.45
+        OAK_LOG: 0.45
+        SPRUCE_LOG: 0.50
+        BIRCH_LOG: 0.45
+        JUNGLE_LOG: 0.60
+        ACACIA_LOG: 0.60
+        DARK_OAK_LOG: 0.70
+        MANGROVE_LOG: 0.75
+        CHERRY_LOG: 0.65
+        CRIMSON_STEM: 0.90
+        WARPED_STEM: 0.90
     message-erreur:
-      - "&c&l[!] LIMITE ATTEINTE [!]"
-      - "&eVous avez assez coupé de bois pour l'heure."
+      - "&c&l[!] LIMITE DE COUPE [!]"
+      - "&eVous avez assez coupé de bois pour cette heure."
       - "&7Rejoignez une entreprise de &6Bucheronnage &7ou attendez."
     message-erreur-restriction:
-      - "&4&l[!] COUPE SPÉCIALISÉE [!]"
+      - "&4&l[!] ABATTAGE SPÉCIALISÉ [!]"
       - "&cSeuls les &6Bûcherons &cpeuvent abattre ce type de bois en quantité."
-    limite-non-membre-par-heure: 48
-    cout-creation: 8000.0
+    limite-non-membre-par-heure: 8
+    cout-creation: 7000.0
 
   Boulangerie:
-    # Pas de 'blocs-autorisés' ici, focus sur CRAFT_ITEM
     action_restrictions:
-      CRAFT_ITEM: # Restreindre le craft en masse de certains items
+      CRAFT_ITEM:
         BREAD: {}
         CAKE: {}
+        COOKIE: {}
+        PUMPKIN_PIE: {}
+        MUSHROOM_STEW: {}
+        RABBIT_STEW: {}
     activites-payantes:
-      CRAFT_ITEM: # Valeur générée par item crafté
-        BREAD: 0.50      # Par pain
-        COOKIE: 0.05     # Par cookie (attention, une recette donne 8 cookies)
-        CAKE: 3.00       # Par gâteau
-        PUMPKIN_PIE: 1.50 # Par tarte à la citrouille
+      CRAFT_ITEM:
+        BREAD: 1.60
+        COOKIE: 0.25
+        CAKE: 10.00
+        PUMPKIN_PIE: 4.50
+        MUSHROOM_STEW: 2.20
+        RABBIT_STEW: 7.00
     message-erreur-restriction:
       - "&4&l[!] PRODUCTION ARTISANALE LIMITÉE [!]"
       - "&cSeuls les membres d'une &eBoulangerie &cpeuvent produire ceci en grande quantité."
-      - "&7Pour vos besoins personnels, votre limite horaire est de %limite%." # %limite% sera remplacé
-    limite-non-membre-par-heure: 10 # Ex: 10 pains/heure pour non-boulanger
-    cout-creation: 12000.0
+      - "&7Pour vos besoins personnels, votre limite horaire est de %limite%."
+    limite-non-membre-par-heure: 4
+    cout-creation: 8000.0
 
   Construction:
-    # Pas de 'blocs-autorisés' typiques, focus sur BLOCK_PLACE
     action_restrictions:
-      BLOCK_PLACE: # Restreindre la pose en masse de certains blocs (si souhaité)
+      BLOCK_PLACE:
         STONE_BRICKS: {}
         QUARTZ_BLOCK: {}
+        GLASS: {}
+        TERRACOTTA: {}
+        CONCRETE: {}
+        BRICKS: {}
+        DEEPSLATE_TILES: {}
+        POLISHED_BLACKSTONE_BRICKS: {}
     activites-payantes:
-      BLOCK_PLACE: # Valeur générée par bloc posé par un membre
-        STONE: 0.01          # Blocs très communs, valeur faible
+      BLOCK_PLACE:
+        STONE: 0.01
         DIRT: 0.005
         COBBLESTONE: 0.01
         OAK_PLANKS: 0.02
-        STONE_BRICKS: 0.05   # Blocs plus transformés
-        GLASS: 0.04
-        TERRACOTTA: 0.03     # Toutes les couleurs de terre cuite
-        CONCRETE: 0.04       # Toutes les couleurs de béton
-        QUARTZ_BLOCK: 0.08
+        SPRUCE_PLANKS: 0.02
+        BIRCH_PLANKS: 0.02
+        STONE_BRICKS: 0.08
+        GLASS: 0.06
+        TERRACOTTA: 0.05
+        CONCRETE: 0.06
+        QUARTZ_BLOCK: 0.15
+        BRICKS: 0.07
+        SANDSTONE: 0.03
+        WOOL: 0.03
+        DEEPSLATE_TILES: 0.10
+        POLISHED_BLACKSTONE_BRICKS: 0.12
     message-erreur-restriction:
-      - "&4&l[!] EXPERTISE REQUISE [!]"
+      - "&4&l[!] EXPERTISE EN CONSTRUCTION REQUISE [!]"
       - "&cSeuls les membres d'une entreprise de &3Construction &cpeuvent utiliser ce bloc en grande quantité."
-    limite-non-membre-par-heure: 128 # Limite de pose pour non-spécialistes
-    cout-creation: 15000.0
+      - "&cSi vous souhaitez construire un biens, veuillez contacter une entreprise de BTP."
+    limite-non-membre-par-heure: 64
+    cout-creation: 4000.0
+
+  Boucherie:
+    action_restrictions:
+      ENTITY_KILL:
+        SHEEP: {}
+        COW: {}
+        PIG: {}
+        CHICKEN: {}
+        RABBIT: {}
+    activites-payantes:
+      ENTITY_KILL:
+        SHEEP: 2.20
+        COW: 3.50
+        PIG: 2.80
+        CHICKEN: 1.10
+        RABBIT: 0.90
+    message-erreur-restriction:
+      - "&4&l[!] ABATTAGE SPÉCIALISÉ [!]"
+      - "&cSeuls les membres d'une entreprise de &4Boucherie &cpeuvent abattre cet animal en quantité."
+      - "&eVotre limite horaire est de %limite%."
+    limite-non-membre-par-heure: 3
+    cout-creation: 7500.0
 
 #--------------------------------------------------------------------------------------------------
 # FINANCE ET PARAMÈTRES GLOBAUX
 #--------------------------------------------------------------------------------------------------
 finance:
-  # gain-par-employe: 1000.0 # Obsolète avec le système de CA par activité.
-  # Peut être réactivé pour un revenu fixe journalier EN PLUS du CA par activité.
-  # Nécessiterait d'adapter/réactiver traiterPaiementsJournaliersFixes() dans la logique.
+  max-entreprises-par-gerant: 2
+  max-travail-joueur: 1
 
-  max-entreprises-par-gerant: 1      # Nombre max d'entreprises qu'un joueur peut gérer.
-  max-employer-par-entreprise: 10    # Nombre max d'employés par entreprise.
-  max-travail-joueur: 1              # Nombre max d'entreprises où un joueur peut être (gérant OU employé).
+  pourcentage-taxes: 20.0
+  charge-salariale-par-employe-horaire: 5.0
+  charges-sur-employes-actifs-seulement: false
 
-  pourcentage-taxes: 15.0            # Pourcentage (ex: 15.0 pour 15%) des taxes sur le CA brut horaire.
-  # Le CA net est (CA_Brut - Taxes).
+  allocation-chomage-horaire: 50.0
 
-  # heure-paiement: 20 # Obsolète, les paiements de CA et primes sont maintenant horaires.
+  max-employer-par-entreprise:
+    0: 2
+    1: 3
+    2: 5
+    3: 8
+    4: 12
 
-  allocation-chomage-horaire: 50.0  # Montant versé chaque heure aux joueurs en ligne sans emploi. Mettre 0 pour désactiver.
+  cout-amelioration-niveau-max-employer:
+    1: 2000.0
+    2: 6000.0
+    3: 15000.0
+    4: 35000.0
+
+  max-solde-par-niveau:
+    0: 2500.0
+    1: 10000.0
+    2: 30000.0
+    3: 60000.0
+    4: 100000.0
+
+  cout-amelioration-niveau-max-solde:
+    1: 2000.0
+    2: 8000.0
+    3: 20000.0
+    4: 40000.0
 
 #--------------------------------------------------------------------------------------------------
 # INVITATIONS
 #--------------------------------------------------------------------------------------------------
 invitation:
-  distance-max: 15         # Distance maximale (en blocs) pour pouvoir inviter un joueur dans une entreprise.
+  distance-max: 10
 
 #--------------------------------------------------------------------------------------------------
 # SIRET (Identifiant unique d'entreprise)
 #--------------------------------------------------------------------------------------------------
 siret:
-  longueur: 14             # Longueur du SIRET généré automatiquement.
+  longueur: 14
 
 #--------------------------------------------------------------------------------------------------
 # DIVERS
 #--------------------------------------------------------------------------------------------------
-rename-cost: 2500.0        # Coût pour renommer une entreprise.
+rename-cost: 3000.0 # Configuration pour EntrepriseManager V2 (Productivité & Spécialisation)
+# Mise à jour pour économie RP équilibrée (plafond 100k, améliorations moins chères) : 2025-05-26
+# Ajout de l'entreprise Armurerie

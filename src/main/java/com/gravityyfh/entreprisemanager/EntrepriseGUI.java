@@ -9,60 +9,106 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.inventory.InventoryType; // Ajout pour identifier l'inventaire du joueur
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+// import org.bukkit.inventory.ItemFlag; // Décommenter si vous l'utilisez pour cacher les attributs
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.logging.Level; // Pour les messages de log
+// import java.util.function.Consumer; // Décommenter si besoin
+import java.util.logging.Level;
+import java.util.stream.Collectors;
+
+// Importation nécessaire pour DetailedActionType
+import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.DetailedActionType;
+
 
 public class EntrepriseGUI implements Listener {
 
     private final EntrepriseManager plugin;
     private final EntrepriseManagerLogic entrepriseLogic;
 
-    private final Map<Player, String> selectedGerantForCreation = new HashMap<>();
-    private final Map<Player, String> selectedTypeForCreation = new HashMap<>();
+    private static class PlayerGUIContext {
+        String currentMenuTitle;
+        String currentEntrepriseNom;
+        String selectedGerantPourCreation;
+        String selectedEmployeeForManagement;
+        int currentPage;
+        LocalDateTime[] currentProductionPeriod;
+        UUID currentViewingEmployeeStatsUUID;
+        DetailedActionType currentViewingActionType;
+
+        Stack<String> menuHistory = new Stack<>();
+
+        public PlayerGUIContext(String initialMenuTitle) {
+            this.currentMenuTitle = initialMenuTitle;
+            this.menuHistory.push(initialMenuTitle);
+            this.currentPage = 0;
+            this.currentViewingActionType = DetailedActionType.BLOCK_BROKEN;
+        }
+
+        void navigateTo(String newMenuTitle) {
+            if (menuHistory.isEmpty() || !menuHistory.peek().equals(newMenuTitle)) {
+                this.menuHistory.push(newMenuTitle);
+            }
+            this.currentMenuTitle = newMenuTitle;
+            this.currentPage = 0;
+        }
+
+        String goBack() {
+            if (menuHistory.size() > 1) {
+                menuHistory.pop();
+                this.currentMenuTitle = menuHistory.peek();
+            } else {
+                this.currentMenuTitle = getMainMenuTitle();
+                if (menuHistory.isEmpty() || !menuHistory.peek().equals(this.currentMenuTitle)) {
+                    menuHistory.push(this.currentMenuTitle);
+                }
+            }
+            this.currentPage = 0;
+            return this.currentMenuTitle;
+        }
+
+        EntrepriseManagerLogic.Entreprise getCurrentEntreprise(EntrepriseManagerLogic logic) {
+            return currentEntrepriseNom != null ? logic.getEntreprise(currentEntrepriseNom) : null;
+        }
+    }
+
+    private final Map<UUID, PlayerGUIContext> playerContexts = new HashMap<>();
     private final Map<UUID, Long> clickTimestamps = new HashMap<>();
+    private static final long CLICK_DELAY_MS = 500;
+    private static final int ITEMS_PER_PAGE_DEFAULT = 36;
+    private static final int ITEMS_PER_PAGE_MATERIALS = 45;
 
-    private final Map<Player, String> currentOpenEntreprise = new HashMap<>();
-    private final Map<Player, String> selectedEmployeeForManagement = new HashMap<>();
-
-    private final Map<UUID, String> pendingRename_OldName = new HashMap<>();
-    // private final Map<Player, Inventory> previousInventories = new HashMap<>(); // Peut-être pas nécessaire avec la logique de retour simplifiée
-
-    private static final long CLICK_DELAY_MS = 500; // Anti double-clic
-
-    // --- Liste de tous les titres de tes GUIs ---
-    // Il est CRUCIAL que cette liste soit exhaustive et correcte.
-    private final Set<String> pluginMenuTitles = new HashSet<>(Arrays.asList(
-            ChatColor.DARK_BLUE + "Menu Principal Entreprises",
-            ChatColor.DARK_BLUE + "Sélectionner Gérant Cible",
-            ChatColor.DARK_BLUE + "Sélectionner Type d'Entreprise",
-            ChatColor.DARK_BLUE + "Mes Entreprises (Gérant/Employé)",
-            // Les titres avec "startsWith" devront être gérés un peu différemment ou listés explicitement si possible
-            // Pour l'instant, isPluginMenu va les gérer avec startsWith, mais c'est moins précis que des titres exacts.
-            ChatColor.DARK_BLUE + "Recruter Employé",
-            ChatColor.DARK_BLUE + "Confirmer Recrutement",
-            ChatColor.DARK_BLUE + "Gérer Employés",
-            ChatColor.DARK_BLUE + "Définir Prime Horaire",
-            ChatColor.DARK_BLUE + "Confirmer Suppression Entreprise",
-            ChatColor.DARK_BLUE + "Lister Entreprises par Ville",
-            ChatColor.RED + "Menu Administration"
-            // Ajoutez ici TOUS les autres titres exacts de vos GUIs
-    ));
-
-    // Préfixes pour les titres dynamiques (moins idéal, mais fonctionne)
-    private final List<String> pluginMenuTitlePrefixes = Arrays.asList(
-            ChatColor.DARK_BLUE + "Gérer: ",
-            ChatColor.BLUE + "Détails: ",
-            ChatColor.DARK_BLUE + "Options pour ",
-            ChatColor.DARK_BLUE + "Entreprises à ",
-            ChatColor.DARK_RED + "Quitter " // Assurez-vous que l'espace à la fin est voulu
-    );
+    private static final String TITLE_MAIN_MENU = ChatColor.DARK_BLUE + "Menu Principal Entreprises";
+    private static final String TITLE_SELECT_GERANT = ChatColor.DARK_BLUE + "Sélectionner Gérant Cible";
+    private static final String TITLE_SELECT_TYPE = ChatColor.DARK_BLUE + "Sélectionner Type d'Entreprise";
+    private static final String TITLE_MY_ENTREPRISES = ChatColor.DARK_BLUE + "Mes Entreprises";
+    private static final String TITLE_MANAGE_SPECIFIC_PREFIX = ChatColor.DARK_BLUE + "Gérer: ";
+    private static final String TITLE_VIEW_SPECIFIC_PREFIX = ChatColor.BLUE + "Détails: ";
+    private static final String TITLE_RECRUIT_EMPLOYEE = ChatColor.DARK_BLUE + "Recruter Employé";
+    private static final String TITLE_CONFIRM_RECRUIT = ChatColor.DARK_BLUE + "Confirmer Recrutement";
+    private static final String TITLE_MANAGE_EMPLOYEES = ChatColor.DARK_BLUE + "Gérer Employés";
+    private static final String TITLE_EMPLOYEE_OPTIONS_PREFIX = ChatColor.DARK_BLUE + "Options pour ";
+    private static final String TITLE_SET_PRIME = ChatColor.DARK_BLUE + "Définir Prime Horaire";
+    private static final String TITLE_CONFIRM_DELETE = ChatColor.DARK_BLUE + "Confirmer Suppression";
+    private static final String TITLE_LIST_TOWNS = ChatColor.DARK_BLUE + "Lister Entreprises par Ville";
+    private static final String TITLE_ENTREPRISES_IN_TOWN_PREFIX = ChatColor.DARK_BLUE + "Entreprises à ";
+    private static final String TITLE_ADMIN_MENU = ChatColor.RED + "Menu Administration";
+    private static final String TITLE_CONFIRM_LEAVE_PREFIX = ChatColor.DARK_RED + "Quitter ";
+    private static final String TITLE_STATS_MENU_PREFIX = ChatColor.DARK_GREEN + "Statistiques: ";
+    private static final String TITLE_PROFIT_LOSS_PERIODS_PREFIX = ChatColor.AQUA + "Profit/Perte Périodes: ";
+    private static final String TITLE_TRANSACTIONS_PREFIX = ChatColor.DARK_AQUA + "Transactions: ";
+    private static final String TITLE_EMPLOYEE_STATS_LIST_PREFIX = ChatColor.DARK_PURPLE + "Stats Employés: ";
+    private static final String TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. - Type Action: ";
+    private static final String TITLE_PROD_STATS_PERIODS_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. Périodes: ";
+    private static final String TITLE_PROD_STATS_MATERIALS_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. Matériaux: ";
+    // Les titres pour PlayerCVGUI sont gérés dans PlayerCVGUI.java
+    // private static final String TITLE_PLAYER_CV_MAIN = ChatColor.DARK_GREEN + "Gestion de CV";
+    // private static final String TITLE_SHOW_CV_TO_PLAYER = ChatColor.DARK_GREEN + "Montrer CV à un Joueur";
 
 
     public EntrepriseGUI(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
@@ -71,816 +117,1140 @@ public class EntrepriseGUI implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    // --- Méthode pour vérifier si l'inventaire est un menu du plugin ---
+    private PlayerGUIContext getPlayerContext(Player player) {
+        return playerContexts.computeIfAbsent(player.getUniqueId(), k -> new PlayerGUIContext(getMainMenuTitle()));
+    }
+
+    private void resetPlayerContext(Player player) {
+        playerContexts.remove(player.getUniqueId());
+    }
+
+    private static String getMainMenuTitle() {
+        return TITLE_MAIN_MENU;
+    }
+
     private boolean isPluginMenu(String inventoryTitle) {
-        if (inventoryTitle == null) {
-            return false;
-        }
-        if (pluginMenuTitles.contains(inventoryTitle)) {
-            return true;
-        }
-        for (String prefix : pluginMenuTitlePrefixes) {
-            if (inventoryTitle.startsWith(prefix)) {
-                return true;
-            }
-        }
-        return false;
+        if (inventoryTitle == null) return false;
+        // MODIFIÉ: Ne vérifie plus les titres de CV, car ils sont gérés par PlayerCVGUI.isPluginCVMenu()
+        return inventoryTitle.equals(TITLE_MAIN_MENU) ||
+                inventoryTitle.equals(TITLE_SELECT_GERANT) ||
+                inventoryTitle.equals(TITLE_SELECT_TYPE) ||
+                inventoryTitle.equals(TITLE_MY_ENTREPRISES) ||
+                inventoryTitle.startsWith(TITLE_MANAGE_SPECIFIC_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_VIEW_SPECIFIC_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_RECRUIT_EMPLOYEE) ||
+                inventoryTitle.equals(TITLE_CONFIRM_RECRUIT) ||
+                inventoryTitle.startsWith(TITLE_MANAGE_EMPLOYEES) ||
+                inventoryTitle.startsWith(TITLE_EMPLOYEE_OPTIONS_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_SET_PRIME) ||
+                inventoryTitle.startsWith(TITLE_CONFIRM_DELETE) ||
+                inventoryTitle.equals(TITLE_LIST_TOWNS) ||
+                inventoryTitle.startsWith(TITLE_ENTREPRISES_IN_TOWN_PREFIX) ||
+                inventoryTitle.equals(TITLE_ADMIN_MENU) ||
+                inventoryTitle.startsWith(TITLE_CONFIRM_LEAVE_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_STATS_MENU_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_TRANSACTIONS_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_EMPLOYEE_STATS_LIST_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_PROD_STATS_PERIODS_PREFIX) ||
+                inventoryTitle.startsWith(TITLE_PROD_STATS_MATERIALS_PREFIX);
+        // Les titres de CV sont exclus ici
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) {
-            return;
-        }
+        if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
-        UUID playerId = player.getUniqueId();
-        Inventory clickedInventory = event.getClickedInventory(); // L'inventaire où le clic a eu lieu
-        Inventory topInventory = event.getView().getTopInventory(); // L'inventaire du haut (le GUI)
         String topInventoryTitle = event.getView().getTitle();
 
-        // Si le clic n'est pas dans un inventaire du tout (ex: clic en dehors), on ignore.
-        if (clickedInventory == null) {
+        // Important: Laisser PlayerCVGUI gérer ses propres menus en premier si c'est un menu CV
+        if (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(topInventoryTitle)) {
+            // PlayerCVGUI.onInventoryClick gérera cet événement
             return;
         }
 
-        // Vérifier si l'inventaire du haut est l'un de nos menus
-        boolean isOurMenuOpen = isPluginMenu(topInventoryTitle);
-
-        // Si ce n'est PAS l'un de nos menus qui est ouvert, on ne fait RIEN.
-        // Cela permet les interactions normales dans l'inventaire du joueur ou d'autres plugins.
-        if (!isOurMenuOpen) {
-            // Si le joueur clique dans son propre inventaire ALORS QU'AUCUN de nos GUIs n'est ouvert,
-            // on ne fait rien. Mais si un de nos GUIs EST ouvert, on pourrait vouloir annuler
-            // les clics dans l'inventaire du joueur (SHIFT-CLICKS, etc.)
-            // La condition ci-dessous gère le cas où notre GUI est ouvert et le joueur clique dans son inventaire.
-            // Si event.getRawSlot() < topInventory.getSize(), le clic est dans le GUI du haut.
-            // Sinon, il est dans l'inventaire du joueur (ou un autre inventaire du bas).
-            if (event.getRawSlot() >= topInventory.getSize()) { // Clic dans l'inventaire du joueur PENDANT que notre GUI est ouvert
-                // Décidez si vous voulez annuler ces clics (ex: pour empêcher le shift-click vers votre GUI)
-                // Pour l'instant, on va laisser passer, mais c'est un point à considérer.
-                // event.setCancelled(true);
-                // plugin.getLogger().info("[EntrepriseGUI DEBUG] Player inventory click while plugin GUI '" + topInventoryTitle + "' was open. Cancelled: " + event.isCancelled());
-            }
-            return;
-        }
-
-        // À partir d'ici, nous savons que event.getView().getTopInventory() est l'un de nos GUIs.
-        // Donc, par défaut, on annule l'événement pour empêcher de prendre/déplacer les items du GUI.
+        if (!isPluginMenu(topInventoryTitle)) return; // Si ce n'est pas un menu EntrepriseGUI non plus, ignorer
         event.setCancelled(true);
-        plugin.getLogger().log(Level.INFO, "[EntrepriseGUI DEBUG] Click cancelled in plugin menu: \"" + topInventoryTitle + "\" by player " + player.getName());
 
 
-        // Anti-double clic (déjà présent et correct)
         long currentTime = System.currentTimeMillis();
-        if (clickTimestamps.getOrDefault(playerId, 0L) + CLICK_DELAY_MS > currentTime) {
-            // Déjà annulé plus haut, mais on return pour ne pas traiter la logique du clic
-            return;
-        }
-        clickTimestamps.put(playerId, currentTime);
+        if (clickTimestamps.getOrDefault(player.getUniqueId(), 0L) + CLICK_DELAY_MS > currentTime) return;
+        clickTimestamps.put(player.getUniqueId(), currentTime);
 
         ItemStack clickedItem = event.getCurrentItem();
-
-        // Si on clique sur un slot vide ou un item sans métadonnées/nom dans NOTRE GUI
-        if (clickedItem == null || !clickedItem.hasItemMeta() || clickedItem.getItemMeta().getDisplayName() == null) {
-            // L'événement est déjà annulé si c'est notre menu, donc on ne fait rien de plus.
-            return;
-        }
+        if (clickedItem == null || !clickedItem.hasItemMeta() || clickedItem.getItemMeta().getDisplayName() == null) return;
 
         String itemName = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+        PlayerGUIContext context = getPlayerContext(player);
+        EntrepriseManagerLogic.Entreprise entrepriseContext = context.getCurrentEntreprise(entrepriseLogic);
 
-        // --- Gestion des clics spécifiques à chaque menu ---
-        // Note: event.setCancelled(true) a déjà été fait globalement pour nos menus.
-        // Donc plus besoin de le répéter dans chaque 'if' ou 'case'.
-
-        if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Menu Principal Entreprises")) {
-            handleMainMenuClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Sélectionner Gérant Cible")) {
-            handleSelectGerantForCreationClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Sélectionner Type d'Entreprise")) {
-            handleSelectTypeForCreationClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Mes Entreprises (Gérant/Employé)")) {
-            handleMyEntreprisesMenuClick(player, itemName);
-        } else if (topInventoryTitle.startsWith(ChatColor.DARK_BLUE + "Gérer: ")) {
-            handleManageSpecificEntrepriseMenuClick(player, itemName);
-        } else if (topInventoryTitle.startsWith(ChatColor.BLUE + "Détails: ")) {
-            handleViewSpecificEntrepriseMenuClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Recruter Employé")) {
-            handleRecruitEmployeeSelectionClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Confirmer Recrutement")) {
-            handleRecruitConfirmationClick(player, clickedItem);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Gérer Employés")) {
-            handleManageEmployeesListClick(player, itemName);
-        } else if (topInventoryTitle.startsWith(ChatColor.DARK_BLUE + "Options pour ")) {
-            handleSpecificEmployeeOptionsMenuClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Définir Prime Horaire")) {
-            handleSetPrimeAmountClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Confirmer Suppression Entreprise")) {
-            handleDeleteConfirmationClick(player, itemName);
-        } else if (topInventoryTitle.equals(ChatColor.DARK_BLUE + "Lister Entreprises par Ville")) {
-            handleListTownsMenuClick(player, itemName);
-        } else if (topInventoryTitle.startsWith(ChatColor.DARK_BLUE + "Entreprises à ")) {
-            handleViewEntrepriseFromListClick(player, itemName, topInventoryTitle);
-        } else if (topInventoryTitle.equals(ChatColor.RED + "Menu Administration")) {
-            handleAdminMenuClick(player, itemName);
-        } else if (topInventoryTitle.startsWith(ChatColor.DARK_RED + "Quitter ")) {
-            handleLeaveConfirmationClick(player, itemName);
+        if (itemName.equalsIgnoreCase("Retour") || itemName.startsWith("Retour (")) {
+            handleGoBack(player, context);
+            return;
         }
-        // Gérer le bouton "Retour" s'il est cliqué DANS un de nos menus
-        else if (itemName.equals("Retour") || itemName.startsWith("Retour (")) {
-            // isPluginMenu(topInventoryTitle) est déjà vrai ici
-            openPreviousInventoryOrMain(player);
+        handleMenuClick(player, context, itemName, clickedItem, entrepriseContext);
+    }
+
+    private void handleGoBack(Player player, PlayerGUIContext context) {
+        String newCurrentMenuTitleFromHistory = context.goBack();
+        EntrepriseManagerLogic.Entreprise currentEntreprise = context.getCurrentEntreprise(entrepriseLogic);
+
+        if (newCurrentMenuTitleFromHistory.equals(TITLE_MAIN_MENU)) openMainMenu(player);
+        else if (newCurrentMenuTitleFromHistory.equals(TITLE_MY_ENTREPRISES)) openMyEntreprisesMenu(player, context);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_MANAGE_SPECIFIC_PREFIX) && currentEntreprise != null) openManageSpecificEntrepriseMenu(player, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_VIEW_SPECIFIC_PREFIX) && currentEntreprise != null) openViewSpecificEntrepriseMenu(player, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.equals(TITLE_SELECT_GERANT)) openCreateEntrepriseSelectGerantMenu(player, context);
+        else if (newCurrentMenuTitleFromHistory.equals(TITLE_SELECT_TYPE)) openCreateEntrepriseSelectTypeMenu(player, context);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_STATS_MENU_PREFIX) && currentEntreprise != null) openEntrepriseStatsMenu(player, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_EMPLOYEE_OPTIONS_PREFIX) && currentEntreprise != null && context.selectedEmployeeForManagement != null) openSpecificEmployeeOptionsMenu(player, context, context.selectedEmployeeForManagement, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_MANAGE_EMPLOYEES) && currentEntreprise != null) openManageEmployeesListMenu(player, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_RECRUIT_EMPLOYEE) && currentEntreprise != null) openRecruitEmployeeProximityMenu(player, context, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.equals(TITLE_LIST_TOWNS)) openListTownsMenu(player, context);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_ENTREPRISES_IN_TOWN_PREFIX)) {
+            String townName = newCurrentMenuTitleFromHistory.substring(TITLE_ENTREPRISES_IN_TOWN_PREFIX.length());
+            openListEntreprisesInTownMenu(player, context, townName);
+        }
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) && currentEntreprise != null) openProductionStatsActionTypeChoiceMenu(player, context, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_PROD_STATS_PERIODS_PREFIX) && currentEntreprise != null) openProductionStatsPeriodsChoiceMenu(player, context, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) && currentEntreprise != null) openProfitLossPeriodsMenu(player, context, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_TRANSACTIONS_PREFIX) && currentEntreprise != null) openTransactionHistoryMenu(player, context, currentEntreprise);
+        else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_EMPLOYEE_STATS_LIST_PREFIX) && currentEntreprise != null) openEmployeeStatsListMenu(player, context, currentEntreprise);
+            // Le retour vers les menus CV est géré par PlayerCVGUI.handleGoBack si cette méthode existe,
+            // ou par la logique interne de PlayerCVGUI.onInventoryClick.
+            // Si PlayerCVGUI.openCVMainMenu est le point d'entrée, son bouton retour devrait ramener à TITLE_MAIN_MENU ici.
+        else if (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(newCurrentMenuTitleFromHistory)) {
+            // Si on revient à un menu CV depuis un menu Entreprise (peu probable avec flux actuel),
+            // on pourrait appeler une méthode de réouverture de PlayerCVGUI.
+            // Pour l'instant, on suppose que la navigation CV reste dans PlayerCVGUI.
+            // Si le retour est depuis un menu CV vers EntrepriseGUI.TITLE_MAIN_MENU, ce sera géré par la première condition.
+            plugin.getLogger().info("Retour vers un menu CV: " + newCurrentMenuTitleFromHistory + ". PlayerCVGUI devrait gérer.");
+            // Normalement, ce cas ne devrait pas être atteint si PlayerCVGUI gère ses propres retours
+            // et que le retour d'un menu CV vers un menu Entreprise est explicite.
+            openMainMenu(player); // Fallback
+        }
+        else {
+            plugin.getLogger().warning("Bouton Retour: Menu précédent non géré explicitement '" + newCurrentMenuTitleFromHistory + "'. Redirection vers le menu principal.");
+            openMainMenu(player);
         }
     }
 
+    private void handleMenuClick(Player player, PlayerGUIContext context, String itemName, ItemStack clickedItem, EntrepriseManagerLogic.Entreprise entreprise) {
+        String currentTitle = context.currentMenuTitle;
+
+        if (currentTitle.equals(TITLE_MAIN_MENU)) handleMainMenuClick(player, context, itemName);
+        else if (currentTitle.equals(TITLE_SELECT_GERANT)) handleSelectGerantForCreationClick(player, context, itemName);
+        else if (currentTitle.equals(TITLE_SELECT_TYPE)) handleSelectTypeForCreationClick(player, context, itemName);
+        else if (currentTitle.equals(TITLE_MY_ENTREPRISES)) handleMyEntreprisesMenuClick(player, context, itemName);
+        else if (currentTitle.startsWith(TITLE_MANAGE_SPECIFIC_PREFIX) && entreprise != null) handleManageSpecificEntrepriseMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_VIEW_SPECIFIC_PREFIX) && entreprise != null) handleViewSpecificEntrepriseMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_RECRUIT_EMPLOYEE) && entreprise != null) handleRecruitEmployeeSelectionClick(player, context, itemName, entreprise);
+        else if (currentTitle.equals(TITLE_CONFIRM_RECRUIT) && entreprise != null) handleRecruitConfirmationClick(player, context, clickedItem, entreprise);
+        else if (currentTitle.startsWith(TITLE_MANAGE_EMPLOYEES) && entreprise != null) handleManageEmployeesListClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_EMPLOYEE_OPTIONS_PREFIX) && entreprise != null) handleSpecificEmployeeOptionsMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_SET_PRIME) && entreprise != null) handleSetPrimeAmountClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_CONFIRM_DELETE) && entreprise != null) handleDeleteConfirmationClick(player, context, itemName, entreprise);
+        else if (currentTitle.equals(TITLE_LIST_TOWNS)) handleListTownsMenuClick(player, context, itemName);
+        else if (currentTitle.startsWith(TITLE_ENTREPRISES_IN_TOWN_PREFIX)) handleViewEntrepriseFromListClick(player, context, itemName);
+        else if (currentTitle.equals(TITLE_ADMIN_MENU)) handleAdminMenuClick(player, itemName);
+        else if (currentTitle.startsWith(TITLE_CONFIRM_LEAVE_PREFIX) && entreprise != null) handleLeaveConfirmationClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_STATS_MENU_PREFIX) && entreprise != null) handleEntrepriseStatsMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) && entreprise != null) handleProfitLossPeriodsMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_TRANSACTIONS_PREFIX) && entreprise != null) handleTransactionHistoryMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_EMPLOYEE_STATS_LIST_PREFIX) && entreprise != null) handleEmployeeStatsListMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) && entreprise != null) handleProductionStatsActionTypeChoiceClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_PROD_STATS_PERIODS_PREFIX) && entreprise != null) handleProductionStatsPeriodsChoiceClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_PROD_STATS_MATERIALS_PREFIX) && entreprise != null) handleProductionMaterialsDisplayClick(player, context, itemName, entreprise);
+            // MODIFIÉ: Les lignes pour CV sont supprimées ici, car PlayerCVGUI gère ses propres clics.
+        else {
+            plugin.getLogger().warning("Clic non géré dans GUI Entreprise: " + currentTitle + " (Item: " + itemName + ")");
+        }
+    }
 
     public void openMainMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Menu Principal Entreprises");
-        inv.setItem(10, createMenuItem(Material.WRITABLE_BOOK, ChatColor.GOLD + "Créer une Entreprise", Arrays.asList(ChatColor.GRAY + "Pour les Maires.")));
-        inv.setItem(12, createMenuItem(Material.MAP, ChatColor.GOLD + "Lister les Entreprises", Arrays.asList(ChatColor.GRAY + "Voir les entreprises par ville.")));
-        inv.setItem(14, createMenuItem(Material.CHEST, ChatColor.GOLD + "Mes Entreprises", Arrays.asList(ChatColor.GRAY + "Gérer ou voir vos entreprises.")));
+        resetPlayerContext(player);
+        PlayerGUIContext context = getPlayerContext(player);
+        context.navigateTo(TITLE_MAIN_MENU);
+
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_MAIN_MENU);
+        inv.setItem(10, createMenuItem(Material.WRITABLE_BOOK, ChatColor.GOLD + "Créer une Entreprise", List.of(ChatColor.GRAY + "Pour les Maires.")));
+        inv.setItem(12, createMenuItem(Material.MAP, ChatColor.GOLD + "Lister les Entreprises", List.of(ChatColor.GRAY + "Voir les entreprises par ville.")));
+        inv.setItem(14, createMenuItem(Material.CHEST, ChatColor.GOLD + "Mes Entreprises", List.of(ChatColor.GRAY + "Gérer ou voir vos entreprises.")));
+        inv.setItem(16, createMenuItem(Material.PLAYER_HEAD, ChatColor.DARK_GREEN + "Consulter / Montrer mon CV", List.of(ChatColor.GRAY + "Accéder aux options de CV.")));
         if (player.hasPermission("entreprisemanager.admin")) {
-            inv.setItem(16, createMenuItem(Material.COMMAND_BLOCK, ChatColor.RED + "Menu Administration", Arrays.asList(ChatColor.GRAY + "Actions réservées aux admins.")));
+            inv.setItem(8, createMenuItem(Material.COMMAND_BLOCK, ChatColor.RED + "Menu Administration", List.of(ChatColor.GRAY + "Actions réservées aux admins.")));
         }
         player.openInventory(inv);
     }
 
-    private ItemStack createMenuItem(Material material, String name, List<String> lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore != null && !lore.isEmpty()) {
-                meta.setLore(lore);
+    private void handleMainMenuClick(Player player, PlayerGUIContext context, String itemName) {
+        if (itemName.equals("Créer une Entreprise")) {
+            if (entrepriseLogic.estMaire(player)) {
+                openCreateEntrepriseSelectGerantMenu(player, context);
+            } else {
+                player.sendMessage(ChatColor.RED + "Seuls les maires peuvent créer des entreprises.");
+                player.closeInventory();
             }
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    private ItemStack createMenuItem(Material material, String name) {
-        return createMenuItem(material, name, null);
-    }
-
-    private ItemStack createPlayerHead(String playerName, List<String> lore) {
-        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) item.getItemMeta();
-        if (meta != null) {
-            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName); // Utilise Bukkit.getOfflinePlayer(UUID) si possible pour la performance et la pérennité des noms
-            meta.setOwningPlayer(offlinePlayer);
-            meta.setDisplayName(ChatColor.AQUA + playerName);
-            if (lore != null && !lore.isEmpty()) {
-                meta.setLore(lore);
+        } else if (itemName.equals("Lister les Entreprises")) {
+            openListTownsMenu(player, context);
+        } else if (itemName.equals("Mes Entreprises")) {
+            openMyEntreprisesMenu(player, context);
+        } else if (itemName.equals("Consulter / Montrer mon CV")) {
+            if (plugin.getPlayerCVGUI() != null) {
+                plugin.getPlayerCVGUI().openCVMainMenu(player); // Appel correct à PlayerCVGUI
+            } else {
+                player.sendMessage(ChatColor.RED + "Le module CV n'est pas correctement initialisé.");
+                plugin.getLogger().severe("PlayerCVGUI est null lors de l'appel depuis EntrepriseGUI#handleMainMenuClick");
             }
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-
-    private void openPreviousInventoryOrMain(Player player) {
-        // Pour l'instant, retour simple au menu principal.
-        // Pour une gestion plus avancée, vous pourriez utiliser une pile d'inventaires précédents.
-        openMainMenu(player);
-    }
-
-
-    private void handleMainMenuClick(Player player, String itemName) {
-        switch (itemName) {
-            case "Créer une Entreprise":
-                if (entrepriseLogic.estMaire(player)) {
-                    openCreateEntrepriseSelectGerantMenu(player);
-                } else {
-                    player.sendMessage(ChatColor.RED + "Seuls les maires peuvent initier la création d'entreprises.");
-                    player.closeInventory();
-                }
-                break;
-            case "Lister les Entreprises":
-                openListTownsMenu(player);
-                break;
-            case "Mes Entreprises":
-                openMyEntreprisesMenu(player);
-                break;
-            case "Menu Administration":
-                if (player.hasPermission("entreprisemanager.admin")) {
-                    openAdminMenu(player);
-                } else {
-                    player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission.");
-                    player.closeInventory();
-                }
-                break;
+        } else if (itemName.equals("Menu Administration") && player.hasPermission("entreprisemanager.admin")) {
+            openAdminMenu(player, context);
         }
     }
 
-    private void openCreateEntrepriseSelectGerantMenu(Player maire) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Sélectionner Gérant Cible");
-        Collection<String> residents = entrepriseLogic.getPlayersInMayorTown(maire);
+    private void openCreateEntrepriseSelectGerantMenu(Player maire, PlayerGUIContext context) {
+        context.navigateTo(TITLE_SELECT_GERANT);
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_SELECT_GERANT);
+        Collection<String> residentsInTown = entrepriseLogic.getPlayersInMayorTown(maire);
         boolean foundEligible = false;
-        if (residents.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Aucun résident dans votre ville."));
-        } else {
-            for (String residentName : residents) {
-                Player residentPlayer = Bukkit.getPlayerExact(residentName);
-                if (residentPlayer != null) { // On ne traite que les joueurs en ligne pour la sélection
-                    if (entrepriseLogic.peutCreerEntreprise(residentPlayer)) {
-                        inv.addItem(createPlayerHead(residentName, Arrays.asList(ChatColor.GRAY + "Cliquez pour sélectionner comme gérant.")));
+        int maxManagedByGerantConfig = plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1);
+        Set<String> potentialGerants = new HashSet<>(residentsInTown);
+        potentialGerants.add(maire.getName());
+
+        for (String residentName : potentialGerants) {
+            OfflinePlayer offlineResident = Bukkit.getOfflinePlayer(residentName);
+            if (offlineResident.hasPlayedBefore() || offlineResident.isOnline()) {
+                Player residentPlayer = offlineResident.getPlayer();
+                if (residentPlayer != null && residentPlayer.isOnline()) {
+                    int currentlyManaging = entrepriseLogic.getEntreprisesGereesPar(residentName).size();
+                    if (currentlyManaging < maxManagedByGerantConfig) {
+                        int salariedJobs = entrepriseLogic.countPlayerSalariedJobs(residentName);
+                        String displayName = ChatColor.AQUA + residentName + (residentPlayer.equals(maire) ? ChatColor.GOLD + " (Vous-même)" : "");
+                        inv.addItem(createPlayerHead(residentName, displayName, List.of(
+                                ChatColor.GRAY + "Gère: " + currentlyManaging + "/" + maxManagedByGerantConfig + " ent.",
+                                ChatColor.GRAY + "Emplois salariés: " + salariedJobs,
+                                ChatColor.GREEN + "Éligible pour gérance."
+                        )));
                         foundEligible = true;
                     }
                 }
             }
-            if (!foundEligible) {
-                inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Aucun résident éligible et en ligne pour être gérant."));
-            }
         }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+        if (!foundEligible) {
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Aucun résident éligible", List.of(ChatColor.GRAY+"Limite de gérance peut-être atteinte.")));
+        }
+        addBackButton(inv, 49, "(Menu Principal)");
         maire.openInventory(inv);
     }
 
-    private void handleSelectGerantForCreationClick(Player maire, String itemName) {
-        if (itemName.equals("Retour")) {
-            openMainMenu(maire);
-            return;
+    private void handleSelectGerantForCreationClick(Player maire, PlayerGUIContext context, String itemNameFromClickedItem) {
+        String selectedGerantName = ChatColor.stripColor(itemNameFromClickedItem);
+        if (selectedGerantName.contains(" (Vous-même)")) {
+            selectedGerantName = selectedGerantName.substring(0, selectedGerantName.indexOf(" (Vous-même)")).trim();
         }
-        // Le itemName est le nom du joueur (gérant cible)
-        selectedGerantForCreation.put(maire, itemName);
-        openCreateEntrepriseSelectTypeMenu(maire);
+        context.selectedGerantPourCreation = selectedGerantName;
+        openCreateEntrepriseSelectTypeMenu(maire, context);
     }
 
-    private void openCreateEntrepriseSelectTypeMenu(Player maire) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Sélectionner Type d'Entreprise");
+    private void openCreateEntrepriseSelectTypeMenu(Player maire, PlayerGUIContext context) {
+        context.navigateTo(TITLE_SELECT_TYPE);
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_SELECT_TYPE);
         Set<String> types = entrepriseLogic.getTypesEntreprise();
         if (types.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Aucun type d'entreprise n'est configuré."));
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.RED + "Aucun type d'entreprise configuré."));
         } else {
             for (String type : types) {
                 double cout = plugin.getConfig().getDouble("types-entreprise." + type + ".cout-creation", 0);
-                inv.addItem(createMenuItem(Material.PAPER, ChatColor.AQUA + type, Collections.singletonList(ChatColor.GOLD + "Coût: " + String.format("%,.2f", cout) + "€")));
+                inv.addItem(createMenuItem(Material.PAPER, ChatColor.AQUA + type, List.of(ChatColor.GOLD + "Coût: " + String.format("%,.2f", cout) + "€", ChatColor.GRAY + "Cliquez pour choisir.")));
             }
         }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour")); // Retour vers la sélection du gérant
+        addBackButton(inv, 49, "(Choix Gérant)");
         maire.openInventory(inv);
     }
 
-    private void handleSelectTypeForCreationClick(Player maire, String itemName) {
-        if (itemName.equals("Retour")) {
-            selectedGerantForCreation.remove(maire);
-            openCreateEntrepriseSelectGerantMenu(maire);
-            return;
-        }
-        String typeEntreprise = itemName;
-        String gerantCibleNom = selectedGerantForCreation.get(maire);
-
+    private void handleSelectTypeForCreationClick(Player maire, PlayerGUIContext context, String typeEntreprise) {
+        String gerantCibleNom = context.selectedGerantPourCreation;
         if (gerantCibleNom == null) {
-            maire.sendMessage(ChatColor.RED + "Erreur: Aucun gérant cible n'a été sélectionné. Veuillez recommencer.");
-            openCreateEntrepriseSelectGerantMenu(maire);
+            maire.sendMessage(ChatColor.RED + "Erreur: Gérant cible non sélectionné.");
+            openCreateEntrepriseSelectGerantMenu(maire, context);
             return;
         }
+        // La correction pour "le gérant (maire) n'est pas en ligne"
+        // serait appliquée ici si ce bug est toujours d'actualité.
+        // Pour l'instant, on utilise le code original.
         Player gerantCiblePlayer = Bukkit.getPlayerExact(gerantCibleNom);
         if (gerantCiblePlayer == null || !gerantCiblePlayer.isOnline()) {
-            maire.sendMessage(ChatColor.RED + "Le gérant cible '" + gerantCibleNom + "' n'est plus en ligne. Processus annulé.");
-            selectedGerantForCreation.remove(maire);
-            openCreateEntrepriseSelectGerantMenu(maire);
+            maire.sendMessage(ChatColor.RED + "'" + gerantCibleNom + "' n'est plus en ligne. Veuillez recommencer.");
+            context.selectedGerantPourCreation = null;
+            openCreateEntrepriseSelectGerantMenu(maire, context);
             return;
         }
         String villeDuMaire = entrepriseLogic.getTownNameFromPlayer(maire);
         if (villeDuMaire == null) {
             maire.sendMessage(ChatColor.RED + "Erreur: Impossible de déterminer votre ville.");
             maire.closeInventory();
-            selectedGerantForCreation.remove(maire);
             return;
         }
         String nomPropose = typeEntreprise + "_" + gerantCibleNom.substring(0, Math.min(gerantCibleNom.length(), 4)) + "_" + (new Random().nextInt(9000) + 1000);
         String siretPropose = entrepriseLogic.generateSiret();
-
         entrepriseLogic.proposerCreationEntreprise(maire, gerantCiblePlayer, typeEntreprise, villeDuMaire, nomPropose, siretPropose);
         maire.closeInventory();
-        selectedGerantForCreation.remove(maire);
+        context.selectedGerantPourCreation = null;
     }
 
-    private void openMyEntreprisesMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Mes Entreprises (Gérant/Employé)");
+    private void openMyEntreprisesMenu(Player player, PlayerGUIContext context) {
+        context.navigateTo(TITLE_MY_ENTREPRISES);
+        context.currentEntrepriseNom = null;
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_MY_ENTREPRISES);
         boolean found = false;
         List<EntrepriseManagerLogic.Entreprise> gerees = entrepriseLogic.getEntreprisesGereesPar(player.getName());
         for (EntrepriseManagerLogic.Entreprise e : gerees) {
-            inv.addItem(createMenuItem(Material.GOLD_BLOCK, ChatColor.GOLD + e.getNom(), Arrays.asList(ChatColor.YELLOW + "Rôle: Gérant", ChatColor.GRAY + "Type: " + e.getType())));
+            inv.addItem(createMenuItem(Material.GOLD_BLOCK, ChatColor.GOLD + e.getNom(), List.of(ChatColor.YELLOW + "Rôle: Gérant", ChatColor.GRAY + "Type: " + e.getType())));
             found = true;
         }
         for (EntrepriseManagerLogic.Entreprise e : entrepriseLogic.getEntreprises()) {
             if (e.getEmployes().contains(player.getName()) && !gerees.contains(e)) {
-                inv.addItem(createMenuItem(Material.IRON_INGOT, ChatColor.AQUA + e.getNom(), Arrays.asList(ChatColor.YELLOW + "Rôle: Employé", ChatColor.GRAY + "Type: " + e.getType())));
+                inv.addItem(createMenuItem(Material.IRON_INGOT, ChatColor.AQUA + e.getNom(), List.of(ChatColor.YELLOW + "Rôle: Employé", ChatColor.GRAY + "Type: " + e.getType())));
                 found = true;
             }
         }
-        if (!found) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Vous n'êtes lié à aucune entreprise."));
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+        if (!found) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Vous n'êtes lié à aucune entreprise."));
+        addBackButton(inv, 49, "(Menu Principal)");
         player.openInventory(inv);
     }
 
-    private void handleMyEntreprisesMenuClick(Player player, String itemName) {
-        if (itemName.equals("Retour")) {
-            openMainMenu(player);
-            return;
-        }
-        String nomEntreprise = itemName;
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+    private void handleMyEntreprisesMenuClick(Player player, PlayerGUIContext context, String itemName) {
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(itemName);
         if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'a pas été trouvée.");
-            openMyEntreprisesMenu(player);
+            player.sendMessage(ChatColor.RED + "L'entreprise '" + itemName + "' n'a pas été trouvée.");
+            openMyEntreprisesMenu(player, context);
             return;
         }
-        currentOpenEntreprise.put(player, nomEntreprise);
+        context.currentEntrepriseNom = entreprise.getNom();
         if (entreprise.getGerant().equalsIgnoreCase(player.getName())) {
             openManageSpecificEntrepriseMenu(player, entreprise);
         } else if (entreprise.getEmployes().contains(player.getName())) {
             openViewSpecificEntrepriseMenu(player, entreprise);
         } else {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas affilié à l'entreprise '" + nomEntreprise + "'.");
-            currentOpenEntreprise.remove(player);
-            openMyEntreprisesMenu(player);
+            player.sendMessage(ChatColor.RED + "Vous n'êtes plus affilié à '" + itemName + "'.");
+            context.currentEntrepriseNom = null;
+            openMyEntreprisesMenu(player, context);
         }
     }
 
-    private void openManageSpecificEntrepriseMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 36, ChatColor.DARK_BLUE + "Gérer: " + entreprise.getNom());
-        inv.setItem(0, createMenuItem(Material.BOOK, ChatColor.AQUA + "Infos Entreprise", Arrays.asList(ChatColor.GRAY + "Voir les détails", ChatColor.GREEN + "Solde: " + String.format("%,.2f", entreprise.getSolde()) + "€")));
-        inv.setItem(1, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Déposer Argent"));
-        inv.setItem(2, createMenuItem(Material.IRON_INGOT, ChatColor.GOLD + "Retirer Argent"));
-        inv.setItem(9, createMenuItem(Material.PLAYER_HEAD, ChatColor.GREEN + "Gérer Employés"));
-        inv.setItem(10, createMenuItem(Material.NAME_TAG, ChatColor.GREEN + "Recruter Employé"));
-        inv.setItem(11, createMenuItem(Material.WRITABLE_BOOK, ChatColor.LIGHT_PURPLE + "Renommer Entreprise", Arrays.asList(ChatColor.GRAY + "Coût: " + plugin.getConfig().getDouble("rename-cost", 0) + "€")));
-        inv.setItem(18, createMenuItem(Material.BARRIER, ChatColor.RED + "Dissoudre Entreprise"));
-        inv.setItem(31, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+    public void openManageSpecificEntrepriseMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
+        PlayerGUIContext context = getPlayerContext(gerant);
+        context.navigateTo(TITLE_MANAGE_SPECIFIC_PREFIX + entreprise.getNom());
+        context.currentEntrepriseNom = entreprise.getNom();
+
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_MANAGE_SPECIFIC_PREFIX + entreprise.getNom()); // Taille augmentée à 54
+
+        // Ligne 1
+        inv.setItem(1, createMenuItem(Material.BOOK, ChatColor.AQUA + "Infos Entreprise", List.of(ChatColor.GRAY + "Détails & Solde", ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€")));
+        inv.setItem(3, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Déposer Argent"));
+        inv.setItem(4, createMenuItem(Material.IRON_INGOT, ChatColor.GOLD + "Retirer Argent"));
+        inv.setItem(7, createMenuItem(Material.MAP, ChatColor.DARK_GREEN + "Statistiques & Rapports"));
+
+        // Ligne 2
+        inv.setItem(10, createMenuItem(Material.PLAYER_HEAD, ChatColor.GREEN + "Gérer Employés"));
+        inv.setItem(11, createMenuItem(Material.EMERALD, ChatColor.GREEN + "Recruter Employé"));
+
+        // --- SECTION AMÉLIORATIONS (Nouvelle Ligne) ---
+        // Amélioration Capacité Employés
+        int niveauActuelEmployes = entreprise.getNiveauMaxEmployes(); //
+        int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise); //
+        double coutProchainNiveauEmployes = entrepriseLogic.getCoutProchaineAmeliorationEmployes(entreprise); //
+        List<String> loreEmployes = new ArrayList<>();
+        loreEmployes.add(ChatColor.GRAY + "Niveau actuel: " + ChatColor.WHITE + niveauActuelEmployes);
+        loreEmployes.add(ChatColor.GRAY + "Employés max actuels: " + ChatColor.WHITE + maxEmployesActuel);
+        if (coutProchainNiveauEmployes >= 0) {
+            int prochainNiveauEmp = niveauActuelEmployes + 1;
+            int employesProchainNiveau = plugin.getConfig().getInt("finance.max-employer-par-entreprise." + prochainNiveauEmp, maxEmployesActuel); //
+            loreEmployes.add(ChatColor.YELLOW + "Prochain niveau ("+prochainNiveauEmp+"): " + ChatColor.WHITE + employesProchainNiveau + " employés");
+            loreEmployes.add(ChatColor.GOLD + "Coût amélioration: " + ChatColor.WHITE + String.format("%,.2f", coutProchainNiveauEmployes) + "€");
+        } else {
+            loreEmployes.add(ChatColor.GREEN + "Niveau maximum pour employés atteint !");
+        }
+        inv.setItem(19, createMenuItem(Material.EXPERIENCE_BOTTLE, ChatColor.LIGHT_PURPLE + "Améliorer Capacité Employés", loreEmployes));
+
+        // Amélioration Solde Maximum
+        int niveauActuelSolde = entreprise.getNiveauMaxSolde(); //
+        double maxSoldeActuel = entrepriseLogic.getLimiteMaxSoldeActuelle(entreprise); //
+        double coutProchainNiveauSolde = entrepriseLogic.getCoutProchaineAmeliorationSolde(entreprise); //
+        List<String> loreSolde = new ArrayList<>();
+        loreSolde.add(ChatColor.GRAY + "Niveau actuel: " + ChatColor.WHITE + niveauActuelSolde);
+        loreSolde.add(ChatColor.GRAY + "Solde max actuel: " + ChatColor.WHITE + String.format("%,.2f", maxSoldeActuel) + "€");
+        if (coutProchainNiveauSolde >= 0) {
+            int prochainNiveauSld = niveauActuelSolde + 1;
+            double soldeProchainNiveau = plugin.getConfig().getDouble("finance.max-solde-par-niveau." + prochainNiveauSld, maxSoldeActuel); //
+            loreSolde.add(ChatColor.YELLOW + "Prochain niveau ("+prochainNiveauSld+"): " + ChatColor.WHITE + String.format("%,.2f", soldeProchainNiveau) + "€");
+            loreSolde.add(ChatColor.GOLD + "Coût amélioration: " + ChatColor.WHITE + String.format("%,.2f", coutProchainNiveauSolde) + "€");
+        } else {
+            loreSolde.add(ChatColor.GREEN + "Niveau maximum pour solde atteint !");
+        }
+        inv.setItem(20, createMenuItem(Material.CHEST_MINECART, ChatColor.LIGHT_PURPLE + "Améliorer Solde Maximum", loreSolde));
+        // --- FIN SECTION AMÉLIORATIONS ---
+
+        // Ligne 4 (décalée à cause des améliorations)
+        inv.setItem(28, createMenuItem(Material.NAME_TAG, ChatColor.LIGHT_PURPLE + "Renommer Entreprise", List.of(ChatColor.GRAY + "Coût: " + plugin.getConfig().getDouble("rename-cost", 0) + "€")));
+
+        // Ligne du bas
+        inv.setItem(inv.getSize() - 9, createMenuItem(Material.TNT, ChatColor.DARK_RED + "Dissoudre Entreprise", List.of(ChatColor.RED+"Action irréversible !")) ); // Slot 45 si 54 cases
+        addBackButton(inv, inv.getSize() - 5, "(Mes Entreprises)"); // Slot 49 si 54 cases
         gerant.openInventory(inv);
     }
 
-    private void openViewSpecificEntrepriseMenu(Player employe, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.BLUE + "Détails: " + entreprise.getNom());
-        inv.setItem(11, createMenuItem(Material.BOOK, ChatColor.AQUA + "Informations", Arrays.asList(ChatColor.GREEN + "Solde: " + String.format("%,.2f", entreprise.getSolde()) + "€", ChatColor.GRAY + "Type: " + entreprise.getType(), ChatColor.GRAY + "Gérant: " + entreprise.getGerant())));
-        double maPrime = entreprise.getPrimePourEmploye(employe.getName());
-        inv.setItem(13, createMenuItem(Material.GOLD_NUGGET, ChatColor.GOLD + "Ma Prime Horaire", Collections.singletonList(String.format("%,.2f", maPrime) + "€/h")));
-        inv.setItem(15, createMenuItem(Material.BELL, ChatColor.YELLOW + "Quitter l'Entreprise"));
-        inv.setItem(22, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+    private void handleManageSpecificEntrepriseMenuClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.equals("Infos Entreprise")) {
+            displayEntrepriseInfo(gerant, entreprise);
+        } else if (itemName.equals("Déposer Argent")) {
+            plugin.getChatListener().attendreMontantDepot(gerant, entreprise.getNom());
+            gerant.closeInventory();
+        } else if (itemName.equals("Retirer Argent")) {
+            plugin.getChatListener().attendreMontantRetrait(gerant, entreprise.getNom());
+            gerant.closeInventory();
+        } else if (itemName.equals("Statistiques & Rapports")) {
+            openEntrepriseStatsMenu(gerant, entreprise);
+        } else if (itemName.equals("Gérer Employés")) {
+            openManageEmployeesListMenu(gerant, entreprise);
+        } else if (itemName.equals("Recruter Employé")) {
+            openRecruitEmployeeProximityMenu(gerant, context, entreprise);
+        } else if (itemName.equals("Renommer Entreprise")) {
+            plugin.getChatListener().attendreNouveauNomEntreprise(gerant, entreprise.getNom());
+            gerant.closeInventory();
+        } else if (itemName.equals("Dissoudre Entreprise")) {
+            openDeleteConfirmationMenu(gerant, context, entreprise);
+            // --- AJOUTS POUR LES AMÉLIORATIONS ---
+        } else if (itemName.equals("Améliorer Capacité Employés")) {
+            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxEmployes(entreprise, gerant); //
+            gerant.sendMessage(resultat);
+            if (resultat.startsWith(ChatColor.GREEN.toString())) { // Si succès, rafraîchir le menu
+                // Recharger l'entreprise pour avoir les données à jour
+                EntrepriseManagerLogic.Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+                if (updatedEntreprise != null) {
+                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
+                } else {
+                    gerant.closeInventory(); // L'entreprise a disparu, rare mais possible
+                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
+                }
+            } else {
+                gerant.closeInventory(); // Fermer en cas d'échec pour voir le message
+            }
+        } else if (itemName.equals("Améliorer Solde Maximum")) {
+            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxSolde(entreprise, gerant); //
+            gerant.sendMessage(resultat);
+            if (resultat.startsWith(ChatColor.GREEN.toString())) { // Si succès, rafraîchir le menu
+                // Recharger l'entreprise pour avoir les données à jour
+                EntrepriseManagerLogic.Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+                if (updatedEntreprise != null) {
+                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
+                } else {
+                    gerant.closeInventory();
+                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
+                }
+            } else {
+                gerant.closeInventory(); // Fermer en cas d'échec pour voir le message
+            }
+            // --- FIN AJOUTS ---
+        }
+    }
+
+    public void openViewSpecificEntrepriseMenu(Player employe, EntrepriseManagerLogic.Entreprise entreprise) {
+        PlayerGUIContext context = getPlayerContext(employe);
+        context.navigateTo(TITLE_VIEW_SPECIFIC_PREFIX + entreprise.getNom());
+        context.currentEntrepriseNom = entreprise.getNom();
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_VIEW_SPECIFIC_PREFIX + entreprise.getNom());
+        inv.setItem(10, createMenuItem(Material.BOOK, ChatColor.AQUA + "Infos Générales", List.of(ChatColor.GRAY + "Type: " + entreprise.getType(), ChatColor.GRAY + "Gérant: " + entreprise.getGerant(), ChatColor.GREEN + "Solde Ent.: " + String.format("%,.2f", entreprise.getSolde()) + "€")));
+        EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(employe.getUniqueId());
+        List<String> situationLore = new ArrayList<>(List.of(ChatColor.GOLD + "Prime: " + String.format("%.2f€/h", entreprise.getPrimePourEmploye(employe.getUniqueId().toString()))));
+        if (rec != null) {
+            situationLore.add(ChatColor.LIGHT_PURPLE + "Ancienneté: " + rec.getFormattedSeniority());
+            situationLore.add(ChatColor.GREEN + "Val. Gén. (Total): " + String.format("%.2f€", rec.totalValueGenerated));
+            if(rec.isActive()) situationLore.add(ChatColor.YELLOW + "Session active"); else situationLore.add(ChatColor.GRAY + "Session inactive");
+        } else situationLore.add(ChatColor.GRAY + "Aucune donnée d'activité.");
+        inv.setItem(12, createMenuItem(Material.GOLD_NUGGET, ChatColor.YELLOW + "Ma Situation", situationLore));
+        inv.setItem(13, createMenuItem(Material.PAPER, ChatColor.DARK_AQUA + "Transactions Entreprise"));
+        inv.setItem(14, createMenuItem(Material.DIAMOND_PICKAXE, ChatColor.DARK_GREEN + "Mes Stats Production"));
+        inv.setItem(16, createMenuItem(Material.REDSTONE_BLOCK, ChatColor.DARK_RED + "Quitter l'Entreprise"));
+        addBackButton(inv, 22, "(Mes Entreprises)");
         employe.openInventory(inv);
     }
 
-    private void handleManageSpecificEntrepriseMenuClick(Player gerant, String itemName) {
-        String nomEntreprise = currentOpenEntreprise.get(gerant);
-        if (nomEntreprise == null) {
-            gerant.sendMessage(ChatColor.RED + "Erreur: Contexte de l'entreprise perdu.");
-            openMyEntreprisesMenu(gerant);
-            return;
-        }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-        if (entreprise == null) {
-            gerant.sendMessage(ChatColor.RED + "Erreur: L'entreprise n'existe plus.");
-            currentOpenEntreprise.remove(gerant);
-            openMyEntreprisesMenu(gerant);
-            return;
-        }
-        switch (itemName) {
-            case "Infos Entreprise":
-                displayEntrepriseInfo(gerant, entreprise);
-                break;
-            case "Déposer Argent":
-                plugin.getChatListener().attendreMontantDepot(gerant, nomEntreprise);
-                gerant.closeInventory();
-                break;
-            case "Retirer Argent":
-                plugin.getChatListener().attendreMontantRetrait(gerant, nomEntreprise);
-                gerant.closeInventory();
-                break;
-            case "Gérer Employés":
-                openManageEmployeesListMenu(gerant, entreprise);
-                break;
-            case "Recruter Employé":
-                openRecruitEmployeeProximityMenu(gerant, entreprise);
-                break;
-            case "Renommer Entreprise":
-                plugin.getChatListener().attendreNouveauNomEntreprise(gerant, nomEntreprise); // Modifié pour utiliser ChatListener directement
-                gerant.closeInventory();
-                break;
-            case "Dissoudre Entreprise":
-                openDeleteConfirmationMenu(gerant, nomEntreprise);
-                break;
-            case "Retour":
-                currentOpenEntreprise.remove(gerant);
-                openMyEntreprisesMenu(gerant);
-                break;
+    private void handleViewSpecificEntrepriseMenuClick(Player employe, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.equals("Infos Générales")) displayEntrepriseInfo(employe, entreprise);
+        else if (itemName.equals("Ma Situation")) {
+            EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(employe.getUniqueId());
+            if (rec != null) {
+                employe.closeInventory();
+                employe.sendMessage(ChatColor.GOLD + "--- Ma Situation dans '" + entreprise.getNom() + "' ---");
+                employe.sendMessage(ChatColor.YELLOW + "Ancienneté: " + ChatColor.WHITE + rec.getFormattedSeniority());
+                employe.sendMessage(ChatColor.YELLOW + "Prime: " + ChatColor.WHITE + String.format("%.2f€/h", entreprise.getPrimePourEmploye(employe.getUniqueId().toString())));
+                employe.sendMessage(ChatColor.YELLOW + "Valeur générée: " + ChatColor.GREEN + String.format("%.2f€", rec.totalValueGenerated));
+                long totalActions = rec.actionsPerformedCount.values().stream().mapToLong(Long::longValue).sum();
+                employe.sendMessage(ChatColor.YELLOW + "Actions productives: " + ChatColor.WHITE + totalActions);
+                employe.sendMessage(ChatColor.YELLOW + "Session: " + (rec.isActive() ? ChatColor.GREEN + "Active" : ChatColor.GRAY + "Inactive"));
+                if (rec.lastActivityTime != null) {
+                    employe.sendMessage(ChatColor.YELLOW + "Dernière activité: " + ChatColor.WHITE + rec.lastActivityTime.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")));
+                }
+                employe.sendMessage(ChatColor.GOLD + "------------------------------------");
+            } else {
+                employe.sendMessage(ChatColor.YELLOW + "Aucune donnée d'activité pour vous.");
+            }
+        } else if (itemName.equals("Transactions Entreprise")) {
+            context.currentPage = 0;
+            openTransactionHistoryMenu(employe, context, entreprise);
+        } else if (itemName.equals("Mes Stats Production")) {
+            context.currentViewingEmployeeStatsUUID = employe.getUniqueId();
+            openProductionStatsActionTypeChoiceMenu(employe, context, entreprise); // MODIFIÉ
+        } else if (itemName.equals("Quitter l'Entreprise")) {
+            openLeaveConfirmationMenu(employe, context, entreprise);
         }
     }
 
-    private void handleViewSpecificEntrepriseMenuClick(Player employe, String itemName) {
-        String nomEntreprise = currentOpenEntreprise.get(employe);
-        if (nomEntreprise == null) {
-            employe.sendMessage(ChatColor.RED + "Erreur: Contexte de l'entreprise perdu.");
-            openMyEntreprisesMenu(employe);
-            return;
+    private void openEntrepriseStatsMenu(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+        PlayerGUIContext context = getPlayerContext(player);
+        context.navigateTo(TITLE_STATS_MENU_PREFIX + entreprise.getNom());
+        context.currentEntrepriseNom = entreprise.getNom();
+        context.currentViewingEmployeeStatsUUID = null;
+        Inventory inv = Bukkit.createInventory(null, 36, TITLE_STATS_MENU_PREFIX + entreprise.getNom());
+        inv.setItem(10, createMenuItem(Material.GOLD_BLOCK, ChatColor.GOLD + "Aperçu Financier", List.of(ChatColor.YELLOW + "Solde: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€", ChatColor.AQUA + "CA Brut: " + ChatColor.WHITE + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€")));
+        inv.setItem(12, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Profit/Perte par Périodes"));
+        inv.setItem(14, createMenuItem(Material.WRITABLE_BOOK, ChatColor.DARK_AQUA + "Historique des Transactions"));
+        boolean isGerantOuAdmin = player.getName().equalsIgnoreCase(entreprise.getGerant()) || player.hasPermission("entreprisemanager.admin.viewallstats");
+        if (isGerantOuAdmin) {
+            inv.setItem(19, createMenuItem(Material.PLAYER_HEAD, ChatColor.DARK_PURPLE + "Statistiques des Employés (Global)"));
+            inv.setItem(20, createMenuItem(Material.DIAMOND_PICKAXE, ChatColor.DARK_GREEN + "Statistiques de Production (Global)"));
+        } else {
+            EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(player.getUniqueId());
+            if (rec != null) {
+                inv.setItem(19, createMenuItem(Material.IRON_CHESTPLATE, ChatColor.LIGHT_PURPLE + "Mon Activité (Résumé)", List.of(ChatColor.GREEN + "Valeur Générée: " + String.format("%,.2f€", rec.totalValueGenerated), ChatColor.GRAY + "Ancienneté: " + rec.getFormattedSeniority())));
+                inv.setItem(20, createMenuItem(Material.DIAMOND_PICKAXE, ChatColor.DARK_GREEN + "Mes Statistiques de Production"));
+            } else {
+                inv.setItem(19, createMenuItem(Material.BARRIER, ChatColor.GRAY + "Données d'activité non disponibles"));
+                inv.setItem(20, createMenuItem(Material.BARRIER, ChatColor.GRAY + "Stats production non disponibles"));
+            }
         }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-        if (entreprise == null) {
-            employe.sendMessage(ChatColor.RED + "Erreur: L'entreprise n'existe plus.");
-            currentOpenEntreprise.remove(employe);
-            openMyEntreprisesMenu(employe);
-            return;
-        }
-        switch (itemName) {
-            case "Informations":
-                displayEntrepriseInfo(employe, entreprise);
-                break;
-            case "Ma Prime Horaire":
-                double maPrime = entreprise.getPrimePourEmploye(employe.getName());
-                employe.sendMessage(ChatColor.GOLD + "Votre prime horaire pour '" + ChatColor.AQUA + nomEntreprise + ChatColor.GOLD + "' est de: " + ChatColor.YELLOW + String.format("%,.2f", maPrime) + "€/h.");
-                break;
-            case "Quitter l'Entreprise":
-                openLeaveConfirmationMenu(employe, entreprise);
-                break;
-            case "Retour":
-                currentOpenEntreprise.remove(employe);
-                openMyEntreprisesMenu(employe);
-                break;
+        String retourLabel = player.getName().equalsIgnoreCase(entreprise.getGerant()) ? "(Gestion Ent.)" : "(Détails Ent.)";
+        addBackButton(inv, 31, retourLabel);
+        player.openInventory(inv);
+    }
+
+    private void handleEntrepriseStatsMenuClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        boolean isGerantOuAdmin = player.getName().equalsIgnoreCase(entreprise.getGerant()) || player.hasPermission("entreprisemanager.admin.viewallstats");
+        if (itemName.equals("Aperçu Financier")) displayEntrepriseInfo(player, entreprise);
+        else if (itemName.equals("Profit/Perte par Périodes")) openProfitLossPeriodsMenu(player, context, entreprise);
+        else if (itemName.equals("Historique des Transactions")) { context.currentPage = 0; openTransactionHistoryMenu(player, context, entreprise); }
+        else if (itemName.equals("Statistiques des Employés (Global)") && isGerantOuAdmin) { context.currentPage = 0; openEmployeeStatsListMenu(player, context, entreprise); }
+        else if (itemName.equals("Statistiques de Production (Global)") && isGerantOuAdmin) { // MODIFIÉ
+            context.currentViewingEmployeeStatsUUID = null;
+            openProductionStatsActionTypeChoiceMenu(player, context, entreprise);
+        } else if (itemName.equals("Mon Activité (Résumé)")) {
+            EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(player.getUniqueId());
+            if(rec != null) {
+                player.closeInventory();
+                player.sendMessage(ChatColor.GOLD+"--- Mon Activité (Résumé) pour '"+entreprise.getNom()+"' ---");
+                player.sendMessage(ChatColor.YELLOW + "Ancienneté: "+ChatColor.WHITE+rec.getFormattedSeniority());
+                player.sendMessage(ChatColor.YELLOW + "Valeur générée: "+ChatColor.GREEN+String.format("%,.2f€", rec.totalValueGenerated));
+                long totalActions = rec.actionsPerformedCount.values().stream().mapToLong(Long::longValue).sum();
+                player.sendMessage(ChatColor.YELLOW + "Actions productives: "+ChatColor.WHITE+totalActions);
+                if (rec.isActive()) player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GREEN + "Active");
+                else player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GRAY + "Inactive");
+                player.sendMessage(ChatColor.GOLD+"----------------------------------------------------");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "Aucune donnée d'activité pour vous.");
+            }
+        } else if (itemName.equals("Mes Statistiques de Production")) { // MODIFIÉ
+            context.currentViewingEmployeeStatsUUID = player.getUniqueId();
+            openProductionStatsActionTypeChoiceMenu(player, context, entreprise);
         }
     }
 
-    private void openLeaveConfirmationMenu(Player employe, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_RED + "Quitter " + entreprise.getNom() + "?");
+    private void openProfitLossPeriodsMenu(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_PROFIT_LOSS_PERIODS_PREFIX + entreprise.getNom());
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_PROFIT_LOSS_PERIODS_PREFIX + entreprise.getNom());
+        inv.setItem(10, createMenuItem(Material.CLOCK, ChatColor.AQUA + "3 Dernières Heures"));
+        inv.setItem(11, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernier Jour (24h)"));
+        inv.setItem(12, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernière Semaine (7j)"));
+        inv.setItem(13, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernier Mois (30j)"));
+        inv.setItem(14, createMenuItem(Material.EXPERIENCE_BOTTLE, ChatColor.GOLD + "Depuis Création (Total)"));
+        addBackButton(inv, 22, "(Statistiques)");
+        player.openInventory(inv);
+    }
+
+    private void handleProfitLossPeriodsMenuClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        LocalDateTime end = LocalDateTime.now(); LocalDateTime start = null; String periodName = "";
+        switch (itemName) {
+            case "3 Dernières Heures": start = end.minusHours(3); periodName = "des 3 dernières heures"; break;
+            case "Dernier Jour (24h)": start = end.minusDays(1); periodName = "du dernier jour"; break;
+            case "Dernière Semaine (7j)": start = end.minusWeeks(1); periodName = "de la semaine dernière"; break;
+            case "Dernier Mois (30j)": start = end.minusMonths(1); periodName = "du mois dernier"; break;
+            case "Depuis Création (Total)": start = entreprise.getTransactionLog().stream().min(Comparator.comparing(tx -> tx.timestamp)).map(tx -> tx.timestamp).orElse(end); periodName = "depuis la création"; break;
+            default: return;
+        }
+        player.closeInventory();
+        if (start.isEqual(end) && !itemName.equals("Depuis Création (Total)")) { player.sendMessage(ChatColor.YELLOW + "Pas de données pour " + periodName + "."); return; }
+        double profitLoss = entreprise.calculateProfitLoss(start, end);
+        ChatColor color = profitLoss >= 0 ? ChatColor.GREEN : ChatColor.RED; String prefix = profitLoss >= 0 ? "+" : "";
+        player.sendMessage(ChatColor.GOLD + "--- Profit/Perte pour '" + entreprise.getNom() + "' (" + periodName + ") ---");
+        player.sendMessage(ChatColor.YELLOW + "Résultat: " + color + prefix + String.format("%,.2f", profitLoss) + "€");
+        player.sendMessage(ChatColor.GRAY + "(Période du " + start.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")) + " au " + end.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")) + ")");
+        player.sendMessage(ChatColor.GOLD + "------------------------------------------------" + ChatColor.stripColor(ChatColor.GOLD + entreprise.getNom()).replaceAll(".", "-") + "----------------");
+    }
+
+    private void openTransactionHistoryMenu(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_TRANSACTIONS_PREFIX + entreprise.getNom());
+        List<EntrepriseManagerLogic.Transaction> transactions = new ArrayList<>(entreprise.getTransactionLog());
+        Collections.reverse(transactions);
+        int page = context.currentPage; int totalItems = transactions.size(); int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE_DEFAULT);
+        page = Math.max(0, Math.min(page, Math.max(0, totalPages - 1))); context.currentPage = page;
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_TRANSACTIONS_PREFIX + entreprise.getNom());
+        int startIndex = page * ITEMS_PER_PAGE_DEFAULT; int endIndex = Math.min(startIndex + ITEMS_PER_PAGE_DEFAULT, totalItems);
+        if (transactions.isEmpty()) {
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune transaction."));
+        } else {
+            for (int i = startIndex; i < endIndex; i++) {
+                EntrepriseManagerLogic.Transaction tx = transactions.get(i);
+                Material itemMaterial = (tx.amount >= 0 && tx.type != EntrepriseManagerLogic.TransactionType.WITHDRAWAL && !tx.type.isOperationalExpense()) || tx.type == EntrepriseManagerLogic.TransactionType.DEPOSIT ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
+                String amountPrefix = (itemMaterial == Material.LIME_STAINED_GLASS_PANE && tx.amount > 0) ? "+" : "";
+                ChatColor amountColor = (itemMaterial == Material.LIME_STAINED_GLASS_PANE) ? ChatColor.GREEN : ChatColor.RED;
+                String itemNameText = amountColor + amountPrefix + String.format("%,.2f€", tx.amount) + ChatColor.GRAY + " (" + tx.type.getDisplayName() + ")";
+                List<String> lore = List.of(ChatColor.GRAY + "Date: " + ChatColor.WHITE + tx.timestamp.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")), ChatColor.GRAY + "Desc: " + ChatColor.WHITE + tx.description, ChatColor.GRAY + "Par: " + ChatColor.WHITE + tx.initiatedBy);
+                inv.setItem(i - startIndex, createMenuItem(itemMaterial, itemNameText, lore));
+            }
+        }
+        if (page > 0) inv.setItem(45, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Précédente"));
+        inv.setItem(49, createMenuItem(Material.PAPER, ChatColor.GOLD + "Page " + (page + 1) + "/" + Math.max(1, totalPages)));
+        if (page < totalPages - 1) inv.setItem(53, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Suivante"));
+        addBackButton(inv, 48, "(Statistiques)");
+        player.openInventory(inv);
+    }
+
+    private void handleTransactionHistoryMenuClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.equals("Page Précédente")) { if (context.currentPage > 0) { context.currentPage--; openTransactionHistoryMenu(player, context, entreprise); } }
+        else if (itemName.equals("Page Suivante")) {
+            List<EntrepriseManagerLogic.Transaction> transactions = entreprise.getTransactionLog();
+            int totalPages = (int) Math.ceil((double) transactions.size() / ITEMS_PER_PAGE_DEFAULT);
+            if (context.currentPage < totalPages - 1) { context.currentPage++; openTransactionHistoryMenu(player, context, entreprise); }
+        }
+    }
+
+    private void openManageEmployeesListMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
+        PlayerGUIContext context = getPlayerContext(gerant);
+        context.navigateTo(TITLE_MANAGE_EMPLOYEES + ": " + entreprise.getNom());
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_MANAGE_EMPLOYEES + ": " + entreprise.getNom());
+        Set<String> employesNoms = entreprise.getEmployes();
+        if (employesNoms.isEmpty()) {
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun employé."));
+        } else {
+            int i = 0;
+            for (String empName : employesNoms) {
+                if (i >= ITEMS_PER_PAGE_DEFAULT) break;
+                OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(empName); UUID empUUID = offlineEmp.getUniqueId();
+                double prime = entreprise.getPrimePourEmploye(empUUID.toString()); String anciennete = entreprise.getEmployeeSeniorityFormatted(empUUID);
+                EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(empUUID); boolean isActive = rec != null && rec.isActive();
+                List<String> lore = List.of(ChatColor.LIGHT_PURPLE + "Ancienneté: " + ChatColor.WHITE + anciennete, ChatColor.GOLD + "Prime: " + ChatColor.WHITE + String.format("%,.2f€/h", prime), (isActive ? ChatColor.GREEN + "Session Active" : ChatColor.GRAY + "Session Inactive"), ChatColor.DARK_AQUA + "Cliquez pour options...");
+                inv.addItem(createPlayerHead(empName, ChatColor.AQUA + empName, lore));
+                i++;
+            }
+        }
+        addBackButton(inv, 49, "(Gestion Ent.)");
+        gerant.openInventory(inv);
+    }
+
+    private void handleManageEmployeesListClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (!entreprise.getEmployes().contains(itemName)) {
+            gerant.sendMessage(ChatColor.RED + "Employé '" + itemName + "' introuvable.");
+            openManageEmployeesListMenu(gerant, entreprise); return;
+        }
+        context.selectedEmployeeForManagement = itemName;
+        openSpecificEmployeeOptionsMenu(gerant, context, itemName, entreprise);
+    }
+
+    private void openSpecificEmployeeOptionsMenu(Player gerant, PlayerGUIContext context, String employeNom, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_EMPLOYEE_OPTIONS_PREFIX + employeNom);
+        OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom); UUID empUUID = offlineEmp.getUniqueId();
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_EMPLOYEE_OPTIONS_PREFIX + employeNom);
+        double primeActuelle = entreprise.getPrimePourEmploye(empUUID.toString());
+        inv.setItem(11, createMenuItem(Material.GOLD_INGOT, ChatColor.GREEN + "Définir Prime Horaire", List.of(ChatColor.GRAY + "Actuelle: " + String.format("%,.2f", primeActuelle) + "€/h")));
+        inv.setItem(13, createMenuItem(Material.DIAMOND_PICKAXE, ChatColor.DARK_AQUA + "Voir Stats Production Employé"));
+        inv.setItem(15, createMenuItem(Material.RED_WOOL, ChatColor.RED + "Virer " + employeNom));
+        addBackButton(inv, 22, "(Liste Employés)");
+        gerant.openInventory(inv);
+    }
+
+    private void handleSpecificEmployeeOptionsMenuClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        String employeNom = context.selectedEmployeeForManagement;
+        if (employeNom == null) { gerant.sendMessage(ChatColor.RED + "Erreur contexte."); openManageEmployeesListMenu(gerant, entreprise); return; }
+        if (itemName.equals("Définir Prime Horaire")) {
+            openSetPrimeAmountMenu(gerant, context, employeNom, entreprise);
+        } else if (itemName.equals("Voir Stats Production Employé")) { // MODIFIÉ
+            OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom);
+            context.currentViewingEmployeeStatsUUID = offlineEmp.getUniqueId();
+            openProductionStatsActionTypeChoiceMenu(gerant, context, entreprise);
+        } else if (itemName.startsWith("Virer ")) {
+            entrepriseLogic.kickEmploye(gerant, entreprise.getNom(), employeNom);
+            context.selectedEmployeeForManagement = null;
+            openManageEmployeesListMenu(gerant, entreprise);
+        }
+    }
+
+    private void openSetPrimeAmountMenu(Player gerant, PlayerGUIContext context, String employeNom, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_SET_PRIME + " pour " + employeNom);
+        OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom); UUID empUUID = offlineEmp.getUniqueId();
+        double primeActuelle = entreprise.getPrimePourEmploye(empUUID.toString());
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_SET_PRIME + " pour " + employeNom);
+        List<Double> montantsPredefinis = List.of(0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 750.0, 1000.0, 1500.0, 2000.0);
+        for (double montant : montantsPredefinis) {
+            List<String> lore = new ArrayList<>(); if (montant == primeActuelle) lore.add(ChatColor.GREEN + "(Prime Actuelle)");
+            lore.add(ChatColor.GRAY + "Cliquez pour définir.");
+            inv.addItem(createMenuItem(Material.PAPER, ChatColor.GOLD + String.format("%,.2f", montant) + "€/h", lore));
+        }
+        addBackButton(inv, 49, "(Options Employé)");
+        gerant.openInventory(inv);
+    }
+
+    private void handleSetPrimeAmountClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        String employeNom = context.selectedEmployeeForManagement;
+        if (employeNom == null) { gerant.sendMessage(ChatColor.RED + "Erreur contexte prime."); handleGoBack(gerant, context); return; }
+        try {
+            String montantStr = itemName.split("€")[0].trim().replace(",", "."); double nouvellePrime = Double.parseDouble(montantStr);
+            if (nouvellePrime < 0) { gerant.sendMessage(ChatColor.RED + "Prime non négative."); return; }
+            entrepriseLogic.definirPrime(entreprise.getNom(), employeNom, nouvellePrime);
+            gerant.sendMessage(ChatColor.GREEN + "Prime de " + employeNom + " pour '" + entreprise.getNom() + "' -> " + String.format("%,.2f€/h", nouvellePrime) + ".");
+            Player employePlayer = Bukkit.getPlayerExact(employeNom);
+            if (employePlayer != null && employePlayer.isOnline()) employePlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + entreprise.getNom() + "' est " + String.format("%,.2f€/h", nouvellePrime) + ".");
+            openSpecificEmployeeOptionsMenu(gerant, context, employeNom, entreprise);
+        } catch (NumberFormatException e) { gerant.sendMessage(ChatColor.RED + "Montant prime invalide: " + itemName); }
+    }
+
+    private void openRecruitEmployeeProximityMenu(Player gerant, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
+        Collection<String> nearbyPlayers = entrepriseLogic.getNearbyPlayers(gerant, plugin.getConfig().getInt("invitation.distance-max", 10));
+        boolean foundEligible = false;
+        if (!nearbyPlayers.isEmpty()) {
+            for (String targetName : nearbyPlayers) {
+                if (!targetName.equals(gerant.getName()) && !entreprise.getEmployes().contains(targetName) && entrepriseLogic.getNomEntrepriseDuMembre(targetName) == null) {
+                    inv.addItem(createPlayerHead(targetName, List.of(ChatColor.GRAY + "Inviter à '" + entreprise.getNom() + "'.")));
+                    foundEligible = true;
+                }
+            }
+        }
+        if (!foundEligible) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun joueur éligible proche."));
+        addBackButton(inv, 49, "(Gestion Ent.)");
+        gerant.openInventory(inv);
+    }
+
+    private void handleRecruitEmployeeSelectionClick(Player gerant, PlayerGUIContext context, String targetPlayerName, EntrepriseManagerLogic.Entreprise entreprise) {
+        Player targetPlayer = Bukkit.getPlayerExact(targetPlayerName);
+        if (targetPlayer == null || !targetPlayer.isOnline()) {
+            gerant.sendMessage(ChatColor.RED + "'" + targetPlayerName + "' hors-ligne.");
+            openRecruitEmployeeProximityMenu(gerant, context, entreprise); return;
+        }
+        context.selectedEmployeeForManagement = targetPlayerName;
+        openRecruitConfirmationMenu(gerant, context, targetPlayerName, entreprise);
+    }
+
+    private void openRecruitConfirmationMenu(Player gerant, PlayerGUIContext context, String targetPlayerName, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_CONFIRM_RECRUIT);
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_CONFIRM_RECRUIT);
+        inv.setItem(11, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "Oui, inviter " + targetPlayerName));
+        inv.setItem(15, createMenuItem(Material.RED_WOOL, ChatColor.RED + "Non, annuler"));
+        gerant.openInventory(inv);
+    }
+
+    private void handleRecruitConfirmationClick(Player gerant, PlayerGUIContext context, ItemStack clickedItem, EntrepriseManagerLogic.Entreprise entreprise) {
+        String itemNameText = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
+        String targetPlayerName = context.selectedEmployeeForManagement;
+        if (targetPlayerName == null) { gerant.sendMessage(ChatColor.RED + "Erreur contexte recrutement."); handleGoBack(gerant, context); return; }
+        if (itemNameText.startsWith("Oui, inviter ")) {
+            Player targetOnline = Bukkit.getPlayerExact(targetPlayerName);
+            if (targetOnline != null && targetOnline.isOnline()) {
+                entrepriseLogic.inviterEmploye(gerant, entreprise.getNom(), targetOnline);
+                gerant.sendMessage(ChatColor.GREEN + "Invitation envoyée à " + targetPlayerName + ".");
+            } else {
+                gerant.sendMessage(ChatColor.RED + targetPlayerName + " n'est plus en ligne.");
+            }
+        } else if (itemNameText.equals("Non, annuler")) {
+            gerant.sendMessage(ChatColor.YELLOW + "Recrutement annulé.");
+        }
+        context.selectedEmployeeForManagement = null;
+        openManageSpecificEntrepriseMenu(gerant, entreprise);
+    }
+
+    private void openDeleteConfirmationMenu(Player gerant, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_CONFIRM_DELETE + " : " + entreprise.getNom());
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_CONFIRM_DELETE + " : " + entreprise.getNom());
+        inv.setItem(11, createMenuItem(Material.RED_WOOL, ChatColor.DARK_RED + "OUI, Dissoudre '" + entreprise.getNom() + "'", List.of(ChatColor.RED + "IRRÉVERSIBLE !")));
+        inv.setItem(15, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "NON, Annuler"));
+        gerant.openInventory(inv);
+    }
+
+    private void handleDeleteConfirmationClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.startsWith("OUI, Dissoudre")) {
+            entrepriseLogic.supprimerEntreprise(gerant, entreprise.getNom());
+            openMainMenu(gerant);
+        } else if (itemName.equals("NON, Annuler")) {
+            gerant.sendMessage(ChatColor.YELLOW + "Dissolution annulée.");
+            openManageSpecificEntrepriseMenu(gerant, entreprise);
+        }
+    }
+
+    private void openLeaveConfirmationMenu(Player employe, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_CONFIRM_LEAVE_PREFIX + entreprise.getNom() + "?");
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_CONFIRM_LEAVE_PREFIX + entreprise.getNom() + "?");
         inv.setItem(11, createMenuItem(Material.RED_WOOL, ChatColor.DARK_RED + "OUI, Quitter " + entreprise.getNom()));
         inv.setItem(15, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "NON, Rester"));
         employe.openInventory(inv);
     }
 
-    private void handleLeaveConfirmationClick(Player employe, String itemName) {
-        String nomEntreprise = currentOpenEntreprise.get(employe); // Devrait être défini
-        if (nomEntreprise == null) {
-            employe.sendMessage(ChatColor.RED + "Erreur: Contexte de l'entreprise perdu.");
-            openMyEntreprisesMenu(employe);
-            return;
-        }
-        if (itemName.startsWith("OUI, Quitter ")) {
-            entrepriseLogic.leaveEntreprise(employe, nomEntreprise);
-            employe.closeInventory();
-            currentOpenEntreprise.remove(employe);
+    private void handleLeaveConfirmationClick(Player employe, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.startsWith("OUI, Quitter")) {
+            entrepriseLogic.leaveEntreprise(employe, entreprise.getNom());
+            openMyEntreprisesMenu(employe, getPlayerContext(employe));
         } else if (itemName.equals("NON, Rester")) {
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-            if (entreprise != null) openViewSpecificEntrepriseMenu(employe, entreprise);
-            else openMyEntreprisesMenu(employe);
+            employe.sendMessage(ChatColor.YELLOW + "Vous restez membre.");
+            openViewSpecificEntrepriseMenu(employe, entreprise);
         }
     }
 
-    private void openRecruitEmployeeProximityMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Recruter Employé");
-        Collection<String> nearbyPlayers = entrepriseLogic.getNearbyPlayers(gerant, plugin.getConfig().getInt("invitation.distance-max", 10));
-        boolean foundCandidate = false;
-        if (nearbyPlayers.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun joueur à proximité."));
-        } else {
-            for (String targetName : nearbyPlayers) {
-                if (!targetName.equals(gerant.getName()) && entrepriseLogic.getNomEntrepriseDuMembre(targetName) == null && entrepriseLogic.joueurPeutRejoindreAutreEntreprise(targetName)) {
-                    inv.addItem(createPlayerHead(targetName, Collections.singletonList(ChatColor.GRAY + "Cliquez pour inviter.")));
-                    foundCandidate = true;
-                }
-            }
-            if (!foundCandidate) {
-                inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun joueur éligible à proximité."));
-            }
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
-        gerant.openInventory(inv);
-    }
-
-    private void handleRecruitEmployeeSelectionClick(Player gerant, String itemName) {
-        if (itemName.equals("Retour")) {
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(currentOpenEntreprise.get(gerant));
-            if (entreprise != null) openManageSpecificEntrepriseMenu(gerant, entreprise);
-            else openMyEntreprisesMenu(gerant);
-            return;
-        }
-        String targetPlayerName = itemName;
-        Player targetPlayer = Bukkit.getPlayerExact(targetPlayerName);
-        String nomEntreprise = currentOpenEntreprise.get(gerant);
-        if (nomEntreprise == null) { /* ... */ return; }
-        if (targetPlayer == null || !targetPlayer.isOnline()) { /* ... */ return; }
-        openRecruitConfirmationMenu(gerant, targetPlayerName, nomEntreprise); // nomEntreprise est déjà connu via currentOpenEntreprise
-    }
-
-    private void openRecruitConfirmationMenu(Player gerant, String targetPlayerName, String nomEntreprise) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Confirmer Recrutement");
-        inv.setItem(11, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "Oui, inviter " + targetPlayerName));
-        inv.setItem(15, createMenuItem(Material.RED_WOOL, ChatColor.RED + "Non, annuler"));
-        // currentOpenEntreprise.put(gerant, nomEntreprise); // Pas besoin, déjà fait
-        // selectedEmployeeForManagement.put(gerant, targetPlayerName); // Plutôt pour gérer un employé existant
-        gerant.openInventory(inv);
-    }
-
-    private void handleRecruitConfirmationClick(Player gerant, ItemStack clickedItem) {
-        String itemName = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
-        String nomEntreprise = currentOpenEntreprise.get(gerant);
-        if (nomEntreprise == null) { /* ... */ return; }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-        if (entreprise == null) { /* ... */ return; }
-
-        if (itemName.startsWith("Oui, inviter ")) {
-            String targetPlayerName = itemName.substring("Oui, inviter ".length());
-            Player targetOnlinePlayer = Bukkit.getPlayerExact(targetPlayerName);
-            if (targetOnlinePlayer != null && targetOnlinePlayer.isOnline()) {
-                entrepriseLogic.inviterEmploye(gerant, nomEntreprise, targetOnlinePlayer);
-            } else {
-                gerant.sendMessage(ChatColor.RED + "Le joueur " + targetPlayerName + " n'est plus en ligne.");
-            }
-        } else if (itemName.equals("Non, annuler")) {
-            gerant.sendMessage(ChatColor.YELLOW + "Recrutement annulé.");
-        }
-        openManageSpecificEntrepriseMenu(gerant, entreprise); // Revenir au menu de gestion
-    }
-
-    private void openManageEmployeesListMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Gérer Employés");
-        Set<String> employes = entrepriseLogic.getEmployesDeLEntreprise(entreprise.getNom());
-        if (employes.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Cette entreprise n'a aucun employé."));
-        } else {
-            for (String empName : employes) {
-                double prime = entreprise.getPrimePourEmploye(empName);
-                inv.addItem(createPlayerHead(empName, Arrays.asList(ChatColor.GOLD + "Prime: " + String.format("%,.2f", prime) + "€/h", ChatColor.GRAY + "Cliquez pour options.")));
-            }
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
-        gerant.openInventory(inv);
-    }
-
-    private void handleManageEmployeesListClick(Player gerant, String itemName) {
-        if (itemName.equals("Retour")) {
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(currentOpenEntreprise.get(gerant));
-            if (entreprise != null) openManageSpecificEntrepriseMenu(gerant, entreprise);
-            else openMyEntreprisesMenu(gerant);
-            return;
-        }
-        String selectedEmpName = itemName;
-        String nomEntrepriseGeree = currentOpenEntreprise.get(gerant);
-        if (nomEntrepriseGeree == null) { /* ... */ return; }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntrepriseGeree);
-        if (entreprise == null || !entreprise.getEmployes().contains(selectedEmpName)) { /* ... */ return; }
-
-        selectedEmployeeForManagement.put(gerant, selectedEmpName);
-        openSpecificEmployeeOptionsMenu(gerant, selectedEmpName, entreprise);
-    }
-
-    private void openSpecificEmployeeOptionsMenu(Player gerant, String employeNom, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Options pour " + employeNom);
-        double primeActuelle = entreprise.getPrimePourEmploye(employeNom);
-        inv.setItem(11, createMenuItem(Material.GOLD_INGOT, ChatColor.GREEN + "Définir Prime Horaire", Collections.singletonList(ChatColor.GRAY + "Actuelle: " + String.format("%,.2f", primeActuelle) + "€/h")));
-        inv.setItem(15, createMenuItem(Material.RED_WOOL, ChatColor.RED + "Virer " + employeNom));
-        inv.setItem(22, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
-        gerant.openInventory(inv);
-    }
-
-    private void handleSpecificEmployeeOptionsMenuClick(Player gerant, String itemName) {
-        String employeNom = selectedEmployeeForManagement.get(gerant);
-        String nomEntrepriseGeree = currentOpenEntreprise.get(gerant);
-        if (employeNom == null || nomEntrepriseGeree == null) { /* ... */ return; }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntrepriseGeree);
-        if (entreprise == null) { /* ... */ selectedEmployeeForManagement.remove(gerant); return; }
-
-        if (itemName.equals("Définir Prime Horaire")) {
-            openSetPrimeAmountMenu(gerant, employeNom, entreprise);
-        } else if (itemName.startsWith("Virer ")) {
-            entrepriseLogic.kickEmploye(gerant, nomEntrepriseGeree, employeNom);
-            selectedEmployeeForManagement.remove(gerant);
-            openManageEmployeesListMenu(gerant, entreprise);
-        } else if (itemName.equals("Retour")) {
-            selectedEmployeeForManagement.remove(gerant);
-            openManageEmployeesListMenu(gerant, entreprise);
-        }
-    }
-
-    private void openSetPrimeAmountMenu(Player gerant, String employeNom, EntrepriseManagerLogic.Entreprise entreprise) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Définir Prime Horaire");
-        // Mettre employeNom dans le titre pour plus de clarté
-        // Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Prime pour " + employeNom);
-        double primeActuelle = entreprise.getPrimePourEmploye(employeNom);
-        List<Double> montantsProposes = Arrays.asList(0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 750.0, 1000.0, 1250.0, 1500.0, 2000.0);
-        for (double montant : montantsProposes) {
-            inv.addItem(createMenuItem(Material.PAPER, ChatColor.GOLD + String.format("%,.2f", montant) + "€", Collections.singletonList((montant == primeActuelle) ? ChatColor.GREEN + "(Actuelle)" : "")));
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
-        gerant.openInventory(inv);
-    }
-
-    private void handleSetPrimeAmountClick(Player gerant, String itemName) {
-        String employeNom = selectedEmployeeForManagement.get(gerant);
-        String nomEntrepriseGeree = currentOpenEntreprise.get(gerant);
-        if (employeNom == null || nomEntrepriseGeree == null) { /* ... */ return; }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntrepriseGeree);
-        if (entreprise == null) { /* ... */ selectedEmployeeForManagement.remove(gerant); return; }
-
-        if (itemName.equals("Retour")) {
-            openSpecificEmployeeOptionsMenu(gerant, employeNom, entreprise);
-            return;
-        }
-        try {
-            String montantStr = itemName.replace("€", "").trim().replace(",", ".");
-            double nouvellePrime = Double.parseDouble(montantStr);
-            if (nouvellePrime < 0) { /* ... */ return; }
-            entrepriseLogic.definirPrime(nomEntrepriseGeree, employeNom, nouvellePrime);
-            gerant.sendMessage(ChatColor.GREEN + "Prime de " + employeNom + " définie à " + String.format("%,.2f", nouvellePrime) + "€ pour '" + nomEntrepriseGeree + "'.");
-            Player employePlayer = Bukkit.getPlayerExact(employeNom);
-            if (employePlayer != null && employePlayer.isOnline()) {
-                employePlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + nomEntrepriseGeree + "' est maintenant de " + String.format("%,.2f", nouvellePrime) + "€/h.");
-            }
-            openSpecificEmployeeOptionsMenu(gerant, employeNom, entreprise); // Retour aux options
-        } catch (NumberFormatException e) {
-            gerant.sendMessage(ChatColor.RED + "Montant invalide: '" + itemName + "'");
-            openSetPrimeAmountMenu(gerant, employeNom, entreprise);
-        }
-    }
-
-    private void openDeleteConfirmationMenu(Player gerant, String nomEntreprise) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Confirmer Suppression Entreprise");
-        inv.setItem(11, createMenuItem(Material.RED_WOOL, ChatColor.DARK_RED + "OUI, Dissoudre '" + nomEntreprise + "'"));
-        inv.setItem(15, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "NON, Annuler"));
-        gerant.openInventory(inv);
-    }
-
-    private void handleDeleteConfirmationClick(Player gerant, String itemName) {
-        String nomEntreprise = currentOpenEntreprise.get(gerant);
-        if (nomEntreprise == null) { /* ... */ return; }
-        if (itemName.startsWith("OUI, Dissoudre")) {
-            entrepriseLogic.supprimerEntreprise(gerant, nomEntreprise);
-            currentOpenEntreprise.remove(gerant);
-            openMainMenu(gerant);
-        } else if (itemName.equals("NON, Annuler")) {
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-            if (entreprise != null) openManageSpecificEntrepriseMenu(gerant, entreprise);
-            else openMyEntreprisesMenu(gerant);
-        }
-    }
-
-    private void openListTownsMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Lister Entreprises par Ville");
-        Collection<String> towns = entrepriseLogic.getAllTownsNames();
-        if (towns.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune ville trouvée."));
-        } else {
-            for (String townName : towns) {
-                inv.addItem(createMenuItem(Material.PAPER, ChatColor.AQUA + townName, Collections.singletonList(ChatColor.GRAY + "Cliquez pour voir.")));
-            }
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+    private void openListTownsMenu(Player player, PlayerGUIContext context) {
+        context.navigateTo(TITLE_LIST_TOWNS);
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_LIST_TOWNS);
+        Collection<String> townsWithEntreprises = entrepriseLogic.getAllTownsNames().stream()
+                .filter(townName -> !entrepriseLogic.getEntreprisesByVille(townName).isEmpty())
+                .collect(Collectors.toSet());
+        if (townsWithEntreprises.isEmpty()) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune ville n'a d'entreprises."));
+        else { for (String townName : townsWithEntreprises) inv.addItem(createMenuItem(Material.PAPER, ChatColor.AQUA + townName, List.of(ChatColor.GRAY + "Voir les entreprises."))); }
+        addBackButton(inv, 49, "(Menu Principal)");
         player.openInventory(inv);
     }
 
-    private void handleListTownsMenuClick(Player player, String itemName) {
-        if (itemName.equals("Retour")) {
-            openMainMenu(player);
-            return;
-        }
-        openListEntreprisesInTownMenu(player, itemName);
+    private void handleListTownsMenuClick(Player player, PlayerGUIContext context, String townName) {
+        openListEntreprisesInTownMenu(player, context, townName);
     }
 
-    private void openListEntreprisesInTownMenu(Player player, String townName) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_BLUE + "Entreprises à " + townName);
+    private void openListEntreprisesInTownMenu(Player player, PlayerGUIContext context, String townName) {
+        context.navigateTo(TITLE_ENTREPRISES_IN_TOWN_PREFIX + townName);
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_ENTREPRISES_IN_TOWN_PREFIX + townName);
         List<EntrepriseManagerLogic.Entreprise> entreprises = entrepriseLogic.getEntreprisesByVille(townName);
-        if (entreprises.isEmpty()) {
-            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune entreprise dans cette ville."));
-        } else {
-            for (EntrepriseManagerLogic.Entreprise e : entreprises) {
-                inv.addItem(createMenuItem(Material.BOOK, ChatColor.GOLD + e.getNom(), Arrays.asList(ChatColor.GRAY + "Type: " + e.getType(), ChatColor.GRAY + "Gérant: " + e.getGerant())));
-            }
-        }
-        inv.setItem(49, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour"));
+        if (entreprises.isEmpty()) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune entreprise à " + townName + "."));
+        else { for (EntrepriseManagerLogic.Entreprise e : entreprises) inv.addItem(createMenuItem(Material.BOOK, ChatColor.GOLD + e.getNom(), List.of(ChatColor.GRAY + "Type: " + e.getType(), ChatColor.GRAY + "Gérant: " + e.getGerant(), ChatColor.DARK_AQUA + "Cliquez pour détails."))); }
+        addBackButton(inv, 49, "(Liste Villes)");
         player.openInventory(inv);
     }
 
-    private void handleViewEntrepriseFromListClick(Player player, String itemName, String inventoryTitle) {
-        if (itemName.equals("Retour")) {
-            openListTownsMenu(player);
-            return;
-        }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(itemName);
-        if (entreprise != null) {
-            displayEntrepriseInfo(player, entreprise);
-        } else {
-            player.sendMessage(ChatColor.RED + "L'entreprise '" + itemName + "' n'existe pas.");
-            // Pour ré-ouvrir le menu actuel :
-            // String townNameFromTitle = inventoryTitle.substring((ChatColor.DARK_BLUE + "Entreprises à ").length());
-            // openListEntreprisesInTownMenu(player, townNameFromTitle);
-        }
+    private void handleViewEntrepriseFromListClick(Player player, PlayerGUIContext context, String entrepriseNom) {
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(entrepriseNom);
+        if (entreprise == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + entrepriseNom + "' introuvable."); handleGoBack(player, context); return; }
+        context.currentEntrepriseNom = entreprise.getNom();
+        if (entreprise.getGerant().equalsIgnoreCase(player.getName())) openManageSpecificEntrepriseMenu(player, entreprise);
+        else if (entreprise.getEmployes().contains(player.getName())) openViewSpecificEntrepriseMenu(player, entreprise);
+        else displayEntrepriseInfo(player, entreprise);
     }
 
-    private void openAdminMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.RED + "Menu Administration");
+    private void openAdminMenu(Player player, PlayerGUIContext context) {
+        if (!player.hasPermission("entreprisemanager.admin")) { player.sendMessage(ChatColor.RED + "Permission refusée."); player.closeInventory(); return; }
+        context.navigateTo(TITLE_ADMIN_MENU);
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE_ADMIN_MENU);
         inv.setItem(11, createMenuItem(Material.CLOCK, ChatColor.YELLOW + "Forcer Cycle Paiements"));
         inv.setItem(13, createMenuItem(Material.COMMAND_BLOCK_MINECART, ChatColor.AQUA + "Recharger Configuration"));
-        inv.setItem(22, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour Menu Principal"));
+        inv.setItem(15, createMenuItem(Material.ANVIL, ChatColor.GOLD + "Forcer Sauvegarde Données"));
+        addBackButton(inv, 22, "(Menu Principal)");
         player.openInventory(inv);
     }
 
     private void handleAdminMenuClick(Player player, String itemName) {
-        switch (itemName) {
-            case "Forcer Cycle Paiements":
-                if (player.hasPermission("entreprisemanager.admin.forcepay")) {
-                    plugin.getEntrepriseLogic().traiterChiffreAffairesHoraire();
-                    plugin.getEntrepriseLogic().payerPrimesHorairesAuxEmployes();
-                    plugin.getEntrepriseLogic().payerAllocationChomageHoraire();
-                    player.sendMessage(ChatColor.GREEN + "Cycle de paiement horaire global forcé !");
-                } else {
-                    player.sendMessage(ChatColor.RED + "Permission manquante (entreprisemanager.admin.forcepay).");
-                }
-                player.closeInventory();
-                break;
-            case "Recharger Configuration":
-                if (player.hasPermission("entreprisemanager.admin.reload")) {
-                    plugin.reloadPlugin();
-                    player.sendMessage(ChatColor.GREEN + "Plugin EntrepriseManager et données rechargés.");
-                } else {
-                    player.sendMessage(ChatColor.RED + "Permission manquante (entreprisemanager.admin.reload).");
-                }
-                player.closeInventory();
-                break;
-            case "Retour Menu Principal":
-                openMainMenu(player);
-                break;
+        if (itemName.equals("Forcer Cycle Paiements")) {
+            if (player.hasPermission("entreprisemanager.admin.forcepay")) {
+                player.sendMessage(ChatColor.YELLOW + "Forçage cycle horaire...");
+                entrepriseLogic.traiterChiffreAffairesHoraire(); entrepriseLogic.payerPrimesHorairesAuxEmployes(); entrepriseLogic.payerChargesSalarialesHoraires(); entrepriseLogic.payerAllocationChomageHoraire();
+                player.sendMessage(ChatColor.GREEN + "Cycle horaire forcé !");
+            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
+            player.closeInventory();
+        } else if (itemName.equals("Recharger Configuration")) {
+            if (player.hasPermission("entreprisemanager.admin.reload")) {
+                plugin.reloadPluginData();
+                player.sendMessage(ChatColor.GREEN + "Plugin rechargé.");
+            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
+            player.closeInventory();
+        } else if (itemName.equals("Forcer Sauvegarde Données")) {
+            if (player.hasPermission("entreprisemanager.admin.forcesave")) {
+                entrepriseLogic.saveEntreprises();
+                player.sendMessage(ChatColor.GREEN + "Données sauvegardées !");
+            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
+            player.closeInventory();
         }
     }
 
-    // Dans EntrepriseGUI.java
     public void displayEntrepriseInfo(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
-        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Informations Entreprise: " + ChatColor.AQUA + entreprise.getNom() + ChatColor.GOLD + " ===");
+        player.closeInventory();
+        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "=== Infos: " + ChatColor.AQUA + entreprise.getNom() + ChatColor.GOLD + " ===");
+        player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
         player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + entreprise.getVille());
         player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + entreprise.getType());
         player.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + entreprise.getGerant());
-        player.sendMessage(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + entreprise.getEmployes().size() + "/" + plugin.getConfig().getInt("finance.max-employer-par-entreprise", 10));
-        player.sendMessage(ChatColor.YELLOW + "Solde Actuel: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€");
 
-        double caPotentiel = entrepriseLogic.getActiviteHoraireValeurPour(entreprise.getNom());
-        player.sendMessage(ChatColor.YELLOW + "CA Potentiel (cette heure): " + ChatColor.AQUA + String.format("%,.2f", caPotentiel) + "€");
-        player.sendMessage(ChatColor.YELLOW + "Chiffre d'Affaires Total (brut): " + ChatColor.DARK_GREEN + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€");
-        player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + entreprise.getSiret());
+        // Affichage des limites actuelles et niveaux
+        int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise);
+        int niveauEmployes = entreprise.getNiveauMaxEmployes();
+        player.sendMessage(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + entreprise.getEmployes().size() + "/" + maxEmployesActuel + ChatColor.GRAY + " (Niv. " + niveauEmployes + ")");
 
-        if (entreprise.getGerant().equalsIgnoreCase(player.getName()) || player.hasPermission("entreprisemanager.admin.info")) {
-            if (!entreprise.getPrimes().isEmpty()) {
-                player.sendMessage(ChatColor.GOLD + "Primes Horaires des Employés:");
-                for (Map.Entry<String, Double> primeEntry : entreprise.getPrimes().entrySet()) {
-                    player.sendMessage(ChatColor.GRAY + "  - " + primeEntry.getKey() + ": " + ChatColor.YELLOW + String.format("%,.2f", primeEntry.getValue()) + "€/h");
-                }
-            } else {
-                player.sendMessage(ChatColor.GOLD + "Primes Horaires: " + ChatColor.GRAY + "Aucune définie.");
-            }
-            // Pour afficher la liste des employés et leurs noms :
+        double soldeMaxActuel = entrepriseLogic.getLimiteMaxSoldeActuelle(entreprise);
+        int niveauSolde = entreprise.getNiveauMaxSolde();
+        player.sendMessage(ChatColor.YELLOW + "Solde: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€" + ChatColor.WHITE + " / " + String.format("%,.2f", soldeMaxActuel) + "€" + ChatColor.GRAY + " (Niv. " + niveauSolde + ")");
+
+        player.sendMessage(ChatColor.YELLOW + "CA Brut (Total): " + ChatColor.DARK_GREEN + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€");
+        player.sendMessage(ChatColor.YELLOW + "CA Potentiel Horaire: " + ChatColor.AQUA + String.format("%,.2f", entrepriseLogic.getActiviteHoraireValeurPour(entreprise.getNom())) + "€");
+
+        boolean showEmployeeDetails = player.getName().equalsIgnoreCase(entreprise.getGerant()) || player.hasPermission("entreprisemanager.admin.info");
+        if (showEmployeeDetails) {
             if (!entreprise.getEmployes().isEmpty()) {
-                player.sendMessage(ChatColor.GOLD + "Liste des Employés:");
+                player.sendMessage(ChatColor.GOLD + "Employés et Primes:");
                 for (String nomEmploye : entreprise.getEmployes()) {
-                    // Récupérer la prime de l'employé pour l'afficher à côté si souhaité
-                    double primeEmploye = entreprise.getPrimePourEmploye(nomEmploye);
-                    player.sendMessage(ChatColor.GRAY + "  - " + nomEmploye + ChatColor.YELLOW + " (Prime: " + String.format("%,.2f", primeEmploye) + "€/h)");
+                    OfflinePlayer offEmp = Bukkit.getOfflinePlayer(nomEmploye);
+                    UUID empUUID = null;
+                    // Gérer le cas où l'UUID pourrait être null ou invalide, même si peu probable ici
+                    try {
+                        empUUID = offEmp.getUniqueId();
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Impossible d'obtenir l'UUID pour l'employé " + nomEmploye + " lors de l'affichage des infos.");
+                        continue; // Passer à l'employé suivant
+                    }
+
+                    double prime = entreprise.getPrimePourEmploye(empUUID.toString());
+                    String anciennete = entreprise.getEmployeeSeniorityFormatted(empUUID);
+                    player.sendMessage(ChatColor.GRAY + "  - " + nomEmploye + ChatColor.YELLOW + " (Prime: " + String.format("%,.2f€/h", prime) + ", Ancienneté: " + anciennete + ")");
                 }
             } else {
-                player.sendMessage(ChatColor.GOLD + "Liste des Employés: " + ChatColor.GRAY + "Aucun employé.");
+                player.sendMessage(ChatColor.GOLD + "Employés: " + ChatColor.GRAY + "Aucun.");
             }
-
         }
-        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "==============================================");
+        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "====================================");
     }
-    @EventHandler // Gestion du renommage via chat (si ChatListener ne le fait pas)
-    public void onAsyncPlayerChatForRename(AsyncPlayerChatEvent event) {
-        Player player = event.getPlayer();
-        UUID playerId = player.getUniqueId();
 
-        if (pendingRename_OldName.containsKey(playerId)) {
-            event.setCancelled(true);
-            plugin.getLogger().info("[EntrepriseGUI DEBUG] AsyncPlayerChatEvent cancelled for rename by " + player.getName());
-            String nouveauNom = event.getMessage().trim();
-            String ancienNom = pendingRename_OldName.remove(playerId);
+    private ItemStack createMenuItem(Material material, String name, List<String> lore) {
+        ItemStack item = new ItemStack(material); ItemMeta meta = item.getItemMeta();
+        if (meta != null) { meta.setDisplayName(name); if (lore != null && !lore.isEmpty()) meta.setLore(lore); item.setItemMeta(meta); }
+        return item;
+    }
+    private ItemStack createMenuItem(Material material, String name) { return createMenuItem(material, name, null); }
 
-            if (nouveauNom.equalsIgnoreCase("annuler")) {
-                player.sendMessage(ChatColor.RED + "Renommage annulé.");
-                // Optionnel: réouvrir le menu de gestion si possible
-                return;
-            }
-            // ... (logique de validation du nom) ...
-            if (!nouveauNom.matches("^[a-zA-Z0-9_\\-]+$")) {
-                player.sendMessage(ChatColor.RED + "Le nom contient des caractères invalides.");
-                pendingRename_OldName.put(playerId, ancienNom); // Redemander
-                return;
-            }
-            if (entrepriseLogic.getEntreprise(nouveauNom) != null) {
-                player.sendMessage(ChatColor.RED + "Ce nom d'entreprise existe déjà.");
-                pendingRename_OldName.put(playerId, ancienNom); // Redemander
-                return;
-            }
-
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                entrepriseLogic.renameEntreprise(player, ancienNom, nouveauNom);
-            });
+    private ItemStack createPlayerHead(String playerName, String displayName, List<String> lore) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD, 1); SkullMeta meta = (SkullMeta) item.getItemMeta();
+        if (meta != null) {
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
+            meta.setOwningPlayer(offlinePlayer); meta.setDisplayName(displayName); if (lore != null && !lore.isEmpty()) meta.setLore(lore); item.setItemMeta(meta);
         }
+        return item;
     }
+    private ItemStack createPlayerHead(String playerName, List<String> lore) { return createPlayerHead(playerName, ChatColor.AQUA + playerName, lore); }
+
+    private void addBackButton(Inventory inv, int slot, String contextHint) { inv.setItem(slot, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour " + ChatColor.GRAY + contextHint)); }
+    private void addBackButton(Inventory inv, int slot) { inv.setItem(slot, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour")); }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         Player player = (Player) event.getPlayer();
-        // Nettoyage des états si nécessaire, mais attention à ne pas interférer
-        // avec la navigation entre menus ou les processus en plusieurs étapes comme la création.
-        // selectedGerantForCreation.remove(player); // Plutôt nettoyer à la fin de la création ou annulation.
-        // currentOpenEntreprise n'est pas nettoyé ici pour permettre la navigation.
+        if (plugin.getChatListener() != null && plugin.getChatListener().isPlayerWaitingForInput(player.getUniqueId())) {
+            return;
+        }
+    }
+
+    // --- STATISTIQUES DE PRODUCTION ---
+
+    private void openProductionStatsActionTypeChoiceMenu(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        String newTitle = TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX + entreprise.getNom();
+        context.navigateTo(newTitle);
+        Inventory inv = Bukkit.createInventory(null, 36, newTitle);
+
+        String targetName;
+        if (context.currentViewingEmployeeStatsUUID == null) targetName = "Global";
+        else if (context.currentViewingEmployeeStatsUUID.equals(player.getUniqueId())) targetName = "Mes Stats";
+        else { OfflinePlayer emp = Bukkit.getOfflinePlayer(context.currentViewingEmployeeStatsUUID); targetName = emp.getName() != null ? "Stats de " + emp.getName() : "Stats Employé"; }
+
+        inv.setItem(4, createMenuItem(Material.BOOK, ChatColor.AQUA + "Cible Actuelle: " + ChatColor.WHITE + targetName));
+        inv.setItem(19, createMenuItem(Material.DIAMOND_PICKAXE, ChatColor.YELLOW + DetailedActionType.BLOCK_BROKEN.getDisplayName()));
+        inv.setItem(22, createMenuItem(Material.CRAFTING_TABLE, ChatColor.YELLOW + DetailedActionType.ITEM_CRAFTED.getDisplayName()));
+        inv.setItem(25, createMenuItem(Material.GRASS_BLOCK, ChatColor.YELLOW + DetailedActionType.BLOCK_PLACED.getDisplayName()));
+        addBackButton(inv, inv.getSize() - 5, "(Menu Stats)");
+        player.openInventory(inv);
+    }
+
+    private void handleProductionStatsActionTypeChoiceClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        DetailedActionType selectedActionType = null;
+        if (itemName.equals(DetailedActionType.BLOCK_BROKEN.getDisplayName())) selectedActionType = DetailedActionType.BLOCK_BROKEN;
+        else if (itemName.equals(DetailedActionType.ITEM_CRAFTED.getDisplayName())) selectedActionType = DetailedActionType.ITEM_CRAFTED;
+        else if (itemName.equals(DetailedActionType.BLOCK_PLACED.getDisplayName())) selectedActionType = DetailedActionType.BLOCK_PLACED;
+
+        if (selectedActionType != null) {
+            context.currentViewingActionType = selectedActionType;
+            context.currentPage = 0;
+            openProductionStatsPeriodsChoiceMenu(player, context, entreprise);
+        }
+    }
+
+    private void openProductionStatsPeriodsChoiceMenu(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        String actionTypeDisplay = (context.currentViewingActionType != null) ? context.currentViewingActionType.getDisplayName() : "Type d'Action Non Défini";
+        String newTitle = TITLE_PROD_STATS_PERIODS_PREFIX + actionTypeDisplay + " - " + entreprise.getNom();
+        context.navigateTo(newTitle);
+        Inventory inv = Bukkit.createInventory(null, 36, newTitle);
+
+        String targetName;
+        if (context.currentViewingEmployeeStatsUUID == null) targetName = "Global";
+        else if (context.currentViewingEmployeeStatsUUID.equals(player.getUniqueId())) targetName = "Mes Stats";
+        else { OfflinePlayer emp = Bukkit.getOfflinePlayer(context.currentViewingEmployeeStatsUUID); targetName = emp.getName() != null ? "Stats de " + emp.getName() : "Stats Employé"; }
+
+        inv.setItem(3, createMenuItem(Material.BOOK, ChatColor.AQUA + "Cible: " + ChatColor.WHITE + targetName));
+        inv.setItem(5, createMenuItem(Material.PAPER, ChatColor.GREEN + "Type d'Action: " + ChatColor.WHITE + actionTypeDisplay));
+        inv.setItem(19, createMenuItem(Material.CLOCK, ChatColor.AQUA + "3 Dernières Heures"));
+        inv.setItem(20, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernier Jour (24h)"));
+        inv.setItem(21, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernière Semaine (7j)"));
+        inv.setItem(22, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Dernier Mois (30j)"));
+        String totalLabel = (context.currentViewingEmployeeStatsUUID == null) ? "Depuis Création (Global)" : "Depuis Mon Entrée";
+        inv.setItem(23, createMenuItem(Material.ENDER_CHEST, ChatColor.GOLD + totalLabel));
+        addBackButton(inv, inv.getSize() - 5, "(Choix Type Action)");
+        player.openInventory(inv);
+    }
+
+    private void handleProductionStatsPeriodsChoiceClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        LocalDateTime end = LocalDateTime.now(); LocalDateTime start = null;
+        UUID targetEmpUUID = context.currentViewingEmployeeStatsUUID;
+
+        switch (itemName) {
+            case "3 Dernières Heures": start = end.minusHours(3); break;
+            case "Dernier Jour (24h)": start = end.minusDays(1); break;
+            case "Dernière Semaine (7j)": start = end.minusWeeks(1); break;
+            case "Dernier Mois (30j)": start = end.minusMonths(1); break;
+            case "Depuis Création (Global)": case "Depuis Mon Entrée":
+                if (targetEmpUUID != null) {
+                    EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecord(targetEmpUUID);
+                    start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN;
+                } else {
+                    start = entreprise.getGlobalProductionLog().stream()
+                            .min(Comparator.comparing(prodRec -> prodRec.timestamp))
+                            .map(prodRec -> prodRec.timestamp)
+                            .orElse(LocalDateTime.MIN);
+                    if (start == LocalDateTime.MIN && !entreprise.getGlobalProductionLog().isEmpty()) start = end;
+                }
+                break;
+            default: if (!itemName.startsWith("Cible:") && !itemName.startsWith("Type d'Action:")) return; return;
+        }
+        context.currentProductionPeriod = new LocalDateTime[]{start, end};
+        context.currentPage = 0;
+        openProductionMaterialsDisplay(player, context, entreprise);
+    }
+
+    private void openProductionMaterialsDisplay(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        LocalDateTime[] period = context.currentProductionPeriod;
+        UUID targetEmployeeUUID = context.currentViewingEmployeeStatsUUID;
+        DetailedActionType actionTypeFilter = context.currentViewingActionType;
+
+        if (period == null || period.length < 2) { player.sendMessage(ChatColor.RED + "Erreur: Période non définie."); openProductionStatsPeriodsChoiceMenu(player, context, entreprise); return; }
+        if (actionTypeFilter == null) { player.sendMessage(ChatColor.RED + "Erreur: Type d'action non défini."); openProductionStatsActionTypeChoiceMenu(player, context, entreprise); return; }
+
+        LocalDateTime startDate = period[0]; LocalDateTime endDate = period[1];
+        Map<Material, Integer> productionData; String titleSuffix;
+
+        if (targetEmployeeUUID != null) {
+            productionData = entrepriseLogic.getEmployeeProductionStatsForPeriod(entreprise.getNom(), targetEmployeeUUID, startDate, endDate, actionTypeFilter);
+            OfflinePlayer emp = Bukkit.getOfflinePlayer(targetEmployeeUUID); titleSuffix = (emp.getName() != null ? emp.getName() : "Employé") + " - " + actionTypeFilter.getDisplayName();
+        } else {
+            productionData = entrepriseLogic.getCompanyProductionStatsForPeriod(entreprise.getNom(), startDate, endDate, actionTypeFilter);
+            titleSuffix = "Global - " + actionTypeFilter.getDisplayName();
+        }
+
+        List<Map.Entry<Material, Integer>> sortedMaterials = productionData.entrySet().stream().sorted(Map.Entry.<Material, Integer>comparingByValue().reversed()).collect(Collectors.toList());
+        int page = context.currentPage; int totalItems = sortedMaterials.size(); int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE_MATERIALS);
+        page = Math.max(0, Math.min(page, Math.max(0, totalPages - 1))); context.currentPage = page;
+        String periodDisplay = startDate.format(DateTimeFormatter.ofPattern("dd/MM")) + "-" + endDate.format(DateTimeFormatter.ofPattern("dd/MM HH:mm"));
+
+        String newTitle = TITLE_PROD_STATS_MATERIALS_PREFIX + titleSuffix;
+        Inventory inv = Bukkit.createInventory(null, 54, newTitle);
+        int startIndex = page * ITEMS_PER_PAGE_MATERIALS; int endIndex = Math.min(startIndex + ITEMS_PER_PAGE_MATERIALS, totalItems);
+
+        if (sortedMaterials.isEmpty()) {
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune production de '" + actionTypeFilter.getDisplayName() + "' pour cette période."));
+        } else {
+            for (int i = startIndex; i < endIndex; i++) {
+                Map.Entry<Material, Integer> entry = sortedMaterials.get(i); Material material = entry.getKey(); int quantity = entry.getValue();
+                String materialName = Arrays.stream(material.toString().toLowerCase().replace("_", " ").split(" ")).map(word -> word.substring(0, 1).toUpperCase() + word.substring(1)).collect(Collectors.joining(" "));
+                inv.setItem(i - startIndex, createMenuItem(material, ChatColor.AQUA + materialName, List.of(ChatColor.GOLD + "Quantité: " + String.format("%,d", quantity))));
+            }
+        }
+        if (page > 0) inv.setItem(45, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Précédente"));
+        inv.setItem(49, createMenuItem(Material.PAPER, ChatColor.GOLD + "Page " + (page + 1) + "/" + Math.max(1, totalPages) + ChatColor.GRAY + " (" + periodDisplay + ")"));
+        if (page < totalPages - 1) inv.setItem(53, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Suivante"));
+        addBackButton(inv, 48, "(Choix Période Prod.)");
+        player.openInventory(inv);
+    }
+
+    private void handleProductionMaterialsDisplayClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.equals("Page Précédente")) { if (context.currentPage > 0) { context.currentPage--; openProductionMaterialsDisplay(player, context, entreprise); } }
+        else if (itemName.equals("Page Suivante")) {
+            LocalDateTime[] period = context.currentProductionPeriod; UUID targetEmployeeUUID = context.currentViewingEmployeeStatsUUID; DetailedActionType actionTypeFilter = context.currentViewingActionType;
+            if (period == null || actionTypeFilter == null) { player.sendMessage(ChatColor.RED + "Erreur contexte pagination."); openProductionStatsActionTypeChoiceMenu(player, context, entreprise); return; }
+            Map<Material, Integer> productionData;
+            if (targetEmployeeUUID != null) productionData = entrepriseLogic.getEmployeeProductionStatsForPeriod(entreprise.getNom(),targetEmployeeUUID, period[0], period[1], actionTypeFilter);
+            else productionData = entrepriseLogic.getCompanyProductionStatsForPeriod(entreprise.getNom(), period[0], period[1], actionTypeFilter);
+            int totalItems = productionData.size(); int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE_MATERIALS);
+            if (context.currentPage < totalPages - 1) { context.currentPage++; openProductionMaterialsDisplay(player, context, entreprise); }
+        }
+    }
+
+    private void openEmployeeStatsListMenu(Player player, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
+        context.navigateTo(TITLE_EMPLOYEE_STATS_LIST_PREFIX + entreprise.getNom());
+        List<EntrepriseManagerLogic.EmployeeActivityRecord> records = new ArrayList<>(entreprise.getEmployeeActivityRecords().values());
+        records.sort(Comparator.comparing(r -> r.employeeName.toLowerCase()));
+        int page = context.currentPage; int totalItems = records.size(); int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE_DEFAULT);
+        page = Math.max(0, Math.min(page, Math.max(0, totalPages - 1))); context.currentPage = page;
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_EMPLOYEE_STATS_LIST_PREFIX + entreprise.getNom());
+        int startIndex = page * ITEMS_PER_PAGE_DEFAULT; int endIndex = Math.min(startIndex + ITEMS_PER_PAGE_DEFAULT, totalItems);
+        if (records.isEmpty()) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucune donnée d'employé."));
+        else {
+            for (int i = startIndex; i < endIndex; i++) {
+                EntrepriseManagerLogic.EmployeeActivityRecord r = records.get(i);
+                List<String> lore = new ArrayList<>(List.of(ChatColor.LIGHT_PURPLE + "Ancienneté: " + ChatColor.WHITE + r.getFormattedSeniority(), ChatColor.GREEN + "Valeur Générée: " + ChatColor.WHITE + String.format("%,.2f€", r.totalValueGenerated), ChatColor.GOLD + "Prime: " + ChatColor.WHITE + String.format("%,.2f€/h", entreprise.getPrimePourEmploye(r.employeeId.toString()))));
+                if (r.isActive()) lore.add(ChatColor.GREEN + "Session: Active"); else { lore.add(ChatColor.GRAY + "Session: Inactive"); if (r.lastActivityTime != null) lore.add(ChatColor.GRAY + "Dernière act.: " + r.lastActivityTime.format(DateTimeFormatter.ofPattern("dd/MM HH:mm"))); }
+                lore.add(ChatColor.DARK_AQUA + "Clic détails (chat) / stats prod");
+                inv.setItem(i - startIndex, createPlayerHead(r.employeeName, ChatColor.AQUA + r.employeeName, lore));
+            }
+        }
+        if (page > 0) inv.setItem(45, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Précédente"));
+        inv.setItem(49, createMenuItem(Material.PAPER, ChatColor.GOLD + "Page " + (page + 1) + "/" + Math.max(1, totalPages)));
+        if (page < totalPages - 1) inv.setItem(53, createMenuItem(Material.ARROW, ChatColor.YELLOW + "Page Suivante"));
+        addBackButton(inv, 48, "(Statistiques)");
+        player.openInventory(inv);
+    }
+
+    private void handleEmployeeStatsListMenuClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+        if (itemName.equals("Page Précédente")) { if (context.currentPage > 0) { context.currentPage--; openEmployeeStatsListMenu(player, context, entreprise); } }
+        else if (itemName.equals("Page Suivante")) {
+            List<EntrepriseManagerLogic.EmployeeActivityRecord> records = new ArrayList<>(entreprise.getEmployeeActivityRecords().values());
+            int totalPages = (int) Math.ceil((double) records.size() / ITEMS_PER_PAGE_DEFAULT);
+            if (context.currentPage < totalPages - 1) { context.currentPage++; openEmployeeStatsListMenu(player, context, entreprise); }
+        } else {
+            EntrepriseManagerLogic.EmployeeActivityRecord rec = entreprise.getEmployeeActivityRecords().values().stream().filter(r -> r.employeeName.equalsIgnoreCase(itemName)).findFirst().orElse(null);
+            if (rec != null) {
+                player.closeInventory();
+                player.sendMessage(ChatColor.GOLD + "--- Détails Employé: " + ChatColor.AQUA + rec.employeeName + ChatColor.GOLD + " (" + entreprise.getNom() + ") ---");
+                player.sendMessage(ChatColor.YELLOW + "Ancienneté: " + ChatColor.WHITE + rec.getFormattedSeniority());
+                player.sendMessage(ChatColor.YELLOW + "Valeur Générée: " + ChatColor.GREEN + String.format("%,.2f€", rec.totalValueGenerated));
+                player.sendMessage(ChatColor.YELLOW + "Prime: " + ChatColor.WHITE + String.format("%,.2f€/h", entreprise.getPrimePourEmploye(rec.employeeId.toString())));
+                long totalActions = rec.actionsPerformedCount.values().stream().mapToLong(Long::longValue).sum();
+                player.sendMessage(ChatColor.YELLOW + "Actions Enregistrées: " + ChatColor.WHITE + totalActions);
+                if (rec.isActive()) player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GREEN + "Active");
+                else { player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GRAY + "Inactive"); if (rec.lastActivityTime != null) player.sendMessage(ChatColor.GRAY + " (Dernière act.: " + rec.lastActivityTime.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")) + ")"); }
+                if (!rec.actionsPerformedCount.isEmpty()) {
+                    player.sendMessage(ChatColor.YELLOW + "Détail actions (Total):");
+                    rec.actionsPerformedCount.forEach((actionKey, count) -> {
+                        String[] parts = actionKey.split(":"); String actionTypeStr = parts.length > 0 ? parts[0].replace("_", " ").toLowerCase() : "Action inconnue"; actionTypeStr = actionTypeStr.substring(0,1).toUpperCase() + actionTypeStr.substring(1);
+                        String materialName = parts.length > 1 ? parts[1].replace("_", " ").toLowerCase() : ""; materialName = Arrays.stream(materialName.split(" ")).map(word -> word.substring(0, 1).toUpperCase() + word.substring(1)).collect(Collectors.joining(" "));
+                        player.sendMessage(ChatColor.GRAY + "  - " + actionTypeStr + (parts.length > 1 ? " de " + ChatColor.AQUA + materialName : "") + ": " + ChatColor.WHITE + count);
+                    });
+                }
+                player.sendMessage(ChatColor.GOLD + "---------------------------------------------------------");
+                player.sendMessage(ChatColor.DARK_AQUA + "Pour stats production détaillées: 'Gérer Employés' -> Clic employé -> 'Voir Stats Prod.'");
+            } else player.sendMessage(ChatColor.RED + "Données introuvables pour " + itemName + ".");
+        }
     }
 }
