@@ -24,9 +24,9 @@ types-entreprise:
       BLOCK_BREAK:
         DEEPSLATE: 0.09
         COAL_ORE: 0.70
-        RAW_COPPER_ORE: 1.20
-        RAW_IRON_ORE: 2.80
-        RAW_GOLD_ORE: 4.00
+        COPPER_ORE: 1.20
+        IRON_ORE: 2.80
+        GOLD_ORE: 4.00
         LAPIS_ORE: 3.80
         REDSTONE_ORE: 1.20
         EMERALD_ORE: 30.00
@@ -41,7 +41,7 @@ types-entreprise:
       - "&4&l[!] EXPLOITATION MINIÈRE SPÉCIALISÉE [!]"
       - "&cSeuls les membres d'une entreprise de &6Minage &cpeuvent exploiter cette ressource."
       - "&eVous pouvez en obtenir une quantité très limitée chaque heure en dehors d'une entreprise."
-    limite-non-membre-par-heure: 8
+    limite-non-membre-par-heure: 4
     cout-creation: 12000.0
 
   Agriculture:
