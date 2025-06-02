@@ -1,6 +1,8 @@
 # Configuration pour les entreprises (Productivité & Spécialisation)
 # Mise à jour pour économie RP équilibrée (plafond 100k, améliorations moins chères) : 2025-05-26
 # Ajout de l'entreprise Armurerie
+# Mise à jour messages d'erreur et ajout items principaux : 2025-06-03 (Gemini)
+# Simplification messages de restriction et indication de délai : 2025-06-03 (Gemini)
 
 #--------------------------------------------------------------------------------------------------
 # TYPES D'ENTREPRISE
@@ -8,6 +10,7 @@
 types-entreprise:
 
   Minage:
+    description: "Extraction de minerais précieux et de matériaux de construction bruts. Items principaux : Diamant, Fer, Or, Charbon."
     action_restrictions:
       BLOCK_BREAK:
         COAL_ORE: {}
@@ -33,18 +36,14 @@ types-entreprise:
         DIAMOND_ORE: 60.00
         NETHER_QUARTZ_ORE: 0.90
         ANCIENT_DEBRIS: 180.00
-    message-erreur:
-      - "&c&l[!] ZONE MINIÈRE PROTÉGÉE [!]"
-      - "&eVous ne pouvez pas exploiter cette ressource en tant que non-membre."
-      - "&7Rejoignez une entreprise de &6Minage &7ou attendez la prochaine heure pour une petite quantité."
-    message-erreur-restriction:
-      - "&4&l[!] EXPLOITATION MINIÈRE SPÉCIALISÉE [!]"
-      - "&cSeuls les membres d'une entreprise de &6Minage &cpeuvent exploiter cette ressource."
-      - "&eVous pouvez en obtenir une quantité très limitée chaque heure en dehors d'une entreprise."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
+      - "&eLimite non-membre : %limite% unités par heure. Vous pourrez réessayer à la prochaine heure."
     limite-non-membre-par-heure: 4
     cout-creation: 12000.0
 
   Agriculture:
+    description: "Culture et récolte de produits végétaux essentiels. Items principaux : Blé, Carottes, Pommes de terre, Verrues du Nether."
     action_restrictions:
       BLOCK_BREAK:
         WHEAT: {}
@@ -71,20 +70,16 @@ types-entreprise:
         SUGAR_CANE: 0.18
         BAMBOO: 0.12
         CACTUS: 0.22
-    message-erreur:
-      - "&c&l[!] LIMITE DE RÉCOLTE [!]"
-      - "&eVous avez assez récolté pour cette heure en dehors d'une ferme spécialisée."
-      - "&7Rejoignez une entreprise &2Agricole &7ou attendez."
-    message-erreur-restriction:
-      - "&4&l[!] CULTURE SPÉCIALISÉE [!]"
-      - "&cSeuls les membres d'une entreprise &2Agricole &cpeuvent cultiver ceci en masse."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
+      - "&eLimite non-membre : %limite% récoltes par heure. Réessayez à la prochaine heure pour plus."
     limite-non-membre-par-heure: 12
     cout-creation: 6000.0
 
   Armurerie:
+    description: "Forge d'outils, armes et armures robustes. Items principaux : Épées en Diamant, Armures en Fer, Outils en Netherite."
     action_restrictions:
       CRAFT_ITEM:
-        # Outils et Armes en Diamant
         DIAMOND_SWORD: {}
         DIAMOND_PICKAXE: {}
         DIAMOND_AXE: {}
@@ -94,7 +89,6 @@ types-entreprise:
         DIAMOND_CHESTPLATE: {}
         DIAMOND_LEGGINGS: {}
         DIAMOND_BOOTS: {}
-        # Outils et Armes en Netherite
         NETHERITE_SWORD: {}
         NETHERITE_PICKAXE: {}
         NETHERITE_AXE: {}
@@ -104,54 +98,49 @@ types-entreprise:
         NETHERITE_CHESTPLATE: {}
         NETHERITE_LEGGINGS: {}
         NETHERITE_BOOTS: {}
-        # Divers
         SHIELD: {}
         BOW: {}
         CROSSBOW: {}
-    activites-payantes: # Les prix reflètent une marge sur le coût des matériaux (ex: fer @~3.5/lingot, diamant @60)
+    activites-payantes:
       CRAFT_ITEM:
-        # Fer (Coût lingot estimé ~3.5)
-        IRON_SWORD: 12.0       # Mat: ~7.0
-        IRON_PICKAXE: 18.0     # Mat: ~10.5
-        IRON_AXE: 18.0         # Mat: ~10.5
-        IRON_SHOVEL: 7.0       # Mat: ~3.5
-        IRON_HOE: 12.0         # Mat: ~7.0
-        IRON_HELMET: 28.0      # Mat: ~17.5
-        IRON_CHESTPLATE: 45.0  # Mat: ~28.0
-        IRON_LEGGINGS: 38.0    # Mat: ~24.5
-        IRON_BOOTS: 22.0       # Mat: ~14.0
-        # Diamant (Coût diamant estimé ~60)
-        DIAMOND_SWORD: 160.0    # Mat: ~120
-        DIAMOND_PICKAXE: 240.0  # Mat: ~180
-        DIAMOND_AXE: 240.0      # Mat: ~180
-        DIAMOND_SHOVEL: 80.0    # Mat: ~60
-        DIAMOND_HOE: 150.0      # Mat: ~120
-        DIAMOND_HELMET: 380.0   # Mat: ~300
-        DIAMOND_CHESTPLATE: 600.0 # Mat: ~480
-        DIAMOND_LEGGINGS: 520.0 # Mat: ~420
-        DIAMOND_BOOTS: 300.0    # Mat: ~240
-        # Netherite (Coût lingot estimé ~740 + item diamant)
-        NETHERITE_SWORD: 1050.0 # (Mat DSword ~120 + Lingot ~740 = ~860)
-        NETHERITE_PICKAXE: 1150.0 # (Mat DPick ~180 + Lingot ~740 = ~920)
+        IRON_SWORD: 12.0
+        IRON_PICKAXE: 18.0
+        IRON_AXE: 18.0
+        IRON_SHOVEL: 7.0
+        IRON_HOE: 12.0
+        IRON_HELMET: 28.0
+        IRON_CHESTPLATE: 45.0
+        IRON_LEGGINGS: 38.0
+        IRON_BOOTS: 22.0
+        DIAMOND_SWORD: 160.0
+        DIAMOND_PICKAXE: 240.0
+        DIAMOND_AXE: 240.0
+        DIAMOND_SHOVEL: 80.0
+        DIAMOND_HOE: 150.0
+        DIAMOND_HELMET: 380.0
+        DIAMOND_CHESTPLATE: 600.0
+        DIAMOND_LEGGINGS: 520.0
+        DIAMOND_BOOTS: 300.0
+        NETHERITE_SWORD: 1050.0
+        NETHERITE_PICKAXE: 1150.0
         NETHERITE_AXE: 1150.0
         NETHERITE_SHOVEL: 900.0
         NETHERITE_HOE: 1020.0
-        NETHERITE_HELMET: 1250.0 # (Mat DHelmet ~300 + Lingot ~740 = ~1040)
+        NETHERITE_HELMET: 1250.0
         NETHERITE_CHESTPLATE: 1500.0
         NETHERITE_LEGGINGS: 1400.0
         NETHERITE_BOOTS: 1180.0
-        # Divers
-        SHIELD: 10.0            # Mat: ~4-5 (planches + 1 fer)
+        SHIELD: 10.0
         BOW: 15.0
         CROSSBOW: 30.0
-    message-erreur-restriction:
-      - "&4&l[!] EXPERTISE D'ARMURIER REQUISE [!]"
-      - "&cSeuls les maîtres Armuriers peuvent forger cet équipement en quantité."
-      - "&7Votre capacité de production personnelle est limitée à %limite% par heure."
-    limite-non-membre-par-heure: 0 # Très restrictif pour les équipements spécialisés
-    cout-creation: 18000.0 # Coût élevé pour refléter la valeur des productions
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cLa forge de cet équipement requiert une expertise d'&5Armurier&c."
+      - "&eLimite non-membre : %limite% fabrications par heure. Réessayez à la prochaine heure."
+    limite-non-membre-par-heure: 0
+    cout-creation: 18000.0
 
   Bucheronnage:
+    description: "Abattage et collecte de divers types de bois. Items principaux : Bûches de Chêne, Sapin, Bois exotiques."
     action_restrictions:
       BLOCK_BREAK:
         OAK_LOG: {}
@@ -176,17 +165,14 @@ types-entreprise:
         CHERRY_LOG: 0.65
         CRIMSON_STEM: 0.90
         WARPED_STEM: 0.90
-    message-erreur:
-      - "&c&l[!] LIMITE DE COUPE [!]"
-      - "&eVous avez assez coupé de bois pour cette heure."
-      - "&7Rejoignez une entreprise de &6Bucheronnage &7ou attendez."
-    message-erreur-restriction:
-      - "&4&l[!] ABATTAGE SPÉCIALISÉ [!]"
-      - "&cSeuls les &6Bûcherons &cpeuvent abattre ce type de bois en quantité."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
+      - "&eLimite non-membre : %limite% bûches par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 8
     cout-creation: 7000.0
 
   Boulangerie:
+    description: "Confection de pains, gâteaux et autres délices cuits au four. Items principaux : Pain, Gâteaux, Cookies."
     action_restrictions:
       CRAFT_ITEM:
         BREAD: {}
@@ -203,14 +189,14 @@ types-entreprise:
         PUMPKIN_PIE: 4.50
         MUSHROOM_STEW: 2.20
         RABBIT_STEW: 7.00
-    message-erreur-restriction:
-      - "&4&l[!] PRODUCTION ARTISANALE LIMITÉE [!]"
-      - "&cSeuls les membres d'une &eBoulangerie &cpeuvent produire ceci en grande quantité."
-      - "&7Pour vos besoins personnels, votre limite horaire est de %limite%."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
+      - "&eLimite non-membre : %limite% produits par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 4
     cout-creation: 8000.0
 
   Construction:
+    description: "Pose experte de blocs pour la réalisation de structures variées. Services : Placement de Pierre taillée, Béton, Verre."
     action_restrictions:
       BLOCK_PLACE:
         STONE_BRICKS: {}
@@ -239,14 +225,14 @@ types-entreprise:
         WOOL: 0.03
         DEEPSLATE_TILES: 0.10
         POLISHED_BLACKSTONE_BRICKS: 0.12
-    message-erreur-restriction:
-      - "&4&l[!] EXPERTISE EN CONSTRUCTION REQUISE [!]"
-      - "&cSeuls les membres d'une entreprise de &3Construction &cpeuvent utiliser ce bloc en grande quantité."
-      - "&cSi vous souhaitez construire un biens, veuillez contacter une entreprise de BTP."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cL'utilisation massive de ce bloc est réservée aux entreprises de &3Construction&c."
+      - "&eLimite non-membre : %limite% placements de ce type par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 64
     cout-creation: 4000.0
 
   Boucherie:
+    description: "Abattage d'animaux pour la viande et autres produits. Items principaux : Bœuf, Porc, Poulet, Cuir."
     action_restrictions:
       ENTITY_KILL:
         SHEEP: {}
@@ -261,16 +247,16 @@ types-entreprise:
         PIG: 2.80
         CHICKEN: 1.10
         RABBIT: 0.90
-    message-erreur-restriction:
-      - "&4&l[!] ABATTAGE SPÉCIALISÉ [!]"
-      - "&cSeuls les membres d'une entreprise de &4Boucherie &cpeuvent abattre cet animal en quantité."
-      - "&eVotre limite horaire est de %limite%."
+    message-erreur-restriction: # Simplifié et avec indication de délai
+      - "&cL'abattage en quantité de cet animal est réservé aux &4Boucheries&c."
+      - "&eLimite non-membre : %limite% abattages par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 3
     cout-creation: 7500.0
 
 #--------------------------------------------------------------------------------------------------
 # FINANCE ET PARAMÈTRES GLOBAUX
 #--------------------------------------------------------------------------------------------------
+# ... (Le reste de votre fichier : finance, invitation, siret, rename-cost etc. reste tel quel) ...
 finance:
   max-entreprises-par-gerant: 2
   max-travail-joueur: 1
@@ -322,6 +308,4 @@ siret:
 #--------------------------------------------------------------------------------------------------
 # DIVERS
 #--------------------------------------------------------------------------------------------------
-rename-cost: 3000.0 # Configuration pour EntrepriseManager V2 (Productivité & Spécialisation)
-# Mise à jour pour économie RP équilibrée (plafond 100k, améliorations moins chères) : 2025-05-26
-# Ajout de l'entreprise Armurerie
+rename-cost: 3000.0

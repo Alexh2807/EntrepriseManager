@@ -825,17 +825,59 @@ public class EntrepriseGUI implements Listener {
     private void openRecruitEmployeeProximityMenu(Player gerant, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
         context.navigateTo(TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
         Inventory inv = Bukkit.createInventory(null, 54, TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
+        // Récupère les joueurs proches, la distance est définie dans config.yml (invitation.distance-max)
         Collection<String> nearbyPlayers = entrepriseLogic.getNearbyPlayers(gerant, plugin.getConfig().getInt("invitation.distance-max", 10));
         boolean foundEligible = false;
+
         if (!nearbyPlayers.isEmpty()) {
             for (String targetName : nearbyPlayers) {
-                if (!targetName.equals(gerant.getName()) && !entreprise.getEmployes().contains(targetName) && entrepriseLogic.getNomEntrepriseDuMembre(targetName) == null) {
-                    inv.addItem(createPlayerHead(targetName, List.of(ChatColor.GRAY + "Inviter à '" + entreprise.getNom() + "'.")));
-                    foundEligible = true;
+                OfflinePlayer offlineTarget = Bukkit.getOfflinePlayer(targetName); // Pour s'assurer que le joueur existe
+                // Si le joueur n'a jamais joué ou n'est pas en ligne (et n'a donc pas de Player object), on l'ignore.
+                // Note: Bukkit.getPlayerExact(targetName) serait plus direct si on ne veut que les joueurs en ligne.
+                if ((!offlineTarget.hasPlayedBefore() && !offlineTarget.isOnline())) continue;
+
+                // Le joueur cible ne doit pas être le gérant qui effectue le recrutement
+                if (targetName.equalsIgnoreCase(gerant.getName())) {
+                    continue;
+                }
+
+                // Le joueur cible ne doit pas déjà être employé DANS CETTE entreprise
+                if (entreprise.getEmployes().contains(targetName)) {
+                    continue;
+                }
+
+                // Le joueur cible ne doit pas être le gérant de CETTE entreprise
+                // (Bien que logiquement, s'il l'était, la première condition l'aurait exclu s'il est le même que 'gerant')
+                // Mais c'est une bonne sécurité si un admin utilise la commande pour un autre gérant.
+                if (entreprise.getGerant().equalsIgnoreCase(targetName)) {
+                    continue;
+                }
+
+                // Vérifier si le joueur cible peut accepter un nouveau poste salarié
+                int maxSalariedJobs = plugin.getConfig().getInt("finance.max-travail-joueur", 1); //
+                int currentSalariedJobs = entrepriseLogic.countPlayerSalariedJobs(targetName); //
+
+                if (currentSalariedJobs < maxSalariedJobs) {
+                    // Vérifier si l'entreprise qui recrute a de la place
+                    int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise); //
+                    if (entreprise.getEmployes().size() < maxEmployesActuel) {
+                        // Le joueur est éligible pour être invité
+                        List<String> lore = new ArrayList<>();
+                        lore.add(ChatColor.GRAY + "Inviter à '" + entreprise.getNom() + "'.");
+                        lore.add(ChatColor.YELLOW + "Emplois salariés actuels: " + currentSalariedJobs + "/" + maxSalariedJobs);
+                        // On pourrait ajouter d'autres infos si pertinent, comme le nombre d'entreprises qu'il gère déjà.
+                        // Par exemple: lore.add(ChatColor.BLUE + "Gère: " + entrepriseLogic.getEntreprisesGereesPar(targetName).size() + " ent.");
+
+                        inv.addItem(createPlayerHead(targetName, ChatColor.AQUA + targetName, lore));
+                        foundEligible = true;
+                    }
                 }
             }
         }
-        if (!foundEligible) inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun joueur éligible proche."));
+
+        if (!foundEligible) {
+            inv.setItem(22, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Aucun joueur éligible proche."));
+        }
         addBackButton(inv, 49, "(Gestion Ent.)");
         gerant.openInventory(inv);
     }
