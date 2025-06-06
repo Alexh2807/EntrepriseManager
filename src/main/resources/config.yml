@@ -14,13 +14,21 @@ types-entreprise:
     action_restrictions:
       BLOCK_BREAK:
         COAL_ORE: {}
-        RAW_COPPER_ORE: {}
-        RAW_IRON_ORE: {}
-        RAW_GOLD_ORE: {}
+        COPPER_ORE: {}
+        IRON_ORE: {}
+        GOLD_ORE: {}
         LAPIS_ORE: {}
         REDSTONE_ORE: {}
         DIAMOND_ORE: {}
         EMERALD_ORE: {}
+        DEEPSLATE_COAL_ORE: {}
+        DEEPSLATE_COPPER_ORE: {}
+        DEEPSLATE_IRON_ORE: {}
+        DEEPSLATE_GOLD_ORE: {}
+        DEEPSLATE_LAPIS_ORE: {}
+        DEEPSLATE_REDSTONE_ORE: {}
+        DEEPSLATE_EMERALD_ORE: {}
+        DEEPSLATE_DIAMOND_ORE: {}
         NETHER_QUARTZ_ORE: {}
         ANCIENT_DEBRIS: {}
     activites-payantes:
@@ -34,6 +42,14 @@ types-entreprise:
         REDSTONE_ORE: 1.20
         EMERALD_ORE: 30.00
         DIAMOND_ORE: 60.00
+        DEEPSLATE_COAL_ORE: 0.70
+        DEEPSLATE_COPPER_ORE: 1.20
+        DEEPSLATE_IRON_ORE: 2.80
+        DEEPSLATE_GOLD_ORE: 4.00
+        DEEPSLATE_LAPIS_ORE: 3.80
+        DEEPSLATE_REDSTONE_ORE: 1.20
+        DEEPSLATE_EMERALD_ORE: 30.00
+        DEEPSLATE_DIAMOND_ORE: 60.00
         NETHER_QUARTZ_ORE: 0.90
         ANCIENT_DEBRIS: 180.00
     message-erreur-restriction: # Simplifié et avec indication de délai
@@ -151,6 +167,7 @@ types-entreprise:
         DARK_OAK_LOG: {}
         MANGROVE_LOG: {}
         CHERRY_LOG: {}
+        CHERRY_WOOD: {}
         CRIMSON_STEM: {}
         WARPED_STEM: {}
     activites-payantes:
@@ -163,6 +180,7 @@ types-entreprise:
         DARK_OAK_LOG: 0.70
         MANGROVE_LOG: 0.75
         CHERRY_LOG: 0.65
+        CHERRY_WOOD: 0.65
         CRIMSON_STEM: 0.90
         WARPED_STEM: 0.90
     message-erreur-restriction: # Simplifié et avec indication de délai
@@ -258,8 +276,8 @@ types-entreprise:
 #--------------------------------------------------------------------------------------------------
 # ... (Le reste de votre fichier : finance, invitation, siret, rename-cost etc. reste tel quel) ...
 finance:
-  max-entreprises-par-gerant: 2
-  max-travail-joueur: 1
+  max-entreprises-par-gerant: 5
+  max-travail-joueur: 5
 
   pourcentage-taxes: 20.0
   charge-salariale-par-employe-horaire: 5.0
