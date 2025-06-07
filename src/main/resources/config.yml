@@ -75,22 +75,32 @@ types-entreprise:
         CACTUS: {}
     activites-payantes:
       BLOCK_BREAK:
-        WHEAT: 0.28
-        CARROTS: 0.22
-        POTATOES: 0.22
-        BEETROOTS: 0.25
-        NETHER_WART: 0.80
-        COCOA_BEANS: 0.35
+        WHEAT: 0.45
+        CARROTS: 0.35
+        POTATOES: 0.35
+        BEETROOTS: 0.35
+        NETHER_WART: 0.10
+        COCOA_BEANS: 0.60
         PUMPKIN: 1.60
         MELON: 1.30
-        SUGAR_CANE: 0.18
-        BAMBOO: 0.12
-        CACTUS: 0.22
+        SUGAR_CANE: 0.30
+        BAMBOO: 0.15
+        CACTUS: 0.28
     message-erreur-restriction: # Simplifié et avec indication de délai
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite non-membre : %limite% récoltes par heure. Réessayez à la prochaine heure pour plus."
     limite-non-membre-par-heure: 12
     cout-creation: 6000.0
+    aide-etat-horaire: 150.0
+    services:
+      permission-employe: true # Seuls les employés avec la permission ou le gérant peuvent proposer
+      liste:
+        - nom: "Moisson_Express"
+          description: "Récolte complète d'un champ de 50x50 blocs."
+          prix: 5000.0
+        - nom: "Livraison_Produits_Frais"
+          description: "Fourniture d'un stock de 64 blés, 64 carottes et 64 patates."
+          prix: 800.0
 
   Armurerie:
     description: "Forge d'outils, armes et armures robustes. Items principaux : Épées en Diamant, Armures en Fer, Outils en Netherite."

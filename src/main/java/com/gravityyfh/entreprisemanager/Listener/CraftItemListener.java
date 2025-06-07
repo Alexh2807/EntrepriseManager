@@ -9,8 +9,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.CraftItemEvent;
-import org.bukkit.inventory.ItemStack;
-import java.util.logging.Level; // Ajout pour les logs de debug
+import org.bukkit.inventory.*;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Level;
 
 public class CraftItemListener implements Listener {
 
@@ -22,69 +25,112 @@ public class CraftItemListener implements Listener {
         this.entrepriseLogic = entrepriseLogic;
     }
 
-    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) {
-            return; // Action non initiée par un joueur
+            return;
         }
         Player player = (Player) event.getWhoClicked();
 
         if (player.getGameMode() == GameMode.CREATIVE) {
-            plugin.getLogger().log(Level.FINER, "CraftItemEvent ignoré (Joueur en créatif : " + player.getName() + ")");
             return;
         }
 
-        ItemStack itemCraftedStack = event.getRecipe().getResult();
-        Material itemType = itemCraftedStack.getType();
-        String itemTypeName = itemType.name(); // Obtenir le nom de l'item sous forme de String
-        int amountCrafted = 0;
+        Recipe recipe = event.getRecipe();
+        if (recipe == null) return;
 
-        // Déterminer la quantité craftée
-        // Si l'utilisateur clique normalement, cela fabrique la quantité de la recette.
-        // Si l'utilisateur fait un shift-click, il fabrique autant que possible.
-        // L'événement CraftItemEvent est appelé pour *chaque résultat* de fabrication.
-        // Si une recette donne 8 pains et que le joueur shift-click pour en faire 64, l'event est appelé 8 fois.
-        // Donc, event.getRecipe().getResult().getAmount() est la quantité pour UNE opération.
-        // Pour calculer la quantité totale lors d'un shift-click, c'est plus complexe.
-        // La solution la plus simple est de compter la quantité de l'item résultant dans le curseur
-        // ou ce qui est ajouté à l'inventaire, mais l'event est PRE-craft.
-        // Pour la restriction horaire, il est plus simple de compter CHAQUE action de craft.
-        // Si la recette fait 1 item, amountCrafted sera 1.
-        // Si la recette fait 8 cookies, amountCrafted sera 8.
-        // C'est la quantité pour une seule "pression" sur la table de craft.
+        ItemStack resultItem = recipe.getResult();
+        Material itemType = resultItem.getType();
+        String itemTypeName = itemType.name();
+        int amountPerCraft = resultItem.getAmount();
 
-        // La variable 'amountCrafted' est la quantité résultante d'UNE SEULE opération de craft.
-        // C'est ce que nous allons utiliser pour vérifier les restrictions et enregistrer la productivité.
-        amountCrafted = itemCraftedStack.getAmount();
+        int totalAmountToCraft;
 
+        // --- LOGIQUE CORRIGÉE POUR LE SHIFT-CLICK ---
+        if (event.isShiftClick()) {
+            // Si le joueur shift-click, nous devons calculer la quantité totale qui sera fabriquée
+            // pour la vérifier par rapport à la limite horaire.
+            int maxCraftsPossible = calculateMaxCraftable(player, recipe, event.getInventory());
+            totalAmountToCraft = maxCraftsPossible * amountPerCraft;
+        } else {
+            // Pour un clic normal, la quantité est simplement celle d'une seule fabrication.
+            totalAmountToCraft = amountPerCraft;
+        }
+        // --- FIN DE LA LOGIQUE CORRIGÉE ---
 
-        // Gérer la quantité pour le shift-click :
-        // Si le joueur shift-click, event.isShiftClick() sera vrai.
-        // L'événement est généralement appelé plusieurs fois pour un shift-click.
-        // Chaque appel correspond à une "unité" de la recette.
-        // Par exemple, si la recette fait 1 pain et que le joueur en craft 10 avec shift-click,
-        // l'event est appelé 10 fois, avec amountCrafted = 1 à chaque fois.
-        // Si la recette fait 8 cookies et qu'il en craft 16, l'event est appelé 2 fois, amountCrafted = 8.
-        // Donc, la valeur 'amountCrafted' récupérée directement est correcte par événement.
+        if (totalAmountToCraft <= 0) {
+            // Si le calcul aboutit à 0, le craft va échouer de toute façon (pas assez d'ingrédients),
+            // ou bien il s'agit d'un clic simple sur un résultat de 0 (impossible). On ignore.
+            return;
+        }
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Événement : " + player.getName() + " crafte " + amountCrafted + "x " + itemTypeName);
+        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Tentative de craft par " + player.getName() + " pour une quantité totale de " + totalAmountToCraft + "x " + itemTypeName + (event.isShiftClick() ? " (via Shift-Click)" : ""));
 
+        // On vérifie la restriction en utilisant la quantité TOTALE qui sera fabriquée.
+        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, totalAmountToCraft);
 
-        // Vérifier les restrictions pour l'item crafté
-        // Utiliser la surcharge de verifierEtGererRestrictionAction qui prend un String pour le nom de la cible (ici, le nom de l'item)
-        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, amountCrafted);
-
-        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Résultat vérification restriction pour " + player.getName() + " craftant " + itemTypeName + " : " + (isBlocked ? "BLOQUÉ" : "AUTORISÉ"));
+        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Résultat vérification restriction pour " + player.getName() + " : " + (isBlocked ? "BLOQUÉ" : "AUTORISÉ"));
 
         if (isBlocked) {
-            event.setCancelled(true); // Action bloquée par la restriction (limite non-membre atteinte)
-            plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Craft de " + amountCrafted + "x " + itemTypeName + " annulé par restriction pour " + player.getName());
+            event.setCancelled(true);
+            plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Craft de " + totalAmountToCraft + "x " + itemTypeName + " annulé par restriction pour " + player.getName());
             return;
         }
 
-        // Si l'action n'est pas bloquée, enregistrer l'action productive.
-        // La méthode enregistrerActionProductive pour CRAFT_ITEM utilise toujours l'objet Material.
-        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Enregistrement action pour " + player.getName() + " craftant " + amountCrafted + "x " + itemTypeName);
-        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, amountCrafted);
+        // L'action est autorisée. On laisse l'enregistrement de productivité se faire.
+        // Pour un shift-click, cet événement sera appelé plusieurs fois.
+        // La restriction ayant été validée en amont sur le total, on peut laisser
+        // la logique d'enregistrement de revenu traiter chaque événement individuellement.
+        plugin.getLogger().log(Level.FINER, "[DEBUG Craft] Enregistrement action pour " + player.getName() + " craftant (quantité par event) " + amountPerCraft + "x " + itemTypeName);
+        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, amountPerCraft);
+    }
+
+    /**
+     * Calcule le nombre maximal de fois qu'une recette peut être fabriquée.
+     * C'est la partie la plus complexe.
+     *
+     * @param player L'auteur du craft.
+     * @param recipe La recette utilisée.
+     * @param craftingInventory L'inventaire de la table de craft.
+     * @return Le nombre de fois que la recette peut être complétée.
+     */
+    private int calculateMaxCraftable(Player player, Recipe recipe, CraftingInventory craftingInventory) {
+        // La méthode la plus simple pour le shift-click est de vérifier la quantité d'ingrédients
+        // DANS LA GRILLE DE CRAFT et de trouver le plus petit stack.
+        // Cela détermine le nombre de crafts possibles EN UN SEUL CLIC.
+        int maxCrafts = Integer.MAX_VALUE;
+
+        for (ItemStack item : craftingInventory.getMatrix()) {
+            if (item != null && item.getType() != Material.AIR) {
+                maxCrafts = Math.min(maxCrafts, item.getAmount());
+            }
+        }
+
+        if (maxCrafts == Integer.MAX_VALUE) return 0; // Grille vide
+
+        // Maintenant, on vérifie combien de sets d'ingrédients le joueur possède DANS SON INVENTAIRE
+        // pour remplacer ceux de la grille de craft.
+        HashMap<Material, Integer> ingredients = new HashMap<>();
+        for (ItemStack item : craftingInventory.getMatrix()) {
+            if (item != null && item.getType() != Material.AIR) {
+                ingredients.merge(item.getType(), 1, Integer::sum);
+            }
+        }
+
+        if (ingredients.isEmpty()) return 0;
+
+        int craftableFromInventory = Integer.MAX_VALUE;
+        for (Map.Entry<Material, Integer> entry : ingredients.entrySet()) {
+            int playerAmount = 0;
+            // On compte UNIQUEMENT les items dans l'inventaire principal, pas l'armure ou la main secondaire.
+            for (ItemStack invItem : player.getInventory().getStorageContents()) {
+                if (invItem != null && invItem.getType() == entry.getKey()) {
+                    playerAmount += invItem.getAmount();
+                }
+            }
+            craftableFromInventory = Math.min(craftableFromInventory, playerAmount / entry.getValue());
+        }
+
+        return maxCrafts + craftableFromInventory;
     }
 }
