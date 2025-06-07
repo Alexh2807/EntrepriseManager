@@ -245,7 +245,7 @@ types-entreprise:
         POLISHED_BLACKSTONE_BRICKS: 0.12
     message-erreur-restriction: # Simplifié et avec indication de délai
       - "&cL'utilisation massive de ce bloc est réservée aux entreprises de &3Construction&c."
-      - "&eLimite non-membre : %limite% placements de ce type par heure. Réessayez à la prochaine heure."
+      - "&eLimite non-membre : %limite% placements de ce type par heure. Réessayez à la prochaine heure !"
     limite-non-membre-par-heure: 64
     cout-creation: 4000.0
 
