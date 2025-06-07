@@ -15,6 +15,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 // import org.bukkit.inventory.ItemFlag; // Décommenter si vous l'utilisez pour cacher les attributs
 
+import java.time.Duration; // <-- IMPORT AJOUTÉ
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -24,12 +25,15 @@ import java.util.stream.Collectors;
 
 // Importation nécessaire pour DetailedActionType
 import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.DetailedActionType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 
 public class EntrepriseGUI implements Listener {
 
     private final EntrepriseManager plugin;
     private final EntrepriseManagerLogic entrepriseLogic;
+    private final Map<UUID, BukkitTask> guiUpdateTasks = new HashMap<>();
 
     private static class PlayerGUIContext {
         String currentMenuTitle;
@@ -106,9 +110,6 @@ public class EntrepriseGUI implements Listener {
     private static final String TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. - Type Action: ";
     private static final String TITLE_PROD_STATS_PERIODS_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. Périodes: ";
     private static final String TITLE_PROD_STATS_MATERIALS_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. Matériaux: ";
-    // Les titres pour PlayerCVGUI sont gérés dans PlayerCVGUI.java
-    // private static final String TITLE_PLAYER_CV_MAIN = ChatColor.DARK_GREEN + "Gestion de CV";
-    // private static final String TITLE_SHOW_CV_TO_PLAYER = ChatColor.DARK_GREEN + "Montrer CV à un Joueur";
 
 
     public EntrepriseGUI(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
@@ -273,6 +274,8 @@ public class EntrepriseGUI implements Listener {
         context.navigateTo(TITLE_MAIN_MENU);
 
         Inventory inv = Bukkit.createInventory(null, 27, TITLE_MAIN_MENU);
+
+        // --- Items statiques ---
         inv.setItem(10, createMenuItem(Material.WRITABLE_BOOK, ChatColor.GOLD + "Créer une Entreprise", List.of(ChatColor.GRAY + "Pour les Maires.")));
         inv.setItem(12, createMenuItem(Material.MAP, ChatColor.GOLD + "Lister les Entreprises", List.of(ChatColor.GRAY + "Voir les entreprises par ville.")));
         inv.setItem(14, createMenuItem(Material.CHEST, ChatColor.GOLD + "Mes Entreprises", List.of(ChatColor.GRAY + "Gérer ou voir vos entreprises.")));
@@ -280,7 +283,68 @@ public class EntrepriseGUI implements Listener {
         if (player.hasPermission("entreprisemanager.admin")) {
             inv.setItem(8, createMenuItem(Material.COMMAND_BLOCK, ChatColor.RED + "Menu Administration", List.of(ChatColor.GRAY + "Actions réservées aux admins.")));
         }
+
+        // --- Item de l'horloge (sera mis à jour) ---
+        // On le crée une première fois pour éviter un inventaire vide au premier tick.
+        inv.setItem(0, createMenuItem(Material.CLOCK, ChatColor.GOLD + "Cycle Économique", List.of(ChatColor.GRAY + "Calcul en cours...")));
         player.openInventory(inv);
+
+        // --- MISE EN PLACE DE LA MISE À JOUR EN TEMPS RÉEL ---
+        // Annuler une tâche précédente si elle existe
+        if (guiUpdateTasks.containsKey(player.getUniqueId())) {
+            guiUpdateTasks.get(player.getUniqueId()).cancel();
+        }
+
+        BukkitTask updateTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                // S'assurer que le joueur est en ligne et que le menu est toujours le bon
+                if (!player.isOnline() || !player.getOpenInventory().getTitle().equals(TITLE_MAIN_MENU)) {
+                    this.cancel(); // Annuler la tâche
+                    guiUpdateTasks.remove(player.getUniqueId());
+                    return;
+                }
+
+                LocalDateTime nextPayment = entrepriseLogic.getNextPaymentTime();
+                String countdownDisplay = ChatColor.RED + "N/A";
+                String nextPaymentTimeDisplay = ChatColor.RED + "N/A";
+
+                if (nextPayment != null) {
+                    // Formatage de l'heure du prochain paiement (ex: 18H00)
+                    nextPaymentTimeDisplay = nextPayment.format(DateTimeFormatter.ofPattern("HH'H'mm"));
+
+                    Duration remaining = Duration.between(LocalDateTime.now(), nextPayment);
+                    if (!remaining.isNegative()) {
+                        long minutes = remaining.toMinutesPart();
+                        long seconds = remaining.toSecondsPart();
+                        // Formatage du temps restant (ex: 35min 08sec)
+                        countdownDisplay = String.format("%dmin %02dsec", minutes, seconds);
+                    } else {
+                        countdownDisplay = ChatColor.YELLOW + "En cours...";
+                    }
+                }
+
+                // Récupération de l'item de l'horloge pour le mettre à jour
+                ItemStack clockItem = inv.getItem(0);
+                if (clockItem != null) {
+                    ItemMeta meta = clockItem.getItemMeta();
+                    if (meta != null) {
+                        meta.setDisplayName(ChatColor.GOLD + "Prochain Cycle Économique");
+                        // Mise à jour du Lore (description) avec les nouvelles informations
+                        meta.setLore(List.of(
+                                ChatColor.AQUA + "Heure du prochain cycle",
+                                ChatColor.WHITE + nextPaymentTimeDisplay,
+                                "", // Ligne vide pour l'espacement
+                                ChatColor.AQUA + "Temps restant",
+                                ChatColor.WHITE + countdownDisplay
+                        ));
+                        clockItem.setItemMeta(meta);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 20L); // Exécute toutes les 20 ticks (1 seconde)
+
+        guiUpdateTasks.put(player.getUniqueId(), updateTask);
     }
 
     private void handleMainMenuClick(Player player, PlayerGUIContext context, String itemName) {

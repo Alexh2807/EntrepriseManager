@@ -283,7 +283,7 @@ finance:
   charge-salariale-par-employe-horaire: 5.0
   charges-sur-employes-actifs-seulement: false
 
-  allocation-chomage-horaire: 50.0
+  allocation-chomage-horaire: 200.0
 
   max-employer-par-entreprise:
     0: 2

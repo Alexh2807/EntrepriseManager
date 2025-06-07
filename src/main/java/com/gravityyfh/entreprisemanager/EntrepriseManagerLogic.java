@@ -43,7 +43,9 @@ public class EntrepriseManagerLogic {
     private static Map<String, Entreprise> entreprises;
     private static File entrepriseFile;
 
-    // --- Suppression de playerPlacedBlocksFile et playerPlacedBlocksLocations ---
+    private BukkitTask activityCheckTask;
+    private LocalDateTime nextPaymentTime; // <-- CHAMP À AJOUTER
+    private static final long INACTIVITY_THRESHOLD_SECONDS = 15;
 
     // --- Historique ---
     private static File playerHistoryFile;
@@ -55,9 +57,6 @@ public class EntrepriseManagerLogic {
     private final Map<UUID, DemandeCreation> demandesEnAttente = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, ActionInfo>> joueurActivitesRestrictions = new ConcurrentHashMap<>();
     private BukkitTask hourlyTask;
-    private BukkitTask activityCheckTask;
-
-    private static final long INACTIVITY_THRESHOLD_SECONDS = 15;
     private static final long ACTIVITY_CHECK_INTERVAL_TICKS = 20L * 10L;
 
 
@@ -292,22 +291,48 @@ public class EntrepriseManagerLogic {
 
     // --- Tâches Horaires ---
     private void planifierTachesHoraires() {
-        if (hourlyTask != null && !hourlyTask.isCancelled()) hourlyTask.cancel();
+        if (hourlyTask != null && !hourlyTask.isCancelled()) {
+            hourlyTask.cancel();
+        }
+
+        // Calcule le temps restant jusqu'à la prochaine heure pleine
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime nextFullHour = now.withMinute(0).withSecond(0).withNano(0).plusHours(1);
+        long initialDelayTicks = java.time.Duration.between(now, nextFullHour).toSeconds() * 20L;
+
+        // Sécurité pour éviter un délai négatif si la tâche est lancée exactement à l'heure pile
+        if (initialDelayTicks <= 0) {
+            initialDelayTicks = 20L * 60L * 60L; // Reprogramme dans une heure
+            nextFullHour = nextFullHour.plusHours(1);
+        }
+
+        this.nextPaymentTime = nextFullHour; // Mémorise l'heure de la prochaine exécution
         long ticksParHeure = 20L * 60L * 60L;
-        long initialDelay = ticksParHeure;
 
         hourlyTask = new BukkitRunnable() {
             @Override
             public void run() {
-                plugin.getLogger().info("Exécution des tâches horaires...");
+                plugin.getLogger().info("Exécution des tâches horaires automatiques...");
                 traiterChiffreAffairesHoraire();
                 payerPrimesHorairesAuxEmployes();
                 payerChargesSalarialesHoraires();
                 payerAllocationChomageHoraire();
-                plugin.getLogger().info("Tâches horaires terminées.");
+
+                // Réinitialise les limites pour tous les joueurs en même temps
+                resetHourlyLimitsForAllPlayers();
+
+                plugin.getLogger().info("Tâches horaires automatiques terminées.");
+
+                // Met à jour l'heure du prochain paiement pour le cycle suivant
+                nextPaymentTime = LocalDateTime.now().withMinute(0).withSecond(0).withNano(0).plusHours(1);
             }
-        }.runTaskTimer(plugin, initialDelay, ticksParHeure);
-        plugin.getLogger().info("Tâches horaires planifiées pour s'exécuter toutes les heures.");
+        }.runTaskTimer(plugin, initialDelayTicks, ticksParHeure);
+
+        plugin.getLogger().info("Tâches horaires planifiées. Prochaine exécution vers: " + nextFullHour.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+    }
+    public void resetHourlyLimitsForAllPlayers() {
+        joueurActivitesRestrictions.clear();
+        plugin.getLogger().info("Les limites d'actions horaires pour les non-membres ont été réinitialisées globalement.");
     }
     // --- Fin Tâches Horaires ---
 
@@ -567,55 +592,30 @@ public class EntrepriseManagerLogic {
             return false;
         }
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] === Début Vérification ===");
-        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Joueur: " + player.getName() + " (Entreprise: " + typeEntrepriseJoueur + ")");
-        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Action: " + actionTypeString + ", Cible: " + targetName + ", Quantité: " + quantite);
-
         for (String typeEntSpecialise : typesEntreprisesConfig.getKeys(false)) {
-            plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Vérification pour type spécialisé: " + typeEntSpecialise);
-
             String restrictionPath = "types-entreprise." + typeEntSpecialise + ".action_restrictions." + actionTypeString.toUpperCase() + "." + targetName.toUpperCase();
-            boolean configContientRestriction = plugin.getConfig().contains(restrictionPath);
-            plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Chemin action_restrictions vérifié: '" + restrictionPath + "' -> Existe? " + configContientRestriction);
-
-            boolean actionEstRestreinte = configContientRestriction;
-
-            if (!actionEstRestreinte && actionTypeString.equalsIgnoreCase("BLOCK_BREAK")) {
-                String legacyBlocsPath = "types-entreprise." + typeEntSpecialise + ".blocs-autorisés";
-                boolean legacyListExists = plugin.getConfig().isList(legacyBlocsPath);
-                boolean legacyListContains = legacyListExists && plugin.getConfig().getStringList(legacyBlocsPath).contains(targetName.toUpperCase());
-                plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Vérification legacy 'blocs-autorisés' (" + legacyBlocsPath + ") pour " + targetName + ": Existe? " + legacyListExists + ", Contient? " + legacyListContains);
-                if (legacyListContains) {
-                    actionEstRestreinte = true;
-                }
-            }
-
-            plugin.getLogger().log(Level.FINER, "[DEBUG Restrict] Type Spé: " + typeEntSpecialise + ", Action restreinte globalement? " + actionEstRestreinte);
+            boolean actionEstRestreinte = plugin.getConfig().contains(restrictionPath);
 
             if (actionEstRestreinte) {
                 boolean estMembreDeCeTypeSpecialise = (entrepriseJoueurObj != null && entrepriseJoueurObj.getType().equals(typeEntSpecialise));
-                plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Le joueur " + player.getName() + " est-il membre de " + typeEntSpecialise + "? " + estMembreDeCeTypeSpecialise);
 
                 if (estMembreDeCeTypeSpecialise) {
-                    plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Joueur est membre, action AUTORISÉE (pas de blocage pour les membres). On arrête la vérification pour cette action.");
-                    return false;
+                    return false; // Les membres ne sont pas restreints, on autorise l'action.
                 } else {
+                    // Le joueur n'est pas membre, on applique la limite horaire.
                     int limiteNonMembre = plugin.getConfig().getInt("types-entreprise." + typeEntSpecialise + ".limite-non-membre-par-heure", -1);
-                    plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Joueur NON-MEMBRE. Limite horaire pour " + typeEntSpecialise + " = " + limiteNonMembre);
-
                     if (limiteNonMembre == -1) {
-                        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Pas de limite horaire (-1) pour non-membres de " + typeEntSpecialise + ". On continue...");
-                        continue;
+                        continue; // Pas de limite pour ce type, on passe au suivant.
                     }
 
                     List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + typeEntSpecialise + ".message-erreur-restriction");
-                    if(messagesErreur.isEmpty()) messagesErreur = plugin.getConfig().getStringList("types-entreprise." + typeEntSpecialise + ".message-erreur");
-                    if (messagesErreur.isEmpty()) messagesErreur.add("&cAction restreinte. Limite horaire : %limite%");
+                    if (messagesErreur.isEmpty()) {
+                        messagesErreur.add("&cAction restreinte. Limite horaire : %limite%");
+                    }
 
                     if (limiteNonMembre == 0) {
                         messagesErreur.forEach(msg -> player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", "0"))));
-                        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Limite = 0. Action BLOQUÉE pour non-membre " + player.getName() + " sur " + targetName);
-                        return true;
+                        return true; // Action bloquée.
                     }
 
                     String actionIdPourRestriction = typeEntSpecialise + "_" + actionTypeString.toUpperCase() + "_" + targetName.toUpperCase();
@@ -624,32 +624,27 @@ public class EntrepriseManagerLogic {
                             .computeIfAbsent(actionIdPourRestriction, k -> new ActionInfo());
 
                     synchronized(info) {
-                        if (info.getDernierActionHeure().getHour() != LocalDateTime.now().getHour()) {
-                            plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Réinitialisation compteur horaire pour " + actionIdPourRestriction + " (Joueur: " + player.getName() + ")");
-                            info.reinitialiserActions(LocalDateTime.now());
-                        }
-                        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Compteur actuel pour " + actionIdPourRestriction + ": " + info.getNombreActions() + " / " + limiteNonMembre + " (Joueur: " + player.getName() + ")");
+                        // LA LOGIQUE DE RESET INDIVIDUELLE A ÉTÉ SUPPRIMÉE ICI.
+                        // La réinitialisation est maintenant globale via resetHourlyLimitsForAllPlayers().
 
                         if (info.getNombreActions() + quantite > limiteNonMembre) {
                             final int currentCount = info.getNombreActions();
                             messagesErreur.forEach(msg -> player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", String.valueOf(limiteNonMembre)))));
                             player.sendMessage(ChatColor.GRAY + "(Limite atteinte: " + currentCount + "/" + limiteNonMembre + ")");
-                            plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Limite DÉPASSÉE (" + (info.getNombreActions() + quantite) + "/" + limiteNonMembre + "). Action BLOQUÉE pour " + player.getName() + " sur " + targetName);
-                            return true;
+                            return true; // Action bloquée car la limite est dépassée.
                         } else {
                             info.incrementerActions(quantite);
-                            plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Limite OK. Nouveau compte pour " + actionIdPourRestriction + ": " + info.getNombreActions() + " (Joueur: " + player.getName() + ")");
                         }
                     }
                 }
             }
         }
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] === Fin Vérification ===");
-        plugin.getLogger().log(Level.INFO, "[DEBUG Restrict] Aucune restriction BLOQUANTE trouvée pour " + targetName + " par " + player.getName() + ". Action AUTORISÉE.");
-        return false;
+        return false; // Aucune restriction bloquante trouvée, l'action est autorisée.
     }
-
+    public LocalDateTime getNextPaymentTime() {
+        return nextPaymentTime;
+    }
     // --- Accès Entreprises ---
     public Entreprise getEntreprise(String nomEntreprise) { return entreprises.get(nomEntreprise); }
     public Collection<Entreprise> getEntreprises() { return Collections.unmodifiableCollection(entreprises.values()); }
