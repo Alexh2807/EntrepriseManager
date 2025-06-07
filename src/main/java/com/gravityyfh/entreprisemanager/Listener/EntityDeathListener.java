@@ -1,5 +1,7 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.entreprisemanager.Listener;
 
+import com.gravityyfh.entreprisemanager.EntrepriseManager;
+import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
 import org.bukkit.GameMode;
 // Supprimez Material si non utilisé
 import org.bukkit.entity.EntityType;

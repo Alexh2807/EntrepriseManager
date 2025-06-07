@@ -39,7 +39,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseManagerLogic {
-    static EntrepriseManager plugin;
+    public static EntrepriseManager plugin;
     private static Map<String, Entreprise> entreprises;
     private static File entrepriseFile;
 

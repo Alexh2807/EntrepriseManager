@@ -1,5 +1,7 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.entreprisemanager.Listener;
 
+import com.gravityyfh.entreprisemanager.EntrepriseManager;
+import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
 import com.palmergames.bukkit.towny.event.DeleteTownEvent;
 import com.palmergames.bukkit.towny.event.TownRemoveResidentEvent; // Ajout de l'événement pour un résident qui quitte une ville
 import com.palmergames.bukkit.towny.object.Resident;

@@ -1,5 +1,7 @@
-package com.gravityyfh.entreprisemanager; // Assurez-vous que le package est correct
+package com.gravityyfh.entreprisemanager.Listener; // Assurez-vous que le package est correct
 
+import com.gravityyfh.entreprisemanager.EntrepriseGUI;
+import com.gravityyfh.entreprisemanager.EntrepriseManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
