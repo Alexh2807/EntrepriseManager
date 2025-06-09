@@ -345,6 +345,7 @@ public class ShopManager {
       if (chestBlock.getState() instanceof Chest) {
          Block signBlock = this.findSignAttachedToChest(chestBlock);
          if (signBlock != null) {
+            signBlock.getChunk().load();
             Bukkit.getScheduler().runTask(this.plugin, () -> {
                signBlock.breakNaturally();
             });
@@ -359,14 +360,15 @@ public class ShopManager {
    }
 
    private Block findSignAttachedToChest(Block chestBlock) {
-      BlockFace[] var2 = new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
-      int var3 = var2.length;
+      BlockFace[] faces = new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
 
-      for(int var4 = 0; var4 < var3; ++var4) {
-         BlockFace face = var2[var4];
+      for (BlockFace face : faces) {
          Block relative = chestBlock.getRelative(face);
-         if (relative.getBlockData() instanceof WallSign && ((WallSign)relative.getBlockData()).getFacing().getOppositeFace() == face) {
-            return relative;
+         if (relative.getBlockData() instanceof WallSign) {
+            WallSign signData = (WallSign)relative.getBlockData();
+            if (signData.getFacing() == face) {
+               return relative;
+            }
          }
       }
 
@@ -410,13 +412,24 @@ public class ShopManager {
 
    private void deleteDisplayItem(Shop shop) {
       if (shop.getDisplayItemID() != null) {
-         Bukkit.getScheduler().runTask(this.plugin, () -> {
-            Entity entity = Bukkit.getEntity(shop.getDisplayItemID());
-            if (entity instanceof Item) {
-               entity.remove();
-            }
+         Location itemLocation = this.getFloatingItemLocation(shop.getLocation());
+         if (itemLocation != null && itemLocation.getWorld() != null) {
+            itemLocation.getChunk().load();
+            Bukkit.getScheduler().runTask(this.plugin, () -> {
+               Entity entity = Bukkit.getEntity(shop.getDisplayItemID());
+               if (entity instanceof Item) {
+                  entity.remove();
+               } else {
+                  for (Entity nearby : itemLocation.getWorld().getNearbyEntities(itemLocation, 0.3D, 0.3D, 0.3D)) {
+                     if (nearby instanceof Item && ((Item) nearby).getPickupDelay() == Integer.MAX_VALUE) {
+                        nearby.remove();
+                        break;
+                     }
+                  }
+               }
 
-         });
+            });
+         }
          shop.setDisplayItemID((UUID)null);
       }
 
