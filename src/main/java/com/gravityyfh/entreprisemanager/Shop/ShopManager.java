@@ -395,7 +395,7 @@ public class ShopManager {
       Location itemLocation = this.getFloatingItemLocation(shop.getLocation());
       if (itemLocation != null && itemLocation.getWorld() != null) {
          itemLocation.getChunk().load();
-         Bukkit.getScheduler().runTask(this.plugin, () -> {
+         Runnable spawnTask = () -> {
             ItemStack displayStack = shop.getItemTemplate().clone();
             displayStack.setAmount(1);
             Item item = itemLocation.getWorld().dropItem(itemLocation, displayStack);
@@ -406,7 +406,12 @@ public class ShopManager {
             item.setTicksLived(1);
             shop.setDisplayItemID(item.getUniqueId());
             this.saveShops();
-        });
+         };
+         if (Bukkit.isPrimaryThread()) {
+            spawnTask.run();
+         } else {
+            Bukkit.getScheduler().runTask(this.plugin, spawnTask);
+         }
       }
    }
 
@@ -420,7 +425,7 @@ public class ShopManager {
          Location itemLocation = this.getFloatingItemLocation(shop.getLocation());
          if (itemLocation != null && itemLocation.getWorld() != null) {
             itemLocation.getChunk().load();
-            Bukkit.getScheduler().runTask(this.plugin, () -> {
+            Runnable removeTask = () -> {
                Entity entity = Bukkit.getEntity(shop.getDisplayItemID());
                if (entity instanceof Item) {
                   entity.remove();
@@ -432,8 +437,12 @@ public class ShopManager {
                      }
                   }
                }
-
-            });
+            };
+            if (Bukkit.isPrimaryThread()) {
+               removeTask.run();
+            } else {
+               Bukkit.getScheduler().runTask(this.plugin, removeTask);
+            }
          }
          shop.setDisplayItemID((UUID)null);
       }
