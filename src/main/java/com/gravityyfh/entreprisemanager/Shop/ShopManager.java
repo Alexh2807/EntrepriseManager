@@ -180,7 +180,7 @@ public class ShopManager {
    }
 
    public void deleteAllShopsForEnterprise(String siret) {
-      (new ArrayList(this.getShopsBySiret(siret))).forEach(this::deleteShop);
+      new ArrayList<>(this.getShopsBySiret(siret)).forEach(this::deleteShop);
    }
 
    public void updateAllShopSignsForEnterprise(String siret) {
@@ -274,15 +274,17 @@ public class ShopManager {
                DoubleChest doubleChest = (DoubleChest)holder;
                Location leftLoc = ((Chest)doubleChest.getLeftSide()).getLocation();
                Location rightLoc = ((Chest)doubleChest.getRightSide()).getLocation();
-               return (Shop)this.shops.values().stream().filter((s) -> {
-                  return s.getLocation().equals(leftLoc) || s.getLocation().equals(rightLoc);
-               }).findFirst().orElse((Object)null);
+               return this.shops.values().stream()
+                  .filter(s -> s.getLocation().equals(leftLoc) || s.getLocation().equals(rightLoc))
+                  .findFirst()
+                  .orElse(null);
             }
          }
 
-         return (Shop)this.shops.values().stream().filter((shop) -> {
-            return shop.getLocation().equals(location);
-         }).findFirst().orElse((Object)null);
+         return this.shops.values().stream()
+            .filter(shop -> shop.getLocation().equals(location))
+            .findFirst()
+            .orElse(null);
       }
    }
 
