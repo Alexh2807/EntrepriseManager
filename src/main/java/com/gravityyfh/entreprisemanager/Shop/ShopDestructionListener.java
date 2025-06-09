@@ -2,10 +2,12 @@ package com.gravityyfh.entreprisemanager.Shop;
 
 import com.gravityyfh.entreprisemanager.EntrepriseManager;
 import com.palmergames.bukkit.towny.event.PlotClearEvent;
+import com.palmergames.bukkit.towny.event.plot.PlayerChangePlotTypeEvent;
 import com.palmergames.bukkit.towny.event.plot.changeowner.PlotChangeOwnerEvent;
 import com.palmergames.bukkit.towny.event.town.TownRuinedEvent;
 import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.object.TownBlock;
+import com.palmergames.bukkit.towny.object.TownBlockType;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -117,5 +119,16 @@ public class ShopDestructionListener implements Listener {
          this.handlePlotShopsDeletion(townBlock, "Ville en Ruine");
       }
 
+   }
+
+   @EventHandler(
+      priority = EventPriority.MONITOR,
+      ignoreCancelled = true
+   )
+   public void onPlotTypeChange(PlayerChangePlotTypeEvent event) {
+      TownBlock townBlock = event.getTownBlock();
+      if (townBlock != null && event.getNewType() != TownBlockType.COMMERCIAL) {
+         this.handlePlotShopsDeletion(townBlock, "Changement de type de parcelle");
+      }
    }
 }

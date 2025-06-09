@@ -5,6 +5,7 @@ import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.TownBlock;
+import com.palmergames.bukkit.towny.object.TownBlockType;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -131,6 +132,11 @@ public class ShopManager {
                      Resident resident = TownyAPI.getInstance().getResident(player);
                      if (townBlock == null || !townBlock.hasResident() || !townBlock.getResident().equals(resident)) {
                         player.sendMessage(ChatColor.RED + "Vous devez être sur une parcelle Towny qui vous appartient.");
+                        return;
+                     }
+
+                     if (townBlock.getType() != TownBlockType.COMMERCIAL) {
+                        player.sendMessage(ChatColor.RED + "La parcelle doit être de type SHOP pour placer une boutique.");
                         return;
                      }
                   } catch (Exception var8) {
