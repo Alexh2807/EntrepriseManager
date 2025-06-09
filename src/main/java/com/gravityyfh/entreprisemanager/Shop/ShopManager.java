@@ -349,7 +349,7 @@ public class ShopManager {
          if (signBlock != null) {
             signBlock.getChunk().load();
             Bukkit.getScheduler().runTask(this.plugin, () -> {
-               signBlock.breakNaturally();
+               signBlock.setType(Material.AIR, false);
             });
          }
 
@@ -405,6 +405,7 @@ public class ShopManager {
             item.setVelocity(item.getVelocity().zero());
             item.setTicksLived(1);
             shop.setDisplayItemID(item.getUniqueId());
+            this.saveShops();
         });
       }
    }
