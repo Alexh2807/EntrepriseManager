@@ -12,21 +12,21 @@ import org.bukkit.entity.Player;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseCommandHandler implements CommandExecutor {
 
     private final EntrepriseManagerLogic entrepriseLogic;
     private final EntrepriseGUI entrepriseGUI;
-    private final CVManager cvManager; // Remplacer PlayerCVGUI par CVManager
+    private final CVManager cvManager;
     private final EntrepriseManager plugin;
 
-    // Le constructeur prend maintenant CVManager
     public EntrepriseCommandHandler(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic, EntrepriseGUI entrepriseGUI, CVManager cvManager) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
         this.entrepriseGUI = entrepriseGUI;
-        this.cvManager = cvManager; // Stocker l'instance de CVManager
+        this.cvManager = cvManager;
     }
 
     @Override
@@ -42,9 +42,14 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return true;
         }
 
-        String subCommand = args[0].toLowerCase();
+        // AJOUT DE LOGS POUR LE DÉBOGAGE
+        plugin.getLogger().log(Level.INFO, "[DEBUG] Commande reçue par " + player.getName() + ": /" + label + " " + String.join(" ", args));
+
+        String subCommand = args[0].toLowerCase().trim(); // Utilisation de trim() par sécurité
+
+        plugin.getLogger().log(Level.INFO, "[DEBUG] Sous-commande identifiée: '" + subCommand + "'");
+
         switch (subCommand) {
-            // ... autres cas ...
             case "create":
                 handleCreateCommand(player, args);
                 break;
@@ -70,10 +75,10 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "kick":
                 handleKickCommandDirect(player, args);
                 break;
-            case "accepter": // Accepter invitation entreprise
+            case "accepter":
                 entrepriseLogic.handleAccepterCommand(player);
                 break;
-            case "refuser": // Refuser invitation entreprise
+            case "refuser":
                 entrepriseLogic.handleRefuserCommand(player);
                 break;
             case "validercreation":
@@ -100,10 +105,13 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "stats":
                 handleStatsCommand(player, args);
                 break;
-            case "cv": // Commande pour le CV
-                handleCVCommand(player, args); // Déléguer au nouveau handler
+            case "cv":
+                handleCVCommand(player, args);
                 break;
-            // ... cas internes ...
+            case "shop":
+            case "boutique":
+                handleShopCommand(player, args); // Cette ligne reste la même
+                break;
             default:
                 player.sendMessage(ChatColor.RED + "Commande inconnue. Utilisez /entreprise gui");
                 return false;
@@ -111,7 +119,119 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         return true;
     }
 
-    // --- Handlers existants (inchangés, sauf si besoin de passer cvManager) ---
+    /**
+     * Rassemble les arguments pour former un seul nom (ex: pour les noms d'entreprise).
+     * @param args Les arguments de la commande.
+     * @param startIndex L'index de début (inclus).
+     * @param endIndex L'index de fin (exclus).
+     * @return Le nom assemblé.
+     */
+    private String joinArguments(String[] args, int startIndex, int endIndex) {
+        return Arrays.stream(args, startIndex, endIndex).collect(Collectors.joining(" "));
+    }
+
+    private void handleShopCommand(Player player, String[] args) {
+        // La logique pour la sous-commande /entreprise shop
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise shop <NomDeLEntreprise>");
+            return;
+        }
+
+        String nomEntreprise = Arrays.stream(args, 1, args.length).collect(Collectors.joining(" "));
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'a pas été trouvée.");
+            return;
+        }
+
+        // Vérifie si le joueur est le gérant
+        if (!entreprise.getGerantUUID().equals(player.getUniqueId().toString())) {
+            player.sendMessage(ChatColor.RED + "Vous devez être le gérant de cette entreprise pour gérer ses boutiques.");
+            return;
+        }
+
+        // APPEL AU NOUVEAU MENU DE LISTE
+        plugin.getShopGUI().openShopListMenu(player, entreprise, 0); // Ouvre à la page 0
+    }
+
+    private void handleDeleteCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise delete <NomEntreprise>");
+            return;
+        }
+        String nomEntreprise = joinArguments(args, 1, args.length);
+        entrepriseLogic.supprimerEntreprise(player, nomEntreprise);
+    }
+
+    private void handleInfoCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise info <NomEntreprise>");
+            return;
+        }
+        String nomEntreprise = joinArguments(args, 1, args.length);
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
+            return;
+        }
+        entrepriseGUI.displayEntrepriseInfo(player, entreprise);
+    }
+
+    private void handleLeaveCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise leave <NomEntreprise>");
+            return;
+        }
+        String nomEntreprise = joinArguments(args, 1, args.length);
+        entrepriseLogic.leaveEntreprise(player, nomEntreprise);
+    }
+
+    private void handleKickCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise kick <NomEntreprise> <NomEmploye>");
+            return;
+        }
+        // Le nom du joueur est le dernier argument
+        String nomEmploye = args[args.length - 1];
+        // Le nom de l'entreprise est tout ce qui se trouve entre "kick" et le nom de l'employé
+        String nomEntreprise = joinArguments(args, 1, args.length - 1);
+        entrepriseLogic.kickEmploye(player, nomEntreprise, nomEmploye);
+    }
+
+    private void handleWithdrawCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise withdraw <NomEntreprise> <Montant>");
+            return;
+        }
+        try {
+            String montantStr = args[args.length - 1];
+            double amount = Double.parseDouble(montantStr);
+            String nomEntreprise = joinArguments(args, 1, args.length - 1);
+            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return; }
+            entrepriseLogic.retirerArgent(player, nomEntreprise, amount);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Montant invalide.");
+        }
+    }
+
+    private void handleDepositCommandDirect(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise deposit <NomEntreprise> <Montant>");
+            return;
+        }
+        try {
+            String montantStr = args[args.length - 1];
+            double amount = Double.parseDouble(montantStr);
+            String nomEntreprise = joinArguments(args, 1, args.length - 1);
+            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return; }
+            entrepriseLogic.deposerArgent(player, nomEntreprise, amount);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Montant invalide.");
+        }
+    }
+
+    // Le reste de vos méthodes reste identique...
     private void handlePrimeNewsCommand(Player player) {
         player.sendMessage(ChatColor.YELLOW + "Vérification des notifications...");
         entrepriseLogic.envoyerPrimesDifferreesEmployes(player);
@@ -143,17 +263,35 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         entrepriseLogic.proposerCreationEntreprise(player, gerantCiblePlayer, typeEntreprise, villeDuMaire, nomPropose, siretPropose);
     }
 
-    private void handleDeleteCommand(Player player, String[] args) {
+    private void handleListCommand(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise delete <NomEntreprise>");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise list <NomVille|*>");
             return;
         }
-        entrepriseLogic.supprimerEntreprise(player, args[1]);
+        String ville = args[1];
+        if (ville.equals("*")) {
+            Set<String> villes = entrepriseLogic.getEntreprises().stream()
+                    .map(EntrepriseManagerLogic.Entreprise::getVille)
+                    .filter(v -> v != null && !v.isEmpty())
+                    .collect(Collectors.toSet());
+            if (villes.isEmpty()) {
+                player.sendMessage(ChatColor.YELLOW + "Aucune entreprise enregistrée sur le serveur.");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "Villes avec des entreprises: " + ChatColor.AQUA + String.join(ChatColor.GRAY + ", " + ChatColor.AQUA, villes));
+                player.sendMessage(ChatColor.GRAY+"Utilisez /entreprise list <NomVille> pour voir les détails.");
+            }
+        } else {
+            entrepriseLogic.listEntreprises(player, ville);
+        }
     }
 
+    // Pour la commande /entreprise rename, la gestion de noms avec espaces est complexe.
+    // Il est recommandé d'utiliser le GUI pour cette action.
+    // La méthode actuelle ne supportera que les noms sans espaces.
     private void handleRenameCommandDirect(Player player, String[] args) {
         if (args.length < 3) {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <AncienNom> <NouveauNom>");
+            player.sendMessage(ChatColor.GRAY + "Pour les noms avec espaces, veuillez utiliser le GUI.");
             return;
         }
         entrepriseLogic.renameEntreprise(player, args[1], args[2]);
@@ -168,8 +306,8 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         if (action.equals("invite")) {
             if (args.length < 4) { player.sendMessage(ChatColor.RED + "Usage: /entreprise employee invite <NomEntreprise> <NomJoueur>"); return; }
-            String nomEnt = args[2];
-            String nomJoueurInvite = args[3];
+            String nomJoueurInvite = args[args.length - 1];
+            String nomEnt = joinArguments(args, 2, args.length - 1);
             Player joueurInvite = Bukkit.getPlayerExact(nomJoueurInvite);
             EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
 
@@ -182,116 +320,25 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         } else if (action.equals("setprime")) {
             if (args.length < 5) { player.sendMessage(ChatColor.RED + "Usage: /entreprise employee setprime <NomEnt> <NomEmp> <Montant>"); return; }
-            String nomEnt = args[2];
-            String nomEmp = args[3];
             try {
-                double montant = Double.parseDouble(args[4]);
+                double montant = Double.parseDouble(args[args.length - 1]);
+                String nomEmp = args[args.length - 2];
+                String nomEnt = joinArguments(args, 2, args.length - 2);
+
                 if(montant < 0) { player.sendMessage(ChatColor.RED + "Le montant de la prime doit être positif ou nul."); return;}
-
-                EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
-                OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(nomEmp); // Important pour avoir l'UUID même si offline
-
-                if (entreprise != null && entreprise.getGerant().equalsIgnoreCase(player.getName()) && (entreprise.getEmployes().contains(nomEmp) || offlineEmp.hasPlayedBefore())) { // Vérifie aussi si le joueur existe
-
-                    // Utiliser l'UUID est plus fiable pour stocker/récupérer la prime
-                    entrepriseLogic.definirPrime(nomEnt, nomEmp, montant); // La méthode logique doit gérer la conversion nom -> UUID si nécessaire
-                    player.sendMessage(ChatColor.GREEN + "Prime de " + nomEmp + " définie à " + String.format("%,.2f", montant) + "€/h pour '" + nomEnt + "'.");
-
-                    Player empPlayer = offlineEmp.getPlayer(); // Récupérer le joueur s'il est en ligne
-                    if (empPlayer != null && empPlayer.isOnline()) {
-                        empPlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + nomEnt + "' est maintenant de " + String.format("%,.2f", montant) + "€/h.");
-                    }
-                } else {
-                    player.sendMessage(ChatColor.RED + "Impossible de définir la prime (vérifiez entreprise/gérant/employé).");
+                entrepriseLogic.definirPrime(nomEnt, nomEmp, montant);
+                player.sendMessage(ChatColor.GREEN + "Prime de " + nomEmp + " définie à " + String.format("%,.2f", montant) + "€/h pour '" + nomEnt + "'.");
+                Player empPlayer = Bukkit.getPlayerExact(nomEmp);
+                if (empPlayer != null && empPlayer.isOnline()) {
+                    empPlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + nomEnt + "' est maintenant de " + String.format("%,.2f", montant) + "€/h.");
                 }
+
             } catch (NumberFormatException e){
                 player.sendMessage(ChatColor.RED + "Montant invalide.");
             }
         } else {
             player.sendMessage(ChatColor.RED + "Action employé '" + action + "' inconnue. Utilisez invite ou setprime.");
         }
-    }
-
-    private void handleLeaveCommand(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise leave <NomEntreprise>");
-            return;
-        }
-        entrepriseLogic.leaveEntreprise(player, args[1]);
-    }
-
-    private void handleKickCommandDirect(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise kick <NomEntreprise> <NomEmploye>");
-            return;
-        }
-        entrepriseLogic.kickEmploye(player, args[1], args[2]);
-    }
-
-    private void handleWithdrawCommandDirect(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise withdraw <NomEntreprise> <Montant>");
-            return;
-        }
-        try {
-            double amount = Double.parseDouble(args[2]);
-            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return;}
-            entrepriseLogic.retirerArgent(player, args[1], amount);
-        } catch (NumberFormatException e) {
-            player.sendMessage(ChatColor.RED + "Montant invalide.");
-        }
-    }
-
-    private void handleDepositCommandDirect(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise deposit <NomEntreprise> <Montant>");
-            return;
-        }
-        try {
-            double amount = Double.parseDouble(args[2]);
-            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return;}
-            entrepriseLogic.deposerArgent(player, args[1], amount);
-        } catch (NumberFormatException e) {
-            player.sendMessage(ChatColor.RED + "Montant invalide.");
-        }
-    }
-
-    private void handleListCommand(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise list <NomVille|*>");
-            return;
-        }
-        String ville = args[1];
-        if (ville.equals("*")) {
-            Set<String> villes = entrepriseLogic.getEntreprises().stream()
-                    .map(EntrepriseManagerLogic.Entreprise::getVille)
-                    .filter(v -> v != null && !v.isEmpty()) // Filtrer les villes null ou vides
-                    .collect(Collectors.toSet());
-            if (villes.isEmpty()) {
-                player.sendMessage(ChatColor.YELLOW + "Aucune entreprise enregistrée sur le serveur.");
-            } else {
-                player.sendMessage(ChatColor.YELLOW + "Villes avec des entreprises: " + ChatColor.AQUA + String.join(ChatColor.GRAY + ", " + ChatColor.AQUA, villes));
-                player.sendMessage(ChatColor.GRAY+"Utilisez /entreprise list <NomVille> pour voir les détails.");
-            }
-        } else {
-            // Utiliser la méthode listEntreprises qui envoie un message formaté
-            entrepriseLogic.listEntreprises(player, ville);
-        }
-    }
-
-    private void handleInfoCommand(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise info <NomEntreprise>");
-            player.sendMessage(ChatColor.GRAY + "Utilisez /entreprise stats info <Nom> pour les stats financières.");
-            return;
-        }
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(args[1]);
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Entreprise '" + args[1] + "' non trouvée.");
-            return;
-        }
-        // Afficher les infos via la méthode dédiée du GUI (qui ferme l'inv et affiche dans le chat)
-        entrepriseGUI.displayEntrepriseInfo(player, entreprise);
     }
 
     private void handleAdminCommand(Player player, String[] args) {
@@ -317,8 +364,8 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "Permission refusée.");
             return;
         }
-        if (plugin != null) { // 'plugin' ici est bien une instance de EntrepriseManager
-            plugin.reloadPluginData(); // <<< UTILISEZ LE NOM CORRECT DE VOTRE MÉTHODE
+        if (plugin != null) {
+            plugin.reloadPluginData();
             player.sendMessage(ChatColor.GREEN + "Plugin EntrepriseManager et ses données ont été rechargés.");
         } else {
             player.sendMessage(ChatColor.RED + "Erreur: Instance du plugin non trouvée.");
@@ -351,21 +398,30 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         switch (statsSubCmd) {
             case "info":
                 if (args.length < 3) { player.sendMessage(ChatColor.RED + "Usage: /entreprise stats info <NomEnt>"); return; }
-                handleStatsInfoCommand(player, args[2]);
+                handleStatsInfoCommand(player, joinArguments(args, 2, args.length));
                 break;
             case "transactions":
                 if (args.length < 3) { player.sendMessage(ChatColor.RED + "Usage: /entreprise stats transactions <NomEnt> [lignes]"); return; }
-                int limit = (args.length > 3) ? parseIntOrDefault(args[3], 10, 1, 50) : 10;
-                handleStatsTransactionsCommand(player, args[2], limit);
+                int limit = 10;
+                String nomEntTransac = joinArguments(args, 2, args.length);
+                if (args.length > 3) {
+                    try {
+                        limit = Integer.parseInt(args[args.length - 1]);
+                        nomEntTransac = joinArguments(args, 2, args.length - 1);
+                    } catch (NumberFormatException e) {
+                        // l'argument final n'est pas un nombre, on le considère comme partie du nom
+                    }
+                }
+                handleStatsTransactionsCommand(player, nomEntTransac, limit);
                 break;
             case "employe":
             case "employee":
                 if (args.length < 4) { player.sendMessage(ChatColor.RED + "Usage: /entreprise stats employe <NomEnt> <NomEmp>"); return; }
-                handleStatsEmployeDetailCommand(player, args[2], args[3]);
+                handleStatsEmployeDetailCommand(player, joinArguments(args, 2, args.length -1), args[args.length - 1]);
                 break;
             case "employes":
                 if (args.length < 3) { player.sendMessage(ChatColor.RED + "Usage: /entreprise stats employes <NomEnt>"); return; }
-                handleStatsListEmployesCommand(player, args[2]);
+                handleStatsListEmployesCommand(player, joinArguments(args, 2, args.length));
                 break;
             case "production":
                 if (args.length < 5) {
@@ -379,15 +435,6 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             default:
                 player.sendMessage(ChatColor.RED + "Sous-commande stats inconnue: " + statsSubCmd);
                 break;
-        }
-    }
-
-    private int parseIntOrDefault(String input, int defaultValue, int min, int max) {
-        try {
-            int value = Integer.parseInt(input);
-            return Math.max(min, Math.min(value, max)); // Clamp value between min and max
-        } catch (NumberFormatException e) {
-            return defaultValue;
         }
     }
 
@@ -416,10 +463,10 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleStatsTransactionsCommand(Player player, String nomEntreprise, int limit) {
+        limit = Math.max(1, Math.min(limit, 50)); // Clamp value
         EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
         boolean isMember = ent.getGerant().equalsIgnoreCase(player.getName()) || ent.getEmployes().contains(player.getName());
-        // Autoriser les membres à voir les transactions pour la transparence ? Oui.
         if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
 
         List<EntrepriseManagerLogic.Transaction> txs = entrepriseLogic.getTransactionsPourEntreprise(nomEntreprise, limit);
@@ -427,28 +474,13 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         player.sendMessage(ChatColor.GOLD + "--- " + txs.size() + " Dernières Transactions: " + ChatColor.AQUA + ent.getNom() + ChatColor.GOLD + " ---");
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM HH:mm");
         for (EntrepriseManagerLogic.Transaction tx : txs) {
-            // Affiner la couleur basée sur le type et le montant
-            ChatColor amountColor;
-            String amountPrefix = "";
-            if (tx.type == EntrepriseManagerLogic.TransactionType.DEPOSIT || tx.type.isOperationalIncome()) {
-                amountColor = ChatColor.GREEN;
-                amountPrefix = "+";
-            } else if (tx.type == EntrepriseManagerLogic.TransactionType.WITHDRAWAL || tx.type.isOperationalExpense()) {
-                amountColor = ChatColor.RED;
-                // Le montant est déjà négatif pour les dépenses/retraits dans la logique de Transaction
-            } else {
-                amountColor = ChatColor.YELLOW; // Pour les cas inattendus
-            }
-            // Si le montant est 0, utiliser gris
+            ChatColor amountColor; String amountPrefix = "";
+            if (tx.type == EntrepriseManagerLogic.TransactionType.DEPOSIT || tx.type.isOperationalIncome()) { amountColor = ChatColor.GREEN; amountPrefix = "+"; }
+            else if (tx.type == EntrepriseManagerLogic.TransactionType.WITHDRAWAL || tx.type.isOperationalExpense()) { amountColor = ChatColor.RED; }
+            else { amountColor = ChatColor.YELLOW; }
             if (Math.abs(tx.amount) < 0.01) amountColor = ChatColor.GRAY;
-
             String amountStr = String.format("%s%s%.2f€", amountColor, (tx.amount >= 0 ? amountPrefix : ""), tx.amount);
-
-            player.sendMessage(String.format("%s[%s] %s%s: %s %s(%s) %sPar: %s%s",
-                    ChatColor.GRAY, tx.timestamp.format(fmt),
-                    ChatColor.YELLOW, tx.type.getDisplayName(), amountStr,
-                    ChatColor.DARK_GRAY, tx.description,
-                    ChatColor.BLUE, ChatColor.WHITE, tx.initiatedBy));
+            player.sendMessage(String.format("%s[%s] %s%s: %s %s(%s) %sPar: %s%s", ChatColor.GRAY, tx.timestamp.format(fmt), ChatColor.YELLOW, tx.type.getDisplayName(), amountStr, ChatColor.DARK_GRAY, tx.description, ChatColor.BLUE, ChatColor.WHITE, tx.initiatedBy));
         }
         player.sendMessage(ChatColor.GOLD + "---------------------------------------------");
     }
@@ -463,16 +495,11 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         if (records.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune donnée d'employé à afficher pour " + nomEntreprise + "."); return; }
         player.sendMessage(ChatColor.GOLD + "--- Aperçu Stats Employés: " + ChatColor.AQUA + ent.getNom() + ChatColor.GOLD + " ---");
         records.stream()
-                .sorted(Comparator.comparing(r -> r.employeeName.toLowerCase())) // Trier par nom
+                .sorted(Comparator.comparing(r -> r.employeeName.toLowerCase()))
                 .forEach(rec -> {
                     String primeStr = String.format("%,.2f€/h", ent.getPrimePourEmploye(rec.employeeId.toString()));
                     String status = rec.isActive() ? ChatColor.GREEN + "Actif" : ChatColor.GRAY + "Inactif";
-                    player.sendMessage(String.format("%s- %s%s: %sAncienneté: %s%s, %sPrime: %s%s, %sCA Généré: %s%,.2f€, %sStatut: %s",
-                            ChatColor.GRAY, ChatColor.AQUA, rec.employeeName,
-                            ChatColor.DARK_GRAY, ChatColor.WHITE, rec.getFormattedSeniority(),
-                            ChatColor.DARK_GRAY, ChatColor.YELLOW, primeStr,
-                            ChatColor.DARK_GRAY, ChatColor.GREEN, rec.totalValueGenerated,
-                            ChatColor.DARK_GRAY, status));
+                    player.sendMessage(String.format("%s- %s%s: %sAncienneté: %s%s, %sPrime: %s%s, %sCA Généré: %s%,.2f€, %sStatut: %s", ChatColor.GRAY, ChatColor.AQUA, rec.employeeName, ChatColor.DARK_GRAY, ChatColor.WHITE, rec.getFormattedSeniority(), ChatColor.DARK_GRAY, ChatColor.YELLOW, primeStr, ChatColor.DARK_GRAY, ChatColor.GREEN, rec.totalValueGenerated, ChatColor.DARK_GRAY, status));
                 });
         player.sendMessage(ChatColor.GOLD + "---------------------------------------------");
         player.sendMessage(ChatColor.GRAY + "Pour détails: /entreprise stats employe <NomEnt> <NomEmp>");
@@ -486,7 +513,6 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         if (!offlineEmp.hasPlayedBefore() && !offlineEmp.isOnline() && ent.getEmployeeActivityRecord(offlineEmp.getUniqueId()) == null ) {
             player.sendMessage(ChatColor.RED + "Employé '" + nomEmploye + "' introuvable ou jamais enregistré dans cette entreprise."); return;
         }
-
         UUID empUUID = offlineEmp.getUniqueId();
         EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(empUUID);
         boolean isOwn = player.getUniqueId().equals(empUUID);
@@ -505,10 +531,10 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.YELLOW + "Actions spécifiques (Total historique):");
             rec.actionsPerformedCount.entrySet().stream()
                     .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                    .limit(10) // Limiter pour ne pas spammer
+                    .limit(10)
                     .forEach(entry -> {
                         String[] parts = entry.getKey().split(":");
-                        String actionType = parts.length > 0 ? formatActionType(parts[0]) : "Action";
+                        String actionType = formatActionType(parts[0]);
                         String materialName = parts.length > 1 ? formatMaterialName(parts[1]) : "";
                         player.sendMessage(ChatColor.GRAY + "  - " + actionType + (materialName.isEmpty() ? "" : " de " + ChatColor.ITALIC + materialName) + ": " + ChatColor.WHITE + entry.getValue());
                     });
@@ -523,48 +549,35 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleStatsProductionCommand(Player player, String[] args) {
-        // Args: 0=stats, 1=production, 2=NomEnt, 3=NomEmp|global, 4=type_action, 5=periode(opt)
         String nomEntreprise = args[2];
         EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
 
-        String cibleArg = args[3];
-        String actionTypeArg = args[4].toLowerCase();
-        String periodeStr = (args.length > 5) ? args[5].toLowerCase() : "24h"; // Default 24h
+        String cibleArg = args[3]; String actionTypeArg = args[4].toLowerCase();
+        String periodeStr = (args.length > 5) ? args[5].toLowerCase() : "24h";
 
         EntrepriseManagerLogic.DetailedActionType actionTypeFilter;
         switch (actionTypeArg) {
             case "broken": case "break": case "cassé": case "casses": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.BLOCK_BROKEN; break;
             case "crafted": case "craft": case "fabriqué": case "fabriques": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.ITEM_CRAFTED; break;
             case "placed": case "place": case "posé": case "poses": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.BLOCK_PLACED; break;
-            default: player.sendMessage(ChatColor.RED + "Type d'action invalide: '" + actionTypeArg + "'. Utilisez broken, crafted, ou placed."); return;
+            default: player.sendMessage(ChatColor.RED + "Type d'action invalide: '" + actionTypeArg + "'."); return;
         }
 
-        UUID targetEmpUUID = null;
-        boolean globalStats = false;
-        String titleCibleName;
+        UUID targetEmpUUID = null; boolean globalStats = false; String titleCibleName;
 
         if (cibleArg.equalsIgnoreCase("global")) {
-            if (!ent.getGerant().equalsIgnoreCase(player.getName()) && !player.hasPermission("entreprisemanager.admin.viewallstats")) {
-                player.sendMessage(ChatColor.RED + "Permission refusée pour les statistiques globales."); return;
-            }
-            globalStats = true;
-            titleCibleName = "Global";
+            if (!ent.getGerant().equalsIgnoreCase(player.getName()) && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
+            globalStats = true; titleCibleName = "Global";
         } else {
             OfflinePlayer targetEmpOffline = Bukkit.getOfflinePlayer(cibleArg);
-            if (!targetEmpOffline.hasPlayedBefore() && !targetEmpOffline.isOnline() && ent.getEmployeeActivityRecord(targetEmpOffline.getUniqueId()) == null) {
-                player.sendMessage(ChatColor.RED + "Employé '" + cibleArg + "' non trouvé ou sans activité dans cette entreprise."); return;
-            }
-            targetEmpUUID = targetEmpOffline.getUniqueId();
-            titleCibleName = targetEmpOffline.getName() != null ? targetEmpOffline.getName() : cibleArg;
+            if (!targetEmpOffline.hasPlayedBefore() && !targetEmpOffline.isOnline() && ent.getEmployeeActivityRecord(targetEmpOffline.getUniqueId()) == null) { player.sendMessage(ChatColor.RED + "Employé '" + cibleArg + "' non trouvé."); return; }
+            targetEmpUUID = targetEmpOffline.getUniqueId(); titleCibleName = targetEmpOffline.getName() != null ? targetEmpOffline.getName() : cibleArg;
             boolean isOwn = player.getUniqueId().equals(targetEmpUUID);
-            if (!isOwn && !ent.getGerant().equalsIgnoreCase(player.getName()) && !player.hasPermission("entreprisemanager.admin.viewallstats")) {
-                player.sendMessage(ChatColor.RED + "Permission refusée pour voir les stats de cet employé."); return;
-            }
+            if (!isOwn && !ent.getGerant().equalsIgnoreCase(player.getName()) && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
         }
 
-        LocalDateTime end = LocalDateTime.now();
-        LocalDateTime start;
+        LocalDateTime end = LocalDateTime.now(); LocalDateTime start;
         switch (periodeStr) {
             case "3h": start = end.minusHours(3); break;
             case "24h": case "jour": start = end.minusDays(1); break;
@@ -572,10 +585,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "30j": case "mois": start = end.minusMonths(1); break;
             case "total":
                 if (globalStats) start = ent.getGlobalProductionLog().stream().min(Comparator.comparing(r -> r.timestamp)).map(r -> r.timestamp).orElse(end);
-                else {
-                    EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(targetEmpUUID);
-                    start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN;
-                }
+                else { EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(targetEmpUUID); start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN; }
                 break;
             default: player.sendMessage(ChatColor.RED + "Période invalide: '" + periodeStr + "'."); return;
         }
@@ -584,58 +594,33 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         if (globalStats) stats = entrepriseLogic.getCompanyProductionStatsForPeriod(nomEntreprise, start, end, actionTypeFilter);
         else stats = entrepriseLogic.getEmployeeProductionStatsForPeriod(nomEntreprise, targetEmpUUID, start, end, actionTypeFilter);
 
-        player.sendMessage(ChatColor.GOLD + "--- Stats Production: " + ChatColor.AQUA + titleCibleName +
-                ChatColor.GOLD + " (" + ent.getNom() + " - " + ChatColor.YELLOW + actionTypeFilter.getDisplayName() +
-                ChatColor.GOLD + " - " + periodeStr + ") ---");
-
-        if (stats.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + "Aucune production de ce type trouvée pour cette période.");
+        player.sendMessage(ChatColor.GOLD + "--- Stats Production: " + ChatColor.AQUA + titleCibleName + ChatColor.GOLD + " (" + ent.getNom() + " - " + ChatColor.YELLOW + actionTypeFilter.getDisplayName() + ChatColor.GOLD + " - " + periodeStr + ") ---");
+        if (stats.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune production de ce type pour cette période.");
         } else {
-            stats.entrySet().stream()
-                    .sorted(Map.Entry.<Material, Integer>comparingByValue().reversed())
-                    .limit(20) // Limiter pour le chat
+            stats.entrySet().stream().sorted(Map.Entry.<Material, Integer>comparingByValue().reversed()).limit(20)
                     .forEach(entry -> player.sendMessage(ChatColor.GREEN + formatMaterialName(entry.getKey().name()) + ": " + ChatColor.WHITE + String.format("%,d", entry.getValue())));
             if(stats.size() > 20) player.sendMessage(ChatColor.GRAY + "  (et "+(stats.size()-20)+" autres...)");
         }
         player.sendMessage(ChatColor.GOLD + "-----------------------------------------------");
     }
 
-
-    // --- Nouveau Handler pour la commande /entreprise cv ---
     private void handleCVCommand(Player player, String[] args) {
-        // args[0] = "cv"
-        if (args.length < 2) {
-            sendCVHelp(player);
-            return;
-        }
-
+        if (args.length < 2) { sendCVHelp(player); return; }
         String cvSubCommand = args[1].toLowerCase();
         switch (cvSubCommand) {
-            case "show":
-            case "montrer":
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "Usage: /entreprise cv show <nom_du_joueur_cible>");
-                    return;
-                }
+            case "show": case "montrer":
+                if (args.length < 3) { player.sendMessage(ChatColor.RED + "Usage: /entreprise cv show <nom_du_joueur_cible>"); return; }
                 Player targetPlayerShow = Bukkit.getPlayerExact(args[2]);
-                if (targetPlayerShow == null || !targetPlayerShow.isOnline()) {
-                    player.sendMessage(ChatColor.RED + "Le joueur '" + args[2] + "' n'est pas en ligne ou n'existe pas.");
-                    return;
-                }
-                cvManager.requestShareCV(player, targetPlayerShow); // Appel à CVManager
+                if (targetPlayerShow == null || !targetPlayerShow.isOnline()) { player.sendMessage(ChatColor.RED + "Le joueur '" + args[2] + "' n'est pas en ligne."); return; }
+                cvManager.requestShareCV(player, targetPlayerShow);
                 break;
-            case "accept":
-            case "accepter":
-                cvManager.handleAcceptCV(player); // Appel à CVManager
+            case "accept": case "accepter":
+                cvManager.handleAcceptCV(player);
                 break;
-            case "refuse":
-            case "refuser":
-                cvManager.handleRefuseCV(player); // Appel à CVManager
+            case "refuse": case "refuser":
+                cvManager.handleRefuseCV(player);
                 break;
-            default:
-                player.sendMessage(ChatColor.RED + "Sous-commande CV inconnue.");
-                sendCVHelp(player);
-                break;
+            default: player.sendMessage(ChatColor.RED + "Sous-commande CV inconnue."); sendCVHelp(player); break;
         }
     }
 
@@ -647,28 +632,17 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         player.sendMessage(ChatColor.YELLOW + "--------------------------");
     }
 
-    // --- Méthodes utilitaires pour le formatage (similaires à PlayerCVGUI) ---
     private String formatActionType(String actionKey) {
         if (actionKey == null || actionKey.isEmpty()) return "Action";
-        return Arrays.stream(actionKey.toLowerCase().replace("_", " ").split(" "))
-                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1))
-                .collect(Collectors.joining(" "));
+        return Arrays.stream(actionKey.toLowerCase().replace("_", " ").split(" ")).map(word -> word.substring(0, 1).toUpperCase() + word.substring(1)).collect(Collectors.joining(" "));
     }
 
     private String formatMaterialName(String materialKey) {
         if (materialKey == null || materialKey.isEmpty()) return "";
         try {
             Material mat = Material.matchMaterial(materialKey);
-            if (mat != null) {
-                // Vous pouvez ajouter des noms "amicaux" ici si vous voulez
-                // switch(mat) { case RAW_IRON_ORE: return "Minerai de Fer Brut"; ... }
-            }
-        } catch (IllegalArgumentException e) { /* Ignorer si le matériau n'est pas standard */ }
-
-        // Formatage par défaut
-        return Arrays.stream(materialKey.toLowerCase().replace("_", " ").split(" "))
-                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1))
-                .collect(Collectors.joining(" "));
+            if (mat != null) {}
+        } catch (IllegalArgumentException e) {}
+        return Arrays.stream(materialKey.toLowerCase().replace("_", " ").split(" ")).map(word -> word.substring(0, 1).toUpperCase() + word.substring(1)).collect(Collectors.joining(" "));
     }
-
 }

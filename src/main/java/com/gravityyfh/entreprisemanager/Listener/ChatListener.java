@@ -1,149 +1,279 @@
-package com.gravityyfh.entreprisemanager.Listener; // Assurez-vous que le package est correct
+package com.gravityyfh.entreprisemanager.Listener;// Dans ton fichier ChatListener.java
 
 import com.gravityyfh.entreprisemanager.EntrepriseGUI;
 import com.gravityyfh.entreprisemanager.EntrepriseManager;
+import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.entreprisemanager.Shop.Shop;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
-import org.bukkit.scheduler.BukkitRunnable; // Pour les opérations synchronisées si nécessaire
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.logging.Level; // Pour les logs
 
 public class ChatListener implements Listener {
 
     private final EntrepriseManager plugin;
-    private final EntrepriseGUI entrepriseGUI; // Si le ChatListener en a besoin
+    private final EntrepriseGUI entrepriseGUI; // Assure-toi que tu as bien ce champ
 
-    // Enum pour définir le type d'entrée attendue
+    // Map pour suivre les joueurs en attente d'une saisie
+    private final Map<UUID, PlayerInputContext> playersWaitingForInput = new HashMap<>();
+
+    // Énumération pour les différents types de saisie
     private enum InputType {
+        // Pour les entreprises
         DEPOSIT_AMOUNT,
         WITHDRAW_AMOUNT,
-        RENAME_ENTREPRISE_NEW_NAME
-        // Ajoutez d'autres types si nécessaire
+        RENAME_ENTREPRISE_NEW_NAME,
+        // Pour les boutiques
+        SHOP_CREATION_DETAILS, // Un seul type pour prix ET quantité
+        SHOP_NEW_PRICE,
+        SHOP_NEW_QUANTITY
     }
 
-    // Classe interne pour stocker le contexte de l'entrée attendue
+    // Classe interne pour stocker le contexte de la demande
     private static class PlayerInputContext {
         final InputType inputType;
-        final String entrepriseNom; // Pour stocker le nom de l'entreprise concernée
-        // Ajoutez d'autres données contextuelles si besoin
+        final Object data; // Peut stocker un nom d'entreprise, un objet Shop, etc.
+        final Object secondaryData; // Pour les contextes plus complexes (ex: Location)
+        final Object tertiaryData; // Pour les contextes encore plus complexes (ex: ItemStack)
 
-        public PlayerInputContext(InputType inputType, String entrepriseNom) {
+
+        PlayerInputContext(InputType inputType, Object data) {
+            this(inputType, data, null, null);
+        }
+
+        PlayerInputContext(InputType inputType, Object data, Object secondaryData, Object tertiaryData) {
             this.inputType = inputType;
-            this.entrepriseNom = entrepriseNom;
+            this.data = data;
+            this.secondaryData = secondaryData;
+            this.tertiaryData = tertiaryData;
         }
     }
 
-    // Map pour suivre les joueurs en attente d'une saisie et le contexte
-    private final Map<UUID, PlayerInputContext> playersWaitingForInput = new HashMap<>();
-
+    // Ton constructeur
     public ChatListener(EntrepriseManager plugin, EntrepriseGUI entrepriseGUI) {
         this.plugin = plugin;
         this.entrepriseGUI = entrepriseGUI;
-        // Enregistrez ce listener si ce n'est pas déjà fait dans EntrepriseManager
-        // plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /**
-     * Vérifie si un joueur est actuellement en attente d'une saisie dans le chat.
-     * C'est la méthode que EntrepriseGUI utilisera.
-     *
-     * @param playerUUID L'UUID du joueur à vérifier.
-     * @return true si le joueur est en attente, false sinon.
-     */
-    public boolean isPlayerWaitingForInput(UUID playerUUID) {
-        return playersWaitingForInput.containsKey(playerUUID);
+    // --- Les méthodes que tu appelles depuis le GUI ---
+
+    public void attendreMontantDepot(Player p, String nomEnt) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.DEPOSIT_AMOUNT, nomEnt));
+        p.sendMessage(ChatColor.GOLD + "Entrez le montant à déposer. Tapez 'annuler' pour annuler.");
     }
 
-    // Méthodes pour mettre un joueur en état d'attente (appelées par EntrepriseGUI ou EntrepriseCommandHandler)
-
-    public void attendreMontantDepot(Player player, String nomEntreprise) {
-        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.DEPOSIT_AMOUNT, nomEntreprise));
-        player.sendMessage("§eVeuillez entrer le montant à déposer dans le chat. Tapez 'annuler' pour abandonner.");
-        // Vous pourriez ajouter un timeout ici si vous le souhaitez
+    public void attendreMontantRetrait(Player p, String nomEnt) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.WITHDRAW_AMOUNT, nomEnt));
+        p.sendMessage(ChatColor.GOLD + "Entrez le montant à retirer. Tapez 'annuler' pour annuler.");
     }
 
-    public void attendreMontantRetrait(Player player, String nomEntreprise) {
-        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.WITHDRAW_AMOUNT, nomEntreprise));
-        player.sendMessage("§eVeuillez entrer le montant à retirer dans le chat. Tapez 'annuler' pour abandonner.");
+    public void attendreNouveauNomEntreprise(Player p, String nomEnt) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.RENAME_ENTREPRISE_NEW_NAME, nomEnt));
+        p.sendMessage(ChatColor.GOLD + "Entrez le nouveau nom de l'entreprise. Tapez 'annuler' pour annuler.");
     }
 
-    public void attendreNouveauNomEntreprise(Player player, String ancienNomEntreprise) {
-        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.RENAME_ENTREPRISE_NEW_NAME, ancienNomEntreprise));
-        player.sendMessage("§eVeuillez entrer le nouveau nom pour l'entreprise '" + ancienNomEntreprise + "' dans le chat. Tapez 'annuler' pour abandonner.");
+    public void requestShopCreationDetails(Player p, EntrepriseManagerLogic.Entreprise e, Location loc, ItemStack item) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_CREATION_DETAILS, e, loc, item));
+        p.sendMessage(ChatColor.GOLD + "Veuillez entrer la QUANTITÉ par vente, suivie du PRIX total pour cette quantité.");
+        p.sendMessage(ChatColor.GRAY + "Exemple : " + ChatColor.YELLOW + "16 350.50" + ChatColor.GRAY + " (pour vendre 16 objets à 350.50€)");
+        p.sendMessage(ChatColor.RED + "Utilisez un point '.' pour les décimales. Tapez 'annuler' pour annuler.");
     }
 
-    // Gestionnaire d'événement pour intercepter les messages du chat
-    @EventHandler
+    public void requestNewPriceForShop(Player p, Shop shop) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_PRICE, shop));
+        p.sendMessage(ChatColor.GOLD + "Entrez le nouveau prix pour la boutique. Tapez 'annuler' pour annuler.");
+    }
+
+    public void requestNewQuantityForShop(Player p, Shop shop) {
+        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_QUANTITY, shop));
+        p.sendMessage(ChatColor.GOLD + "Entrez la nouvelle quantité par vente. Tapez 'annuler' pour annuler.");
+    }
+
+    public boolean isPlayerWaitingForInput(UUID uuid) {
+        return playersWaitingForInput.containsKey(uuid);
+    }
+
+
+    // --- LA MÉTHODE onPlayerChat ENTIÈREMENT RÉÉCRITE ---
+
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
 
-        // Vérifier si ce joueur est dans notre map d'attente
-        if (playersWaitingForInput.containsKey(playerUUID)) {
-            event.setCancelled(true); // Annuler l'envoi du message au chat public
+        // Si le joueur n'est pas en attente d'une saisie, on ne fait rien.
+        if (!playersWaitingForInput.containsKey(playerUUID)) {
+            return;
+        }
 
-            String message = event.getMessage();
-            PlayerInputContext context = playersWaitingForInput.get(playerUUID);
+        // Annule l'événement pour que le message n'apparaisse pas dans le chat public.
+        event.setCancelled(true);
 
-            // Important : Retirer le joueur de la map d'attente APRÈS avoir récupéré le contexte
-            // mais AVANT de traiter pour éviter des conditions de concurrence ou des traitements multiples.
-            // Cependant, si le traitement est asynchrone et peut échouer, vous pourriez vouloir
-            // le retirer seulement après succès. Pour une saisie simple, le retirer tôt est souvent OK.
+        String message = event.getMessage();
+        PlayerInputContext context = playersWaitingForInput.remove(playerUUID);
 
-            if (message.equalsIgnoreCase("annuler")) {
-                playersWaitingForInput.remove(playerUUID); // Retirer car l'action est annulée
-                player.sendMessage("§cAction annulée.");
-                // Optionnel : ré-ouvrir le GUI précédent si possible/nécessaire
-                // Cela peut être complexe sans plus de contexte sur le flux de l'GUI.
-                // Souvent, on informe juste le joueur et il doit rouvrir l'GUI manuellement.
-                // Exemple : if (entrepriseGUI != null) entrepriseGUI.openManageSpecificEntrepriseMenu(player, plugin.getEntrepriseLogic().getEntreprise(context.entrepriseNom));
-                return;
-            }
-
-            // Le traitement du message doit se faire dans le thread principal de Bukkit
-            // car il interagit probablement avec l'API Bukkit (économie, logique d'entreprise).
+        // Gère le cas où l'utilisateur veut annuler l'action.
+        if (message.equalsIgnoreCase("annuler")) {
+            player.sendMessage(ChatColor.YELLOW + "Action annulée.");
+            // On le replace dans le menu précédent pour une meilleure expérience
             new BukkitRunnable() {
                 @Override
                 public void run() {
-                    // On retire le joueur de la liste d'attente ici, dans le thread principal,
-                    // juste avant de traiter sa réponse.
-                    PlayerInputContext currentContext = playersWaitingForInput.remove(playerUUID);
-                    if (currentContext == null) { // Vérification au cas où il aurait été retiré entre-temps
-                        plugin.getLogger().warning("Le joueur " + player.getName() + " n'était plus en attente de saisie au moment du traitement synchrone.");
-                        return;
-                    }
+                    reopenPreviousMenu(player, context);
+                }
+            }.runTask(plugin);
+            return;
+        }
 
-                    switch (currentContext.inputType) {
+        // Exécute la logique de traitement sur le thread principal du serveur.
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                try {
+                    switch (context.inputType) {
                         case DEPOSIT_AMOUNT:
-                            try {
-                                double montant = Double.parseDouble(message);
-                                plugin.getEntrepriseLogic().deposerArgent(player, currentContext.entrepriseNom, montant);
-                            } catch (NumberFormatException e) {
-                                player.sendMessage("§cMontant invalide. Veuillez entrer un nombre. Réessayez via l'interface.");
-                                // Optionnel: remettre le joueur en attente ou le guider.
-                            }
+                            handleDepositAmount(player, context, message);
                             break;
                         case WITHDRAW_AMOUNT:
-                            try {
-                                double montant = Double.parseDouble(message);
-                                plugin.getEntrepriseLogic().retirerArgent(player, currentContext.entrepriseNom, montant);
-                            } catch (NumberFormatException e) {
-                                player.sendMessage("§cMontant invalide. Veuillez entrer un nombre. Réessayez via l'interface.");
-                            }
+                            handleWithdrawAmount(player, context, message);
                             break;
                         case RENAME_ENTREPRISE_NEW_NAME:
-                            plugin.getEntrepriseLogic().renameEntreprise(player, currentContext.entrepriseNom, message);
+                            handleRenameEnterprise(player, context, message);
                             break;
-                        // Ajoutez d'autres cas ici
+                        case SHOP_CREATION_DETAILS:
+                            handleShopCreationDetails(player, context, message);
+                            break;
+                        case SHOP_NEW_PRICE:
+                            handleShopNewPrice(player, context, message);
+                            break;
+                        case SHOP_NEW_QUANTITY:
+                            handleShopNewQuantity(player, context, message);
+                            break;
                     }
+                } catch (Exception e) {
+                    player.sendMessage(ChatColor.RED + "Une erreur est survenue lors du traitement de votre saisie. Veuillez réessayer.");
+                    plugin.getLogger().severe("Erreur lors du traitement de la saisie chat pour " + player.getName() + ": " + e.getMessage());
+                    e.printStackTrace();
                 }
-            }.runTask(plugin); // Exécuter sur le thread principal du serveur
+            }
+        }.runTask(plugin);
+    }
+
+    // --- MÉTHODES DE TRAITEMENT PRIVÉES ---
+
+    private void handleDepositAmount(Player player, PlayerInputContext context, String message) {
+        String nomEntreprise = (String) context.data;
+        try {
+            double amount = Double.parseDouble(message);
+            plugin.getEntrepriseManagerLogic().deposerArgent(player, nomEntreprise, amount);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Montant invalide. Veuillez entrer un nombre.");
         }
-        // Si le joueur n'est pas dans la map, le message est traité normalement par le serveur.
+    }
+
+    private void handleWithdrawAmount(Player player, PlayerInputContext context, String message) {
+        String nomEntreprise = (String) context.data;
+        try {
+            double amount = Double.parseDouble(message);
+            plugin.getEntrepriseManagerLogic().retirerArgent(player, nomEntreprise, amount);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Montant invalide. Veuillez entrer un nombre.");
+        }
+    }
+
+    private void handleRenameEnterprise(Player player, PlayerInputContext context, String message) {
+        String oldName = (String) context.data;
+        // Le nouveau nom est le message entier, ce qui permet les espaces
+        plugin.getEntrepriseManagerLogic().renameEntreprise(player, oldName, message);
+    }
+
+    private void handleShopCreationDetails(Player player, PlayerInputContext context, String message) {
+        EntrepriseManagerLogic.Entreprise entreprise = (EntrepriseManagerLogic.Entreprise) context.data;
+        Location location = (Location) context.secondaryData;
+        ItemStack itemStack = (ItemStack) context.tertiaryData;
+
+        String[] parts = message.split("\\s+");
+        if (parts.length != 2) {
+            player.sendMessage(ChatColor.RED + "Format invalide. Veuillez entrer la QUANTITÉ puis le PRIX, séparés par un espace.");
+            requestShopCreationDetails(player, entreprise, location, itemStack); // Redemande la saisie
+            return;
+        }
+
+        try {
+            int quantity = Integer.parseInt(parts[0]);
+            double price = Double.parseDouble(parts[1].replace(',', '.')); // Remplace virgule par point
+
+            if (quantity <= 0 || price <= 0) {
+                player.sendMessage(ChatColor.RED + "La quantité et le prix doivent être des nombres positifs.");
+                requestShopCreationDetails(player, entreprise, location, itemStack);
+                return;
+            }
+
+            plugin.getShopManager().finalizeShopCreation(player, entreprise, location, itemStack, quantity, price);
+
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Entrée invalide. Assurez-vous d'entrer des nombres corrects.");
+            requestShopCreationDetails(player, entreprise, location, itemStack);
+        }
+    }
+
+    private void handleShopNewPrice(Player player, PlayerInputContext context, String message) {
+        Shop shop = (Shop) context.data;
+        try {
+            double newPrice = Double.parseDouble(message.replace(',', '.'));
+            if (newPrice <= 0) {
+                player.sendMessage(ChatColor.RED + "Le prix doit être un nombre positif.");
+            } else {
+                plugin.getShopManager().changeShopPrice(shop, newPrice);
+                player.sendMessage(ChatColor.GREEN + "Le prix de la boutique a été mis à jour à " + String.format("%,.2f", newPrice) + "€.");
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre (ex: 150.50).");
+        }
+        reopenPreviousMenu(player, context);
+    }
+
+    private void handleShopNewQuantity(Player player, PlayerInputContext context, String message) {
+        Shop shop = (Shop) context.data;
+        try {
+            int newQuantity = Integer.parseInt(message);
+            if (newQuantity <= 0) {
+                player.sendMessage(ChatColor.RED + "La quantité doit être un nombre entier positif.");
+            } else {
+                plugin.getShopManager().changeShopQuantity(shop, newQuantity);
+                player.sendMessage(ChatColor.GREEN + "La quantité par vente a été mise à jour à " + newQuantity + ".");
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre entier (ex: 16).");
+        }
+        reopenPreviousMenu(player, context);
+    }
+
+    // Méthode utilitaire pour ré-ouvrir le menu précédent
+    private void reopenPreviousMenu(Player player, PlayerInputContext context) {
+        if (context.inputType == InputType.SHOP_NEW_PRICE || context.inputType == InputType.SHOP_NEW_QUANTITY) {
+            Shop shop = (Shop) context.data;
+            if (shop != null) {
+                plugin.getShopGUI().openManageShopMenu(player, shop);
+            }
+        }
+        // Ajoute ici d'autres logiques pour ré-ouvrir d'autres menus si nécessaire
+        // Par exemple, pour la gestion d'entreprise
+        else if (context.inputType == InputType.DEPOSIT_AMOUNT || context.inputType == InputType.WITHDRAW_AMOUNT || context.inputType == InputType.RENAME_ENTREPRISE_NEW_NAME) {
+            String nomEntreprise = (String) context.data;
+            EntrepriseManagerLogic.Entreprise entreprise = plugin.getEntrepriseManagerLogic().getEntreprise(nomEntreprise);
+            if (entreprise != null) {
+                entrepriseGUI.openManageSpecificEntrepriseMenu(player, entreprise);
+            }
+        }
     }
 }

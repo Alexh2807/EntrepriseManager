@@ -162,8 +162,17 @@ public class EntrepriseManagerLogic {
         planifierVerificationActiviteEmployes();
     }
 
-    // --- Suppression de toute la section "Blocs Posés" (méthodes serializeLocation, deserializeLocation, marquer..., demarquer..., estBloc..., load..., save...) ---
-
+    public Entreprise getEntrepriseBySiret(String siret) {
+        if (siret == null || siret.isEmpty()) {
+            return null;
+        }
+        for (Entreprise entreprise : entreprises.values()) {
+            if (siret.equals(entreprise.getSiret())) {
+                return entreprise;
+            }
+        }
+        return null;
+    }
     public int countTotalPlayerInvolvements(String playerName) {
         if (playerName == null) return 0;
         Set<String> involvedEnterprises = new HashSet<>(); // Utilise un Set pour éviter de compter une entreprise plusieurs fois
@@ -670,7 +679,6 @@ public class EntrepriseManagerLogic {
         }
         plugin.getLogger().info("[EntrepriseManagerLogic] Suppression effective de '" + nomEntreprise + "'.");
         entreprise.getEmployeeActivityRecords().values().forEach(EmployeeActivityRecord::endSession);
-        checkAndRemoveShopsIfNeeded(entreprise.getGerant(), nomEntreprise);
         entreprises.remove(nomEntreprise); activiteHoraireValeur.remove(nomEntreprise);
         saveEntreprises();
         Player gerantPlayer = (gerantUUID != null) ? Bukkit.getPlayer(gerantUUID) : null;
@@ -679,17 +687,32 @@ public class EntrepriseManagerLogic {
     }
     public void supprimerEntreprise(Player initiator, String nomEntreprise) {
         Entreprise entrepriseASupprimer = getEntreprise(nomEntreprise);
-        if (entrepriseASupprimer == null) { initiator.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
+        if (entrepriseASupprimer == null) {
+            initiator.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
+            return;
+        }
+
         boolean isAdmin = initiator.hasPermission("entreprisemanager.admin.deleteany");
         boolean isGerant = entrepriseASupprimer.getGerant().equalsIgnoreCase(initiator.getName());
-        if (!isGerant && !isAdmin) { initiator.sendMessage(ChatColor.RED + "Permission refusée."); return; }
+
+        if (!isGerant && !isAdmin) {
+            initiator.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        // --- AJOUT IMPORTANT ---
+        // On supprime d'abord toutes les boutiques associées à cette entreprise.
+        // Cela évite de laisser des boutiques "fantômes" après la suppression de l'entreprise.
+        if (plugin.getShopManager() != null) {
+            plugin.getShopManager().deleteAllShopsForEnterprise(entrepriseASupprimer.getSiret());
+        }
+        // --- FIN DE L'AJOUT ---
+
         String reason = "Dissolution par " + initiator.getName() + (isAdmin && !isGerant ? " (Admin)" : " (Gérant)");
-        handleEntrepriseRemoval(entrepriseASupprimer, reason);
-        initiator.sendMessage(ChatColor.GREEN + "L'entreprise '" + nomEntreprise + "' a été dissoute.");
-    }
-    private void checkAndRemoveShopsIfNeeded(String gerantNom, String entrepriseSupprimeeNom) {
-        long autresEntreprisesDuGerant = entreprises.values().stream().filter(e -> e.getGerant().equalsIgnoreCase(gerantNom) && !e.getNom().equalsIgnoreCase(entrepriseSupprimeeNom)).count();
-        if (autresEntreprisesDuGerant == 0) { if (Bukkit.getPluginManager().getPlugin("QuickShop") != null) { plugin.getLogger().info("Gérant " + gerantNom + " n'a plus d'entreprises. Exécution 'qs removeall " + gerantNom + "'."); Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "quickshop removeall " + gerantNom)); } }
+        handleEntrepriseRemoval(entrepriseASupprimer, reason); // Cette méthode gère la suppression de l'objet Entreprise et l'historique
+
+        // On met à jour le message de confirmation pour être plus précis.
+        initiator.sendMessage(ChatColor.GREEN + "L'entreprise '" + nomEntreprise + "' et toutes ses boutiques ont été dissoutes.");
     }
     // --- Fin Suppression / Dissolution ---
 

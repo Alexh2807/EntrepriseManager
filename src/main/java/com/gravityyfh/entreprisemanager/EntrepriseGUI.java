@@ -13,20 +13,16 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-// import org.bukkit.inventory.ItemFlag; // Décommenter si vous l'utilisez pour cacher les attributs
-
-import java.time.Duration; // <-- IMPORT AJOUTÉ
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-// import java.util.function.Consumer; // Décommenter si besoin
 import java.util.logging.Level;
 import java.util.stream.Collectors;
-
-// Importation nécessaire pour DetailedActionType
 import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.DetailedActionType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.Entreprise;
 
 
 public class EntrepriseGUI implements Listener {
@@ -156,7 +152,6 @@ public class EntrepriseGUI implements Listener {
                 inventoryTitle.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) ||
                 inventoryTitle.startsWith(TITLE_PROD_STATS_PERIODS_PREFIX) ||
                 inventoryTitle.startsWith(TITLE_PROD_STATS_MATERIALS_PREFIX);
-        // Les titres de CV sont exclus ici
     }
 
     @EventHandler
@@ -164,17 +159,23 @@ public class EntrepriseGUI implements Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
         String topInventoryTitle = event.getView().getTitle();
-
-        // Important: Laisser PlayerCVGUI gérer ses propres menus en premier si c'est un menu CV
-        if (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(topInventoryTitle)) {
-            // PlayerCVGUI.onInventoryClick gérera cet événement
-            return;
+        // --- NOUVELLE LOGIQUE ---
+        // D'abord, on vérifie si le clic a lieu dans un menu géré par une autre classe.
+        // Si c'est le cas, on ignore complètement l'événement dans CETTE classe.
+        if ((plugin.getShopGUI() != null && plugin.getShopGUI().isShopMenu(topInventoryTitle)) ||
+                (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(topInventoryTitle))) {
+            return; // Laisser ShopGUI ou PlayerCVGUI gérer ce clic.
         }
 
-        if (!isPluginMenu(topInventoryTitle)) return; // Si ce n'est pas un menu EntrepriseGUI non plus, ignorer
+        // Si on arrive ici, on sait que ce n'est pas un menu Shop ou CV.
+        // On vérifie maintenant si c'est un menu appartenant à EntrepriseGUI.
+        if (!isPluginMenu(topInventoryTitle)) {
+            return; // Ce n'est pas un de nos menus, on ne fait rien.
+        }
+
+        // C'est bien un menu géré par EntrepriseGUI. On peut annuler l'événement et le traiter.
         event.setCancelled(true);
-
-
+        // --- FIN DE LA NOUVELLE LOGIQUE ---
         long currentTime = System.currentTimeMillis();
         if (clickTimestamps.getOrDefault(player.getUniqueId(), 0L) + CLICK_DELAY_MS > currentTime) return;
         clickTimestamps.put(player.getUniqueId(), currentTime);
@@ -217,17 +218,8 @@ public class EntrepriseGUI implements Listener {
         else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) && currentEntreprise != null) openProfitLossPeriodsMenu(player, context, currentEntreprise);
         else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_TRANSACTIONS_PREFIX) && currentEntreprise != null) openTransactionHistoryMenu(player, context, currentEntreprise);
         else if (newCurrentMenuTitleFromHistory.startsWith(TITLE_EMPLOYEE_STATS_LIST_PREFIX) && currentEntreprise != null) openEmployeeStatsListMenu(player, context, currentEntreprise);
-            // Le retour vers les menus CV est géré par PlayerCVGUI.handleGoBack si cette méthode existe,
-            // ou par la logique interne de PlayerCVGUI.onInventoryClick.
-            // Si PlayerCVGUI.openCVMainMenu est le point d'entrée, son bouton retour devrait ramener à TITLE_MAIN_MENU ici.
         else if (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(newCurrentMenuTitleFromHistory)) {
-            // Si on revient à un menu CV depuis un menu Entreprise (peu probable avec flux actuel),
-            // on pourrait appeler une méthode de réouverture de PlayerCVGUI.
-            // Pour l'instant, on suppose que la navigation CV reste dans PlayerCVGUI.
-            // Si le retour est depuis un menu CV vers EntrepriseGUI.TITLE_MAIN_MENU, ce sera géré par la première condition.
             plugin.getLogger().info("Retour vers un menu CV: " + newCurrentMenuTitleFromHistory + ". PlayerCVGUI devrait gérer.");
-            // Normalement, ce cas ne devrait pas être atteint si PlayerCVGUI gère ses propres retours
-            // et que le retour d'un menu CV vers un menu Entreprise est explicite.
             openMainMenu(player); // Fallback
         }
         else {
@@ -262,7 +254,6 @@ public class EntrepriseGUI implements Listener {
         else if (currentTitle.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) && entreprise != null) handleProductionStatsActionTypeChoiceClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_PROD_STATS_PERIODS_PREFIX) && entreprise != null) handleProductionStatsPeriodsChoiceClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_PROD_STATS_MATERIALS_PREFIX) && entreprise != null) handleProductionMaterialsDisplayClick(player, context, itemName, entreprise);
-            // MODIFIÉ: Les lignes pour CV sont supprimées ici, car PlayerCVGUI gère ses propres clics.
         else {
             plugin.getLogger().warning("Clic non géré dans GUI Entreprise: " + currentTitle + " (Item: " + itemName + ")");
         }
@@ -275,7 +266,6 @@ public class EntrepriseGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 27, TITLE_MAIN_MENU);
 
-        // --- Items statiques ---
         inv.setItem(10, createMenuItem(Material.WRITABLE_BOOK, ChatColor.GOLD + "Créer une Entreprise", List.of(ChatColor.GRAY + "Pour les Maires.")));
         inv.setItem(12, createMenuItem(Material.MAP, ChatColor.GOLD + "Lister les Entreprises", List.of(ChatColor.GRAY + "Voir les entreprises par ville.")));
         inv.setItem(14, createMenuItem(Material.CHEST, ChatColor.GOLD + "Mes Entreprises", List.of(ChatColor.GRAY + "Gérer ou voir vos entreprises.")));
@@ -284,13 +274,9 @@ public class EntrepriseGUI implements Listener {
             inv.setItem(8, createMenuItem(Material.COMMAND_BLOCK, ChatColor.RED + "Menu Administration", List.of(ChatColor.GRAY + "Actions réservées aux admins.")));
         }
 
-        // --- Item de l'horloge (sera mis à jour) ---
-        // On le crée une première fois pour éviter un inventaire vide au premier tick.
         inv.setItem(0, createMenuItem(Material.CLOCK, ChatColor.GOLD + "Cycle Économique", List.of(ChatColor.GRAY + "Calcul en cours...")));
         player.openInventory(inv);
 
-        // --- MISE EN PLACE DE LA MISE À JOUR EN TEMPS RÉEL ---
-        // Annuler une tâche précédente si elle existe
         if (guiUpdateTasks.containsKey(player.getUniqueId())) {
             guiUpdateTasks.get(player.getUniqueId()).cancel();
         }
@@ -298,9 +284,8 @@ public class EntrepriseGUI implements Listener {
         BukkitTask updateTask = new BukkitRunnable() {
             @Override
             public void run() {
-                // S'assurer que le joueur est en ligne et que le menu est toujours le bon
                 if (!player.isOnline() || !player.getOpenInventory().getTitle().equals(TITLE_MAIN_MENU)) {
-                    this.cancel(); // Annuler la tâche
+                    this.cancel();
                     guiUpdateTasks.remove(player.getUniqueId());
                     return;
                 }
@@ -310,31 +295,27 @@ public class EntrepriseGUI implements Listener {
                 String nextPaymentTimeDisplay = ChatColor.RED + "N/A";
 
                 if (nextPayment != null) {
-                    // Formatage de l'heure du prochain paiement (ex: 18H00)
                     nextPaymentTimeDisplay = nextPayment.format(DateTimeFormatter.ofPattern("HH'H'mm"));
 
                     Duration remaining = Duration.between(LocalDateTime.now(), nextPayment);
                     if (!remaining.isNegative()) {
                         long minutes = remaining.toMinutesPart();
                         long seconds = remaining.toSecondsPart();
-                        // Formatage du temps restant (ex: 35min 08sec)
                         countdownDisplay = String.format("%dmin %02dsec", minutes, seconds);
                     } else {
                         countdownDisplay = ChatColor.YELLOW + "En cours...";
                     }
                 }
 
-                // Récupération de l'item de l'horloge pour le mettre à jour
                 ItemStack clockItem = inv.getItem(0);
                 if (clockItem != null) {
                     ItemMeta meta = clockItem.getItemMeta();
                     if (meta != null) {
                         meta.setDisplayName(ChatColor.GOLD + "Prochain Cycle Économique");
-                        // Mise à jour du Lore (description) avec les nouvelles informations
                         meta.setLore(List.of(
                                 ChatColor.AQUA + "Heure du prochain cycle",
                                 ChatColor.WHITE + nextPaymentTimeDisplay,
-                                "", // Ligne vide pour l'espacement
+                                "",
                                 ChatColor.AQUA + "Temps restant",
                                 ChatColor.WHITE + countdownDisplay
                         ));
@@ -342,7 +323,7 @@ public class EntrepriseGUI implements Listener {
                     }
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Exécute toutes les 20 ticks (1 seconde)
+        }.runTaskTimer(plugin, 0L, 20L);
 
         guiUpdateTasks.put(player.getUniqueId(), updateTask);
     }
@@ -361,7 +342,7 @@ public class EntrepriseGUI implements Listener {
             openMyEntreprisesMenu(player, context);
         } else if (itemName.equals("Consulter / Montrer mon CV")) {
             if (plugin.getPlayerCVGUI() != null) {
-                plugin.getPlayerCVGUI().openCVMainMenu(player); // Appel correct à PlayerCVGUI
+                plugin.getPlayerCVGUI().openCVMainMenu(player);
             } else {
                 player.sendMessage(ChatColor.RED + "Le module CV n'est pas correctement initialisé.");
                 plugin.getLogger().severe("PlayerCVGUI est null lors de l'appel depuis EntrepriseGUI#handleMainMenuClick");
@@ -438,9 +419,6 @@ public class EntrepriseGUI implements Listener {
             openCreateEntrepriseSelectGerantMenu(maire, context);
             return;
         }
-        // La correction pour "le gérant (maire) n'est pas en ligne"
-        // serait appliquée ici si ce bug est toujours d'actualité.
-        // Pour l'instant, on utilise le code original.
         Player gerantCiblePlayer = Bukkit.getPlayerExact(gerantCibleNom);
         if (gerantCiblePlayer == null || !gerantCiblePlayer.isOnline()) {
             maire.sendMessage(ChatColor.RED + "'" + gerantCibleNom + "' n'est plus en ligne. Veuillez recommencer.");
@@ -501,52 +479,52 @@ public class EntrepriseGUI implements Listener {
         }
     }
 
-    public void openManageSpecificEntrepriseMenu(Player gerant, EntrepriseManagerLogic.Entreprise entreprise) {
+    public void openManageSpecificEntrepriseMenu(Player gerant, Entreprise entreprise) {
         PlayerGUIContext context = getPlayerContext(gerant);
         context.navigateTo(TITLE_MANAGE_SPECIFIC_PREFIX + entreprise.getNom());
         context.currentEntrepriseNom = entreprise.getNom();
 
-        Inventory inv = Bukkit.createInventory(null, 54, TITLE_MANAGE_SPECIFIC_PREFIX + entreprise.getNom()); // Taille augmentée à 54
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_MANAGE_SPECIFIC_PREFIX + entreprise.getNom());
 
-        // Ligne 1
+        // Ligne 1 & 2
         inv.setItem(1, createMenuItem(Material.BOOK, ChatColor.AQUA + "Infos Entreprise", List.of(ChatColor.GRAY + "Détails & Solde", ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€")));
         inv.setItem(3, createMenuItem(Material.GOLD_INGOT, ChatColor.YELLOW + "Déposer Argent"));
         inv.setItem(4, createMenuItem(Material.IRON_INGOT, ChatColor.GOLD + "Retirer Argent"));
         inv.setItem(7, createMenuItem(Material.MAP, ChatColor.DARK_GREEN + "Statistiques & Rapports"));
-
-        // Ligne 2
         inv.setItem(10, createMenuItem(Material.PLAYER_HEAD, ChatColor.GREEN + "Gérer Employés"));
         inv.setItem(11, createMenuItem(Material.EMERALD, ChatColor.GREEN + "Recruter Employé"));
 
-        // --- SECTION AMÉLIORATIONS (Nouvelle Ligne) ---
-        // Amélioration Capacité Employés
-        int niveauActuelEmployes = entreprise.getNiveauMaxEmployes(); //
-        int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise); //
-        double coutProchainNiveauEmployes = entrepriseLogic.getCoutProchaineAmeliorationEmployes(entreprise); //
+        // MODIFICATION ICI : Le nom et la description du bouton ont été mis à jour.
+        inv.setItem(13, createMenuItem(Material.CHEST, ChatColor.AQUA + "Mes Boutiques",
+                List.of(ChatColor.GRAY + "Gérer tous les points de vente", ChatColor.GRAY + "de votre entreprise.")));
+
+        // --- SECTION AMÉLIORATIONS ---
+        int niveauActuelEmployes = entreprise.getNiveauMaxEmployes();
+        int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise);
+        double coutProchainNiveauEmployes = entrepriseLogic.getCoutProchaineAmeliorationEmployes(entreprise);
         List<String> loreEmployes = new ArrayList<>();
         loreEmployes.add(ChatColor.GRAY + "Niveau actuel: " + ChatColor.WHITE + niveauActuelEmployes);
         loreEmployes.add(ChatColor.GRAY + "Employés max actuels: " + ChatColor.WHITE + maxEmployesActuel);
         if (coutProchainNiveauEmployes >= 0) {
             int prochainNiveauEmp = niveauActuelEmployes + 1;
-            int employesProchainNiveau = plugin.getConfig().getInt("finance.max-employer-par-entreprise." + prochainNiveauEmp, maxEmployesActuel); //
-            loreEmployes.add(ChatColor.YELLOW + "Prochain niveau ("+prochainNiveauEmp+"): " + ChatColor.WHITE + employesProchainNiveau + " employés");
+            int employesProchainNiveau = plugin.getConfig().getInt("finance.max-employer-par-entreprise." + prochainNiveauEmp, maxEmployesActuel);
+            loreEmployes.add(ChatColor.YELLOW + "Prochain niveau (" + prochainNiveauEmp + "): " + ChatColor.WHITE + employesProchainNiveau + " employés");
             loreEmployes.add(ChatColor.GOLD + "Coût amélioration: " + ChatColor.WHITE + String.format("%,.2f", coutProchainNiveauEmployes) + "€");
         } else {
             loreEmployes.add(ChatColor.GREEN + "Niveau maximum pour employés atteint !");
         }
         inv.setItem(19, createMenuItem(Material.EXPERIENCE_BOTTLE, ChatColor.LIGHT_PURPLE + "Améliorer Capacité Employés", loreEmployes));
 
-        // Amélioration Solde Maximum
-        int niveauActuelSolde = entreprise.getNiveauMaxSolde(); //
-        double maxSoldeActuel = entrepriseLogic.getLimiteMaxSoldeActuelle(entreprise); //
-        double coutProchainNiveauSolde = entrepriseLogic.getCoutProchaineAmeliorationSolde(entreprise); //
+        int niveauActuelSolde = entreprise.getNiveauMaxSolde();
+        double maxSoldeActuel = entrepriseLogic.getLimiteMaxSoldeActuelle(entreprise);
+        double coutProchainNiveauSolde = entrepriseLogic.getCoutProchaineAmeliorationSolde(entreprise);
         List<String> loreSolde = new ArrayList<>();
         loreSolde.add(ChatColor.GRAY + "Niveau actuel: " + ChatColor.WHITE + niveauActuelSolde);
         loreSolde.add(ChatColor.GRAY + "Solde max actuel: " + ChatColor.WHITE + String.format("%,.2f", maxSoldeActuel) + "€");
         if (coutProchainNiveauSolde >= 0) {
             int prochainNiveauSld = niveauActuelSolde + 1;
-            double soldeProchainNiveau = plugin.getConfig().getDouble("finance.max-solde-par-niveau." + prochainNiveauSld, maxSoldeActuel); //
-            loreSolde.add(ChatColor.YELLOW + "Prochain niveau ("+prochainNiveauSld+"): " + ChatColor.WHITE + String.format("%,.2f", soldeProchainNiveau) + "€");
+            double soldeProchainNiveau = plugin.getConfig().getDouble("finance.max-solde-par-niveau." + prochainNiveauSld, maxSoldeActuel);
+            loreSolde.add(ChatColor.YELLOW + "Prochain niveau (" + prochainNiveauSld + "): " + ChatColor.WHITE + String.format("%,.2f", soldeProchainNiveau) + "€");
             loreSolde.add(ChatColor.GOLD + "Coût amélioration: " + ChatColor.WHITE + String.format("%,.2f", coutProchainNiveauSolde) + "€");
         } else {
             loreSolde.add(ChatColor.GREEN + "Niveau maximum pour solde atteint !");
@@ -554,16 +532,13 @@ public class EntrepriseGUI implements Listener {
         inv.setItem(20, createMenuItem(Material.CHEST_MINECART, ChatColor.LIGHT_PURPLE + "Améliorer Solde Maximum", loreSolde));
         // --- FIN SECTION AMÉLIORATIONS ---
 
-        // Ligne 4 (décalée à cause des améliorations)
         inv.setItem(28, createMenuItem(Material.NAME_TAG, ChatColor.LIGHT_PURPLE + "Renommer Entreprise", List.of(ChatColor.GRAY + "Coût: " + plugin.getConfig().getDouble("rename-cost", 0) + "€")));
-
-        // Ligne du bas
-        inv.setItem(inv.getSize() - 9, createMenuItem(Material.TNT, ChatColor.DARK_RED + "Dissoudre Entreprise", List.of(ChatColor.RED+"Action irréversible !")) ); // Slot 45 si 54 cases
-        addBackButton(inv, inv.getSize() - 5, "(Mes Entreprises)"); // Slot 49 si 54 cases
+        inv.setItem(inv.getSize() - 9, createMenuItem(Material.TNT, ChatColor.DARK_RED + "Dissoudre Entreprise", List.of(ChatColor.RED + "Action irréversible !")));
+        addBackButton(inv, inv.getSize() - 5, "(Mes Entreprises)");
         gerant.openInventory(inv);
     }
 
-    private void handleManageSpecificEntrepriseMenuClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+    private void handleManageSpecificEntrepriseMenuClick(Player gerant, PlayerGUIContext context, String itemName, Entreprise entreprise) {
         if (itemName.equals("Infos Entreprise")) {
             displayEntrepriseInfo(gerant, entreprise);
         } else if (itemName.equals("Déposer Argent")) {
@@ -578,43 +553,40 @@ public class EntrepriseGUI implements Listener {
             openManageEmployeesListMenu(gerant, entreprise);
         } else if (itemName.equals("Recruter Employé")) {
             openRecruitEmployeeProximityMenu(gerant, context, entreprise);
+
+            // MODIFICATION ICI : La condition vérifie le nouveau nom et appelle la bonne méthode de ShopGUI.
+        } else if (itemName.equals("Mes Boutiques")) {
+            plugin.getShopGUI().openShopListMenu(gerant, entreprise, 0); // Ouvre la liste des boutiques
+
         } else if (itemName.equals("Renommer Entreprise")) {
             plugin.getChatListener().attendreNouveauNomEntreprise(gerant, entreprise.getNom());
             gerant.closeInventory();
         } else if (itemName.equals("Dissoudre Entreprise")) {
             openDeleteConfirmationMenu(gerant, context, entreprise);
-            // --- AJOUTS POUR LES AMÉLIORATIONS ---
         } else if (itemName.equals("Améliorer Capacité Employés")) {
-            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxEmployes(entreprise, gerant); //
+            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxEmployes(entreprise, gerant);
             gerant.sendMessage(resultat);
-            if (resultat.startsWith(ChatColor.GREEN.toString())) { // Si succès, rafraîchir le menu
-                // Recharger l'entreprise pour avoir les données à jour
-                EntrepriseManagerLogic.Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
-                if (updatedEntreprise != null) {
-                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
-                } else {
-                    gerant.closeInventory(); // L'entreprise a disparu, rare mais possible
-                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
-                }
-            } else {
-                gerant.closeInventory(); // Fermer en cas d'échec pour voir le message
-            }
-        } else if (itemName.equals("Améliorer Solde Maximum")) {
-            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxSolde(entreprise, gerant); //
-            gerant.sendMessage(resultat);
-            if (resultat.startsWith(ChatColor.GREEN.toString())) { // Si succès, rafraîchir le menu
-                // Recharger l'entreprise pour avoir les données à jour
-                EntrepriseManagerLogic.Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+            if (resultat.startsWith(ChatColor.GREEN.toString())) {
+                Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
                 if (updatedEntreprise != null) {
                     openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
                 } else {
                     gerant.closeInventory();
                     gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
                 }
-            } else {
-                gerant.closeInventory(); // Fermer en cas d'échec pour voir le message
             }
-            // --- FIN AJOUTS ---
+        } else if (itemName.equals("Améliorer Solde Maximum")) {
+            String resultat = entrepriseLogic.tenterAmeliorationNiveauMaxSolde(entreprise, gerant);
+            gerant.sendMessage(resultat);
+            if (resultat.startsWith(ChatColor.GREEN.toString())) {
+                Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+                if (updatedEntreprise != null) {
+                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
+                } else {
+                    gerant.closeInventory();
+                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
+                }
+            }
         }
     }
 
@@ -664,7 +636,7 @@ public class EntrepriseGUI implements Listener {
             openTransactionHistoryMenu(employe, context, entreprise);
         } else if (itemName.equals("Mes Stats Production")) {
             context.currentViewingEmployeeStatsUUID = employe.getUniqueId();
-            openProductionStatsActionTypeChoiceMenu(employe, context, entreprise); // MODIFIÉ
+            openProductionStatsActionTypeChoiceMenu(employe, context, entreprise);
         } else if (itemName.equals("Quitter l'Entreprise")) {
             openLeaveConfirmationMenu(employe, context, entreprise);
         }
@@ -704,7 +676,7 @@ public class EntrepriseGUI implements Listener {
         else if (itemName.equals("Profit/Perte par Périodes")) openProfitLossPeriodsMenu(player, context, entreprise);
         else if (itemName.equals("Historique des Transactions")) { context.currentPage = 0; openTransactionHistoryMenu(player, context, entreprise); }
         else if (itemName.equals("Statistiques des Employés (Global)") && isGerantOuAdmin) { context.currentPage = 0; openEmployeeStatsListMenu(player, context, entreprise); }
-        else if (itemName.equals("Statistiques de Production (Global)") && isGerantOuAdmin) { // MODIFIÉ
+        else if (itemName.equals("Statistiques de Production (Global)") && isGerantOuAdmin) {
             context.currentViewingEmployeeStatsUUID = null;
             openProductionStatsActionTypeChoiceMenu(player, context, entreprise);
         } else if (itemName.equals("Mon Activité (Résumé)")) {
@@ -722,7 +694,7 @@ public class EntrepriseGUI implements Listener {
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Aucune donnée d'activité pour vous.");
             }
-        } else if (itemName.equals("Mes Statistiques de Production")) { // MODIFIÉ
+        } else if (itemName.equals("Mes Statistiques de Production")) {
             context.currentViewingEmployeeStatsUUID = player.getUniqueId();
             openProductionStatsActionTypeChoiceMenu(player, context, entreprise);
         }
@@ -846,7 +818,7 @@ public class EntrepriseGUI implements Listener {
         if (employeNom == null) { gerant.sendMessage(ChatColor.RED + "Erreur contexte."); openManageEmployeesListMenu(gerant, entreprise); return; }
         if (itemName.equals("Définir Prime Horaire")) {
             openSetPrimeAmountMenu(gerant, context, employeNom, entreprise);
-        } else if (itemName.equals("Voir Stats Production Employé")) { // MODIFIÉ
+        } else if (itemName.equals("Voir Stats Production Employé")) {
             OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom);
             context.currentViewingEmployeeStatsUUID = offlineEmp.getUniqueId();
             openProductionStatsActionTypeChoiceMenu(gerant, context, entreprise);
@@ -889,48 +861,35 @@ public class EntrepriseGUI implements Listener {
     private void openRecruitEmployeeProximityMenu(Player gerant, PlayerGUIContext context, EntrepriseManagerLogic.Entreprise entreprise) {
         context.navigateTo(TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
         Inventory inv = Bukkit.createInventory(null, 54, TITLE_RECRUIT_EMPLOYEE + " pour " + entreprise.getNom());
-        // Récupère les joueurs proches, la distance est définie dans config.yml (invitation.distance-max)
         Collection<String> nearbyPlayers = entrepriseLogic.getNearbyPlayers(gerant, plugin.getConfig().getInt("invitation.distance-max", 10));
         boolean foundEligible = false;
 
         if (!nearbyPlayers.isEmpty()) {
             for (String targetName : nearbyPlayers) {
-                OfflinePlayer offlineTarget = Bukkit.getOfflinePlayer(targetName); // Pour s'assurer que le joueur existe
-                // Si le joueur n'a jamais joué ou n'est pas en ligne (et n'a donc pas de Player object), on l'ignore.
-                // Note: Bukkit.getPlayerExact(targetName) serait plus direct si on ne veut que les joueurs en ligne.
+                OfflinePlayer offlineTarget = Bukkit.getOfflinePlayer(targetName);
                 if ((!offlineTarget.hasPlayedBefore() && !offlineTarget.isOnline())) continue;
 
-                // Le joueur cible ne doit pas être le gérant qui effectue le recrutement
                 if (targetName.equalsIgnoreCase(gerant.getName())) {
                     continue;
                 }
 
-                // Le joueur cible ne doit pas déjà être employé DANS CETTE entreprise
                 if (entreprise.getEmployes().contains(targetName)) {
                     continue;
                 }
 
-                // Le joueur cible ne doit pas être le gérant de CETTE entreprise
-                // (Bien que logiquement, s'il l'était, la première condition l'aurait exclu s'il est le même que 'gerant')
-                // Mais c'est une bonne sécurité si un admin utilise la commande pour un autre gérant.
                 if (entreprise.getGerant().equalsIgnoreCase(targetName)) {
                     continue;
                 }
 
-                // Vérifier si le joueur cible peut accepter un nouveau poste salarié
-                int maxSalariedJobs = plugin.getConfig().getInt("finance.max-travail-joueur", 1); //
-                int currentSalariedJobs = entrepriseLogic.countPlayerSalariedJobs(targetName); //
+                int maxSalariedJobs = plugin.getConfig().getInt("finance.max-travail-joueur", 1);
+                int currentSalariedJobs = entrepriseLogic.countPlayerSalariedJobs(targetName);
 
                 if (currentSalariedJobs < maxSalariedJobs) {
-                    // Vérifier si l'entreprise qui recrute a de la place
-                    int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise); //
+                    int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise);
                     if (entreprise.getEmployes().size() < maxEmployesActuel) {
-                        // Le joueur est éligible pour être invité
                         List<String> lore = new ArrayList<>();
                         lore.add(ChatColor.GRAY + "Inviter à '" + entreprise.getNom() + "'.");
                         lore.add(ChatColor.YELLOW + "Emplois salariés actuels: " + currentSalariedJobs + "/" + maxSalariedJobs);
-                        // On pourrait ajouter d'autres infos si pertinent, comme le nombre d'entreprises qu'il gère déjà.
-                        // Par exemple: lore.add(ChatColor.BLUE + "Gère: " + entrepriseLogic.getEntreprisesGereesPar(targetName).size() + " ent.");
 
                         inv.addItem(createPlayerHead(targetName, ChatColor.AQUA + targetName, lore));
                         foundEligible = true;
@@ -1096,7 +1055,6 @@ public class EntrepriseGUI implements Listener {
         player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + entreprise.getType());
         player.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + entreprise.getGerant());
 
-        // Affichage des limites actuelles et niveaux
         int maxEmployesActuel = entrepriseLogic.getLimiteMaxEmployesActuelle(entreprise);
         int niveauEmployes = entreprise.getNiveauMaxEmployes();
         player.sendMessage(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + entreprise.getEmployes().size() + "/" + maxEmployesActuel + ChatColor.GRAY + " (Niv. " + niveauEmployes + ")");
@@ -1115,12 +1073,11 @@ public class EntrepriseGUI implements Listener {
                 for (String nomEmploye : entreprise.getEmployes()) {
                     OfflinePlayer offEmp = Bukkit.getOfflinePlayer(nomEmploye);
                     UUID empUUID = null;
-                    // Gérer le cas où l'UUID pourrait être null ou invalide, même si peu probable ici
                     try {
                         empUUID = offEmp.getUniqueId();
                     } catch (Exception e) {
                         plugin.getLogger().warning("Impossible d'obtenir l'UUID pour l'employé " + nomEmploye + " lors de l'affichage des infos.");
-                        continue; // Passer à l'employé suivant
+                        continue;
                     }
 
                     double prime = entreprise.getPrimePourEmploye(empUUID.toString());
