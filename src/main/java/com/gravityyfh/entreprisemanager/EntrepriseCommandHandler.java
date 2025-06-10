@@ -397,9 +397,9 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         boolean removed = plugin.getShopManager().removeTargetedDisplayItem(player);
         if (removed) {
-            player.sendMessage(ChatColor.GREEN + "Item de boutique supprimé.");
+            player.sendMessage(ChatColor.GREEN + "[Succès] L'entité Display ciblée a été supprimée.");
         } else {
-            player.sendMessage(ChatColor.RED + "Aucun item de boutique trouvé à portée.");
+            player.sendMessage(ChatColor.RED + "[Erreur] Vous ne visez aucune entité Display.");
         }
     }
 

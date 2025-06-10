@@ -39,6 +39,7 @@ import org.bukkit.block.data.type.WallSign;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.InventoryHolder;
@@ -603,31 +604,5 @@ public class ShopManager {
             }
          }
       }
-
    }
-
-   public boolean removeTargetedDisplayItem(Player player) {
-      Location eye = player.getEyeLocation();
-      Vector direction = eye.getDirection().normalize();
-
-      for (double d = 0.0D; d <= 5.0D; d += 0.5D) {
-         Location check = eye.clone().add(direction.clone().multiply(d));
-         Collection<Entity> entities = check.getWorld().getNearbyEntities(check, 0.5D, 0.5D, 0.5D);
-         Iterator<Entity> iterator = entities.iterator();
-
-         while (iterator.hasNext()) {
-            Entity ent = iterator.next();
-            if (ent instanceof Item) {
-               Item item = (Item) ent;
-               if (item.getPickupDelay() == Integer.MAX_VALUE) {
-                  item.remove();
-                  return true;
-               }
-            }
-         }
-      }
-
-      return false;
-   }
-
 }
