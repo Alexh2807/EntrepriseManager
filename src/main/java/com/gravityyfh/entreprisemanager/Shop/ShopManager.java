@@ -44,6 +44,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 
 public class ShopManager {
    private final EntrepriseManager plugin;
@@ -563,8 +564,38 @@ public class ShopManager {
                   }
 
                });
+        }
+      }
+   }
+
+   /**
+    * Supprime l'item flottant ciblé par le joueur s'il correspond 
+    * à un affichage de boutique (pickupDelay à Integer.MAX_VALUE).
+    * @param player Joueur exécutant la commande
+    * @return true si un item a été supprimé
+    */
+   public boolean removeTargetedDisplayItem(Player player) {
+      Location eye = player.getEyeLocation();
+      Vector direction = eye.getDirection().normalize();
+
+      for(double d = 0.0D; d <= 5.0D; d += 0.5D) {
+         Location check = eye.clone().add(direction.clone().multiply(d));
+         Collection<Entity> entities = check.getWorld().getNearbyEntities(check, 0.5D, 0.5D, 0.5D);
+         Iterator<Entity> iterator = entities.iterator();
+
+         while(iterator.hasNext()) {
+            Entity ent = iterator.next();
+            if (ent instanceof Item) {
+               Item item = (Item)ent;
+               if (item.getPickupDelay() == Integer.MAX_VALUE) {
+                  item.remove();
+                  return true;
+               }
             }
          }
       }
+
+      return false;
    }
+}
 }

@@ -19,6 +19,9 @@ permissions:
   entreprisemanager.admin:
     description: Permet l'utilisation des fonctionnalités administratives de l'EntrepriseManager
     default: op
+  entreprisemanager.admin.cleandisplay:
+    description: Autorise la suppression manuelle d'un item de boutique bloqué
+    default: op
   entreprisemanager.declare:
     description: Permet de déclarer des entreprises
     default: true
