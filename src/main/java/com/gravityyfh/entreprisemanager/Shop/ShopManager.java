@@ -576,6 +576,16 @@ public class ShopManager {
               .collect(Collectors.toList()); // On retourne le résultat sous forme de liste.
    }
 
+   public boolean removeTargetedDisplayItem(Player player) {
+      RayTraceResult entityTrace = player.getWorld().rayTraceEntities(player.getEyeLocation(), player.getEyeLocation().getDirection(), 10.0D, entity -> entity instanceof Display);
+      if (entityTrace != null && entityTrace.getHitEntity() instanceof Display) {
+         entityTrace.getHitEntity().remove();
+         return true;
+      } else {
+         return false;
+      }
+   }
+
    public void cleanupOrphanedShopDisplay(Location signLocation) {
       if (signLocation.getBlock().getBlockData() instanceof WallSign) {
          WallSign signData = (WallSign) signLocation.getBlock().getBlockData();
