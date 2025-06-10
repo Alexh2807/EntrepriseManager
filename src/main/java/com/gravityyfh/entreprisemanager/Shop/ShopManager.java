@@ -69,7 +69,7 @@ public class ShopManager {
          if (!(chestBlock.getState() instanceof Chest)) {
             buyer.sendMessage(ChatColor.RED + "Erreur : Le coffre de la boutique est manquant.");
          } else {
-            Chest chest = (Chest)chestBlock.getState();
+            Chest chest = (Chest) chestBlock.getState();
             ItemStack itemToSell = shop.getSaleBundle();
             ChatColor var10001;
             if (!chest.getInventory().containsAtLeast(itemToSell, itemToSell.getAmount())) {
@@ -243,7 +243,7 @@ public class ShopManager {
    }
 
    public Shop getShopById(UUID shopId) {
-      return (Shop)this.shops.get(shopId);
+      return (Shop) this.shops.get(shopId);
    }
 
    public Shop getShopBySignLocation(Location signLocation) {
@@ -252,13 +252,13 @@ public class ShopManager {
       } else {
          Iterator var2 = this.shops.values().iterator();
 
-         while(var2.hasNext()) {
-            Shop shop = (Shop)var2.next();
+         while (var2.hasNext()) {
+            Shop shop = (Shop) var2.next();
             Block chestBlock = shop.getLocation().getBlock();
             BlockFace[] var5 = new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
             int var6 = var5.length;
 
-            for(int var7 = 0; var7 < var6; ++var7) {
+            for (int var7 = 0; var7 < var6; ++var7) {
                BlockFace face = var5[var7];
                Block potentialSignBlock = chestBlock.getRelative(face);
                if (potentialSignBlock.getLocation().equals(signLocation) && potentialSignBlock.getState() instanceof Sign) {
@@ -277,28 +277,28 @@ public class ShopManager {
       } else {
          Block block = location.getBlock();
          if (block.getState() instanceof Chest) {
-            Chest chest = (Chest)block.getState();
+            Chest chest = (Chest) block.getState();
             InventoryHolder holder = chest.getInventory().getHolder();
             if (holder instanceof DoubleChest) {
-               DoubleChest doubleChest = (DoubleChest)holder;
-               Location leftLoc = ((Chest)doubleChest.getLeftSide()).getLocation();
-               Location rightLoc = ((Chest)doubleChest.getRightSide()).getLocation();
+               DoubleChest doubleChest = (DoubleChest) holder;
+               Location leftLoc = ((Chest) doubleChest.getLeftSide()).getLocation();
+               Location rightLoc = ((Chest) doubleChest.getRightSide()).getLocation();
                return this.shops.values().stream()
-                  .filter(s -> s.getLocation().equals(leftLoc) || s.getLocation().equals(rightLoc))
-                  .findFirst()
-                  .orElse(null);
+                       .filter(s -> s.getLocation().equals(leftLoc) || s.getLocation().equals(rightLoc))
+                       .findFirst()
+                       .orElse(null);
             }
          }
 
          return this.shops.values().stream()
-            .filter(shop -> shop.getLocation().equals(location))
-            .findFirst()
-            .orElse(null);
+                 .filter(shop -> shop.getLocation().equals(location))
+                 .findFirst()
+                 .orElse(null);
       }
    }
 
    public List<Shop> getShopsBySiret(String siret) {
-      return (List)this.shops.values().stream().filter((shop) -> {
+      return (List) this.shops.values().stream().filter((shop) -> {
          return shop.getEntrepriseSiret().equals(siret);
       }).sorted(Comparator.comparing(Shop::getCreationDate)).collect(Collectors.toList());
    }
@@ -314,14 +314,14 @@ public class ShopManager {
             }
 
             return Objects.equals(loc.getWorld().getName(), worldCoord.getWorldName()) &&
-               loc.getChunk().getX() == worldCoord.getX() &&
-               loc.getChunk().getZ() == worldCoord.getZ();
+                    loc.getChunk().getX() == worldCoord.getX() &&
+                    loc.getChunk().getZ() == worldCoord.getZ();
          }).collect(Collectors.toList());
       }
    }
 
    private String formatMaterialName(Material material) {
-      return material == null ? "Inconnu" : (String)Arrays.stream(material.name().split("_")).map((s) -> {
+      return material == null ? "Inconnu" : (String) Arrays.stream(material.name().split("_")).map((s) -> {
          String var10000 = s.substring(0, 1).toUpperCase();
          return var10000 + s.substring(1).toLowerCase();
       }).collect(Collectors.joining(" "));
@@ -341,13 +341,13 @@ public class ShopManager {
             signBlock.setType(Material.OAK_WALL_SIGN, false);
             BlockData data = signBlock.getBlockData();
             if (data instanceof WallSign) {
-               WallSign signData = (WallSign)data;
+               WallSign signData = (WallSign) data;
                signData.setFacing(facing);
                signBlock.setBlockData(signData, true);
             }
          }
 
-         Sign signState = (Sign)signBlock.getState();
+         Sign signState = (Sign) signBlock.getState();
          signState.setLine(0, ChatColor.DARK_BLUE + "[Boutique]");
          String nomEntreprise = ChatColor.stripColor(entreprise.getNom());
          signState.setLine(1, nomEntreprise.substring(0, Math.min(nomEntreprise.length(), 15)));
@@ -386,7 +386,7 @@ public class ShopManager {
       for (BlockFace face : faces) {
          Block relative = chestBlock.getRelative(face);
          if (relative.getBlockData() instanceof WallSign) {
-            WallSign signData = (WallSign)relative.getBlockData();
+            WallSign signData = (WallSign) relative.getBlockData();
             if (signData.getFacing() == face) {
                return relative;
             }
@@ -400,7 +400,7 @@ public class ShopManager {
       BlockFace[] var2 = new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
       int var3 = var2.length;
 
-      for(int var4 = 0; var4 < var3; ++var4) {
+      for (int var4 = 0; var4 < var3; ++var4) {
          BlockFace face = var2[var4];
          if (block.getRelative(face).getType().isAir()) {
             return face;
@@ -464,7 +464,7 @@ public class ShopManager {
                Bukkit.getScheduler().runTask(this.plugin, removeTask);
             }
          }
-         shop.setDisplayItemID((UUID)null);
+         shop.setDisplayItemID((UUID) null);
       }
 
    }
@@ -474,12 +474,12 @@ public class ShopManager {
       if (!(block.getState() instanceof Chest)) {
          return null;
       } else {
-         Chest chest = (Chest)block.getState();
+         Chest chest = (Chest) block.getState();
          InventoryHolder holder = chest.getInventory().getHolder();
          if (holder instanceof DoubleChest) {
-            DoubleChest doubleChest = (DoubleChest)holder;
-            Location left = ((Chest)doubleChest.getLeftSide()).getLocation();
-            Location right = ((Chest)doubleChest.getRightSide()).getLocation();
+            DoubleChest doubleChest = (DoubleChest) holder;
+            Location left = ((Chest) doubleChest.getLeftSide()).getLocation();
+            Location right = ((Chest) doubleChest.getRightSide()).getLocation();
             Location center = new Location(left.getWorld(), (left.getX() + right.getX()) / 2.0D, left.getY(), (left.getZ() + right.getZ()) / 2.0D);
             return center.add(0.5D, 1.2D, 0.5D);
          } else {
@@ -512,14 +512,14 @@ public class ShopManager {
          this.shops.clear();
          Iterator var3 = shopList.iterator();
 
-         while(var3.hasNext()) {
-            Map shopMap = (Map)var3.next();
+         while (var3.hasNext()) {
+            Map shopMap = (Map) var3.next();
 
             try {
                Map<String, Object> castedMap = new HashMap();
                shopMap.forEach((key, value) -> {
                   if (key instanceof String) {
-                     castedMap.put((String)key, value);
+                     castedMap.put((String) key, value);
                   }
 
                });
@@ -538,6 +538,7 @@ public class ShopManager {
          this.plugin.getLogger().info(this.shops.size() + " boutique(s) chargée(s) depuis shops.yml.");
       }
    }
+
    /**
     * Retourne une collection non modifiable de toutes les boutiques chargées.
     * L'utilisation de "Collections.unmodifiableCollection" est une sécurité pour
@@ -573,9 +574,10 @@ public class ShopManager {
               })
               .collect(Collectors.toList()); // On retourne le résultat sous forme de liste.
    }
+
    public void cleanupOrphanedShopDisplay(Location signLocation) {
       if (signLocation.getBlock().getBlockData() instanceof WallSign) {
-         WallSign signData = (WallSign)signLocation.getBlock().getBlockData();
+         WallSign signData = (WallSign) signLocation.getBlock().getBlockData();
          BlockFace attachedFace = signData.getFacing().getOppositeFace();
          Block chestBlock = signLocation.getBlock().getRelative(attachedFace);
          if (chestBlock.getState() instanceof Chest) {
@@ -585,10 +587,10 @@ public class ShopManager {
                   Collection<Entity> nearbyEntities = expectedItemLocation.getWorld().getNearbyEntities(expectedItemLocation, 0.2D, 0.2D, 0.2D);
                   Iterator var3 = nearbyEntities.iterator();
 
-                  while(var3.hasNext()) {
-                     Entity entity = (Entity)var3.next();
+                  while (var3.hasNext()) {
+                     Entity entity = (Entity) var3.next();
                      if (entity instanceof Item) {
-                        Item item = (Item)entity;
+                        Item item = (Item) entity;
                         if (item.getPickupDelay() == Integer.MAX_VALUE) {
                            item.remove();
                            this.plugin.getLogger().log(Level.INFO, "Nettoyage d'un item flottant orphelin à la position: " + expectedItemLocation.toVector());
@@ -598,29 +600,25 @@ public class ShopManager {
                   }
 
                });
-        }
+            }
+         }
       }
+
    }
 
-   /**
-    * Supprime l'item flottant ciblé par le joueur s'il correspond 
-    * à un affichage de boutique (pickupDelay à Integer.MAX_VALUE).
-    * @param player Joueur exécutant la commande
-    * @return true si un item a été supprimé
-    */
    public boolean removeTargetedDisplayItem(Player player) {
       Location eye = player.getEyeLocation();
       Vector direction = eye.getDirection().normalize();
 
-      for(double d = 0.0D; d <= 5.0D; d += 0.5D) {
+      for (double d = 0.0D; d <= 5.0D; d += 0.5D) {
          Location check = eye.clone().add(direction.clone().multiply(d));
          Collection<Entity> entities = check.getWorld().getNearbyEntities(check, 0.5D, 0.5D, 0.5D);
          Iterator<Entity> iterator = entities.iterator();
 
-         while(iterator.hasNext()) {
+         while (iterator.hasNext()) {
             Entity ent = iterator.next();
             if (ent instanceof Item) {
-               Item item = (Item)ent;
+               Item item = (Item) ent;
                if (item.getPickupDelay() == Integer.MAX_VALUE) {
                   item.remove();
                   return true;
@@ -631,5 +629,5 @@ public class ShopManager {
 
       return false;
    }
-}
+
 }
