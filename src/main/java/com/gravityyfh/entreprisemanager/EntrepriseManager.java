@@ -9,6 +9,7 @@ import com.gravityyfh.entreprisemanager.Listener.EntityDamageListener;
 import com.gravityyfh.entreprisemanager.Listener.EntityDeathListener;
 import com.gravityyfh.entreprisemanager.Listener.TreeCutListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopDestructionListener;
+import com.gravityyfh.entreprisemanager.Shop.ShopDisplayItemListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopGUI;
 import com.gravityyfh.entreprisemanager.Shop.ShopInteractionListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopManager;
@@ -33,6 +34,7 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
     private TownyListener townyListener;
     private ShopInteractionListener shopInteractionListener;
     private ShopDestructionListener shopDestructionListener;
+    private ShopDisplayItemListener shopDisplayItemListener;
     private BlockPlaceListener blockPlaceListener;
     private CraftItemListener craftItemListener;
     private EntityDamageListener entityDamageListener;
@@ -71,6 +73,8 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
             this.getLogger().info("ShopInteractionListener initialisé.");
             this.shopDestructionListener = new ShopDestructionListener(this);
             this.getLogger().info("ShopDestructionListener initialisé.");
+            this.shopDisplayItemListener = new ShopDisplayItemListener();
+            this.getLogger().info("ShopDisplayItemListener initialisé.");
             this.blockPlaceListener = new BlockPlaceListener(this, this.entrepriseLogic);
             this.getLogger().info("BlockPlaceListener initialisé.");
             this.craftItemListener = new CraftItemListener(this, this.entrepriseLogic);
@@ -127,6 +131,10 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
 
         if (this.shopDestructionListener != null) {
             this.getServer().getPluginManager().registerEvents(this.shopDestructionListener, this);
+        }
+
+        if (this.shopDisplayItemListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.shopDisplayItemListener, this);
         }
 
         if (this.blockPlaceListener != null) {
