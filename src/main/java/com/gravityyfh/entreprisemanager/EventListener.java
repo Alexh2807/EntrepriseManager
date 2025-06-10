@@ -98,6 +98,7 @@ public class EventListener implements Listener {
         // --- LOGIQUE EXISTANTE POUR LES BLOCS NON-CULTIVABLES (MINERAIS, etc.) ---
         CoreProtectAPI cpAPI = getCoreProtectAPI();
         boolean blockWasPlayerPlacedByCoreProtect = false;
+        boolean blockWasPlacedBySamePlayer = false;
 
         if (cpAPI != null) {
             int tempsLookupHistoriqueSecondes = plugin.getConfig().getInt("anti-duplication.block-break.history-lookup-seconds", 86400 * 30);
@@ -108,18 +109,28 @@ public class EventListener implements Listener {
                     CoreProtectAPI.ParseResult resultatParse = cpAPI.parseResult(donneesResultat);
                     if (resultatParse.getActionId() == 1 && resultatParse.getType() == blockType) {
                         blockWasPlayerPlacedByCoreProtect = true;
-                        plugin.getLogger().log(Level.INFO, "[DEBUG Break] Bloc (" + blockTypeName + ") détecté comme posé par un joueur via CoreProtect. Revenu bloqué pour " + player.getName());
-                        player.sendMessage(ChatColor.YELLOW + "[Entreprise] Ce bloc a été précédemment posé par un joueur. Aucun revenu généré.");
-                        break;
+                        if (player.getName().equalsIgnoreCase(resultatParse.getPlayer())) {
+                            blockWasPlacedBySamePlayer = true;
+                            plugin.getLogger().log(Level.FINER, "[DEBUG Break] Bloc (" + blockTypeName + ") précédemment posé par le même joueur " + player.getName());
+                            break;
+                        }
                     }
+                }
+                if (blockWasPlayerPlacedByCoreProtect && !blockWasPlacedBySamePlayer) {
+                    plugin.getLogger().log(Level.INFO, "[DEBUG Break] Bloc (" + blockTypeName + ") détecté comme posé par un autre joueur via CoreProtect. Revenu bloqué pour " + player.getName());
+                    player.sendMessage(ChatColor.YELLOW + "[Entreprise] Ce bloc a été précédemment posé par un joueur. Aucun revenu généré.");
                 }
             }
         } else {
             plugin.getLogger().warning("[DEBUG Break] API CoreProtect non disponible. Vérification anti-duplication sautée.");
         }
 
-        // Vérification des restrictions standards (redondant si déjà fait pour les cultures, mais sert de fallback)
-        boolean isBlockedByRestriction = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
+        // Vérification des restrictions standards
+        // Si le bloc a été posé par ce même joueur, on ignore la limite
+        boolean isBlockedByRestriction = false;
+        if (!blockWasPlacedBySamePlayer) {
+            isBlockedByRestriction = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
+        }
         if (isBlockedByRestriction) {
             event.setCancelled(true);
             return;
