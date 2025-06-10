@@ -3,6 +3,11 @@ package com.gravityyfh.entreprisemanager;
 import com.gravityyfh.entreprisemanager.Listener.ChatListener;
 import com.gravityyfh.entreprisemanager.Listener.PlayerConnectionListener;
 import com.gravityyfh.entreprisemanager.Listener.TownyListener;
+import com.gravityyfh.entreprisemanager.Listener.BlockPlaceListener;
+import com.gravityyfh.entreprisemanager.Listener.CraftItemListener;
+import com.gravityyfh.entreprisemanager.Listener.EntityDamageListener;
+import com.gravityyfh.entreprisemanager.Listener.EntityDeathListener;
+import com.gravityyfh.entreprisemanager.Listener.TreeCutListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopDestructionListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopGUI;
 import com.gravityyfh.entreprisemanager.Shop.ShopInteractionListener;
@@ -28,6 +33,11 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
     private TownyListener townyListener;
     private ShopInteractionListener shopInteractionListener;
     private ShopDestructionListener shopDestructionListener;
+    private BlockPlaceListener blockPlaceListener;
+    private CraftItemListener craftItemListener;
+    private EntityDamageListener entityDamageListener;
+    private EntityDeathListener entityDeathListener;
+    private TreeCutListener treeCutListener;
 
     public void onEnable() {
         instance = this;
@@ -61,6 +71,16 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
             this.getLogger().info("ShopInteractionListener initialisé.");
             this.shopDestructionListener = new ShopDestructionListener(this);
             this.getLogger().info("ShopDestructionListener initialisé.");
+            this.blockPlaceListener = new BlockPlaceListener(this, this.entrepriseLogic);
+            this.getLogger().info("BlockPlaceListener initialisé.");
+            this.craftItemListener = new CraftItemListener(this, this.entrepriseLogic);
+            this.getLogger().info("CraftItemListener initialisé.");
+            this.entityDamageListener = new EntityDamageListener(this, this.entrepriseLogic);
+            this.getLogger().info("EntityDamageListener initialisé.");
+            this.entityDeathListener = new EntityDeathListener(this, this.entrepriseLogic);
+            this.getLogger().info("EntityDeathListener initialisé.");
+            this.treeCutListener = new TreeCutListener(this.entrepriseLogic, this);
+            this.getLogger().info("TreeCutListener initialisé.");
             this.shopManager.loadShops();
             this.registerAllListeners();
             this.setupCommands();
@@ -107,6 +127,26 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
 
         if (this.shopDestructionListener != null) {
             this.getServer().getPluginManager().registerEvents(this.shopDestructionListener, this);
+        }
+
+        if (this.blockPlaceListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.blockPlaceListener, this);
+        }
+
+        if (this.craftItemListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.craftItemListener, this);
+        }
+
+        if (this.entityDamageListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.entityDamageListener, this);
+        }
+
+        if (this.entityDeathListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.entityDeathListener, this);
+        }
+
+        if (this.treeCutListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.treeCutListener, this);
         }
 
         if (this.mainEventListener == null) {
