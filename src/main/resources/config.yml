@@ -165,39 +165,101 @@ types-entreprise:
     limite-non-membre-par-heure: 0
     cout-creation: 18000.0
 
-  Bucheronnage:
-    description: "Abattage et collecte de divers types de bois. Items principaux : Bûches de Chêne, Sapin, Bois exotiques."
-    action_restrictions:
-      BLOCK_BREAK:
-        OAK_LOG: {}
-        SPRUCE_LOG: {}
-        BIRCH_LOG: {}
-        JUNGLE_LOG: {}
-        ACACIA_LOG: {}
-        DARK_OAK_LOG: {}
-        MANGROVE_LOG: {}
-        CHERRY_LOG: {}
-        CHERRY_WOOD: {}
-        CRIMSON_STEM: {}
-        WARPED_STEM: {}
-    activites-payantes:
-      BLOCK_BREAK:
-        OAK_LOG: 0.45
-        SPRUCE_LOG: 0.50
-        BIRCH_LOG: 0.45
-        JUNGLE_LOG: 0.60
-        ACACIA_LOG: 0.60
-        DARK_OAK_LOG: 0.70
-        MANGROVE_LOG: 0.75
-        CHERRY_LOG: 0.65
-        CHERRY_WOOD: 0.65
-        CRIMSON_STEM: 0.90
-        WARPED_STEM: 0.90
-    message-erreur-restriction: # Simplifié et avec indication de délai
-      - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
-      - "&eLimite non-membre : %limite% bûches par heure. Réessayez à la prochaine heure."
-    limite-non-membre-par-heure: 8
-    cout-creation: 7000.0
+Bucheronnage:
+  description: "Abattage et collecte de divers types de bois. Items principaux : Bûches de Chêne, Sapin, Bois exotiques."
+  action_restrictions:
+    BLOCK_BREAK:
+      OAK_LOG: {}
+      SPRUCE_LOG: {}
+      BIRCH_LOG: {}
+      JUNGLE_LOG: {}
+      ACACIA_LOG: {}
+      DARK_OAK_LOG: {}
+      MANGROVE_LOG: {}
+      CHERRY_LOG: {}
+      CRIMSON_STEM: {}
+      WARPED_STEM: {}
+      OAK_WOOD: {}
+      SPRUCE_WOOD: {}
+      BIRCH_WOOD: {}
+      JUNGLE_WOOD: {}
+      ACACIA_WOOD: {}
+      DARK_OAK_WOOD: {}
+      MANGROVE_WOOD: {}
+      CHERRY_WOOD: {}
+      CRIMSON_HYPHAE: {}
+      WARPED_HYPHAE: {}
+      STRIPPED_OAK_LOG: {}
+      STRIPPED_SPRUCE_LOG: {}
+      STRIPPED_BIRCH_LOG: {}
+      STRIPPED_JUNGLE_LOG: {}
+      STRIPPED_ACACIA_LOG: {}
+      STRIPPED_DARK_OAK_LOG: {}
+      STRIPPED_MANGROVE_LOG: {}
+      STRIPPED_CHERRY_LOG: {}
+      STRIPPED_CRIMSON_STEM: {}
+      STRIPPED_WARPED_STEM: {}
+      STRIPPED_OAK_WOOD: {}
+      STRIPPED_SPRUCE_WOOD: {}
+      STRIPPED_BIRCH_WOOD: {}
+      STRIPPED_JUNGLE_WOOD: {}
+      STRIPPED_ACACIA_WOOD: {}
+      STRIPPED_DARK_OAK_WOOD: {}
+      STRIPPED_MANGROVE_WOOD: {}
+      STRIPPED_CHERRY_WOOD: {}
+      STRIPPED_CRIMSON_HYPHAE: {}
+      STRIPPED_WARPED_HYPHAE: {}
+      BAMBOO_BLOCK: {}
+      STRIPPED_BAMBOO_BLOCK: {}
+  activites-payantes:
+    BLOCK_BREAK:
+      OAK_LOG: 0.45
+      SPRUCE_LOG: 0.50
+      BIRCH_LOG: 0.45
+      JUNGLE_LOG: 0.60
+      ACACIA_LOG: 0.60
+      DARK_OAK_LOG: 0.70
+      MANGROVE_LOG: 0.75
+      CHERRY_LOG: 0.65
+      CRIMSON_STEM: 0.90
+      WARPED_STEM: 0.90
+      OAK_WOOD: 0.45
+      SPRUCE_WOOD: 0.50
+      BIRCH_WOOD: 0.45
+      JUNGLE_WOOD: 0.60
+      ACACIA_WOOD: 0.60
+      DARK_OAK_WOOD: 0.70
+      MANGROVE_WOOD: 0.75
+      CHERRY_WOOD: 0.65
+      CRIMSON_HYPHAE: 0.90
+      WARPED_HYPHAE: 0.90
+      STRIPPED_OAK_LOG: 0.45
+      STRIPPED_SPRUCE_LOG: 0.50
+      STRIPPED_BIRCH_LOG: 0.45
+      STRIPPED_JUNGLE_LOG: 0.60
+      STRIPPED_ACACIA_LOG: 0.60
+      STRIPPED_DARK_OAK_LOG: 0.70
+      STRIPPED_MANGROVE_LOG: 0.75
+      STRIPPED_CHERRY_LOG: 0.65
+      STRIPPED_CRIMSON_STEM: 0.90
+      STRIPPED_WARPED_STEM: 0.90
+      STRIPPED_OAK_WOOD: 0.45
+      STRIPPED_SPRUCE_WOOD: 0.50
+      STRIPPED_BIRCH_WOOD: 0.45
+      STRIPPED_JUNGLE_WOOD: 0.60
+      STRIPPED_ACACIA_WOOD: 0.60
+      STRIPPED_DARK_OAK_WOOD: 0.70
+      STRIPPED_MANGROVE_WOOD: 0.75
+      STRIPPED_CHERRY_WOOD: 0.65
+      STRIPPED_CRIMSON_HYPHAE: 0.90
+      STRIPPED_WARPED_HYPHAE: 0.90
+      BAMBOO_BLOCK: 0.65
+      STRIPPED_BAMBOO_BLOCK: 0.65
+  message-erreur-restriction: # Simplifié et avec indication de délai
+    - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
+    - "&eLimite non-membre : %limite% bûches par heure. Réessayez à la prochaine heure."
+  limite-non-membre-par-heure: 8
+  cout-creation: 7000.0
 
   Boulangerie:
     description: "Confection de pains, gâteaux et autres délices cuits au four. Items principaux : Pain, Gâteaux, Cookies."
@@ -337,3 +399,24 @@ siret:
 # DIVERS
 #--------------------------------------------------------------------------------------------------
 rename-cost: 3000.0
+
+
+# ----------------------------------------------------- #
+#          SUPPRESSION AUTOMATIQUE DES BOUTIQUES          #
+# ----------------------------------------------------- #
+# Permet d'activer ou de désactiver la suppression automatique des boutiques
+# lors de certains événements Towny pour éviter de laisser des shops "fantômes".
+
+shop-deletion-on-events:
+  # Événements liés au statut d'un résident dans une ville
+  resident-leave-town: true       # Supprime les shops si le propriétaire quitte sa ville.
+  resident-kick-from-town: true   # Supprime les shops si le propriétaire est expulsé de sa ville.
+
+  # Événements liés à une parcelle (plot)
+  plot-owner-change: true         # Supprime les shops d'une parcelle si son propriétaire change.
+  plot-clear: true                # Supprime les shops lors d'une commande /plot clear.
+  plot-type-change: true          # Supprime les shops si le type de parcelle n'est plus "Commercial".
+
+  # Événements liés à une ville
+  town-unclaim-plot: true         # Supprime les shops si une ville "unclaim" une parcelle.
+  town-ruin: true                 # Supprime toutes les boutiques d'une ville si elle tombe en ruines.

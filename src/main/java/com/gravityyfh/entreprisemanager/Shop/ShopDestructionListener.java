@@ -36,8 +36,8 @@ public class ShopDestructionListener implements Listener {
    }
 
    @EventHandler(
-      priority = EventPriority.HIGHEST,
-      ignoreCancelled = true
+           priority = EventPriority.HIGHEST,
+           ignoreCancelled = true
    )
    public void onBlockBreak(BlockBreakEvent event) {
       Block block = event.getBlock();
@@ -80,16 +80,16 @@ public class ShopDestructionListener implements Listener {
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onPlotChangeOwner(PlotChangeOwnerEvent event) {
       this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Changement de Propriétaire");
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onTownUnclaim(TownUnclaimEvent event) {
       try {
@@ -101,24 +101,24 @@ public class ShopDestructionListener implements Listener {
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onPlotUnclaim(PlotUnclaimEvent event) {
       this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Unclaim");
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onPlotClear(PlotClearEvent event) {
       this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Clear");
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onTownRuin(TownRuinedEvent event) {
       this.plugin.getLogger().log(Level.INFO, "La ville '" + event.getTown().getName() + "' est en ruine. Suppression de toutes les boutiques de la ville.");
@@ -132,8 +132,8 @@ public class ShopDestructionListener implements Listener {
    }
 
    @EventHandler(
-      priority = EventPriority.MONITOR,
-      ignoreCancelled = true
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
    )
    public void onPlotTypeChange(PlayerChangePlotTypeEvent event) {
       TownBlock townBlock = event.getTownBlock();

@@ -537,7 +537,41 @@ public class ShopManager {
          this.plugin.getLogger().info(this.shops.size() + " boutique(s) chargée(s) depuis shops.yml.");
       }
    }
+   /**
+    * Retourne une collection non modifiable de toutes les boutiques chargées.
+    * L'utilisation de "Collections.unmodifiableCollection" est une sécurité pour
+    * empêcher d'autres parties du code de modifier la liste des boutiques par accident.
+    *
+    * @return Une collection de tous les objets Shop.
+    */
+   public Collection<Shop> getAllShops() {
+      return Collections.unmodifiableCollection(shops.values());
+   }
 
+   /**
+    * Récupère la liste de toutes les boutiques situées sur une parcelle Towny spécifique.
+    *
+    * @param townBlock La parcelle Towny à vérifier.
+    * @return Une liste d'objets Shop trouvés sur cette parcelle. Peut être vide.
+    */
+   public List<Shop> getShopsOnPlot(TownBlock townBlock) {
+      if (townBlock == null) {
+         return Collections.emptyList(); // Retourne une liste vide si la parcelle est nulle.
+      }
+
+      // On récupère les coordonnées de la parcelle
+      com.palmergames.bukkit.towny.object.WorldCoord plotCoord = townBlock.getWorldCoord();
+
+      // On filtre toutes les boutiques du serveur
+      return shops.values().stream()
+              .filter(shop -> {
+                 // Pour chaque boutique, on récupère ses coordonnées
+                 com.palmergames.bukkit.towny.object.WorldCoord shopCoord = com.palmergames.bukkit.towny.object.WorldCoord.parseWorldCoord(shop.getLocation());
+                 // On compare les coordonnées de la boutique avec celles de la parcelle
+                 return plotCoord.equals(shopCoord);
+              })
+              .collect(Collectors.toList()); // On retourne le résultat sous forme de liste.
+   }
    public void cleanupOrphanedShopDisplay(Location signLocation) {
       if (signLocation.getBlock().getBlockData() instanceof WallSign) {
          WallSign signData = (WallSign)signLocation.getBlock().getBlockData();
