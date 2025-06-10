@@ -176,16 +176,18 @@ public class ShopManager {
    }
 
    public void deleteShop(Shop shop) {
-      if (shop != null) {
-         if (this.shops.remove(shop.getShopId()) != null) {
-            this.deleteDisplayItem(shop);
-            this.removeShopSign(shop);
-            Logger var10000 = this.plugin.getLogger();
-            UUID var10001 = shop.getShopId();
-            var10000.info("Boutique " + var10001 + " supprimée pour l'entreprise SIRET: " + shop.getEntrepriseSiret());
-            this.saveShops();
-         }
+      if (shop == null) {
+         return;
+      }
 
+      this.plugin.getLogger().log(Level.INFO, "[Suppression] Tentative de suppression de la boutique " + shop.getShopId() + " située en " + shop.getLocation());
+      if (this.shops.remove(shop.getShopId()) != null) {
+         this.deleteDisplayItem(shop);
+         this.removeShopSign(shop);
+         this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " supprimée pour l'entreprise SIRET: " + shop.getEntrepriseSiret());
+         this.saveShops();
+      } else {
+         this.plugin.getLogger().log(Level.INFO, "[Suppression] La boutique " + shop.getShopId() + " n'etait pas enregistrée");
       }
    }
 
@@ -228,6 +230,18 @@ public class ShopManager {
          }
 
          this.saveShops();
+      }
+   }
+
+   public int deleteShopsOnPlot(TownBlock townBlock, String reason) {
+      if (townBlock == null) {
+         this.plugin.getLogger().log(Level.FINE, "deleteShopsOnPlot appelé avec une parcelle nulle");
+         return 0;
+      } else {
+         List<Shop> shopsToDelete = this.getShopsOnPlot(townBlock);
+         this.plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) sur la parcelle " + townBlock.getWorldCoord() + " : " + reason);
+         shopsToDelete.forEach(this::deleteShop);
+         return shopsToDelete.size();
       }
    }
 
@@ -314,9 +328,8 @@ public class ShopManager {
                return false;
             }
 
-            return Objects.equals(loc.getWorld().getName(), worldCoord.getWorldName()) &&
-                    loc.getChunk().getX() == worldCoord.getX() &&
-                    loc.getChunk().getZ() == worldCoord.getZ();
+            com.palmergames.bukkit.towny.object.WorldCoord shopCoord = com.palmergames.bukkit.towny.object.WorldCoord.parseWorldCoord(loc);
+            return worldCoord.equals(shopCoord);
          }).collect(Collectors.toList());
       }
    }
@@ -367,6 +380,7 @@ public class ShopManager {
       if (chestBlock.getState() instanceof Chest) {
          Block signBlock = this.findSignAttachedToChest(chestBlock);
          if (signBlock != null) {
+            this.plugin.getLogger().log(Level.FINE, "Suppression du panneau de la boutique " + shop.getShopId());
             signBlock.getChunk().load();
             Bukkit.getScheduler().runTask(this.plugin, () -> {
                signBlock.setType(Material.AIR, false);
@@ -443,6 +457,7 @@ public class ShopManager {
 
    private void deleteDisplayItem(Shop shop) {
       if (shop.getDisplayItemID() != null) {
+         this.plugin.getLogger().log(Level.FINE, "Suppression de l'item flottant de la boutique " + shop.getShopId());
          Location itemLocation = this.getFloatingItemLocation(shop.getLocation());
          if (itemLocation != null && itemLocation.getWorld() != null) {
             itemLocation.getChunk().load();
@@ -466,6 +481,8 @@ public class ShopManager {
             }
          }
          shop.setDisplayItemID((UUID) null);
+      } else {
+         this.plugin.getLogger().log(Level.FINE, "Aucun item flottant à supprimer pour la boutique " + shop.getShopId());
       }
 
    }
