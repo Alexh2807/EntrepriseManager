@@ -5,6 +5,7 @@ import com.palmergames.bukkit.towny.event.PlotClearEvent;
 import com.palmergames.bukkit.towny.event.plot.PlayerChangePlotTypeEvent;
 import com.palmergames.bukkit.towny.event.plot.changeowner.PlotChangeOwnerEvent;
 import com.palmergames.bukkit.towny.event.plot.changeowner.PlotUnclaimEvent;
+import com.palmergames.bukkit.towny.event.plot.changeowner.PlotPreUnclaimEvent;
 import com.palmergames.bukkit.towny.event.town.TownRuinedEvent;
 import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.object.TownBlock;
@@ -106,6 +107,14 @@ public class ShopDestructionListener implements Listener {
    )
    public void onPlotUnclaim(PlotUnclaimEvent event) {
       this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Unclaim");
+   }
+
+   @EventHandler(
+           priority = EventPriority.MONITOR,
+           ignoreCancelled = true
+   )
+   public void onPlotPreUnclaim(PlotPreUnclaimEvent event) {
+      this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Pre-Unclaim");
    }
 
    @EventHandler(
