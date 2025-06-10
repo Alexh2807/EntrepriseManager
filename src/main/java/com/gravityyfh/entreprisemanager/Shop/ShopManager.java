@@ -407,6 +407,7 @@ public class ShopManager {
             Item item = itemLocation.getWorld().dropItem(itemLocation, displayStack);
             item.setPickupDelay(Integer.MAX_VALUE);
             item.setInvulnerable(true);
+            item.setUnlimitedLifetime(true);
             item.setGravity(false);
             item.setVelocity(item.getVelocity().zero());
             item.setTicksLived(1);
