@@ -347,7 +347,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin <forcepay|reload|forcesave>");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin <forcepay|reload|forcesave|cleandisplay>");
             return;
         }
         String subCmd = args[1].toLowerCase();
@@ -355,6 +355,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "forcepay": adminForcePayCommand(player); break;
             case "reload": adminReloadCommand(player); break;
             case "forcesave": adminForceSaveCommand(player); break;
+            case "cleandisplay": adminCleanDisplayCommand(player); break;
             default: player.sendMessage(ChatColor.RED + "Sous-commande admin inconnue: " + subCmd); break;
         }
     }
@@ -386,6 +387,20 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         if (!player.hasPermission("entreprisemanager.admin.forcesave")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
         entrepriseLogic.saveEntreprises();
         player.sendMessage(ChatColor.GREEN + "Données des entreprises sauvegardées manuellement !");
+    }
+
+    private void adminCleanDisplayCommand(Player player) {
+        if (!player.hasPermission("entreprisemanager.admin.cleandisplay")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        boolean removed = plugin.getShopManager().removeTargetedDisplayItem(player);
+        if (removed) {
+            player.sendMessage(ChatColor.GREEN + "Item de boutique supprimé.");
+        } else {
+            player.sendMessage(ChatColor.RED + "Aucun item de boutique trouvé à portée.");
+        }
     }
 
     private void handleStatsCommand(Player player, String[] args) {
