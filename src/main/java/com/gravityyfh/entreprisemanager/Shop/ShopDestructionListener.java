@@ -4,6 +4,7 @@ import com.gravityyfh.entreprisemanager.EntrepriseManager;
 import com.palmergames.bukkit.towny.event.PlotClearEvent;
 import com.palmergames.bukkit.towny.event.plot.PlayerChangePlotTypeEvent;
 import com.palmergames.bukkit.towny.event.plot.changeowner.PlotChangeOwnerEvent;
+import com.palmergames.bukkit.towny.event.plot.changeowner.PlotUnclaimEvent;
 import com.palmergames.bukkit.towny.event.town.TownRuinedEvent;
 import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.object.TownBlock;
@@ -96,6 +97,14 @@ public class ShopDestructionListener implements Listener {
          this.plugin.getLogger().log(Level.WARNING, "Impossible de gérer TownUnclaimEvent pour " + event.getWorldCoord().toString(), var3);
       }
 
+   }
+
+   @EventHandler(
+      priority = EventPriority.MONITOR,
+      ignoreCancelled = true
+   )
+   public void onPlotUnclaim(PlotUnclaimEvent event) {
+      this.handlePlotShopsDeletion(event.getTownBlock(), "Plot Unclaim");
    }
 
    @EventHandler(
