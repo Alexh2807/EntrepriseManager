@@ -9,6 +9,7 @@ import com.palmergames.bukkit.towny.event.town.TownRuinedEvent;
 import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.object.TownBlock;
 import com.palmergames.bukkit.towny.object.TownBlockType;
+import com.palmergames.bukkit.towny.object.WorldCoord;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -65,11 +66,11 @@ public class ShopDestructionListener implements Listener {
       }
    }
 
-   private void handlePlotShopsDeletion(TownBlock townBlock, String reason) {
-      if (townBlock != null) {
-         List<Shop> shopsOnPlot = this.shopManager.getShopsByPlot(townBlock);
+   private void handlePlotShopsDeletion(WorldCoord worldCoord, String reason) {
+      if (worldCoord != null) {
+         List<Shop> shopsOnPlot = this.shopManager.getShopsByPlot(worldCoord);
          if (!shopsOnPlot.isEmpty()) {
-            this.plugin.getLogger().log(Level.INFO, "La parcelle " + townBlock.getWorldCoord().toString() + " a subi l'événement '" + reason + "'. Suppression de " + shopsOnPlot.size() + " boutique(s).");
+            this.plugin.getLogger().log(Level.INFO, "La parcelle " + worldCoord.toString() + " a subi l'événement '" + reason + "'. Suppression de " + shopsOnPlot.size() + " boutique(s).");
             ShopManager var10001 = this.shopManager;
             Objects.requireNonNull(var10001);
             shopsOnPlot.forEach(var10001::deleteShop);
@@ -83,7 +84,7 @@ public class ShopDestructionListener implements Listener {
       ignoreCancelled = true
    )
    public void onPlotChangeOwner(PlotChangeOwnerEvent event) {
-      this.handlePlotShopsDeletion(event.getTownBlock(), "Changement de Propriétaire");
+      this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Changement de Propriétaire");
    }
 
    @EventHandler(
@@ -92,7 +93,7 @@ public class ShopDestructionListener implements Listener {
    )
    public void onTownUnclaim(TownUnclaimEvent event) {
       try {
-         this.handlePlotShopsDeletion(event.getWorldCoord().getTownBlock(), "Unclaim");
+         this.handlePlotShopsDeletion(event.getWorldCoord(), "Unclaim");
       } catch (Exception var3) {
          this.plugin.getLogger().log(Level.WARNING, "Impossible de gérer TownUnclaimEvent pour " + event.getWorldCoord().toString(), var3);
       }
@@ -104,7 +105,7 @@ public class ShopDestructionListener implements Listener {
       ignoreCancelled = true
    )
    public void onPlotUnclaim(PlotUnclaimEvent event) {
-      this.handlePlotShopsDeletion(event.getTownBlock(), "Plot Unclaim");
+      this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Unclaim");
    }
 
    @EventHandler(
@@ -112,7 +113,7 @@ public class ShopDestructionListener implements Listener {
       ignoreCancelled = true
    )
    public void onPlotClear(PlotClearEvent event) {
-      this.handlePlotShopsDeletion(event.getTownBlock(), "Plot Clear");
+      this.handlePlotShopsDeletion(event.getTownBlock().getWorldCoord(), "Plot Clear");
    }
 
    @EventHandler(
@@ -125,7 +126,7 @@ public class ShopDestructionListener implements Listener {
 
       while(var2.hasNext()) {
          TownBlock townBlock = (TownBlock)var2.next();
-         this.handlePlotShopsDeletion(townBlock, "Ville en Ruine");
+         this.handlePlotShopsDeletion(townBlock.getWorldCoord(), "Ville en Ruine");
       }
 
    }
@@ -137,7 +138,7 @@ public class ShopDestructionListener implements Listener {
    public void onPlotTypeChange(PlayerChangePlotTypeEvent event) {
       TownBlock townBlock = event.getTownBlock();
       if (townBlock != null && event.getNewType() != TownBlockType.COMMERCIAL) {
-         this.handlePlotShopsDeletion(townBlock, "Changement de type de parcelle");
+         this.handlePlotShopsDeletion(townBlock.getWorldCoord(), "Changement de type de parcelle");
       }
    }
 }
