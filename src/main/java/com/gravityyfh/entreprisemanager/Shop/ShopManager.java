@@ -6,6 +6,7 @@ import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.TownBlock;
 import com.palmergames.bukkit.towny.object.TownBlockType;
+import com.palmergames.bukkit.towny.object.WorldCoord;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -300,11 +302,21 @@ public class ShopManager {
       }).sorted(Comparator.comparing(Shop::getCreationDate)).collect(Collectors.toList());
    }
 
-   public List<Shop> getShopsByPlot(TownBlock townBlock) {
-      return townBlock == null ? Collections.emptyList() : (List)this.shops.values().stream().filter((shop) -> {
-         TownBlock shopPlot = TownyAPI.getInstance().getTownBlock(shop.getLocation());
-         return townBlock.equals(shopPlot);
-      }).collect(Collectors.toList());
+   public List<Shop> getShopsByPlot(WorldCoord worldCoord) {
+      if (worldCoord == null) {
+         return Collections.emptyList();
+      } else {
+         return this.shops.values().stream().filter((shop) -> {
+            Location loc = shop.getLocation();
+            if (loc == null || loc.getWorld() == null) {
+               return false;
+            }
+
+            return Objects.equals(loc.getWorld().getName(), worldCoord.getWorldName()) &&
+               loc.getChunk().getX() == worldCoord.getX() &&
+               loc.getChunk().getZ() == worldCoord.getZ();
+         }).collect(Collectors.toList());
+      }
    }
 
    private String formatMaterialName(Material material) {
