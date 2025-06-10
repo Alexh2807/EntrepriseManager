@@ -11,6 +11,7 @@ import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.object.TownBlock;
 import com.palmergames.bukkit.towny.object.TownBlockType;
 import com.palmergames.bukkit.towny.object.WorldCoord;
+import com.palmergames.bukkit.towny.TownyAPI;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -68,15 +69,22 @@ public class ShopDestructionListener implements Listener {
    }
 
    private void handlePlotShopsDeletion(WorldCoord worldCoord, String reason) {
-      if (worldCoord != null) {
-         List<Shop> shopsOnPlot = this.shopManager.getShopsByPlot(worldCoord);
-         if (!shopsOnPlot.isEmpty()) {
-            this.plugin.getLogger().log(Level.INFO, "La parcelle " + worldCoord.toString() + " a subi l'événement '" + reason + "'. Suppression de " + shopsOnPlot.size() + " boutique(s).");
-            ShopManager var10001 = this.shopManager;
-            Objects.requireNonNull(var10001);
-            shopsOnPlot.forEach(var10001::deleteShop);
-         }
+      if (worldCoord == null) {
+         return;
+      }
 
+      this.plugin.getLogger().log(Level.INFO, "Événement Towny '" + reason + "' déclenché pour " + worldCoord);
+
+      TownBlock townBlock = TownyAPI.getInstance().getTownBlock(worldCoord);
+      if (townBlock != null) {
+         int deleted = this.shopManager.deleteShopsOnPlot(townBlock, reason);
+         if (deleted == 0) {
+            this.plugin.getLogger().log(Level.FINE, "Aucune boutique trouvée sur la parcelle " + worldCoord);
+         }
+      } else {
+         this.plugin.getLogger().log(Level.INFO, "Aucune TownBlock associée à " + worldCoord + ". Tentative de suppression via coordonnées.");
+         List<Shop> shopsOnPlot = this.shopManager.getShopsByPlot(worldCoord);
+         shopsOnPlot.forEach(this.shopManager::deleteShop);
       }
    }
 
