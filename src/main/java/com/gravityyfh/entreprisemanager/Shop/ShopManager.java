@@ -163,7 +163,23 @@ public class ShopManager {
 
    public void finalizeShopCreation(Player gerant, EntrepriseManagerLogic.Entreprise entreprise, Location chestLocation, ItemStack itemToSell, int quantity, double price) {
       if (!(price <= 0.0D) && quantity > 0) {
-         Shop newShop = new Shop(entreprise.getSiret(), gerant.getUniqueId(), chestLocation, itemToSell, quantity, price);
+         String townName = null;
+         String tbWorld = null;
+         int tbX = 0;
+         int tbZ = 0;
+         try {
+            TownBlock tb = TownyAPI.getInstance().getTownBlock(chestLocation);
+            if (tb != null) {
+               townName = tb.getTownOrNull() != null ? tb.getTownOrNull().getName() : null;
+               tbWorld = tb.getWorldCoord().getWorldName();
+               tbX = tb.getWorldCoord().getX();
+               tbZ = tb.getWorldCoord().getZ();
+            }
+         } catch (Exception ignored) {
+         }
+
+         Shop newShop = new Shop(entreprise.getNom(), entreprise.getSiret(), gerant.getUniqueId(), gerant.getName(),
+                 chestLocation, townName, tbWorld, tbX, tbZ, itemToSell, quantity, price);
          this.createDisplayItem(newShop);
          this.placeAndUpdateShopSign(newShop, entreprise);
          this.shops.put(newShop.getShopId(), newShop);
@@ -175,15 +191,28 @@ public class ShopManager {
       }
    }
 
+   /**
+    * Supprime complètement une boutique.
+    * <p>
+    * Lors de la suppression, l'item de vitrine est retiré, le panneau est
+    * détruit (remplacé par de l'air) et la boutique est retirée du fichier
+    * {@code shops.yml}.
+    *
+    * @param shop La boutique à supprimer.
+    */
    public void deleteShop(Shop shop) {
       if (shop == null) {
          return;
       }
 
       this.plugin.getLogger().log(Level.INFO, "[Suppression] Tentative de suppression de la boutique " + shop.getShopId() + " située en " + shop.getLocation());
+
+      // Retire la boutique du registre interne
       if (this.shops.remove(shop.getShopId()) != null) {
-         this.deleteDisplayItem(shop);
+         // Nettoyage visuel
          this.removeShopSign(shop);
+         this.deleteDisplayItem(shop);
+
          this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " supprimée pour l'entreprise SIRET: " + shop.getEntrepriseSiret());
          this.saveShops();
       } else {
