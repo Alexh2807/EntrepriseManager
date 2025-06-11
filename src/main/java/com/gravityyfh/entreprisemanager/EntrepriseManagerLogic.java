@@ -665,25 +665,58 @@ public class EntrepriseManagerLogic {
     // --- Suppression et Dissolution (AVEC HISTORIQUE) ---
     public void handleEntrepriseRemoval(Entreprise entreprise, String reason) {
         if (entreprise == null) return;
+
+        // --- MODIFICATION PRINCIPALE ---
+        // On s'assure de supprimer toutes les boutiques de l'entreprise AVANT de continuer.
+        // C'est la ligne la plus importante à ajouter ici.
+        if (plugin.getShopManager() != null) {
+            plugin.getShopManager().deleteAllShopsForEnterprise(entreprise.getSiret());
+        }
+        // --- FIN DE LA MODIFICATION ---
+
         String nomEntreprise = entreprise.getNom();
-        UUID gerantUUID = null; try { gerantUUID = UUID.fromString(entreprise.getGerantUUID()); } catch (Exception ignored) {}
+        UUID gerantUUID = null;
+        try {
+            gerantUUID = UUID.fromString(entreprise.getGerantUUID());
+        } catch (Exception ignored) {
+        }
+
         plugin.getLogger().info("[EntrepriseManagerLogic] Enregistrement historique avant dissolution de '" + nomEntreprise + "'. Raison: " + reason);
         LocalDateTime dateDissolution = LocalDateTime.now();
-        if (gerantUUID != null) { recordPlayerHistoryEntry(gerantUUID, entreprise, "Gérant", dateDissolution); }
-        else { plugin.getLogger().warning("UUID gérant invalide pour " + nomEntreprise + ", historique gérant non enregistré."); }
+        if (gerantUUID != null) {
+            recordPlayerHistoryEntry(gerantUUID, entreprise, "Gérant", dateDissolution);
+        } else {
+            plugin.getLogger().warning("UUID gérant invalide pour " + nomEntreprise + ", historique gérant non enregistré.");
+        }
+
         Set<String> employesAvantDissolution = new HashSet<>(entreprise.getEmployes());
         for (String employeNom : employesAvantDissolution) {
             OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom);
-            if (offlineEmp != null && (offlineEmp.hasPlayedBefore() || offlineEmp.isOnline())) { recordPlayerHistoryEntry(offlineEmp.getUniqueId(), entreprise, "Employé", dateDissolution); }
-            else { plugin.getLogger().warning("UUID invalide pour employé " + employeNom + " (ent: " + nomEntreprise + "), historique non enregistré."); }
+            if (offlineEmp != null && (offlineEmp.hasPlayedBefore() || offlineEmp.isOnline())) {
+                recordPlayerHistoryEntry(offlineEmp.getUniqueId(), entreprise, "Employé", dateDissolution);
+            } else {
+                plugin.getLogger().warning("UUID invalide pour employé " + employeNom + " (ent: " + nomEntreprise + "), historique non enregistré.");
+            }
         }
+
         plugin.getLogger().info("[EntrepriseManagerLogic] Suppression effective de '" + nomEntreprise + "'.");
         entreprise.getEmployeeActivityRecords().values().forEach(EmployeeActivityRecord::endSession);
-        entreprises.remove(nomEntreprise); activiteHoraireValeur.remove(nomEntreprise);
+        entreprises.remove(nomEntreprise);
+        activiteHoraireValeur.remove(nomEntreprise);
         saveEntreprises();
+
         Player gerantPlayer = (gerantUUID != null) ? Bukkit.getPlayer(gerantUUID) : null;
-        if (gerantPlayer != null && gerantPlayer.isOnline()) { gerantPlayer.sendMessage(ChatColor.RED + "Votre entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason); }
-        for (String employeNom : employesAvantDissolution) { OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom); Player onlineEmp = (offlineEmp != null) ? offlineEmp.getPlayer() : null; if(onlineEmp != null){ onlineEmp.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' dont vous étiez membre a été dissoute. Raison: " + reason); } }
+        if (gerantPlayer != null && gerantPlayer.isOnline()) {
+            gerantPlayer.sendMessage(ChatColor.RED + "Votre entreprise '" + nomEntreprise + "' a été dissoute. Raison: " + reason);
+        }
+
+        for (String employeNom : employesAvantDissolution) {
+            OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(employeNom);
+            Player onlineEmp = (offlineEmp != null) ? offlineEmp.getPlayer() : null;
+            if (onlineEmp != null) {
+                onlineEmp.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' dont vous étiez membre a été dissoute. Raison: " + reason);
+            }
+        }
     }
     public void supprimerEntreprise(Player initiator, String nomEntreprise) {
         Entreprise entrepriseASupprimer = getEntreprise(nomEntreprise);

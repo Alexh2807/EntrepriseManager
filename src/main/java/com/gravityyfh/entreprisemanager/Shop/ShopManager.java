@@ -181,7 +181,7 @@ public class ShopManager {
          Shop newShop = new Shop(entreprise.getNom(), entreprise.getSiret(), gerant.getUniqueId(), gerant.getName(),
                  chestLocation, townName, tbWorld, tbX, tbZ, itemToSell, quantity, price);
          this.createDisplayItem(newShop);
-         this.placeAndUpdateShopSign(newShop, entreprise);
+         this.placeAndUpdateShopSign(newShop, entreprise, gerant);
          this.shops.put(newShop.getShopId(), newShop);
          this.saveShops();
          ChatColor var10001 = ChatColor.GREEN;
@@ -191,12 +191,14 @@ public class ShopManager {
       }
    }
 
+// Dans /src/main/java/com/gravityyfh/entreprisemanager/Shop/ShopManager.java
+
    /**
-    * Supprime complètement une boutique.
+    * Supprime complètement une boutique de manière sécurisée (thread-safe).
     * <p>
-    * Lors de la suppression, l'item de vitrine est retiré, le panneau est
-    * détruit (remplacé par de l'air) et la boutique est retirée du fichier
-    * {@code shops.yml}.
+    * Cette méthode retire immédiatement la boutique du registre de données,
+    * puis planifie la suppression des éléments visuels (panneau, item flottant)
+    * sur le thread principal du serveur pour éviter les erreurs asynchrones.
     *
     * @param shop La boutique à supprimer.
     */
@@ -205,37 +207,117 @@ public class ShopManager {
          return;
       }
 
-      this.plugin.getLogger().log(Level.INFO, "[Suppression] Tentative de suppression de la boutique " + shop.getShopId() + " située en " + shop.getLocation());
-
-      // Retire la boutique du registre interne
-      if (this.shops.remove(shop.getShopId()) != null) {
-         // Nettoyage visuel
-         this.removeShopSign(shop);
-         this.deleteDisplayItem(shop);
-
-         this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " supprimée pour l'entreprise SIRET: " + shop.getEntrepriseSiret());
-         this.saveShops();
-      } else {
-         this.plugin.getLogger().log(Level.INFO, "[Suppression] La boutique " + shop.getShopId() + " n'etait pas enregistrée");
+      // 1. Retire la boutique du registre interne. C'est une action sûre depuis n'importe quel thread.
+      if (this.shops.remove(shop.getShopId()) == null) {
+         // La boutique n'était pas dans la liste, elle a peut-être déjà été supprimée.
+         this.plugin.getLogger().log(Level.WARNING, "[Suppression] Tentative de suppression d'une boutique (" + shop.getShopId() + ") qui n'était pas dans le registre.");
+         return;
       }
-   }
 
-   public void deleteAllShopsForEnterprise(String siret) {
-      new ArrayList<>(this.getShopsBySiret(siret)).forEach(this::deleteShop);
-   }
+      this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " retirée du registre. Planification du nettoyage visuel sur le thread principal.");
 
-   public void updateAllShopSignsForEnterprise(String siret) {
-      List<Shop> shopsToUpdate = this.getShopsBySiret(siret);
-      if (!shopsToUpdate.isEmpty()) {
-         EntrepriseManagerLogic.Entreprise entreprise = this.entrepriseLogic.getEntrepriseBySiret(siret);
-         if (entreprise != null) {
-            shopsToUpdate.forEach((shop) -> {
-               this.placeAndUpdateShopSign(shop, entreprise);
-            });
+      // 2. Planifie toutes les interactions avec le monde du jeu pour qu'elles s'exécutent sur le thread principal.
+      //    Ceci empêche l'erreur "Asynchronous chunk load!".
+      Bukkit.getScheduler().runTask(this.plugin, () -> {
+         // --- Début du code exécuté en toute sécurité sur le thread principal ---
+
+         // A. Logique de suppression de l'item flottant (Display Item)
+         if (shop.getDisplayItemID() != null) {
+            Entity entity = Bukkit.getEntity(shop.getDisplayItemID());
+            if (entity instanceof Item) {
+               entity.remove();
+               this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant " + shop.getDisplayItemID() + " supprimé.");
+            }
          }
-      }
 
+         // Sécurité supplémentaire : nettoyer les items flottants orphelins à proximité au cas où l'UUID serait perdu.
+         Location floatingItemLocation = getFloatingItemLocation(shop.getLocation());
+         if (floatingItemLocation != null && floatingItemLocation.isWorldLoaded()) {
+            for (Entity nearby : floatingItemLocation.getWorld().getNearbyEntities(floatingItemLocation, 0.3D, 0.3D, 0.3D)) {
+               if (nearby instanceof Item && ((Item) nearby).getPickupDelay() == Integer.MAX_VALUE) {
+                  nearby.remove();
+                  this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant orphelin à proximité de " + floatingItemLocation.toVector() + " supprimé.");
+                  break;
+               }
+            }
+         }
+
+         // B. Logique de suppression du panneau (Sign)
+         Block chestBlock = shop.getLocation().getBlock();
+         Block signBlock = findSignAttachedToChest(chestBlock);
+         if (signBlock != null) {
+            signBlock.setType(Material.AIR, false); // Modifie le monde
+            this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Panneau à " + signBlock.getLocation().toVector() + " supprimé.");
+         }
+
+         // --- Fin du code sécurisé ---
+      });
+
+      // 3. Sauvegarde la liste des boutiques mise à jour.
+      //    Cette méthode est déjà asynchrone et donc non-bloquante.
+      this.saveShops();
    }
+
+   /**
+    * Supprime toutes les boutiques associées à un SIRET d'entreprise spécifique.
+    * À appeler lorsque l'entreprise elle-même est dissoute.
+    *
+    * @param siret Le SIRET de l'entreprise dont les boutiques doivent être supprimées.
+    */
+   public void deleteAllShopsForEnterprise(String siret) {
+      if (siret == null || siret.isEmpty()) {
+         return;
+      }
+      // On crée une copie de la liste pour éviter les modifications concurrentes
+      List<Shop> shopsToDelete = new ArrayList<>(getShopsBySiret(siret));
+      if (!shopsToDelete.isEmpty()) {
+         plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) pour l'entreprise SIRET: " + siret);
+         shopsToDelete.forEach(this::deleteShop); // Appelle la méthode de suppression sécurisée pour chaque boutique
+      }
+   }
+
+   /**
+    * Supprime toutes les boutiques situées dans une ville spécifique.
+    * À appeler lorsque la ville est supprimée.
+    *
+    * @param townName Le nom de la ville.
+    */
+   public void deleteShopsInTown(String townName) {
+      if (townName == null || townName.isEmpty()) {
+         return;
+      }
+      List<Shop> shopsToDelete = this.shops.values().stream()
+              .filter(shop -> townName.equalsIgnoreCase(shop.getTownName()))
+              .collect(Collectors.toList());
+
+      if (!shopsToDelete.isEmpty()) {
+         plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) suite à la suppression de la ville : " + townName);
+         // On itère sur une copie pour être sûr
+         new ArrayList<>(shopsToDelete).forEach(this::deleteShop);
+      }
+   }
+
+   /**
+    * Supprime toutes les boutiques situées dans les coordonnées d'une parcelle donnée.
+    * C'est la méthode à appeler depuis les listeners de parcelle (plot).
+    *
+    * @param coord  Les coordonnées de la parcelle.
+    * @param reason La raison de la suppression (pour les logs).
+    * @return Le nombre de boutiques supprimées.
+    */
+   public int deleteShopsAt(WorldCoord coord, String reason) {
+      if (coord == null) {
+         return 0;
+      }
+      List<Shop> shopsToDelete = getShopsByPlot(coord);
+      if (shopsToDelete.isEmpty()) {
+         return 0;
+      }
+      plugin.getLogger().log(Level.INFO, "Événement Towny (" + reason + ") : " + shopsToDelete.size() + " boutique(s) à supprimer sur la parcelle " + coord);
+      new ArrayList<>(shopsToDelete).forEach(this::deleteShop);
+      return shopsToDelete.size();
+   }
+
 
    public void changeShopItem(Shop shop, ItemStack newItem) {
       if (shop != null && newItem != null && newItem.getType() != Material.AIR) {
@@ -243,7 +325,7 @@ public class ShopManager {
          this.updateDisplayItem(shop);
          EntrepriseManagerLogic.Entreprise entreprise = this.entrepriseLogic.getEntrepriseBySiret(shop.getEntrepriseSiret());
          if (entreprise != null) {
-            this.placeAndUpdateShopSign(shop, entreprise);
+            this.placeAndUpdateShopSign(shop, entreprise, null);
          }
 
          this.saveShops();
@@ -255,7 +337,7 @@ public class ShopManager {
          shop.setPrice(newPrice);
          EntrepriseManagerLogic.Entreprise entreprise = this.entrepriseLogic.getEntrepriseBySiret(shop.getEntrepriseSiret());
          if (entreprise != null) {
-            this.placeAndUpdateShopSign(shop, entreprise);
+            this.placeAndUpdateShopSign(shop, entreprise, null);
          }
 
          this.saveShops();
@@ -279,7 +361,7 @@ public class ShopManager {
          shop.setQuantityPerSale(newQuantity);
          EntrepriseManagerLogic.Entreprise entreprise = this.entrepriseLogic.getEntrepriseBySiret(shop.getEntrepriseSiret());
          if (entreprise != null) {
-            this.placeAndUpdateShopSign(shop, entreprise);
+            this.placeAndUpdateShopSign(shop, entreprise, null);
          }
 
          this.saveShops();
@@ -370,53 +452,105 @@ public class ShopManager {
       }).collect(Collectors.joining(" "));
    }
 
-   public void placeAndUpdateShopSign(Shop shop, EntrepriseManagerLogic.Entreprise entreprise) {
-      Block chestBlock = shop.getLocation().getBlock();
-      if (chestBlock.getState() instanceof Chest) {
-         Block signBlock = this.findSignAttachedToChest(chestBlock);
-         if (signBlock == null) {
-            BlockFace facing = this.getEmptyFaceForSign(chestBlock);
-            if (facing == null) {
-               return;
-            }
+   /**
+    * Place ou met à jour le panneau d'une boutique.
+    * Tente de placer le panneau en face du joueur s'il est fourni.
+    *
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
+    */
 
-            signBlock = chestBlock.getRelative(facing);
-            signBlock.setType(Material.OAK_WALL_SIGN, false);
-            BlockData data = signBlock.getBlockData();
-            if (data instanceof WallSign) {
-               WallSign signData = (WallSign) data;
-               signData.setFacing(facing);
-               signBlock.setBlockData(signData, true);
+   /**
+    * Place ou met à jour le panneau d'une boutique.
+    * Tente de placer le panneau sur la face du coffre que le joueur regarde.
+    *
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
+    */
+// Dans /src/main/java/com/gravityyfh/entreprisemanager/Shop/ShopManager.java
+
+   /**
+    * Place ou met à jour le panneau d'une boutique.
+    * Tente de placer le panneau sur la face du coffre que le joueur regarde.
+    *
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
+    */
+   public void placeAndUpdateShopSign(Shop shop, EntrepriseManagerLogic.Entreprise entreprise, Player creator) {
+      Block chestBlock = shop.getLocation().getBlock();
+      if (!(chestBlock.getState() instanceof Chest)) {
+         return; // Le coffre n'existe plus, on ne peut rien faire.
+      }
+
+      Block signBlock = this.findSignAttachedToChest(chestBlock);
+
+      // Si aucun panneau n'existe, il faut en créer un au bon endroit.
+      if (signBlock == null) {
+         // La face du coffre sur laquelle le panneau sera attaché.
+         BlockFace attachFace = null;
+
+         // Cas idéal : le créateur est connu, on se base sur sa position.
+         if (creator != null) {
+            BlockFace desiredAttachFace = creator.getFacing().getOppositeFace();
+
+            // --- MODIFICATION ICI ---
+            // Remplacement de isCardinal() par une vérification manuelle compatible partout.
+            if (desiredAttachFace == BlockFace.NORTH || desiredAttachFace == BlockFace.SOUTH || desiredAttachFace == BlockFace.EAST || desiredAttachFace == BlockFace.WEST) {
+               // On vérifie que l'espace est libre.
+               if (chestBlock.getRelative(desiredAttachFace).getType().isAir()) {
+                  attachFace = desiredAttachFace;
+               }
             }
          }
 
-         Sign signState = (Sign) signBlock.getState();
-         signState.setLine(0, ChatColor.DARK_BLUE + "[Boutique]");
-         String nomEntreprise = ChatColor.stripColor(entreprise.getNom());
-         signState.setLine(1, nomEntreprise.substring(0, Math.min(nomEntreprise.length(), 15)));
-         String itemName = this.formatMaterialName(shop.getItemTemplate().getType());
-         String quantityString = shop.getQuantityPerSale() + "x ";
-         int remainingChars = 15 - quantityString.length();
-         signState.setLine(2, quantityString + itemName.substring(0, Math.min(itemName.length(), remainingChars)));
-         ChatColor var10002 = ChatColor.GREEN;
-         signState.setLine(3, var10002 + String.format("%.2f EUR", shop.getPrice()));
-         signState.update(true);
+         // Fallback : Si la place idéale est prise ou si la méthode est appelée sans créateur.
+         if (attachFace == null) {
+            for (BlockFace cardinalFace : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+               if (chestBlock.getRelative(cardinalFace).getType().isAir()) {
+                  attachFace = cardinalFace;
+                  break;
+               }
+            }
+         }
+
+         // Si aucune face n'est libre, on abandonne.
+         if (attachFace == null) {
+            plugin.getLogger().warning("Impossible de placer un panneau pour la boutique " + shop.getShopId() + " : pas d'espace libre autour du coffre.");
+            if (creator != null) {
+               creator.sendMessage(ChatColor.RED + "Impossible de placer le panneau, tous les côtés du coffre sont bloqués !");
+            }
+            return;
+         }
+
+         // On place le nouveau panneau à l'endroit déterminé.
+         signBlock = chestBlock.getRelative(attachFace);
+         signBlock.setType(Material.OAK_WALL_SIGN, false);
+         BlockData data = signBlock.getBlockData();
+         if (data instanceof WallSign) {
+            WallSign signData = (WallSign) data;
+            // L'orientation du texte du panneau doit correspondre à la face sur laquelle il est attaché.
+            signData.setFacing(attachFace);
+            signBlock.setBlockData(signData, true);
+         }
       }
+
+      // Mise à jour du texte du panneau (qu'il soit nouveau ou existant).
+      Sign signState = (Sign) signBlock.getState();
+      signState.setLine(0, ChatColor.DARK_BLUE + "[Boutique]");
+      String nomEntreprise = ChatColor.stripColor(entreprise.getNom());
+      signState.setLine(1, nomEntreprise.substring(0, Math.min(nomEntreprise.length(), 15)));
+      String itemName = this.formatMaterialName(shop.getItemTemplate().getType());
+      String quantityString = shop.getQuantityPerSale() + "x ";
+      int remainingChars = 15 - quantityString.length();
+      if (remainingChars < 0) remainingChars = 0;
+      signState.setLine(2, quantityString + itemName.substring(0, Math.min(itemName.length(), remainingChars)));
+      signState.setLine(3, ChatColor.GREEN + String.format("%.2f EUR", shop.getPrice()));
+      signState.update(true);
    }
 
-   private void removeShopSign(Shop shop) {
-      Block chestBlock = shop.getLocation().getBlock();
-      Block signBlock = this.findSignAttachedToChest(chestBlock);
-      if (signBlock != null) {
-         this.plugin.getLogger().log(Level.FINE, "Suppression du panneau de la boutique " + shop.getShopId());
-         signBlock.getChunk().load();
-         Bukkit.getScheduler().runTask(this.plugin, () -> {
-            signBlock.setType(Material.AIR, false);
-         });
-      } else {
-         this.plugin.getLogger().log(Level.FINE, "Aucun panneau trouvé pour la boutique " + shop.getShopId());
-      }
-   }
 
    private Block getTargetChest(Player player) {
       RayTraceResult rayTrace = player.rayTraceBlocks(5.0D);
@@ -629,13 +763,30 @@ public class ShopManager {
    }
 
    public boolean removeTargetedDisplayItem(Player player) {
-      RayTraceResult entityTrace = player.getWorld().rayTraceEntities(player.getEyeLocation(), player.getEyeLocation().getDirection(), 10.0D, entity -> entity instanceof Display);
-      if (entityTrace != null && entityTrace.getHitEntity() instanceof Display) {
-         entityTrace.getHitEntity().remove();
-         return true;
-      } else {
-         return false;
+      // 1. On cherche une entité de type 'Item', et non plus 'Display'.
+      RayTraceResult entityTrace = player.getWorld().rayTraceEntities(
+              player.getEyeLocation(),
+              player.getEyeLocation().getDirection(),
+              10.0D, // La distance du rayon
+              entity -> entity instanceof Item // On cible les entités Item
+      );
+
+      if (entityTrace != null && entityTrace.getHitEntity() != null) {
+         Item item = (Item) entityTrace.getHitEntity();
+
+         // 2. Pour la sécurité, on vérifie que l'item a les bonnes propriétés
+         //    (celles définies dans votre ancienne méthode de création).
+         //    Cela évite de supprimer n'importe quel objet jeté par terre.
+         boolean isShopDisplayItem = !item.hasGravity() && item.getPickupDelay() > 30000;
+
+         if (isShopDisplayItem) {
+            item.remove(); // On supprime l'entité
+            return true;   // On retourne un succès
+         }
       }
+
+      // Si on n'a rien trouvé, ou si ce n'était pas un item de boutique, on retourne un échec.
+      return false;
    }
 
    public void cleanupOrphanedShopDisplay(Location signLocation) {

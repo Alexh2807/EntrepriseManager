@@ -69,27 +69,18 @@ public class EventListener implements Listener {
             return; // Ignorer le mode créatif
         }
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG Break] Début: " + player.getName() + " cassant " + blockTypeName);
-
         // --- NOUVELLE LOGIQUE POUR LES CULTURES ---
         if (block.getBlockData() instanceof Ageable) {
             Ageable ageable = (Ageable) block.getBlockData();
             if (ageable.getAge() == ageable.getMaximumAge()) {
-                plugin.getLogger().log(Level.INFO, "[DEBUG Break] Culture mature (" + blockTypeName + ") détectée. Traitement comme récolte légitime.");
-
-                // Vérifier si cette récolte est restreinte pour les non-membres
                 boolean isBlockedByRestriction = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
                 if (isBlockedByRestriction) {
-                    event.setCancelled(true);
-                    plugin.getLogger().log(Level.INFO, "[DEBUG Break] Récolte bloquée par restriction standard pour non-membre pour " + player.getName());
+                    // MODIFICATION : Au lieu d'annuler l'événement, on empêche les drops.
+                    event.setDropItems(false);
                     return;
                 }
-
-                // La culture est mature et autorisée, on enregistre le revenu SANS vérifier CoreProtect
-                plugin.getLogger().log(Level.INFO, "[DEBUG Break] Enregistrement action productive pour récolte de " + player.getName());
                 entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1, block);
-                plugin.getLogger().log(Level.INFO, "[DEBUG Break] Fin (Récolte Légitime): " + player.getName());
-                return; // Très important: on arrête le traitement ici pour ne pas déclencher la logique CoreProtect en dessous.
+                return;
             }
         }
         // --- FIN DE LA NOUVELLE LOGIQUE ---
@@ -111,38 +102,30 @@ public class EventListener implements Listener {
                         blockWasPlayerPlacedByCoreProtect = true;
                         if (player.getName().equalsIgnoreCase(resultatParse.getPlayer())) {
                             blockWasPlacedBySamePlayer = true;
-                            plugin.getLogger().log(Level.FINER, "[DEBUG Break] Bloc (" + blockTypeName + ") précédemment posé par le même joueur " + player.getName());
                             break;
                         }
                     }
                 }
                 if (blockWasPlayerPlacedByCoreProtect && !blockWasPlacedBySamePlayer) {
-                    plugin.getLogger().log(Level.INFO, "[DEBUG Break] Bloc (" + blockTypeName + ") détecté comme posé par un autre joueur via CoreProtect. Revenu bloqué pour " + player.getName());
                     player.sendMessage(ChatColor.YELLOW + "[Entreprise] Ce bloc a été précédemment posé par un joueur. Aucun revenu généré.");
                 }
             }
-        } else {
-            plugin.getLogger().warning("[DEBUG Break] API CoreProtect non disponible. Vérification anti-duplication sautée.");
         }
 
-        // Vérification des restrictions standards
-        // Si le bloc a été posé par ce même joueur, on ignore la limite
         boolean isBlockedByRestriction = false;
         if (!blockWasPlacedBySamePlayer) {
             isBlockedByRestriction = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
         }
         if (isBlockedByRestriction) {
-            event.setCancelled(true);
+            // MODIFICATION : Au lieu d'annuler l'événement, on empêche les drops.
+            event.setDropItems(false);
             return;
         }
 
         if (blockWasPlayerPlacedByCoreProtect) {
-            // L'action productive n'est pas appelée
             plugin.getLogger().log(Level.INFO, "[DEBUG Break] Action productive SAUTÉE (bloc posé par joueur).");
         } else {
-            // Le bloc est naturel et autorisé, on enregistre
             entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1, block);
         }
-        plugin.getLogger().log(Level.INFO, "[DEBUG Break] Fin (Logique standard): " + player.getName());
     }
 }

@@ -25,7 +25,7 @@ public class TownyListener implements Listener {
 
     /**
      * Gère la suppression d'une ville Towny.
-     * Si une ville est supprimée, toutes les entreprises situées dans cette ville sont également supprimées.
+     * Si une ville est supprimée, toutes les entreprises et leurs boutiques situées dans cette ville sont également supprimées.
      * @param event L'événement de suppression de ville.
      */
     @EventHandler
@@ -37,15 +37,22 @@ public class TownyListener implements Listener {
             return;
         }
 
-        plugin.getLogger().log(Level.INFO, "La ville '" + deletedTownName + "' est en cours de suppression (via DeleteTownEvent). Vérification des entreprises associées...");
+        plugin.getLogger().log(Level.INFO, "La ville '" + deletedTownName + "' est en cours de suppression. Nettoyage des entreprises et boutiques associées...");
 
-        // Copie de la liste pour éviter ConcurrentModificationException si handleEntrepriseRemoval modifie la collection originale
+        // --- LOGIQUE MODIFIÉE ET OPTIMISÉE ---
+
+        // 1. Supprimer toutes les boutiques de la ville
+        if (plugin.getShopManager() != null) {
+            plugin.getShopManager().deleteShopsInTown(deletedTownName);
+        }
+
+        // 2. Supprimer toutes les entreprises de la ville
+        // On itère sur une copie pour éviter les erreurs de modification concurrente
         List<EntrepriseManagerLogic.Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());
-
         int entreprisesSupprimees = 0;
         for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesAConsiderer) {
-            if (entreprise.getVille().equalsIgnoreCase(deletedTownName)) {
-                plugin.getLogger().log(Level.INFO, "Suppression de l'entreprise '" + entreprise.getNom() + "' car sa ville '" + deletedTownName + "' a été supprimée.");
+            if (deletedTownName.equalsIgnoreCase(entreprise.getVille())) {
+                // La méthode handleEntrepriseRemoval s'occupe de tout le processus de suppression de l'entreprise
                 entrepriseLogic.handleEntrepriseRemoval(entreprise, "La ville '" + deletedTownName + "' a été supprimée.");
                 entreprisesSupprimees++;
             }

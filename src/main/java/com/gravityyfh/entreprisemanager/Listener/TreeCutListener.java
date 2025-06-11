@@ -2,6 +2,7 @@ package com.gravityyfh.entreprisemanager.Listener;
 
 import com.gravityyfh.entreprisemanager.EntrepriseManager;
 import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -35,54 +36,46 @@ public class TreeCutListener implements Listener {
 
         Set<Block> blocksCut = event.getBlocks();
 
-        // --- NOUVELLE LOGIQUE ---
         int totalLogsInTree = 0;
         Material firstLogMaterial = null;
 
-        // 1. Compter tous les blocs de bois avant de faire quoi que ce soit
         for (Block block : blocksCut) {
             Material type = block.getType();
             if (type.name().endsWith("_LOG") || type.name().endsWith("_WOOD") || type.name().contains("STEM") || type == Material.MANGROVE_ROOTS || type == Material.MUDDY_MANGROVE_ROOTS) {
                 if (firstLogMaterial == null) {
-                    firstLogMaterial = type; // On prend le premier type trouvé comme référence pour la restriction
+                    firstLogMaterial = type;
                 }
                 totalLogsInTree++;
             }
         }
 
         if (totalLogsInTree == 0 || firstLogMaterial == null) {
-            plugin.getLogger().log(Level.FINER, "TreeCutEvent ignoré (Aucun bloc de log trouvé) pour " + player.getName());
             return;
         }
 
         String firstLogMaterialName = firstLogMaterial.name();
-        plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Événement : " + player.getName() + " coupe un arbre (" + totalLogsInTree + " logs de type principal : " + firstLogMaterialName + ")");
-
-        // 2. Vérifier la restriction sur la base de la quantité totale de bois
         boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", firstLogMaterialName, totalLogsInTree);
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Résultat vérification restriction pour " + player.getName() + " : " + (isBlocked ? "BLOQUÉ" : "AUTORISÉ"));
-
         if (isBlocked) {
+            // MODIFICATION : On annule l'événement TreeCuter pour empêcher l'abattage en chaîne,
+            // mais cela peut encore causer l'erreur pour le premier bloc.
+            // La solution idéale dépend de comment l'API TreeCuter fonctionne.
+            // Si l'erreur persiste pour le premier bloc, la logique de EventListener.java devrait la gérer.
             event.setCancelled(true);
-            plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] Action bloquée, événement TreeCut annulé pour " + player.getName());
+            // On envoie aussi un message clair au joueur
+            player.sendMessage(ChatColor.RED + "Vous avez atteint votre limite horaire pour l'abattage de ce type de bois.");
             return;
         }
-        // --- FIN NOUVELLE LOGIQUE ---
 
-        // 3. Si ce n'est pas bloqué, enregistrer le revenu pour chaque bloc
+        // Si ce n'est pas bloqué, enregistrer le revenu pour chaque bloc
         int logsRecorded = 0;
         for (Block block : blocksCut) {
             Material blockType = block.getType();
             if (blockType.name().endsWith("_LOG") || blockType.name().endsWith("_WOOD") || blockType.name().contains("STEM") || blockType == Material.MANGROVE_ROOTS || blockType == Material.MUDDY_MANGROVE_ROOTS) {
-                plugin.getLogger().log(Level.FINER, "[DEBUG TreeCut] Enregistrement action pour " + player.getName() + " : bûche " + blockType.name());
                 entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1, block);
                 logsRecorded++;
             }
         }
-
-        if (logsRecorded > 0) {
-            plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] " + logsRecorded + " bûches/tiges enregistrées pour " + player.getName());
-        }
+        plugin.getLogger().log(Level.INFO, "[DEBUG TreeCut] " + logsRecorded + " bûches/tiges enregistrées pour " + player.getName());
     }
 }
