@@ -20,19 +20,33 @@ import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 public class Shop {
    private final UUID shopId;
    private final String entrepriseSiret;
+   private final String entrepriseName;
    private final UUID ownerUUID;
+   private final String ownerName;
    private final Location location;
+   private final String townName;
+   private final String townBlockWorld;
+   private final int townBlockX;
+   private final int townBlockZ;
    private final LocalDateTime creationDate;
    private ItemStack itemTemplate;
    private int quantityPerSale;
    private double price;
    private UUID displayItemID;
 
-   public Shop(String entrepriseSiret, UUID ownerUUID, Location location, ItemStack itemForSale, int quantityPerSale, double price) {
+   public Shop(String entrepriseName, String entrepriseSiret, UUID ownerUUID, String ownerName,
+               Location location, String townName, String townBlockWorld, int townBlockX, int townBlockZ,
+               ItemStack itemForSale, int quantityPerSale, double price) {
       this.shopId = UUID.randomUUID();
-      this.entrepriseSiret = (String)Objects.requireNonNull(entrepriseSiret, "entrepriseSiret cannot be null");
-      this.ownerUUID = (UUID)Objects.requireNonNull(ownerUUID, "ownerUUID cannot be null");
-      this.location = (Location)Objects.requireNonNull(location, "location cannot be null");
+      this.entrepriseName = Objects.requireNonNull(entrepriseName, "entrepriseName cannot be null");
+      this.entrepriseSiret = Objects.requireNonNull(entrepriseSiret, "entrepriseSiret cannot be null");
+      this.ownerUUID = Objects.requireNonNull(ownerUUID, "ownerUUID cannot be null");
+      this.ownerName = Objects.requireNonNull(ownerName, "ownerName cannot be null");
+      this.location = Objects.requireNonNull(location, "location cannot be null");
+      this.townName = townName;
+      this.townBlockWorld = townBlockWorld;
+      this.townBlockX = townBlockX;
+      this.townBlockZ = townBlockZ;
       this.itemTemplate = itemForSale.clone();
       this.itemTemplate.setAmount(1);
       this.quantityPerSale = quantityPerSale;
@@ -40,11 +54,19 @@ public class Shop {
       this.creationDate = LocalDateTime.now();
    }
 
-   private Shop(UUID shopId, String entrepriseSiret, UUID ownerUUID, Location location, LocalDateTime creationDate, ItemStack itemTemplate, int quantityPerSale, double price, UUID displayItemID) {
+   private Shop(UUID shopId, String entrepriseName, String entrepriseSiret, UUID ownerUUID, String ownerName,
+                Location location, String townName, String townBlockWorld, int townBlockX, int townBlockZ,
+                LocalDateTime creationDate, ItemStack itemTemplate, int quantityPerSale, double price, UUID displayItemID) {
       this.shopId = shopId;
+      this.entrepriseName = entrepriseName;
       this.entrepriseSiret = entrepriseSiret;
       this.ownerUUID = ownerUUID;
+      this.ownerName = ownerName;
       this.location = location;
+      this.townName = townName;
+      this.townBlockWorld = townBlockWorld;
+      this.townBlockX = townBlockX;
+      this.townBlockZ = townBlockZ;
       this.creationDate = creationDate;
       this.itemTemplate = itemTemplate;
       this.quantityPerSale = quantityPerSale;
@@ -58,6 +80,30 @@ public class Shop {
 
    public String getEntrepriseSiret() {
       return this.entrepriseSiret;
+   }
+
+   public String getEntrepriseName() {
+      return this.entrepriseName;
+   }
+
+   public String getOwnerName() {
+      return this.ownerName;
+   }
+
+   public String getTownName() {
+      return this.townName;
+   }
+
+   public String getTownBlockWorld() {
+      return this.townBlockWorld;
+   }
+
+   public int getTownBlockX() {
+      return this.townBlockX;
+   }
+
+   public int getTownBlockZ() {
+      return this.townBlockZ;
    }
 
    public UUID getOwnerUUID() {
@@ -115,10 +161,20 @@ public class Shop {
       Map<String, Object> map = new HashMap();
       map.put("shopId", this.shopId.toString());
       map.put("entrepriseSiret", this.entrepriseSiret);
+      map.put("entrepriseName", this.entrepriseName);
       map.put("ownerUUID", this.ownerUUID.toString());
+      map.put("ownerName", this.ownerName);
       map.put("creationDate", this.creationDate.toString());
       map.put("price", this.price);
       map.put("quantityPerSale", this.quantityPerSale);
+      if (this.townName != null) {
+         map.put("townName", this.townName);
+      }
+      if (this.townBlockWorld != null) {
+         map.put("townBlock.world", this.townBlockWorld);
+         map.put("townBlock.x", this.townBlockX);
+         map.put("townBlock.z", this.townBlockZ);
+      }
       if (this.location != null && this.location.getWorld() != null) {
          map.put("location.world", this.location.getWorld().getName());
          map.put("location.x", this.location.getX());
@@ -138,10 +194,16 @@ public class Shop {
       try {
          UUID id = UUID.fromString((String)map.get("shopId"));
          String siret = (String)map.get("entrepriseSiret");
+         String entrepriseName = (String)map.getOrDefault("entrepriseName", "?");
          UUID ownerId = UUID.fromString((String)map.get("ownerUUID"));
+         String ownerName = (String)map.getOrDefault("ownerName", "?");
          LocalDateTime date = LocalDateTime.parse((String)map.get("creationDate"));
          double price = (Double)map.get("price");
          int quantity = ((Number)map.getOrDefault("quantityPerSale", 1)).intValue();
+         String townName = (String)map.get("townName");
+         String tbWorld = (String)map.get("townBlock.world");
+         int tbX = map.containsKey("townBlock.x") ? ((Number)map.get("townBlock.x")).intValue() : 0;
+         int tbZ = map.containsKey("townBlock.z") ? ((Number)map.get("townBlock.z")).intValue() : 0;
          UUID displayItemID = map.containsKey("displayItemID") ? UUID.fromString((String)map.get("displayItemID")) : null;
          Location loc = null;
          if (map.containsKey("location.world")) {
@@ -152,7 +214,9 @@ public class Shop {
          }
 
          ItemStack item = itemStackFromBase64((String)map.get("itemTemplate"));
-         return siret != null && loc != null && item != null ? new Shop(id, siret, ownerId, loc, date, item, quantity, price, displayItemID) : null;
+         return siret != null && loc != null && item != null ?
+                 new Shop(id, entrepriseName, siret, ownerId, ownerName,
+                         loc, townName, tbWorld, tbX, tbZ, date, item, quantity, price, displayItemID) : null;
       } catch (Exception var11) {
          Bukkit.getLogger().log(Level.SEVERE, "Erreur critique lors de la désérialisation d'une boutique.", var11);
          return null;
