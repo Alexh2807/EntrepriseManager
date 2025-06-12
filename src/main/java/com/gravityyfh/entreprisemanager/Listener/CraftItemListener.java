@@ -9,8 +9,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.CraftItemEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.*;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 
 public class CraftItemListener implements Listener {
@@ -41,25 +43,90 @@ public class CraftItemListener implements Listener {
         Material itemType = resultItem.getType();
         String itemTypeName = itemType.name();
 
-        // On ne vérifie que la quantité de CET événement de craft (généralement 1 ou plus, selon la recette).
-        // La logique complexe pour le shift-click est inutile car la méthode de restriction gère déjà l'accumulation.
-        int amountPerCraft = resultItem.getAmount();
+        int amountPerSingleCraftExecution = resultItem.getAmount();
+        int actualCraftedAmount = amountPerSingleCraftExecution;
 
-        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Tentative de craft par " + player.getName() + " pour " + amountPerCraft + "x " + itemTypeName);
+        if (event.isShiftClick()) {
+            CraftingInventory craftInv = (CraftingInventory) event.getInventory();
+            actualCraftedAmount = calculateMaxCrafts(recipe, craftInv);
+            if (actualCraftedAmount == 0) {
+                actualCraftedAmount = amountPerSingleCraftExecution;
+            }
+        }
 
-        // On vérifie la restriction sur la base de la quantité de la fabrication actuelle.
-        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, amountPerCraft);
-
-        plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Résultat vérification restriction : " + (isBlocked ? "BLOQUÉ" : "AUTORISÉ"));
+        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, actualCraftedAmount);
 
         if (isBlocked) {
             event.setCancelled(true);
-            plugin.getLogger().log(Level.INFO, "[DEBUG Craft] Craft de " + itemTypeName + " annulé par restriction pour " + player.getName());
-            return; // Important de retourner ici pour ne pas enregistrer l'action productive
+            return;
         }
 
-        // L'action est autorisée, on enregistre la productivité.
-        // La logique centrale s'occupera d'additionner les quantités si le joueur shift-click.
-        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, amountPerCraft);
+        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, actualCraftedAmount);
+    }
+
+    /**
+     * Calcule le nombre maximum d'items qui seront produits lors d'un craft en série (shift-click).
+     * Cette version est corrigée pour agréger correctement les ingrédients requis, que la recette
+     * soit avec ou sans forme, évitant ainsi les erreurs de calcul.
+     * @param recipe La recette exécutée.
+     * @param inventory L'inventaire de craft.
+     * @return Le nombre total d'items qui seront fabriqués.
+     */
+    private int calculateMaxCrafts(Recipe recipe, CraftingInventory inventory) {
+        ItemStack resultItem = recipe.getResult();
+        int amountPerSingleCraft = resultItem.getAmount();
+
+        // Étape 1: Déterminer les ingrédients requis et leurs quantités pour UN SEUL craft.
+        Map<Material, Integer> requiredMaterials = new HashMap<>();
+
+        if (recipe instanceof ShapedRecipe) {
+            ShapedRecipe shapedRecipe = (ShapedRecipe) recipe;
+            Map<Character, ItemStack> ingredientMap = shapedRecipe.getIngredientMap();
+            for (String row : shapedRecipe.getShape()) {
+                for (char symbol : row.toCharArray()) {
+                    ItemStack requiredIngredient = ingredientMap.get(symbol);
+                    if (requiredIngredient != null && requiredIngredient.getType() != Material.AIR) {
+                        requiredMaterials.merge(requiredIngredient.getType(), 1, Integer::sum);
+                    }
+                }
+            }
+        } else if (recipe instanceof ShapelessRecipe) {
+            ShapelessRecipe shapelessRecipe = (ShapelessRecipe) recipe;
+            for (ItemStack requiredIngredient : shapelessRecipe.getIngredientList()) {
+                if (requiredIngredient != null && requiredIngredient.getType() != Material.AIR) {
+                    requiredMaterials.merge(requiredIngredient.getType(), requiredIngredient.getAmount(), Integer::sum);
+                }
+            }
+        } else {
+            // Fallback pour les recettes non standards
+            return amountPerSingleCraft;
+        }
+
+        if (requiredMaterials.isEmpty()) {
+            return amountPerSingleCraft;
+        }
+
+        // Étape 2: Compter les matériaux disponibles dans la grille de craft.
+        Map<Material, Integer> availableMaterials = new HashMap<>();
+        for (ItemStack itemInGrid : inventory.getMatrix()) {
+            if (itemInGrid != null && itemInGrid.getType() != Material.AIR) {
+                availableMaterials.merge(itemInGrid.getType(), itemInGrid.getAmount(), Integer::sum);
+            }
+        }
+
+        // Étape 3: Trouver le facteur limitant (combien de crafts complets sont possibles).
+        int maxCrafts = Integer.MAX_VALUE;
+        for (Map.Entry<Material, Integer> required : requiredMaterials.entrySet()) {
+            Material material = required.getKey();
+            int requiredAmount = required.getValue();
+            int availableAmount = availableMaterials.getOrDefault(material, 0);
+
+            if (availableAmount < requiredAmount) {
+                return 0; // Pas assez d'ingrédients pour un seul craft.
+            }
+            maxCrafts = Math.min(maxCrafts, availableAmount / requiredAmount);
+        }
+
+        return (maxCrafts == Integer.MAX_VALUE ? 0 : maxCrafts) * amountPerSingleCraft;
     }
 }

@@ -52,7 +52,11 @@ public class EntrepriseManagerLogic {
     private static Map<UUID, List<PastExperience>> playerHistoryCache;
     // --- Fin Historique ---
 
-    private final Map<String, Double> activiteHoraireValeur = new ConcurrentHashMap<>();
+    // --- MODIFICATION: Renamed and added new map for shop revenue ---
+    private final Map<String, Double> activiteProductiveHoraireValeur = new ConcurrentHashMap<>();
+    private final Map<String, Double> activiteMagasinHoraireValeur = new ConcurrentHashMap<>();
+    // --- END MODIFICATION ---
+
     private final Map<String, String> invitations = new ConcurrentHashMap<>();
     private final Map<UUID, DemandeCreation> demandesEnAttente = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, ActionInfo>> joueurActivitesRestrictions = new ConcurrentHashMap<>();
@@ -235,62 +239,19 @@ public class EntrepriseManagerLogic {
         }.runTaskTimerAsynchronously(plugin, ACTIVITY_CHECK_INTERVAL_TICKS, ACTIVITY_CHECK_INTERVAL_TICKS);
     }
 
-    public void payerChargesSalarialesHoraires() {
-        double chargeParEmploye = plugin.getConfig().getDouble("finance.charge-salariale-par-employe-horaire", 0.0);
-        boolean actifsSeulement = plugin.getConfig().getBoolean("finance.charges-sur-employes-actifs-seulement", true);
-
-        if (chargeParEmploye <= 0) return;
-        boolean modified = false;
-
-        plugin.getLogger().info("Début du calcul des charges salariales horaires...");
-
-        for (Entreprise entreprise : entreprises.values()) {
-            long nbEmployesConcernes;
-            if (actifsSeulement) {
-                nbEmployesConcernes = entreprise.getEmployeeActivityRecords().values().stream()
-                        .filter(EmployeeActivityRecord::isActive)
-                        .count();
-            } else {
-                nbEmployesConcernes = entreprise.getEmployes().size();
-            }
-
-            if (nbEmployesConcernes == 0) continue;
-
-            double totalCharges = nbEmployesConcernes * chargeParEmploye;
-            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
-            OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
-            String employesType = actifsSeulement ? "actifs" : "total";
-
-            if (entreprise.getSolde() >= totalCharges) {
-                double soldeAvant = entreprise.getSolde();
-                entreprise.setSolde(soldeAvant - totalCharges);
-                entreprise.addTransaction(new Transaction(TransactionType.PAYROLL_TAX, totalCharges, "Charges salariales (" + nbEmployesConcernes + " emp. " + employesType + ")", "System"));
-                modified = true;
-                String msgSucces = String.format("&aCharges salariales horaires (&b%d&a emp. %s): &e-%.2f€&a. Solde: &e%.2f€ &7-> &e%.2f€",
-                        nbEmployesConcernes, employesType, totalCharges, soldeAvant, entreprise.getSolde());
-
-                plugin.getLogger().info("Charges payées pour '" + entreprise.getNom() + "': " + totalCharges + "€ pour " + nbEmployesConcernes + " emp. " + employesType);
-
-                if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', msgSucces));
-                else if (offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()) ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.translateAlternateColorCodes('&',msgSucces), entreprise.getNom(), -totalCharges);
-
-            } else {
-                String msgEchec = String.format("&cSolde insuffisant (&e%.2f€&c) pour charges salariales (&e%.2f€&c pour %d emp. %s).",
-                        entreprise.getSolde(), totalCharges, nbEmployesConcernes, employesType);
-
-                plugin.getLogger().warning("Solde insuffisant pour charges salariales pour '" + entreprise.getNom() + "'. Requis: " + totalCharges + "€, Solde: " + entreprise.getSolde());
-
-                if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', msgEchec));
-                else if (offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()) ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.translateAlternateColorCodes('&',msgEchec), entreprise.getNom(), 0);
-            }
-        }
-        if (modified) {
-            saveEntreprises();
-            plugin.getLogger().info("Charges salariales horaires traitées et sauvegardées.");
-        } else {
-            plugin.getLogger().info("Aucune charge salariale à appliquer cette heure.");
+    // --- NOUVELLE MÉTHODE ---
+    /**
+     * Enregistre le revenu d'une vente en boutique dans le pot commun horaire.
+     * @param nomEntreprise Le nom de l'entreprise qui a réalisé la vente.
+     * @param montant Le montant de la vente.
+     */
+    public void enregistrerRevenuMagasin(String nomEntreprise, double montant) {
+        if (nomEntreprise != null && montant > 0) {
+            activiteMagasinHoraireValeur.merge(nomEntreprise, montant, Double::sum);
+            plugin.getLogger().fine("Revenu boutique de " + montant + "€ enregistré pour le CA horaire de '" + nomEntreprise + "'.");
         }
     }
+
     // --- Fin Activité/Productivité ---
 
     // --- Gestion Entreprises ---
@@ -321,16 +282,9 @@ public class EntrepriseManagerLogic {
         hourlyTask = new BukkitRunnable() {
             @Override
             public void run() {
-                plugin.getLogger().info("Exécution des tâches horaires automatiques...");
-                traiterChiffreAffairesHoraire();
-                payerPrimesHorairesAuxEmployes();
-                payerChargesSalarialesHoraires();
-                payerAllocationChomageHoraire();
-
-                // Réinitialise les limites pour tous les joueurs en même temps
-                resetHourlyLimitsForAllPlayers();
-
-                plugin.getLogger().info("Tâches horaires automatiques terminées.");
+                // --- MODIFICATION: Calls the new central processing method ---
+                executerCycleFinancierHoraire();
+                // --- END MODIFICATION ---
 
                 // Met à jour l'heure du prochain paiement pour le cycle suivant
                 nextPaymentTime = LocalDateTime.now().withMinute(0).withSecond(0).withNano(0).plusHours(1);
@@ -339,6 +293,7 @@ public class EntrepriseManagerLogic {
 
         plugin.getLogger().info("Tâches horaires planifiées. Prochaine exécution vers: " + nextFullHour.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
     }
+
     public void resetHourlyLimitsForAllPlayers() {
         joueurActivitesRestrictions.clear();
         plugin.getLogger().info("Les limites d'actions horaires pour les non-membres ont été réinitialisées globalement.");
@@ -359,11 +314,6 @@ public class EntrepriseManagerLogic {
         String materialPathConfig = "types-entreprise." + typeEntreprise + ".activites-payantes." + actionTypeString.toUpperCase() + "." + material.name();
         boolean estActionValorisee = plugin.getConfig().contains(materialPathConfig);
 
-        // La vérification estBlocPoseParJoueur a été retirée d'ici.
-        // Elle est maintenant gérée en amont par EventListener (pour BlockBreakEvent)
-        // et BlockPlaceListener (pour anti-pose-casse-repose) via CoreProtect.
-
-        // Validation Towny (reste pertinente)
         if (actionTypeString.equalsIgnoreCase("BLOCK_BREAK")) {
             if (block == null) {
                 plugin.getLogger().warning("BLOCK_BREAK enregistré sans référence de bloc pour " + player.getName() + " sur " + material.name());
@@ -418,8 +368,10 @@ public class EntrepriseManagerLogic {
         }
 
         if (valeurTotaleAction > 0) {
-            activiteHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
-            plugin.getLogger().fine("CA Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (" + actionTypeString + ": " + material.name() + ")");
+            // --- MODIFICATION: Use the correct map ---
+            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
+            // --- END MODIFICATION ---
+            plugin.getLogger().fine("CA Productif Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (" + actionTypeString + ": " + material.name() + ")");
         }
 
         if (detailedActionType != null) {
@@ -489,8 +441,10 @@ public class EntrepriseManagerLogic {
         }
 
         if (valeurTotaleAction > 0) {
-            activiteHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
-            plugin.getLogger().fine("CA Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (Action: " + actionType + ", Cible: " + entityTypeName + ")");
+            // --- MODIFICATION: Use the correct map ---
+            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
+            // --- END MODIFICATION ---
+            plugin.getLogger().fine("CA Productif Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (Action: " + actionType + ", Cible: " + entityTypeName + ")");
         }
 
         if (materialEquivalentPourLogDetaille != null) {
@@ -502,79 +456,206 @@ public class EntrepriseManagerLogic {
                 (materialEquivalentPourLogDetaille != null ? ", log détaillé comme " + materialEquivalentPourLogDetaille.name() : ", pas de log détaillé matériel") );
     }
 
-    public void traiterChiffreAffairesHoraire() {
-        if (entreprises.isEmpty()) return;
+    // --- REFACTORED AND NEW HOURLY METHODS ---
+
+    /**
+     * The main hourly financial processing cycle.
+     * This method orchestrates the calculation of revenues, expenses, and profits,
+     * updates company balances, and sends a detailed financial report to managers.
+     */
+    public void executerCycleFinancierHoraire() {
+        plugin.getLogger().info("Début du cycle financier horaire...");
+        boolean dataModified = false;
+
         double pourcentageTaxes = plugin.getConfig().getDouble("finance.pourcentage-taxes", 15.0);
-        boolean modified = false;
-        for (Map.Entry<String, Double> entry : new HashMap<>(activiteHoraireValeur).entrySet()) {
-            String nomEntreprise = entry.getKey(); double caBrutHoraire = entry.getValue();
-            if (caBrutHoraire <= 0) { activiteHoraireValeur.put(nomEntreprise, 0.0); continue; }
-            Entreprise entreprise = entreprises.get(nomEntreprise);
-            if (entreprise == null) { activiteHoraireValeur.remove(nomEntreprise); continue; }
 
-            modified = true;
-            double ancienSolde = entreprise.getSolde(); double taxesCalculees = caBrutHoraire * (pourcentageTaxes / 100.0);
-            double caNetHoraire = caBrutHoraire - taxesCalculees;
-            entreprise.setSolde(ancienSolde + caNetHoraire); entreprise.setChiffreAffairesTotal(entreprise.getChiffreAffairesTotal() + caBrutHoraire);
-            entreprise.addTransaction(new Transaction(TransactionType.REVENUE, caBrutHoraire, "Revenu horaire brut", "System"));
-            if (taxesCalculees > 0) entreprise.addTransaction(new Transaction(TransactionType.TAXES, taxesCalculees, "Impôts ("+pourcentageTaxes+"%) sur CA horaire", "System"));
+        for (Entreprise entreprise : entreprises.values()) {
+            double ancienSolde = entreprise.getSolde();
 
-            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
-            String messageDetails = String.format("&bSolde: &f%.2f€ &7| &bCA Brut: &f+%.2f€ &7| &cTaxes: &f-%.2f€ &7| &aCA Net: &f+%.2f€ &7| &bNouv. Solde: &f&l%.2f€", ancienSolde, caBrutHoraire, taxesCalculees, caNetHoraire, entreprise.getSolde());
+            // --- 1. Data Collection ---
+            double revenuActivite = activiteProductiveHoraireValeur.getOrDefault(entreprise.getNom(), 0.0);
+            double revenuMagasins = activiteMagasinHoraireValeur.getOrDefault(entreprise.getNom(), 0.0);
+            double caBrut = revenuActivite + revenuMagasins;
+            double montantTaxes = (caBrut > 0) ? caBrut * (pourcentageTaxes / 100.0) : 0.0;
+            double caNet = caBrut - montantTaxes;
 
-            if (gerantPlayer != null && gerantPlayer.isOnline()) { gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6&l[Rapport Horaire] &e" + entreprise.getNom())); gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', messageDetails)); }
-            else {
-                OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
-                if(offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()){ String resume = String.format("Rapport Horaire '%s': CA Net +%.2f€. Solde: %.2f€.", entreprise.getNom(), caNetHoraire, entreprise.getSolde()); ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.GREEN + resume, entreprise.getNom(), caNetHoraire); }
+            // --- 2. Expense Calculation & Deduction ---
+            double fraisPrimes = payerPrimesPourEntreprise(entreprise);
+            double fraisChargesSalariales = payerChargesSalarialesPourEntreprise(entreprise);
+
+            // --- 3. Final Calculation & Balance Update ---
+            double beneficeFinal = caNet - fraisPrimes - fraisChargesSalariales;
+
+            if (caBrut > 0 || fraisPrimes > 0 || fraisChargesSalariales > 0) {
+                dataModified = true;
+
+                // The balance for primes and charges was already updated within their respective methods.
+                // Now, we just add the net revenue from this hour's activities.
+                entreprise.setSolde(entreprise.getSolde() + caNet);
+                entreprise.setChiffreAffairesTotal(entreprise.getChiffreAffairesTotal() + caBrut);
+
+                // --- 4. Transaction Logging ---
+                if (caBrut > 0) {
+                    entreprise.addTransaction(new Transaction(TransactionType.REVENUE, caBrut, "Revenus bruts horaires (Activité + Boutiques)", "System"));
+                }
+                if (montantTaxes > 0) {
+                    entreprise.addTransaction(new Transaction(TransactionType.TAXES, montantTaxes, "Impôts (" + pourcentageTaxes + "%) sur CA", "System"));
+                }
+
+                // --- 5. Report Generation ---
+                genererEtEnvoyerRapportFinancier(entreprise, ancienSolde, revenuActivite, revenuMagasins, montantTaxes, fraisPrimes, fraisChargesSalariales, beneficeFinal);
             }
-            activiteHoraireValeur.put(nomEntreprise, 0.0);
+
+            // --- 6. Reset Hourly Data for the next cycle ---
+            activiteProductiveHoraireValeur.put(entreprise.getNom(), 0.0);
+            activiteMagasinHoraireValeur.put(entreprise.getNom(), 0.0);
         }
-        if (modified) saveEntreprises();
+
+        // --- 7. Process global, non-company-specific tasks ---
+        payerAllocationChomageHoraire();
+        resetHourlyLimitsForAllPlayers();
+
+        if (dataModified) {
+            saveEntreprises();
+            plugin.getLogger().info("Cycle financier horaire terminé. Des données ont été modifiées et sauvegardées.");
+        } else {
+            plugin.getLogger().info("Cycle financier horaire terminé. Aucune transaction financière à traiter.");
+        }
     }
 
-    public void payerPrimesHorairesAuxEmployes() {
-        if (entreprises.isEmpty()) return;
-        boolean modified = false;
-        for (Entreprise entreprise : entreprises.values()) {
-            Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
-            OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
+    /**
+     * Pays hourly primes for a single specified company.
+     * This method modifies the company's balance, logs the transactions, and returns the total amount of primes paid.
+     * @param entreprise The company to process.
+     * @return The total amount paid in primes.
+     */
+    private double payerPrimesPourEntreprise(Entreprise entreprise) {
+        double totalPrimesPayees = 0;
+        Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
+        OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
 
-            for (String employeNom : new HashSet<>(entreprise.getEmployes())) {
-                OfflinePlayer employeOffline = Bukkit.getOfflinePlayer(employeNom);
-                UUID employeUUID = null; try { if(employeOffline != null) employeUUID = employeOffline.getUniqueId(); } catch (Exception ignored) {}
-                if (employeUUID == null) { plugin.getLogger().warning("UUID invalide pour employé: " + employeNom + " (ent: " + entreprise.getNom() + "). Prime ignorée."); continue; }
+        for (String employeNom : new HashSet<>(entreprise.getEmployes())) {
+            OfflinePlayer employeOffline = Bukkit.getOfflinePlayer(employeNom);
+            UUID employeUUID;
+            try {
+                if(employeOffline != null) employeUUID = employeOffline.getUniqueId(); else continue;
+            } catch (Exception ignored) { continue; }
 
-                double primeConfigurée = entreprise.getPrimePourEmploye(employeUUID.toString());
-                if (primeConfigurée <= 0) continue;
-                EmployeeActivityRecord activity = entreprise.getEmployeeActivityRecord(employeUUID);
-                if (activity == null || !activity.isActive()) continue;
+            double primeConfigurée = entreprise.getPrimePourEmploye(employeUUID.toString());
+            if (primeConfigurée <= 0) continue;
 
-                if (entreprise.getSolde() >= primeConfigurée) {
-                    EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(employeOffline, primeConfigurée);
-                    if (er.transactionSuccess()) {
-                        double soldeAvant = entreprise.getSolde(); entreprise.setSolde(soldeAvant - primeConfigurée);
-                        entreprise.addTransaction(new Transaction(TransactionType.PRIMES, primeConfigurée, "Prime horaire: " + employeNom, "System"));
-                        modified = true;
-                        String msgEmploye = String.format("&aPrime horaire reçue: &e%.2f€&a de '&6%s&a'.", primeConfigurée, entreprise.getNom());
-                        String msgGerant = String.format("&bPrime versée à &3%s&b: &e%.2f€&b. Solde: &e%.2f€ &7-> &e%.2f€", employeNom, primeConfigurée, soldeAvant, entreprise.getSolde());
-                        Player onlineEmp = employeOffline.getPlayer();
-                        if (onlineEmp != null) onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&', msgEmploye));
-                        else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&',msgEmploye), entreprise.getNom(), primeConfigurée);
-                        if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&', msgGerant));
-                        else if (offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()) ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.translateAlternateColorCodes('&',msgGerant), entreprise.getNom(), primeConfigurée);
-                    } else { if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.RED + "Erreur versement prime à " + employeNom + ": " + er.errorMessage); plugin.getLogger().severe("Erreur Vault prime " + employeNom + ": " + er.errorMessage); }
-                } else {
-                    String msgEchecEmp = String.format("&cL'entreprise '&6%s&c' n'a pas pu verser votre prime de &e%.2f€&c.", entreprise.getNom(), primeConfigurée);
-                    String msgEchecGer = String.format("&cSolde insuffisant (&e%.2f€&c) pour prime de &3%s&c (&e%.2f€&c).", entreprise.getSolde(), employeNom, primeConfigurée);
+            EmployeeActivityRecord activity = entreprise.getEmployeeActivityRecord(employeUUID);
+            if (activity == null || !activity.isActive()) continue; // Only active employees get primes
+
+            if (entreprise.getSolde() >= primeConfigurée) {
+                EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(employeOffline, primeConfigurée);
+                if (er.transactionSuccess()) {
+                    entreprise.setSolde(entreprise.getSolde() - primeConfigurée);
+                    entreprise.addTransaction(new Transaction(TransactionType.PRIMES, primeConfigurée, "Prime horaire: " + employeNom, "System"));
+                    totalPrimesPayees += primeConfigurée;
+
+                    String msgEmploye = String.format("&aPrime horaire reçue: &e+%.2f€&a de '&6%s&a'.", primeConfigurée, entreprise.getNom());
                     Player onlineEmp = employeOffline.getPlayer();
-                    if (onlineEmp != null) onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&',msgEchecEmp));
-                    else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&',msgEchecEmp), entreprise.getNom(), 0);
-                    if (gerantPlayer != null && gerantPlayer.isOnline()) gerantPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',msgEchecGer));
-                    else if (offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()) ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.translateAlternateColorCodes('&',msgEchecGer), entreprise.getNom(), 0);
+                    if (onlineEmp != null) onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&', msgEmploye));
+                    else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&', msgEmploye), entreprise.getNom(), primeConfigurée);
+
+                } else {
+                    plugin.getLogger().severe("Erreur Vault (prime) pour " + employeNom + ": " + er.errorMessage);
                 }
+            } else {
+                String msgEchecEmp = String.format("&cL'entreprise '&6%s&c' n'a pas pu verser votre prime de &e%.2f€ &c(solde insuffisant).", entreprise.getNom(), primeConfigurée);
+                Player onlineEmp = employeOffline.getPlayer();
+                if (onlineEmp != null) onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&',msgEchecEmp));
+                else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&',msgEchecEmp), entreprise.getNom(), 0);
             }
         }
-        if (modified) saveEntreprises();
+        return totalPrimesPayees;
+    }
+
+    /**
+     * Pays hourly payroll taxes for a single specified company.
+     * This method modifies the company's balance, logs the transactions, and returns the total amount of charges paid.
+     * @param entreprise The company to process.
+     * @return The total amount paid in charges.
+     */
+    private double payerChargesSalarialesPourEntreprise(Entreprise entreprise) {
+        double chargeParEmploye = plugin.getConfig().getDouble("finance.charge-salariale-par-employe-horaire", 0.0);
+        if (chargeParEmploye <= 0) return 0;
+
+        boolean actifsSeulement = plugin.getConfig().getBoolean("finance.charges-sur-employes-actifs-seulement", true);
+
+        long nbEmployesConcernes;
+        if (actifsSeulement) {
+            nbEmployesConcernes = entreprise.getEmployeeActivityRecords().values().stream()
+                    .filter(EmployeeActivityRecord::isActive)
+                    .count();
+        } else {
+            nbEmployesConcernes = entreprise.getEmployes().size();
+        }
+
+        if (nbEmployesConcernes == 0) return 0;
+
+        double totalCharges = nbEmployesConcernes * chargeParEmploye;
+        if (entreprise.getSolde() >= totalCharges) {
+            entreprise.setSolde(entreprise.getSolde() - totalCharges);
+            entreprise.addTransaction(new Transaction(TransactionType.PAYROLL_TAX, totalCharges, "Charges salariales (" + nbEmployesConcernes + " emp.)", "System"));
+            return totalCharges;
+        } else {
+            plugin.getLogger().warning("Solde insuffisant pour charges salariales pour '" + entreprise.getNom() + "'. Requis: " + totalCharges + "€, Solde: " + entreprise.getSolde());
+            return 0;
+        }
+    }
+
+    /**
+     * Generates and sends the detailed hourly financial report to the company manager.
+     */
+    private void genererEtEnvoyerRapportFinancier(Entreprise entreprise, double ancienSolde, double revActivite, double revMagasins, double taxes, double primes, double charges, double benefice) {
+        double caBrut = revActivite + revMagasins;
+        double totalDepenses = taxes + primes + charges;
+        double nouveauSolde = ancienSolde + benefice;
+        String typeEntreprise = entreprise.getType() != null ? entreprise.getType() : "N/A";
+        double taxRate = plugin.getConfig().getDouble("finance.pourcentage-taxes", 15.0);
+
+        List<String> report = new ArrayList<>();
+        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
+        report.add(" " + ChatColor.GOLD + "" + ChatColor.BOLD + "Entreprise : " + ChatColor.YELLOW + entreprise.getNom() + ChatColor.GRAY + " (" + typeEntreprise + ")");
+        report.add(" " + ChatColor.GOLD + "Rapport Financier Horaire");
+        report.add("");
+        report.add(ChatColor.AQUA + "  Chiffre d'Affaires Brut");
+        report.add(String.format(ChatColor.GRAY + "    - Revenus d'activité : %s+%,.2f €", ChatColor.GREEN, revActivite));
+        report.add(String.format(ChatColor.GRAY + "    - Revenus des boutiques : %s+%,.2f €", ChatColor.GREEN, revMagasins));
+        report.add(ChatColor.DARK_AQUA + "    -------------------------------");
+        report.add(String.format(ChatColor.AQUA + "      Total Brut : %s+%,.2f €", ChatColor.GREEN, caBrut));
+        report.add("");
+        report.add(ChatColor.RED + "  Dépenses Opérationnelles");
+        report.add(String.format(ChatColor.GRAY + "    - Impôts sur le CA (%.0f%%) : %s-%,.2f €", taxRate, ChatColor.RED, taxes));
+        report.add(String.format(ChatColor.GRAY + "    - Primes versées : %s-%,.2f €", ChatColor.RED, primes));
+        report.add(String.format(ChatColor.GRAY + "    - Charges salariales : %s-%,.2f €", ChatColor.RED, charges));
+        report.add(ChatColor.DARK_RED + "    -------------------------------");
+        report.add(String.format(ChatColor.RED + "      Total Dépenses : %s-%,.2f €", ChatColor.RED, totalDepenses));
+        report.add("");
+
+        String beneficePrefix = benefice >= 0 ? ChatColor.GREEN + "+" : ChatColor.RED + "";
+        report.add(String.format(ChatColor.BOLD + "  Bénéfice/Perte Horaire : %s%,.2f €", beneficePrefix, benefice));
+        report.add("");
+        report.add(ChatColor.DARK_AQUA + "  Solde de l'entreprise :");
+        report.add(String.format(ChatColor.GRAY + "    Ancien solde : " + ChatColor.WHITE + "%,.2f €", ancienSolde));
+        report.add(String.format(ChatColor.GRAY + "    Nouveau solde : " + ChatColor.WHITE + "" + ChatColor.BOLD + "%,.2f €", nouveauSolde));
+
+        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
+
+        Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
+        String fullReportString = String.join("\n", report);
+
+        if (gerantPlayer != null && gerantPlayer.isOnline()) {
+            gerantPlayer.sendMessage(fullReportString);
+        } else {
+            OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
+            if(offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()){
+                String resume = String.format("Rapport Horaire '%s': Bénéfice/Perte de %.2f€. Nouveau solde: %.2f€.", entreprise.getNom(), benefice, nouveauSolde);
+                ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.GREEN + resume, entreprise.getNom(), benefice);
+            }
+        }
     }
 
     public void payerAllocationChomageHoraire() {
@@ -702,7 +783,7 @@ public class EntrepriseManagerLogic {
         plugin.getLogger().info("[EntrepriseManagerLogic] Suppression effective de '" + nomEntreprise + "'.");
         entreprise.getEmployeeActivityRecords().values().forEach(EmployeeActivityRecord::endSession);
         entreprises.remove(nomEntreprise);
-        activiteHoraireValeur.remove(nomEntreprise);
+        activiteProductiveHoraireValeur.remove(nomEntreprise);
         saveEntreprises();
 
         Player gerantPlayer = (gerantUUID != null) ? Bukkit.getPlayer(gerantUUID) : null;
@@ -758,7 +839,7 @@ public class EntrepriseManagerLogic {
         Entreprise nouvelleEntreprise = new Entreprise(nomEntreprise, ville, type, gerantCible.getName(), gerantCible.getUniqueId().toString(), new HashSet<>(), 0.0, siret);
         nouvelleEntreprise.addTransaction(new Transaction(TransactionType.CREATION_COST, coutCreation, "Frais de création", gerantCible.getName()));
         entreprises.put(nomEntreprise, nouvelleEntreprise);
-        activiteHoraireValeur.put(nomEntreprise, 0.0);
+        activiteProductiveHoraireValeur.put(nomEntreprise, 0.0);
         saveEntreprises();
         maireCreateur.sendMessage(ChatColor.GREEN + "Entreprise '" + nomEntreprise + "' (Type: " + type + ") créée pour " + gerantCible.getName() + " à " + ville + ".");
         gerantCible.sendMessage(ChatColor.GREEN + "Félicitations ! Vous gérez '" + nomEntreprise + "'. Coût: " + String.format("%,.2f", coutCreation) + "€.");
@@ -955,17 +1036,6 @@ public class EntrepriseManagerLogic {
             return;
         }
 
-        // Vérification 2: (CLARIFICATION) Est-ce que le gerantCible est déjà salarié ailleurs au point de ne plus pouvoir être gérant ?
-        // D'après votre définition, max-travail-joueur concerne les emplois salariés.
-        // Un joueur peut donc être gérant de N entreprises (selon max-entreprises-par-gerant) ET salarié dans M autres (selon max-travail-joueur).
-        // Donc, pour devenir gérant, on ne vérifie PAS sa limite de jobs salariés ici.
-        // La seule contrainte est qu'il ne peut pas être DEJA gérant d'une autre entreprise si max-entreprises-par-gerant = 1, etc.
-
-        // L'ancienne vérification `getNomEntrepriseDuMembre(gerantCible.getName()) != null` était trop restrictive
-        // si elle empêchait un salarié de devenir gérant de sa première entreprise.
-        // Nous devons nous assurer qu'il ne dépasse pas la limite de GÉRANCE.
-        // La limite d'emplois SALARIÉS sera vérifiée lors de l'INVITATION à un poste d'employé.
-
         if (entreprises.containsKey(nomEntreprisePropose)) {
             maire.sendMessage(ChatColor.RED + "Le nom d'entreprise '" + nomEntreprisePropose + "' est déjà pris.");
             plugin.getLogger().log(Level.INFO, "[DEBUG CREATION] Échec: Nom d'entreprise déjà pris.");
@@ -1018,14 +1088,10 @@ public class EntrepriseManagerLogic {
             return;
         }
 
-        // La permission 'entreprisemanager.admin.renameany' permettrait toujours à un admin de renommer
-        // une entreprise qui ne lui appartient pas, mais le paiement s'appliquera maintenant à tous.
-        // La vérification isGerantProprietaire reste pour s'assurer que le joueur est bien le gérant
-        // s'il n'est pas un admin agissant sur n'importe quelle entreprise.
         boolean isAdminAgissantSurAutrui = gerant.hasPermission("entreprisemanager.admin.renameany") && !entreprise.getGerant().equalsIgnoreCase(gerant.getName());
         boolean isGerantProprietaire = entreprise.getGerant().equalsIgnoreCase(gerant.getName());
 
-        if (!isGerantProprietaire && !isAdminAgissantSurAutrui) { // Seul le gérant ou un admin (agissant sur une autre entreprise) peut renommer
+        if (!isGerantProprietaire && !isAdminAgissantSurAutrui) {
             gerant.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de renommer cette entreprise.");
             return;
         }
@@ -1045,36 +1111,31 @@ public class EntrepriseManagerLogic {
 
         double coutRenommage = plugin.getConfig().getDouble("rename-cost", 2500.0);
 
-        // ---- LOGIQUE DE PAIEMENT PAR L'ENTREPRISE (S'APPLIQUE À TOUS SI COÛT > 0) ----
-        if (coutRenommage > 0) { // Le paiement s'applique si le coût est positif, quel que soit le statut admin.
+        if (coutRenommage > 0) {
             if (entreprise.getSolde() < coutRenommage) {
                 gerant.sendMessage(ChatColor.RED + "Le solde de l'entreprise (" + String.format("%,.2f€", entreprise.getSolde()) + ") est insuffisant pour couvrir les frais de renommage (" + String.format("%,.2f€", coutRenommage) + ").");
                 gerant.sendMessage(ChatColor.RED + "Veuillez déposer des fonds dans l'entreprise via le menu de gestion ('Déposer Argent') pour pouvoir la renommer."); // Indication ajoutée
-                return; // Arrêter le processus si fonds insuffisants
+                return;
             }
-            // Déduire les frais du solde de l'entreprise
             entreprise.setSolde(entreprise.getSolde() - coutRenommage);
             entreprise.addTransaction(new Transaction(TransactionType.RENAME_COST, coutRenommage, "Renommage: " + ancienNom + " -> " + nouveauNom, gerant.getName()));
             gerant.sendMessage(ChatColor.YELLOW + "Frais de renommage (" + String.format("%,.2f€", coutRenommage) + ") déduits du solde de l'entreprise. Nouveau solde : " + String.format("%,.2f€", entreprise.getSolde()) + ".");
         }
-        // ---- FIN DE LA LOGIQUE DE PAIEMENT ----
 
-        // Processus de renommage effectif
         entreprises.remove(ancienNom);
-        Double caPotentielExistant = activiteHoraireValeur.remove(ancienNom);
+        Double caProductifExistant = activiteProductiveHoraireValeur.remove(ancienNom);
+        Double caMagasinExistant = activiteMagasinHoraireValeur.remove(ancienNom);
 
         entreprise.setNom(nouveauNom);
         entreprises.put(nouveauNom, entreprise);
 
-        if (caPotentielExistant != null) {
-            activiteHoraireValeur.put(nouveauNom, caPotentielExistant);
-        } else {
-            activiteHoraireValeur.put(nouveauNom, 0.0); // S'assurer qu'une entrée existe pour le nouveau nom
-        }
+        activiteProductiveHoraireValeur.put(nouveauNom, caProductifExistant != null ? caProductifExistant : 0.0);
+        activiteMagasinHoraireValeur.put(nouveauNom, caMagasinExistant != null ? caMagasinExistant : 0.0);
+
         saveEntreprises();
 
         String msgConfirm = ChatColor.GREEN + "L'entreprise '" + ancienNom + "' a été renommée en '" + nouveauNom + "'.";
-        if (coutRenommage > 0) { // Le message sur les frais s'affiche s'il y avait un coût
+        if (coutRenommage > 0) {
             msgConfirm += " Les frais de " + String.format("%,.2f€", coutRenommage) + " ont été payés par l'entreprise.";
         }
         gerant.sendMessage(msgConfirm);
@@ -1151,7 +1212,8 @@ public class EntrepriseManagerLogic {
     // --- Chargement / Sauvegarde (AVEC HISTORIQUE) ---
     private void loadEntreprises() {
         entreprises.clear();
-        activiteHoraireValeur.clear();
+        activiteProductiveHoraireValeur.clear();
+        activiteMagasinHoraireValeur.clear();
         joueurActivitesRestrictions.clear();
         FileConfiguration currentConfig = YamlConfiguration.loadConfiguration(entrepriseFile);
         if (!entrepriseFile.exists()) {
@@ -1174,9 +1236,10 @@ public class EntrepriseManagerLogic {
                 double solde = currentConfig.getDouble(path + "solde", 0.0);
                 String siret = currentConfig.getString(path + "siret", generateSiret());
                 double caTotal = currentConfig.getDouble(path + "chiffreAffairesTotal", 0.0);
-                double caHorairePotentiel = currentConfig.getDouble(path + "activiteHoraireValeur", 0.0);
-                int niveauMaxEmployes = currentConfig.getInt(path + "niveauMaxEmployes", 0); // Charger niveau max employés
-                int niveauMaxSolde = currentConfig.getInt(path + "niveauMaxSolde", 0);       // Charger niveau max solde
+                double caProductifHoraire = currentConfig.getDouble(path + "activiteProductiveHoraireValeur", 0.0);
+                double caMagasinHoraire = currentConfig.getDouble(path + "activiteMagasinHoraireValeur", 0.0);
+                int niveauMaxEmployes = currentConfig.getInt(path + "niveauMaxEmployes", 0);
+                int niveauMaxSolde = currentConfig.getInt(path + "niveauMaxSolde", 0);
 
                 if (gerantNom == null || gerantUUIDStr == null || type == null || ville == null) {
                     plugin.getLogger().severe("Données essentielles manquantes pour l'entreprise '" + nomEnt + "'. Elle ne sera pas chargée.");
@@ -1227,7 +1290,6 @@ public class EntrepriseManagerLogic {
                             ConfigurationSection recordSect = activityRecordsSect.getConfigurationSection(uuidStr);
                             if (recordSect != null) {
                                 Map<String, Object> recordData = new HashMap<>();
-                                // Conversion explicite pour éviter les problèmes de type avec getValues(true)
                                 for(String key : recordSect.getKeys(true)) {
                                     recordData.put(key, recordSect.get(key));
                                 }
@@ -1261,11 +1323,12 @@ public class EntrepriseManagerLogic {
                 ent.setTransactionLog(transactionLogList);
                 ent.setEmployeeActivityRecords(activitiesMap);
                 ent.setGlobalProductionLog(globalProductionLogList);
-                ent.setNiveauMaxEmployes(niveauMaxEmployes); // Définir niveau chargé
-                ent.setNiveauMaxSolde(niveauMaxSolde);       // Définir niveau chargé
+                ent.setNiveauMaxEmployes(niveauMaxEmployes);
+                ent.setNiveauMaxSolde(niveauMaxSolde);
 
                 entreprises.put(nomEnt, ent);
-                activiteHoraireValeur.put(nomEnt, caHorairePotentiel);
+                activiteProductiveHoraireValeur.put(nomEnt, caProductifHoraire);
+                activiteMagasinHoraireValeur.put(nomEnt, caMagasinHoraire);
                 entreprisesChargees++;
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "Erreur majeure lors du chargement de l'entreprise '" + nomEnt + "'.", e);
@@ -1293,12 +1356,10 @@ public class EntrepriseManagerLogic {
             entreprisesSection.set(path + "solde", ent.getSolde());
             entreprisesSection.set(path + "siret", ent.getSiret());
             entreprisesSection.set(path + "chiffreAffairesTotal", ent.getChiffreAffairesTotal());
-            entreprisesSection.set(path + "activiteHoraireValeur", activiteHoraireValeur.getOrDefault(nomEnt, 0.0));
-
-            // --- AJOUTS CRUCIAUX ---
-            entreprisesSection.set(path + "niveauMaxEmployes", ent.getNiveauMaxEmployes()); // Sauvegarder niveau max employés
-            entreprisesSection.set(path + "niveauMaxSolde", ent.getNiveauMaxSolde());       // Sauvegarder niveau max solde
-            // --- FIN AJOUTS ---
+            entreprisesSection.set(path + "activiteProductiveHoraireValeur", activiteProductiveHoraireValeur.getOrDefault(nomEnt, 0.0));
+            entreprisesSection.set(path + "activiteMagasinHoraireValeur", activiteMagasinHoraireValeur.getOrDefault(nomEnt, 0.0));
+            entreprisesSection.set(path + "niveauMaxEmployes", ent.getNiveauMaxEmployes());
+            entreprisesSection.set(path + "niveauMaxSolde", ent.getNiveauMaxSolde());
 
             ConfigurationSection employesSect = entreprisesSection.createSection(path + "employes");
             ent.getPrimes().forEach((uuidStr, primeVal) -> employesSect.set(uuidStr + ".prime", primeVal));
@@ -1345,8 +1406,8 @@ public class EntrepriseManagerLogic {
     // --- Fin Messages Différés ---
 
     // --- Getters et Utilitaires ---
-    public double getActiviteHoraireValeurPour(String nomEntreprise) { return activiteHoraireValeur.getOrDefault(nomEntreprise, 0.0); }
-    public List<Transaction> getTransactionsPourEntreprise(String nomEntreprise, int limit) { Entreprise entreprise = getEntreprise(nomEntreprise); if (entreprise == null) return Collections.emptyList(); List<Transaction> log = new ArrayList<>(entreprise.getTransactionLog()); Collections.reverse(log); return (limit <= 0 || limit >= log.size()) ? log : log.subList(0, limit); }
+    public double getActiviteHoraireValeurPour(String nomEntreprise) {double revenusProductifs = activiteProductiveHoraireValeur.getOrDefault(nomEntreprise, 0.0);double revenusMagasins = activiteMagasinHoraireValeur.getOrDefault(nomEntreprise, 0.0);return revenusProductifs + revenusMagasins;
+    }    public List<Transaction> getTransactionsPourEntreprise(String nomEntreprise, int limit) { Entreprise entreprise = getEntreprise(nomEntreprise); if (entreprise == null) return Collections.emptyList(); List<Transaction> log = new ArrayList<>(entreprise.getTransactionLog()); Collections.reverse(log); return (limit <= 0 || limit >= log.size()) ? log : log.subList(0, limit); }
     public Collection<String> getPlayersInMayorTown(Player mayor) { if (!estMaire(mayor) || plugin.getServer().getPluginManager().getPlugin("Towny") == null) return Collections.emptyList(); try { Town town = TownyAPI.getInstance().getResident(mayor).getTown(); return (town != null) ? town.getResidents().stream().map(Resident::getName).collect(Collectors.toList()) : Collections.emptyList(); } catch (NotRegisteredException e) { return Collections.emptyList(); } }
     public Collection<String> getAllTownsNames() { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return Collections.emptyList(); return TownyAPI.getInstance().getTowns().stream().map(Town::getName).collect(Collectors.toList()); }
     public boolean peutCreerEntreprise(Player player) { int max = plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1); return getEntreprisesGereesPar(player.getName()).size() < max; }

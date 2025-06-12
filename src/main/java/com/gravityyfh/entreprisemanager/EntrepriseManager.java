@@ -7,6 +7,8 @@ import com.gravityyfh.entreprisemanager.Listener.BlockPlaceListener;
 import com.gravityyfh.entreprisemanager.Listener.CraftItemListener;
 import com.gravityyfh.entreprisemanager.Listener.EntityDamageListener;
 import com.gravityyfh.entreprisemanager.Listener.EntityDeathListener;
+// AJOUT : Import pour le nouveau listener
+import com.gravityyfh.entreprisemanager.Listener.SmithItemListener;
 import com.gravityyfh.entreprisemanager.Listener.TreeCutListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopDestructionListener;
 import com.gravityyfh.entreprisemanager.Shop.ShopDisplayItemListener;
@@ -37,6 +39,8 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
     private ShopDisplayItemListener shopDisplayItemListener;
     private BlockPlaceListener blockPlaceListener;
     private CraftItemListener craftItemListener;
+    // AJOUT : Déclaration du nouveau listener
+    private SmithItemListener smithItemListener;
     private EntityDamageListener entityDamageListener;
     private EntityDeathListener entityDeathListener;
     private TreeCutListener treeCutListener;
@@ -79,6 +83,9 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
             this.getLogger().info("BlockPlaceListener initialisé.");
             this.craftItemListener = new CraftItemListener(this, this.entrepriseLogic);
             this.getLogger().info("CraftItemListener initialisé.");
+            // AJOUT : Initialisation du nouveau listener
+            this.smithItemListener = new SmithItemListener(this.entrepriseLogic);
+            this.getLogger().info("SmithItemListener initialisé.");
             this.entityDamageListener = new EntityDamageListener(this, this.entrepriseLogic);
             this.getLogger().info("EntityDamageListener initialisé.");
             this.entityDeathListener = new EntityDeathListener(this, this.entrepriseLogic);
@@ -143,6 +150,11 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
 
         if (this.craftItemListener != null) {
             this.getServer().getPluginManager().registerEvents(this.craftItemListener, this);
+        }
+
+        // AJOUT : Enregistrement du nouveau listener
+        if (this.smithItemListener != null) {
+            this.getServer().getPluginManager().registerEvents(this.smithItemListener, this);
         }
 
         if (this.entityDamageListener != null) {
@@ -220,10 +232,6 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
     public void onCommandPreprocess(PlayerCommandPreprocessEvent event) {
     }
 
-    public static EntrepriseManager getInstance() {
-        return instance;
-    }
-
     public EntrepriseManagerLogic getEntrepriseManagerLogic() {
         return this.entrepriseLogic;
     }
@@ -240,9 +248,6 @@ public class EntrepriseManager extends JavaPlugin implements Listener {
         return this.playerCVGUI;
     }
 
-    public CVManager getCvManager() {
-        return this.cvManager;
-    }
 
     public static Economy getEconomy() {
         return econ;

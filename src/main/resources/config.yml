@@ -8,7 +8,6 @@
 # TYPES D'ENTREPRISE
 #--------------------------------------------------------------------------------------------------
 types-entreprise:
-
   Minage:
     description: "Extraction de minerais précieux et de matériaux de construction bruts. Items principaux : Diamant, Fer, Or, Charbon."
     action_restrictions:
@@ -55,7 +54,7 @@ types-entreprise:
     message-erreur-restriction: # Simplifié et avec indication de délai
       - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
       - "&eLimite non-membre : %limite% unités par heure. Vous pourrez réessayer à la prochaine heure."
-    limite-non-membre-par-heure: 4
+    limite-non-membre-par-heure: 3
     cout-creation: 12000.0
 
   Agriculture:
@@ -73,6 +72,7 @@ types-entreprise:
         SUGAR_CANE: {}
         BAMBOO: {}
         CACTUS: {}
+        HAY_BLOCK: {}
     activites-payantes:
       BLOCK_BREAK:
         WHEAT: 0.45
@@ -89,7 +89,7 @@ types-entreprise:
     message-erreur-restriction: # Simplifié et avec indication de délai
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite non-membre : %limite% récoltes par heure. Réessayez à la prochaine heure pour plus."
-    limite-non-membre-par-heure: 12
+    limite-non-membre-par-heure: 6
     cout-creation: 6000.0
     aide-etat-horaire: 150.0
     services:
@@ -282,73 +282,603 @@ types-entreprise:
     message-erreur-restriction: # Simplifié et avec indication de délai
       - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
       - "&eLimite non-membre : %limite% produits par heure. Réessayez à la prochaine heure."
-    limite-non-membre-par-heure: 4
+    limite-non-membre-par-heure: 2
     cout-creation: 8000.0
 
+
   Construction:
-    description: "Pose experte de blocs pour la réalisation de structures variées. Services : Placement de Pierre taillée, Béton, Verre."
+    description: "Pose experte de blocs pour la réalisation de structures variées. Services : Placement de Pierre taillée, Béton, Verre, Bois, Métaux décoratifs, etc."
     action_restrictions:
-      BLOCK_PLACE:
+      # Restrictions sur le CRAFT d'ITEMS (CRAFT_ITEM)
+      CRAFT_ITEM:
+        # Items de construction courants qui peuvent être limités
         STONE_BRICKS: {}
-        QUARTZ_BLOCK: {}
-        GLASS: {}
-        TERRACOTTA: {}
-        CONCRETE: {}
-        BRICKS: {}
-        DEEPSLATE_TILES: {}
-        POLISHED_BLACKSTONE_BRICKS: {}
+        BRICKS: {} # Item de briques (à crafter pour faire le bloc de briques)
+        OAK_PLANKS: {} # Toutes les planches (si non déjà une restriction à la pose du bois brut)
+        SPRUCE_PLANKS: {}
+        BIRCH_PLANKS: {}
+        JUNGLE_PLANKS: {}
+        ACACIA_PLANKS: {}
+        DARK_OAK_PLANKS: {}
+        MANGROVE_PLANKS: {}
+        CHERRY_PLANKS: {}
+        BAMBOO_PLANKS: {}
+        CRIMSON_PLANKS: {}
+        WARPED_PLANKS: {}
+        GLASS_PANE: {} # Vitres
+        WHITE_STAINED_GLASS_PANE: {} # Vitres colorées
+        ORANGE_STAINED_GLASS_PANE: {}
+        MAGENTA_STAINED_GLASS_PANE: {}
+        LIGHT_BLUE_STAINED_GLASS_PANE: {}
+        YELLOW_STAINED_GLASS_PANE: {}
+        LIME_STAINED_GLASS_PANE: {}
+        PINK_STAINED_GLASS_PANE: {}
+        GRAY_STAINED_GLASS_PANE: {}
+        LIGHT_GRAY_STAINED_GLASS_PANE: {}
+        CYAN_STAINED_GLASS_PANE: {}
+        PURPLE_STAINED_GLASS_PANE: {}
+        BLUE_STAINED_GLASS_PANE: {}
+        BROWN_STAINED_GLASS_PANE: {}
+        GREEN_STAINED_GLASS_PANE: {}
+        RED_STAINED_GLASS_PANE: {}
+        BLACK_STAINED_GLASS_PANE: {}
+        LADDER: {} # Échelles
+        IRON_BARS: {} # Barres de fer
+        FENCE: {} # Clôtures (item)
+        OAK_FENCE: {}
+        SPRUCE_FENCE: {}
+        BIRCH_FENCE: {}
+        JUNGLE_FENCE: {}
+        ACACIA_FENCE: {}
+        DARK_OAK_FENCE: {}
+        MANGROVE_FENCE: {}
+        CHERRY_FENCE: {}
+        BAMBOO_FENCE: {}
+        CRIMSON_FENCE: {}
+        WARPED_FENCE: {}
+        COBBLESTONE_WALL: {} # Murs (item)
+        MOSSY_COBBLESTONE_WALL: {}
+        BRICK_WALL: {}
+        PRISMARINE_WALL: {}
+        RED_SANDSTONE_WALL: {}
+        STONE_BRICK_WALL: {}
+        MUD_BRICK_WALL: {} # Nouveaux murs de briques de boue
+        NETHER_BRICK_WALL: {}
+        RED_NETHER_BRICK_WALL: {}
+        END_STONE_BRICK_WALL: {}
+        POLISHED_BLACKSTONE_BRICK_WALL: {}
+        POLISHED_DEEPSLATE_WALL: {}
+        DEEPSLATE_BRICK_WALL: {}
+        DEEPSLATE_TILE_WALL: {}
+        PURPUR_WALL: {}
+        OAK_DOOR: {} # Portes (item)
+        SPRUCE_DOOR: {}
+        BIRCH_DOOR: {}
+        JUNGLE_DOOR: {}
+        ACACIA_DOOR: {}
+        DARK_OAK_DOOR: {}
+        MANGROVE_DOOR: {}
+        CHERRY_DOOR: {}
+        BAMBOO_DOOR: {}
+        CRIMSON_DOOR: {}
+        WARPED_DOOR: {}
+        IRON_DOOR: {}
+        OAK_TRAPDOOR: {} # Trappes (item)
+        IRON_TRAPDOOR: {}
+        CHEST: {} # Coffre
+        CRAFTING_TABLE: {} # Table de craft
+        FURNACE: {} # Four
+        ANVIL: {} # Enclume
+        LANTERN: {} # Lanterne
+        SOUL_LANTERN: {}
+        BOOKSHELF: {} # Bibliothèque
+        NOTE_BLOCK: {} # Bloc musical
+        JUKEBOX: {} # Jukebox
+        REDSTONE_LAMP: {} # Lampe de redstone
+        LEVER: {} # Levier
+        BUTTON: {} # Bouton (tous types de bois/pierre)
+        STONE_BUTTON: {}
+        OAK_BUTTON: {}
+        WEIGHTED_PRESSURE_PLATE_LIGHT: {} # Plaques de pression (tous types)
+        WEIGHTED_PRESSURE_PLATE_HEAVY: {}
+        STONE_PRESSURE_PLATE: {}
+        OAK_PRESSURE_PLATE: {}
+        REDSTONE_TORCH: {} # Torche de redstone
+        REPEATER: {} # Répéteur de redstone
+        COMPARATOR: {} # Comparateur de redstone
+        OBSERVER: {} # Observateur
+        PISTON: {} # Piston
+        STICKY_PISTON: {} # Piston collant
+        DISPENSER: {} # Distributeur
+        DROPPER: {} # Dropper
+        HOPPER: {} # Entonnoir
+        RAIL: {} # Rails
+        POWERED_RAIL: {}
+        DETECTOR_RAIL: {}
+        ACTIVATOR_RAIL: {}
+        DAYLIGHT_DETECTOR: {} # Détecteur de lumière du jour
+        TRIPWIRE_HOOK: {} # Crochet de fil de détection
+        TARGET: {} # Cible
+        BELL: {} # Cloche
+        BLAST_FURNACE: {} # Haut fourneau
+        SMOKER: {} # Fumeur
+        BARREL: {} # Baril
+        CARTOGRAPHY_TABLE: {} # Table de cartographie
+        FLETCHING_TABLE: {} # Table d'arbalétrier
+        GRINDSTONE: {} # Meule
+        LOOM: {} # Métier à tisser
+        SMITHING_TABLE: {} # Table de forgeron
+        STONECUTTER: {} # Tailleur de pierre
+        COMPOSTER: {} # Composter
+        CAULDRON: {} # Chaudron
+        END_ROD: {} # Bâton de l'End
+        SHULKER_BOX: {} # Shulker Box (toutes couleurs)
+        WHITE_SHULKER_BOX: {}
+        ORANGE_SHULKER_BOX: {}
+        MAGENTA_SHULKER_BOX: {}
+        LIGHT_BLUE_SHULKER_BOX: {}
+        YELLOW_SHULKER_BOX: {}
+        LIME_SHULKER_BOX: {}
+        PINK_SHULKER_BOX: {}
+        GRAY_SHULKER_BOX: {}
+        LIGHT_GRAY_SHULKER_BOX: {}
+        CYAN_SHULKER_BOX: {}
+        PURPLE_SHULKER_BOX: {}
+        BLUE_SHULKER_BOX: {}
+        BROWN_SHULKER_BOX: {}
+        GREEN_SHULKER_BOX: {}
+        RED_SHULKER_BOX: {}
+        BLACK_SHULKER_BOX: {}
+        CONCRETE_POWDER: {} # Poudre de béton (toutes couleurs)
+        WHITE_CONCRETE_POWDER: {}
+        ORANGE_CONCRETE_POWDER: {}
+        MAGENTA_CONCRETE_POWDER: {}
+        LIGHT_BLUE_CONCRETE_POWDER: {}
+        YELLOW_CONCRETE_POWDER: {}
+        LIME_CONCRETE_POWDER: {}
+        PINK_CONCRETE_POWDER: {}
+        GRAY_CONCRETE_POWDER: {}
+        LIGHT_GRAY_CONCRETE_POWDER: {}
+        CYAN_CONCRETE_POWDER: {}
+        PURPLE_CONCRETE_POWDER: {}
+        BLUE_CONCRETE_POWDER: {}
+        BROWN_CONCRETE_POWDER: {}
+        GREEN_CONCRETE_POWDER: {}
+        RED_CONCRETE_POWDER: {}
+        BLACK_CONCRETE_POWDER: {}
     activites-payantes:
+      # Gains pour la pose de BLOCS (BLOCK_PLACE) - MAINTENUS POUR LES MEMBRES
       BLOCK_PLACE:
-        STONE: 0.01
+        # Blocs de base, valeurs faibles
+        STONE: 0.015
         DIRT: 0.005
         COBBLESTONE: 0.01
+        GRANITE: 0.012
+        DIORITE: 0.012
+        ANDESITE: 0.012
+        SAND: 0.008
+        GRAVEL: 0.008
+        CLAY: 0.01
+        GRASS_BLOCK: 0.015
+        FARMLAND: 0.01
+        PATH_BLOCK: 0.01
+        # Blocs de bois
         OAK_PLANKS: 0.02
         SPRUCE_PLANKS: 0.02
         BIRCH_PLANKS: 0.02
+        JUNGLE_PLANKS: 0.02
+        ACACIA_PLANKS: 0.02
+        DARK_OAK_PLANKS: 0.02
+        MANGROVE_PLANKS: 0.02
+        CHERRY_PLANKS: 0.02
+        BAMBOO_PLANKS: 0.02
+        CRIMSON_PLANKS: 0.025
+        WARPED_PLANKS: 0.025
+        OAK_LOG: 0.015
+        SPRUCE_LOG: 0.015
+        BIRCH_LOG: 0.015
+        JUNGLE_LOG: 0.015
+        ACACIA_LOG: 0.015
+        DARK_OAK_LOG: 0.015
+        MANGROVE_LOG: 0.015
+        CHERRY_LOG: 0.015
+        BAMBOO_BLOCK: 0.018
+        CRIMSON_STEM: 0.018
+        WARPED_STEM: 0.018
+        STRIPPED_OAK_LOG: 0.016
+        STRIPPED_SPRUCE_LOG: 0.016
+        STRIPPED_BIRCH_LOG: 0.016
+        STRIPPED_JUNGLE_LOG: 0.016
+        STRIPPED_ACACIA_LOG: 0.016
+        STRIPPED_DARK_OAK_LOG: 0.016
+        STRIPPED_MANGROVE_LOG: 0.016
+        STRIPPED_CHERRY_LOG: 0.016
+        STRIPPED_BAMBOO_BLOCK: 0.02
+        STRIPPED_CRIMSON_STEM: 0.02
+        STRIPPED_WARPED_STEM: 0.02
+        LADDER: 0.03
+        # Blocs de pierre travaillée et briques
         STONE_BRICKS: 0.08
-        GLASS: 0.06
+        MOSSY_COBBLESTONE: 0.05
+        CRACKED_STONE_BRICKS: 0.08
+        CHISELED_STONE_BRICKS: 0.08
+        BRICKS: 0.07 # Bloc de briques
+        SMOOTH_STONE: 0.04
+        SMOOTH_SANDSTONE: 0.04
+        SMOOTH_RED_SANDSTONE: 0.04
+        # Béton et Terre cuite (valeurs similaires pour toutes les couleurs)
+        CONCRETE: 0.06 # Utilisez une valeur générique si vous payez toutes les couleurs de la même façon
+        WHITE_CONCRETE: 0.06 # Ou spécifiez chaque couleur si les prix varient
+        ORANGE_CONCRETE: 0.06
+        MAGENTA_CONCRETE: 0.06
+        LIGHT_BLUE_CONCRETE: 0.06
+        YELLOW_CONCRETE: 0.06
+        LIME_CONCRETE: 0.06
+        PINK_CONCRETE: 0.06
+        GRAY_CONCRETE: 0.06
+        LIGHT_GRAY_CONCRETE: 0.06
+        CYAN_CONCRETE: 0.06
+        PURPLE_CONCRETE: 0.06
+        BLUE_CONCRETE: 0.06
+        BROWN_CONCRETE: 0.06
+        GREEN_CONCRETE: 0.06
+        RED_CONCRETE: 0.06
+        BLACK_CONCRETE: 0.06
         TERRACOTTA: 0.05
-        CONCRETE: 0.06
+        WHITE_TERRACOTTA: 0.05
+        ORANGE_TERRACOTTA: 0.05
+        MAGENTA_TERRACOTTA: 0.05
+        LIGHT_BLUE_TERRACOTTA: 0.05
+        YELLOW_TERRACOTTA: 0.05
+        LIME_TERRACOTTA: 0.05
+        PINK_TERRACOTTA: 0.05
+        GRAY_TERRACOTTA: 0.05
+        LIGHT_GRAY_TERRACOTTA: 0.05
+        CYAN_TERRACOTTA: 0.05
+        PURPLE_TERRACOTTA: 0.05
+        BLUE_TERRACOTTA: 0.05
+        BROWN_TERRACOTTA: 0.05
+        GREEN_TERRACOTTA: 0.05
+        RED_TERRACOTTA: 0.05
+        BLACK_TERRACOTTA: 0.05
+        # Blocs de verre
+        GLASS: 0.06
+        TINTED_GLASS: 0.07 # Verre teinté
+        WHITE_STAINED_GLASS: 0.06 # Verre teinté (toutes couleurs)
+        ORANGE_STAINED_GLASS: 0.06
+        MAGENTA_STAINED_GLASS: 0.06
+        LIGHT_BLUE_STAINED_GLASS: 0.06
+        YELLOW_STAINED_GLASS: 0.06
+        LIME_STAINED_GLASS: 0.06
+        PINK_STAINED_GLASS: 0.06
+        GRAY_STAINED_GLASS: 0.06
+        LIGHT_GRAY_STAINED_GLASS: 0.06
+        CYAN_STAINED_GLASS: 0.06
+        PURPLE_STAINED_GLASS: 0.06
+        BLUE_STAINED_GLASS: 0.06
+        BROWN_STAINED_GLASS: 0.06
+        GREEN_STAINED_GLASS: 0.06
+        RED_STAINED_GLASS: 0.06
+        BLACK_STAINED_GLASS: 0.06
+        # Blocs de quartz et prismarine
         QUARTZ_BLOCK: 0.15
-        BRICKS: 0.07
-        SANDSTONE: 0.03
-        WOOL: 0.03
+        QUARTZ_PILLAR: 0.16
+        CHISELED_QUARTZ_BLOCK: 0.16
+        PRISMARINE: 0.10
+        PRISMARINE_BRICKS: 0.11
+        DARK_PRISMARINE: 0.12
+        # Blocs de deepslate et dérivés
         DEEPSLATE_TILES: 0.10
+        COBBLED_DEEPSLATE: 0.03
+        POLISHED_DEEPSLATE: 0.04
+        DEEPSLATE_BRICKS: 0.09
+        CRACKED_DEEPSLATE_BRICKS: 0.09
+        CHISELED_DEEPSLATE: 0.09
+        CRACKED_DEEPSLATE_TILES: 0.10
+        # Blocs de blackstone et dérivés
+        BLACKSTONE: 0.03
+        POLISHED_BLACKSTONE: 0.04
         POLISHED_BLACKSTONE_BRICKS: 0.12
-    message-erreur-restriction: # Simplifié et avec indication de délai
-      - "&cL'utilisation massive de ce bloc est réservée aux entreprises de &3Construction&c."
-      - "&eLimite non-membre : %limite% placements de ce type par heure. Réessayez à la prochaine heure !"
-    limite-non-membre-par-heure: 64
-    cout-creation: 4000.0
+        CRACKED_POLISHED_BLACKSTONE_BRICKS: 0.12
+        CHISELED_POLISHED_BLACKSTONE: 0.12
+        ANCIENT_DEBRIS: 5.0 # Valeur très élevée pour un bloc rare et high-end
+        # Blocs de métal (décoratifs)
+        IRON_BLOCK: 0.20
+        GOLD_BLOCK: 0.30
+        DIAMOND_BLOCK: 0.50
+        EMERALD_BLOCK: 0.40
+        COPPER_BLOCK: 0.05
+        CUT_COPPER: 0.055
+        EXPOSED_COPPER: 0.055
+        WEATHERED_COPPER: 0.055
+        OXIDIZED_COPPER: 0.055
+        WAXED_COPPER_BLOCK: 0.06
+        WAXED_CUT_COPPER: 0.065
+        WAXED_EXPOSED_COPPER: 0.065
+        WAXED_WEATHERED_COPPER: 0.065
+        WAXED_OXIDIZED_COPPER: 0.065
+        IRON_BARS: 0.04
+        CHAIN: 0.05
+        LIGHTNING_ROD: 0.15 # Paratonnerre
+        # Blocs de laine
+        WHITE_WOOL: 0.03
+        ORANGE_WOOL: 0.03
+        MAGENTA_WOOL: 0.03
+        LIGHT_BLUE_WOOL: 0.03
+        YELLOW_WOOL: 0.03
+        LIME_WOOL: 0.03
+        PINK_WOOL: 0.03
+        GRAY_WOOL: 0.03
+        LIGHT_GRAY_WOOL: 0.03
+        CYAN_WOOL: 0.03
+        PURPLE_WOOL: 0.03
+        BLUE_WOOL: 0.03
+        BROWN_WOOL: 0.03
+        GREEN_WOOL: 0.03
+        RED_WOOL: 0.03
+        BLACK_WOOL: 0.03
+        # Éclairage et autres blocs spéciaux
+        GLOWSTONE: 0.08
+        SEA_LANTERN: 0.10
+        SHROOMLIGHT: 0.09
+        REDSTONE_LAMP: 0.12
+        LANTERN: 0.07
+        SOUL_LANTERN: 0.08
+        LODESTONE: 1.0 # Pierre de l'aimant
+        RESPAWN_ANCHOR: 0.75 # Ancre de réapparition
+        LECTERN: 0.05
+        BELL: 0.10
+        SCAFFOLDING: 0.02 # Échafaudage
+        # Blocs du Nether et de l'End
+        END_STONE_BRICKS: 0.10
+        PURPUR_BLOCK: 0.09
+        PURPUR_PILLAR: 0.10
+        END_ROD: 0.06
+        NETHER_BRICKS: 0.06
+        RED_NETHER_BRICKS: 0.07
+        CRACKED_NETHER_BRICKS: 0.07
+        CHISELED_NETHER_BRICKS: 0.07
+        BASALT: 0.02
+        POLISHED_BASALT: 0.03
+        SMOOTH_BASALT: 0.03
+        SOUL_SAND: 0.01
+        SOUL_SOIL: 0.015
+        # Blocs des grottes et de la nature
+        TUFF: 0.015
+        DRIPSTONE_BLOCK: 0.02
+        POINTED_DRIPSTONE: 0.02
+        CALCITE: 0.015
+        DEEPSLATE: 0.015
+        # Escalier et Dalles (valeurs individuelles)
+        OAK_STAIRS: 0.03
+        SPRUCE_STAIRS: 0.03
+        BIRCH_STAIRS: 0.03
+        JUNGLE_STAIRS: 0.03
+        ACACIA_STAIRS: 0.03
+        DARK_OAK_STAIRS: 0.03
+        MANGROVE_STAIRS: 0.03
+        CHERRY_STAIRS: 0.03
+        BAMBOO_STAIRS: 0.03
+        CRIMSON_STAIRS: 0.035
+        WARPED_STAIRS: 0.035
+        STONE_BRICK_STAIRS: 0.10
+        QUARTZ_STAIRS: 0.18
+        BRICK_STAIRS: 0.09
+        COBBLESTONE_STAIRS: 0.03
+        ANDESITE_STAIRS: 0.04
+        DIORITE_STAIRS: 0.04
+        GRANITE_STAIRS: 0.04
+        POLISHED_DEEPSLATE_STAIRS: 0.06
+        POLISHED_BLACKSTONE_BRICK_STAIRS: 0.14
+        OAK_SLAB: 0.015
+        SPRUCE_SLAB: 0.015
+        BIRCH_SLAB: 0.015
+        JUNGLE_SLAB: 0.015
+        ACACIA_SLAB: 0.015
+        DARK_OAK_SLAB: 0.015
+        MANGROVE_SLAB: 0.015
+        CHERRY_SLAB: 0.015
+        BAMBOO_SLAB: 0.015
+        CRIMSON_SLAB: 0.018
+        WARPED_SLAB: 0.018
+        STONE_BRICK_SLAB: 0.05
+        QUARTZ_SLAB: 0.09
+        BRICK_SLAB: 0.045
+        COBBLESTONE_SLAB: 0.02
+        ANDESITE_SLAB: 0.025
+        DIORITE_SLAB: 0.025
+        GRANITE_SLAB: 0.025
+        POLISHED_DEEPSLATE_SLAB: 0.03
+        POLISHED_BLACKSTONE_BRICK_SLAB: 0.07
+      # Gains pour le CRAFT d'ITEMS (CRAFT_ITEM)
+      CRAFT_ITEM:
+        # Items de construction courants, avec des gains qui reflètent le travail et la valeur des matériaux transformés
+        STONE_BRICKS: 0.025 # Transformation de pierre en briques
+        BRICKS: 0.015 # Transformation d'argile en briques (item)
+        OAK_PLANKS: 0.005 # Transformation de bûches en planches (très bas coût)
+        SPRUCE_PLANKS: 0.005
+        BIRCH_PLANKS: 0.005
+        JUNGLE_PLANKS: 0.005
+        ACACIA_PLANKS: 0.005
+        DARK_OAK_PLANKS: 0.005
+        MANGROVE_PLANKS: 0.005
+        CHERRY_PLANKS: 0.005
+        BAMBOO_PLANKS: 0.005
+        CRIMSON_PLANKS: 0.006
+        WARPED_PLANKS: 0.006
+        GLASS_PANE: 0.008 # Fabrication de vitres
+        WHITE_STAINED_GLASS_PANE: 0.009 # Vitres colorées
+        ORANGE_STAINED_GLASS_PANE: 0.009
+        MAGENTA_STAINED_GLASS_PANE: 0.009
+        LIGHT_BLUE_STAINED_GLASS_PANE: 0.009
+        YELLOW_STAINED_GLASS_PANE: 0.009
+        LIME_STAINED_GLASS_PANE: 0.009
+        PINK_STAINED_GLASS_PANE: 0.009
+        GRAY_STAINED_GLASS_PANE: 0.009
+        LIGHT_GRAY_STAINED_GLASS_PANE: 0.009
+        CYAN_STAINED_GLASS_PANE: 0.009
+        PURPLE_STAINED_GLASS_PANE: 0.009
+        BLUE_STAINED_GLASS_PANE: 0.009
+        BROWN_STAINED_GLASS_PANE: 0.009
+        GREEN_STAINED_GLASS_PANE: 0.009
+        RED_STAINED_GLASS_PANE: 0.009
+        BLACK_STAINED_GLASS_PANE: 0.009
+        LADDER: 0.01 # Échelles
+        IRON_BARS: 0.015 # Barres de fer
+        OAK_FENCE: 0.008 # Clôtures
+        SPRUCE_FENCE: 0.008
+        BIRCH_FENCE: 0.008
+        JUNGLE_FENCE: 0.008
+        ACACIA_FENCE: 0.008
+        DARK_OAK_FENCE: 0.008
+        MANGROVE_FENCE: 0.008
+        CHERRY_FENCE: 0.008
+        BAMBOO_FENCE: 0.008
+        CRIMSON_FENCE: 0.009
+        WARPED_FENCE: 0.009
+        COBBLESTONE_WALL: 0.01 # Murs de pierre
+        BRICK_WALL: 0.018
+        QUARTZ_BLOCK: 0.05 # Si le bloc de quartz peut être crafté à partir de minerai brut
+        QUARTZ_PILLAR: 0.055
+        CHISELED_QUARTZ_BLOCK: 0.055
+        ANVIL: 0.5 # Anclume (coût élevé car utilise du fer)
+        CHEST: 0.01
+        CRAFTING_TABLE: 0.005
+        FURNACE: 0.01
+        LANTERN: 0.02
+        REDSTONE_LAMP: 0.03
+        BLAST_FURNACE: 0.035
+        SMOKER: 0.025
+        BARREL: 0.015
+        SHULKER_BOX: 1.5 # Shulker box (très précieux)
+        WHITE_SHULKER_BOX: 1.55 # légèrement plus cher pour la couleur
+        ORANGE_SHULKER_BOX: 1.55
+        MAGENTA_SHULKER_BOX: 1.55
+        LIGHT_BLUE_SHULKER_BOX: 1.55
+        YELLOW_SHULKER_BOX: 1.55
+        LIME_SHULKER_BOX: 1.55
+        PINK_SHULKER_BOX: 1.55
+        GRAY_SHULKER_BOX: 1.55
+        LIGHT_GRAY_SHULKER_BOX: 1.55
+        CYAN_SHULKER_BOX: 1.55
+        PURPLE_SHULKER_BOX: 1.55
+        BLUE_SHULKER_BOX: 1.55
+        BROWN_SHULKER_BOX: 1.55
+        GREEN_SHULKER_BOX: 1.55
+        RED_SHULKER_BOX: 1.55
+        BLACK_SHULKER_BOX: 1.55
+        CONCRETE_POWDER: 0.01 # Poudre de béton (valeur basse, mais préparation)
+        WHITE_CONCRETE_POWDER: 0.01
+        ORANGE_CONCRETE_POWDER: 0.01
+        MAGENTA_CONCRETE_POWDER: 0.01
+        LIGHT_BLUE_CONCRETE_POWDER: 0.01
+        YELLOW_CONCRETE_POWDER: 0.01
+        LIME_CONCRETE_POWDER: 0.01
+        PINK_CONCRETE_POWDER: 0.01
+        GRAY_CONCRETE_POWDER: 0.01
+        LIGHT_GRAY_CONCRETE_POWDER: 0.01
+        CYAN_CONCRETE_POWDER: 0.01
+        PURPLE_CONCRETE_POWDER: 0.01
+        BLUE_CONCRETE_POWDER: 0.01
+        BROWN_CONCRETE_POWDER: 0.01
+        GREEN_CONCRETE_POWDER: 0.01
+        RED_CONCRETE_POWDER: 0.01
+        BLACK_CONCRETE_POWDER: 0.01
+    message-erreur-restriction:
+      - "&cL'utilisation massive de cet item est réservée aux entreprises de &3Construction&c."
+      - "&eLimite non-membre : %limite% crafts de ce type par heure. Réessayez à la prochaine heure !"
+      - "&fRejoignez une entreprise de Construction ou créez-en une pour débloquer ces restrictions."
+    limite-non-membre-par-heure: 16 # Limite par défaut pour les non-membres pour chaque item crafté restreint
+    cout-creation: 8000.0 # Coût pour créer ce type d'entreprise
+
+
 
   Boucherie:
-    description: "Abattage d'animaux pour la viande et autres produits. Items principaux : Bœuf, Porc, Poulet, Cuir."
+    description: "Abattage et transformation d'animaux pour la production de viandes, cuirs, et autres sous-produits. Maîtrise des techniques de boucherie et d'élevage pour un rendement optimal."
     action_restrictions:
+      # Restrictions sur l'abattage d'entités (ENTITY_KILL)
       ENTITY_KILL:
+        # Animaux de ferme classiques (source principale de viande)
         SHEEP: {}
         COW: {}
         PIG: {}
         CHICKEN: {}
         RABBIT: {}
+        # Animaux plus rares ou spécifiques pour des produits variés
+        HORSE: {} # Pour le cuir (avec un impact plus grand)
+        DONKEY: {} # Idem
+        MULE: {} # Idem
+        LLAMA: {} # Pour le cuir et des interactions spécifiques
+        GOAT: {} # Pour la viande et éventuellement des produits futurs
+        FOX: {} # Pour la fourrure / produits rares
+        WOLF: {} # Pour la fourrure / produits rares
+        BEAR: {} # Ours (pour la viande / fourrure) - si vous avez un mod ou une permission spécifique
+        POLAR_BEAR: {} # Ours polaire
+        # Autres animaux qui pourraient être "chassés" pour des produits
+        HOGLIN: {} # Viande du Nether (pour les environnements moddés ou spécifiques)
+        STRIDER: {} # Pour les produits du Nether
+        MOOSHROOM: {} # Pour la viande de bœuf / champignons
+        TURTLE: {} # Pour les écailles (si vous voulez intégrer ça)
     activites-payantes:
+      # Gains pour l'abattage d'entités (ENTITY_KILL)
       ENTITY_KILL:
-        SHEEP: 2.20
-        COW: 3.50
-        PIG: 2.80
-        CHICKEN: 1.10
-        RABBIT: 0.90
-    message-erreur-restriction: # Simplifié et avec indication de délai
-      - "&cL'abattage en quantité de cet animal est réservé aux &4Boucheries&c."
-      - "&eLimite non-membre : %limite% abattages par heure. Réessayez à la prochaine heure."
-    limite-non-membre-par-heure: 3
-    cout-creation: 7500.0
+        # Animaux de ferme
+        SHEEP: 2.20  # Laine + Viande (peut être ajusté si la laine n'est pas votre focus)
+        COW: 3.50   # Bœuf + Cuir
+        PIG: 2.80   # Porc
+        CHICKEN: 1.10 # Poulet + Plumes
+        RABBIT: 0.90 # Lapin + Patte de lapin + Cuir
+        # Animaux avec plus de valeur pour le cuir ou la rareté
+        HORSE: 4.50  # Principalement pour le cuir, plus rare à tuer
+        DONKEY: 4.50
+        MULE: 4.50
+        LLAMA: 3.80  # Pour le cuir / potentiel futur de "produits de lama"
+        GOAT: 2.50   # Similaire à la viande de mouton/porc
+        FOX: 1.50    # Pour la rareté et les produits "exotiques" (fourrure)
+        WOLF: 1.80   # Fourrure, plus "dangereux"
+        BEAR: 5.00   # Gros animal, plus de viande/fourrure
+        POLAR_BEAR: 5.50 # Encore plus rare/dangereux
+        # Animaux du Nether (si pertinents pour votre serveur)
+        HOGLIN: 3.00 # Viande cuite ou crue
+        STRIDER: 1.00 # Produit de base moins cher
+        MOOSHROOM: 4.00 # Comme la vache, mais avec les champignons en plus
+        # Autres
+        TURTLE: 2.00 # Si vous voulez rémunérer la collecte d'écailles via l'abattage direct.
+      # Gains pour le CRAFT d'items (si la boucherie implique aussi la transformation)
+      # Par exemple, transformer la viande crue en viande cuite, ou des peaux en cuir raffiné.
+      CRAFT_ITEM:
+        COOKED_BEEF: 0.15 # Valeur ajoutée par la cuisson
+        COOKED_PORKCHOP: 0.12
+        COOKED_CHICKEN: 0.08
+        COOKED_MUTTON: 0.10
+        COOKED_RABBIT: 0.07
+        LEATHER: 0.05 # Si vous avez un craft pour "tanner" le cuir, ou si c'est le cuir brut lui-même
+        RABBIT_HIDE: 0.03 # Peau de lapin (si vous avez un craft de 4 peaux -> 1 cuir)
+        # Ajout de produits plus "spécialisés" qui pourraient être craftés
+        MUSHROOM_STEW: 0.20 # Si la boucherie intègre aussi la préparation de repas
+        RABBIT_STEW: 0.25
+        LEATHER_HELMET: 0.50 # Fabrication d'équipements en cuir
+        LEATHER_CHESTPLATE: 0.80
+        LEATHER_LEGGINGS: 0.70
+        LEATHER_BOOTS: 0.40
+        SADDLE: 1.00 # Crafting d'une selle (si votre serveur le permet)
+        ITEM_FRAME: 0.05 # Cadres
+        LEAD: 0.08 # Laisses
+    message-erreur-restriction:
+      - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
+      - "&eLimite non-membre : %limite% abattages/crafts par heure. Réessayez à la prochaine heure."
+      - "&fRejoignez une Boucherie ou créez-en une pour exceller dans l'élevage et l'abattage."
+    limite-non-membre-par-heure: 2 # Limite par défaut pour les non-membres pour chaque type d'abattage/craft restreint
+    cout-creation: 7500.0 # Coût pour créer ce type d'entreprise
+
+
 
 #--------------------------------------------------------------------------------------------------
 # FINANCE ET PARAMÈTRES GLOBAUX
 #--------------------------------------------------------------------------------------------------
 finance:
-  max-entreprises-par-gerant: 5
-  max-travail-joueur: 5
+  max-entreprises-par-gerant: 3
+  max-travail-joueur: 1
 
   pourcentage-taxes: 20.0
   charge-salariale-par-employe-horaire: 5.0

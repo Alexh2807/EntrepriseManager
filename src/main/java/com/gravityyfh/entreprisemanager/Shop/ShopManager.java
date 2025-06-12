@@ -93,21 +93,23 @@ public class ShopManager {
                   if (!buyerResponse.transactionSuccess()) {
                      buyer.sendMessage(ChatColor.RED + "Une erreur est survenue lors du paiement : " + buyerResponse.errorMessage);
                   } else {
-                     entreprise.setSolde(entreprise.getSolde() + price);
-                     entreprise.addTransaction(new EntrepriseManagerLogic.Transaction(EntrepriseManagerLogic.TransactionType.REVENUE, price, "Vente boutique: " + itemToSell.getAmount() + "x " + itemToSell.getType().name(), buyer.getName()));
+                     // --- MODIFICATION START ---
+                     // The sale amount is now added to the hourly turnover pool instead of the direct balance.
+                     // The transaction logging is handled by the central hourly task.
+                     this.entrepriseLogic.enregistrerRevenuMagasin(entreprise.getNom(), price);
+                     // --- MODIFICATION END ---
+
                      chest.getInventory().removeItem(new ItemStack[]{itemToSell.clone()});
                      buyer.getInventory().addItem(new ItemStack[]{itemToSell.clone()});
                      var10001 = ChatColor.GREEN;
                      buyer.sendMessage(var10001 + "Vous avez acheté " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " pour " + String.format("%,.2f€", price) + ".");
                      Player owner = Bukkit.getPlayer(shop.getOwnerUUID());
                      if (owner != null && owner.isOnline()) {
+                        // The message to the owner is simplified as the balance is no longer updated instantly.
                         var10001 = ChatColor.GREEN;
                         owner.sendMessage(var10001 + "[Boutique] Vente de " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " à " + buyer.getName() + " pour " + String.format("%,.2f€", price) + ".");
-                        var10001 = ChatColor.AQUA;
-                        owner.sendMessage(var10001 + "Nouveau solde de l'entreprise '" + entreprise.getNom() + "' : " + String.format("%,.2f€", entreprise.getSolde()));
+                        owner.sendMessage(ChatColor.AQUA + "Les revenus de la vente seront traités dans le prochain rapport horaire de l'entreprise '" + entreprise.getNom() + "'.");
                      }
-
-                     this.entrepriseLogic.saveEntreprises();
                   }
                }
             }

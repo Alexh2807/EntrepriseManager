@@ -374,13 +374,16 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void adminForcePayCommand(Player player) {
-        if (!player.hasPermission("entreprisemanager.admin.forcepay")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
-        player.sendMessage(ChatColor.YELLOW + "Forçage manuel du cycle horaire (CA, Primes, Charges, Chômage)...");
-        entrepriseLogic.traiterChiffreAffairesHoraire();
-        entrepriseLogic.payerPrimesHorairesAuxEmployes();
-        entrepriseLogic.payerChargesSalarialesHoraires();
-        entrepriseLogic.payerAllocationChomageHoraire();
-        player.sendMessage(ChatColor.GREEN + "Cycle horaire forcé ! Vérifiez la console pour les détails.");
+        if (!player.hasPermission("entreprisemanager.admin.forcepay")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+        player.sendMessage(ChatColor.YELLOW + "Forçage manuel du cycle financier horaire complet...");
+
+        // Appel à la nouvelle méthode centralisée
+        entrepriseLogic.executerCycleFinancierHoraire();
+
+        player.sendMessage(ChatColor.GREEN + "Cycle financier forcé avec succès ! Les rapports ont été envoyés et les données sauvegardées. Vérifiez la console pour les détails.");
     }
 
     private void adminForceSaveCommand(Player player) {

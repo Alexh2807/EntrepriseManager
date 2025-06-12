@@ -1027,22 +1027,51 @@ public class EntrepriseGUI implements Listener {
     private void handleAdminMenuClick(Player player, String itemName) {
         if (itemName.equals("Forcer Cycle Paiements")) {
             if (player.hasPermission("entreprisemanager.admin.forcepay")) {
-                player.sendMessage(ChatColor.YELLOW + "Forçage cycle horaire...");
-                entrepriseLogic.traiterChiffreAffairesHoraire(); entrepriseLogic.payerPrimesHorairesAuxEmployes(); entrepriseLogic.payerChargesSalarialesHoraires(); entrepriseLogic.payerAllocationChomageHoraire();
-                player.sendMessage(ChatColor.GREEN + "Cycle horaire forcé !");
-            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
-            player.closeInventory();
+                // 1. Informer le joueur et fermer l'inventaire IMMÉDIATEMENT.
+                player.sendMessage(ChatColor.YELLOW + "Lancement du cycle financier forcé... Le traitement s'effectue en arrière-plan.");
+                player.closeInventory();
+
+                // 2. Lancer la tâche longue de manière asynchrone.
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        // Cette partie s'exécute sur un autre thread, ne bloquant pas le serveur.
+                        entrepriseLogic.executerCycleFinancierHoraire();
+
+                        // 3. Envoyer le message final au joueur en revenant sur le thread principal.
+                        // Les actions sur les joueurs (comme sendMessage) doivent se faire sur le thread principal.
+                        new BukkitRunnable() {
+                            @Override
+                            public void run() {
+                                if (player.isOnline()) { // Toujours vérifier si le joueur est en ligne
+                                    player.sendMessage(ChatColor.GREEN + "Cycle financier forcé terminé avec succès !");
+                                }
+                            }
+                        }.runTask(plugin); // .runTask(plugin) s'exécute sur le thread principal.
+                    }
+                }.runTaskAsynchronously(plugin); // .runTaskAsynchronously(plugin) lance la tâche sur un autre thread.
+
+            } else {
+                player.sendMessage(ChatColor.RED + "Permission refusée.");
+                player.closeInventory();
+            }
         } else if (itemName.equals("Recharger Configuration")) {
             if (player.hasPermission("entreprisemanager.admin.reload")) {
                 plugin.reloadPluginData();
                 player.sendMessage(ChatColor.GREEN + "Plugin rechargé.");
-            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
+            } else {
+                player.sendMessage(ChatColor.RED + "Permission refusée.");
+            }
             player.closeInventory();
+
         } else if (itemName.equals("Forcer Sauvegarde Données")) {
             if (player.hasPermission("entreprisemanager.admin.forcesave")) {
+                // Note : La sauvegarde de données devrait aussi être asynchrone si elle est longue.
                 entrepriseLogic.saveEntreprises();
                 player.sendMessage(ChatColor.GREEN + "Données sauvegardées !");
-            } else player.sendMessage(ChatColor.RED + "Permission refusée.");
+            } else {
+                player.sendMessage(ChatColor.RED + "Permission refusée.");
+            }
             player.closeInventory();
         }
     }
