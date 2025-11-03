@@ -2,6 +2,7 @@ package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
+import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
