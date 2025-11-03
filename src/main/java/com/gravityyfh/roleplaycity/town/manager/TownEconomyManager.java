@@ -313,7 +313,7 @@ public class TownEconomyManager {
                             plot.getCoordinates() + " a expiré.");
                     }
 
-                    plot.setRenter(null);
+                    plot.clearRenter();
                     plot.setForRent(true); // Remettre en location
                     plugin.getLogger().info("Location expirée pour parcelle " + plot.getCoordinates() +
                         " dans " + town.getName());
