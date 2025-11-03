@@ -71,10 +71,10 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
-        // Vérifier que le joueur a les droits (Maire ou Adjoint)
+        // Vérifier que le joueur est membre de la ville
         TownMember member = town.getMember(player.getUniqueId());
-        if (member == null || (!town.isMayor(player.getUniqueId()) && !member.hasRole(com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT))) {
-            player.sendMessage(ChatColor.RED + "Vous n'avez pas les droits pour grouper des parcelles.");
+        if (member == null) {
+            player.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour grouper des parcelles.");
             return;
         }
 
@@ -192,29 +192,64 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
-        // Vérifier que toutes les parcelles appartiennent au même propriétaire
-        if (plot.getOwnerUuid() == null) {
-            player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
-            return;
+        // Vérifier permissions
+        TownMember playerMember = town.getMember(player.getUniqueId());
+        boolean isMayorOrAdjoint = town.isMayor(player.getUniqueId()) ||
+                                    (playerMember != null && playerMember.hasRole(com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT));
+
+        // Si pas maire/adjoint, vérifier que la parcelle a un propriétaire et validation de propriétaire
+        if (!isMayorOrAdjoint) {
+            if (plot.getOwnerUuid() == null) {
+                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
+                return;
+            }
+
+            // Si c'est la première parcelle, vérifier que c'est le propriétaire
+            if (session.selectedPlotKeys.isEmpty()) {
+                if (!plot.getOwnerUuid().equals(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "Vous devez être propriétaire des parcelles pour les grouper.");
+                    player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper les parcelles d'autres joueurs.");
+                    return;
+                }
+            } else {
+                // Vérifier que toutes les parcelles ont le même propriétaire
+                String firstPlotKey = session.selectedPlotKeys.iterator().next();
+                String[] parts = firstPlotKey.split(":");
+                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+
+                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
+                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent appartenir au même propriétaire.");
+                    return;
+                }
+            }
+        } else {
+            // Maire/Adjoint : vérifier que toutes les parcelles ont un propriétaire (même si pas le leur)
+            if (plot.getOwnerUuid() == null) {
+                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
+                player.sendMessage(ChatColor.YELLOW + "Seules les parcelles avec propriétaire peuvent être groupées.");
+                return;
+            }
+
+            // Vérifier que toutes les parcelles du groupe appartiennent au même propriétaire
+            if (!session.selectedPlotKeys.isEmpty()) {
+                String firstPlotKey = session.selectedPlotKeys.iterator().next();
+                String[] parts = firstPlotKey.split(":");
+                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+
+                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
+                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent appartenir au même propriétaire.");
+                    return;
+                }
+            }
         }
 
-        // Si c'est la première parcelle, enregistrer le propriétaire
+        // Si c'est la première parcelle, l'ajouter
         String plotKey = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
 
         if (session.selectedPlotKeys.isEmpty()) {
             session.selectedPlotKeys.add(plotKey);
             player.sendMessage(ChatColor.GREEN + "✓ Parcelle ajoutée au groupe (" + session.selectedPlotKeys.size() + ")");
             player.sendMessage(ChatColor.GRAY + "Propriétaire: " + plot.getOwnerName());
-            return;
-        }
-
-        // Vérifier que le propriétaire est le même
-        String firstPlotKey = session.selectedPlotKeys.iterator().next();
-        String[] parts = firstPlotKey.split(":");
-        Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-
-        if (firstPlot == null || !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
-            player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent appartenir au même propriétaire.");
             return;
         }
 

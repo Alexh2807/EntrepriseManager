@@ -458,7 +458,17 @@ public class TownEconomyManager {
      */
     public boolean putPlotGroupForSale(String townName, PlotGroup group, double price, Player seller) {
         Town town = townManager.getTown(townName);
-        if (town == null || !group.isOwnedBy(seller.getUniqueId())) {
+        if (town == null) {
+            return false;
+        }
+
+        // Vérifier les permissions : propriétaire OU maire/adjoint de la ville
+        boolean isOwner = group.isOwnedBy(seller.getUniqueId());
+        boolean isMayor = town.isMayor(seller.getUniqueId());
+        TownRole role = town.getMemberRole(seller.getUniqueId());
+        boolean isAdjoint = (role == TownRole.ADJOINT);
+
+        if (!isOwner && !isMayor && !isAdjoint) {
             return false;
         }
 
@@ -570,7 +580,17 @@ public class TownEconomyManager {
      */
     public boolean putPlotGroupForRent(String townName, PlotGroup group, double totalPrice, int durationDays, Player owner) {
         Town town = townManager.getTown(townName);
-        if (town == null || !group.isOwnedBy(owner.getUniqueId())) {
+        if (town == null) {
+            return false;
+        }
+
+        // Vérifier les permissions : propriétaire OU maire/adjoint de la ville
+        boolean isOwner = group.isOwnedBy(owner.getUniqueId());
+        boolean isMayor = town.isMayor(owner.getUniqueId());
+        TownRole role = town.getMemberRole(owner.getUniqueId());
+        boolean isAdjoint = (role == TownRole.ADJOINT);
+
+        if (!isOwner && !isMayor && !isAdjoint) {
             return false;
         }
 
