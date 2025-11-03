@@ -157,8 +157,8 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
-        // Vérifier que c'est un clic droit
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) {
+        // Vérifier que c'est un clic droit sur un bloc (évite la duplication avec RIGHT_CLICK_AIR)
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
 
