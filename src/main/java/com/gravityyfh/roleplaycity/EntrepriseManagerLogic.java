@@ -750,6 +750,36 @@ public class EntrepriseManagerLogic {
         }
         // --- FIN DE LA MODIFICATION ---
 
+        // --- NOUVEAU : Vendre tous les terrains PROFESSIONNEL de cette entreprise ---
+        if (plugin.getTownManager() != null && plugin.getCompanyPlotManager() != null) {
+            String siret = entreprise.getSiret();
+            int totalPlotsSold = 0;
+
+            // Parcourir toutes les villes pour trouver les terrains de cette entreprise
+            for (String townName : plugin.getTownManager().getTownNames()) {
+                java.util.List<com.gravityyfh.roleplaycity.town.data.Plot> companyPlots =
+                    plugin.getTownManager().getPlotsByCompanySiret(siret, townName);
+
+                if (!companyPlots.isEmpty()) {
+                    plugin.getLogger().info(String.format(
+                        "[EntrepriseManagerLogic] Entreprise '%s' (SIRET %s) dissoute - Vente de %d terrain(s) dans %s",
+                        entreprise.getNom(), siret, companyPlots.size(), townName
+                    ));
+
+                    plugin.getCompanyPlotManager().handleCompanyDeletion(siret, townName);
+                    totalPlotsSold += companyPlots.size();
+                }
+            }
+
+            if (totalPlotsSold > 0) {
+                plugin.getLogger().info(String.format(
+                    "[EntrepriseManagerLogic] Total: %d terrain(s) vendu(s) suite à la dissolution de '%s'",
+                    totalPlotsSold, entreprise.getNom()
+                ));
+            }
+        }
+        // --- FIN DU NOUVEAU CODE ---
+
         String nomEntreprise = entreprise.getNom();
         UUID gerantUUID = null;
         try {
