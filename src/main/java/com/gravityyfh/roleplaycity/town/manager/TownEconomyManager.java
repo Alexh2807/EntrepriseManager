@@ -420,6 +420,82 @@ public class TownEconomyManager {
                 continue; // Pas de taxe pour cette parcelle
             }
 
+            // === NOUVEAU : Gestion des terrains PROFESSIONNEL avec entreprise ===
+            if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+                EntrepriseManagerLogic.Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
+
+                if (company != null) {
+                    // Entreprise existe - prélever la taxe du solde entreprise
+                    if (company.getSolde() >= tax) {
+                        // Fonds suffisants - paiement réussi
+                        company.setSolde(company.getSolde() - tax);
+                        town.deposit(tax);
+                        totalCollected += tax;
+                        parcelsWithTax++;
+
+                        // Réinitialiser la dette si le terrain était endetté
+                        if (plot.getCompanyDebtAmount() > 0) {
+                            plot.resetDebt();
+                            plugin.getLogger().info(String.format(
+                                "[TownEconomyManager] Dette remboursée pour terrain %s:%d,%d (Entreprise %s)",
+                                plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), company.getNom()
+                            ));
+                        }
+
+                        // Notifier le gérant si en ligne
+                        UUID gerantUuid = plot.getOwnerUuid();
+                        if (gerantUuid != null) {
+                            Player gerant = Bukkit.getPlayer(gerantUuid);
+                            if (gerant != null && gerant.isOnline()) {
+                                gerant.sendMessage(ChatColor.YELLOW + "💼 Taxe entreprise: " + ChatColor.GOLD + String.format("%.2f€", tax) +
+                                    ChatColor.GRAY + " prélevée pour " + plot.getCoordinates());
+                                gerant.sendMessage(ChatColor.GRAY + "Entreprise: " + company.getNom() +
+                                    " - Solde restant: " + String.format("%.2f€", company.getSolde()));
+                            }
+                        }
+
+                        // Enregistrer la transaction
+                        addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            plot.getOwnerUuid(),
+                            company.getNom() + " (PRO)",
+                            tax,
+                            "Taxe entreprise " + plot.getCoordinates()
+                        ));
+                    } else {
+                        // Fonds insuffisants - créer/augmenter la dette
+                        companyManager.handleInsufficientFunds(plot, company, tax);
+
+                        plugin.getLogger().warning(String.format(
+                            "[TownEconomyManager] Entreprise %s - Fonds insuffisants pour taxe de %.2f€ sur terrain %s:%d,%d",
+                            company.getNom(), tax, plot.getWorldName(), plot.getChunkX(), plot.getChunkZ()
+                        ));
+                    }
+
+                    // Vérifier si le délai de grâce est dépassé (7 jours)
+                    if (companyManager.checkCompanyDebtStatus(plot)) {
+                        // Saisie automatique du terrain
+                        companyManager.seizePlotForDebt(plot, townName);
+
+                        plugin.getLogger().warning(String.format(
+                            "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Entreprise %s)",
+                            plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), company.getNom()
+                        ));
+                    }
+                } else {
+                    // Entreprise n'existe plus - vendre tous les terrains de cette entreprise
+                    plugin.getLogger().warning(String.format(
+                        "[TownEconomyManager] Entreprise SIRET %s introuvable - Vente automatique des terrains",
+                        plot.getCompanySiret()
+                    ));
+                    companyManager.handleCompanyDeletion(plot.getCompanySiret(), townName);
+                }
+
+                continue; // Passer au terrain suivant
+            }
+
+            // === Gestion des terrains PARTICULIER (logique existante) ===
             UUID payerUuid = null;
             String payerName = null;
 
