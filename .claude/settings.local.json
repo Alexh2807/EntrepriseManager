@@ -18,7 +18,8 @@
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f C:PluginCreatorEntrepriseManagerpom.xml compile -q)",
       "Bash(findstr:*)",
       "Bash(mvn package:*)",
-      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean package -DskipTests -q)"
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean package -DskipTests -q)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" compile -q)"
     ],
     "deny": [],
     "ask": []

@@ -385,4 +385,78 @@ public class TownManager {
     public Map<String, Town> getTownsForSave() {
         return new HashMap<>(towns);
     }
+
+    // === MÉTHODES UTILITAIRES POUR TERRAINS D'ENTREPRISE ===
+
+    /**
+     * Récupère tous les terrains appartenant à une entreprise (via SIRET)
+     */
+    public List<com.gravityyfh.roleplaycity.town.data.Plot> getPlotsByCompanySiret(String siret, String townName) {
+        List<com.gravityyfh.roleplaycity.town.data.Plot> companyPlots = new ArrayList<>();
+        Town town = getTown(townName);
+
+        if (town == null || siret == null) {
+            return companyPlots;
+        }
+
+        for (com.gravityyfh.roleplaycity.town.data.Plot plot : town.getPlots().values()) {
+            if (siret.equals(plot.getCompanySiret())) {
+                companyPlots.add(plot);
+            }
+        }
+
+        return companyPlots;
+    }
+
+    /**
+     * Retourne un terrain à la ville (efface propriétaire et entreprise)
+     */
+    public void transferPlotToTown(com.gravityyfh.roleplaycity.town.data.Plot plot, String reason) {
+        if (plot == null) {
+            return;
+        }
+
+        // Sauvegarder les informations pour le log
+        String previousOwner = plot.getOwnerName();
+        String previousCompany = plot.getCompanyName();
+
+        // Effacer la propriété
+        clearPlotOwnership(plot);
+
+        // Annuler vente/location
+        plot.setForSale(false);
+        plot.setForRent(false);
+        plot.setSalePrice(0);
+        plot.setRentPricePerDay(0);
+
+        // Effacer le locataire
+        plot.clearRenter();
+
+        // Retirer du groupe si nécessaire
+        Town town = getTown(plot.getTownName());
+        if (town != null) {
+            town.removePlotFromGroupIfIncompatible(plot);
+        }
+
+        plugin.getLogger().info(String.format(
+            "[TownManager] Terrain %s:%d,%d retourné à la ville. Raison: %s. Ancien propriétaire: %s, Entreprise: %s",
+            plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), reason,
+            previousOwner != null ? previousOwner : "Aucun",
+            previousCompany != null ? previousCompany : "Aucune"
+        ));
+    }
+
+    /**
+     * Efface la propriété d'un terrain (propriétaire, entreprise, dette)
+     */
+    public void clearPlotOwnership(com.gravityyfh.roleplaycity.town.data.Plot plot) {
+        if (plot == null) {
+            return;
+        }
+
+        plot.setOwner(null, null);
+        plot.setCompany(null);
+        plot.setCompanySiret(null);
+        plot.resetDebt();
+    }
 }
