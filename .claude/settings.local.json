@@ -16,7 +16,8 @@
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\bin\\inspect.bat\" \"C:\\PluginCreator\\EntrepriseManager\" \"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\java-ide-customization\\IntelliJ IDEA.xml\" \"C:\\PluginCreator\\EntrepriseManager\\inspection-results\" -v2)",
       "Bash(where:*)",
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f C:PluginCreatorEntrepriseManagerpom.xml compile -q)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(mvn package:*)"
     ],
     "deny": [],
     "ask": []

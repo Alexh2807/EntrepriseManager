@@ -17,6 +17,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -123,6 +124,7 @@ public class TownMainGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_GREEN + "🏙️ " + townName);
 
         TownRole role = town.getMemberRole(player.getUniqueId());
+        TownMember member = town.getMember(player.getUniqueId());
 
         // Informations de la ville (slot 4)
         ItemStack infoItem = new ItemStack(Material.BOOK);
@@ -136,7 +138,7 @@ public class TownMainGUI implements Listener {
         infoLore.add(ChatColor.GRAY + "Banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
 
         // Afficher tous les rôles du joueur
-        Set<TownRole> playerRoles = member.getRoles();
+        Set<TownRole> playerRoles = member != null ? member.getRoles() : new HashSet<>();
         if (playerRoles.size() == 1) {
             infoLore.add(ChatColor.GRAY + "Votre rôle: " + ChatColor.AQUA + role.getDisplayName());
         } else {
