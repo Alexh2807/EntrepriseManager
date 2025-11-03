@@ -5,6 +5,7 @@ import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.time.Duration;
@@ -93,15 +94,14 @@ public class TownEconomyManager {
 
         // Si la parcelle appartenait à quelqu'un, lui donner l'argent
         if (plot.getOwnerUuid() != null) {
-            UUID previousOwner = plot.getOwnerUuid();
-            Player previousOwnerPlayer = Bukkit.getPlayer(previousOwner);
+            UUID previousOwnerUuid = plot.getOwnerUuid();
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
+            RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
 
-            if (previousOwnerPlayer != null && previousOwnerPlayer.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(previousOwnerPlayer, price);
-                previousOwnerPlayer.sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
-            } else {
-                // Joueur offline, donner l'argent à la ville
-                town.deposit(price);
+            // Notifier si le propriétaire est en ligne
+            if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
             }
         } else {
             // Parcelle municipale, l'argent va à la ville
@@ -198,15 +198,17 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la ville
         if (plot.getOwnerUuid() != null) {
-            Player owner = Bukkit.getPlayer(plot.getOwnerUuid());
-            if (owner != null && owner.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
-                owner.sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+            // Notifier si le propriétaire est en ligne
+            if (owner.isOnline() && owner.getPlayer() != null) {
+                owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
                     actualDays + " jours (" + String.format("%.2f€", totalCost) + ") !");
-            } else {
-                town.deposit(totalCost);
             }
         } else {
+            // Pas de propriétaire = l'argent va à la ville
             town.deposit(totalCost);
         }
 
@@ -267,15 +269,17 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la ville
         if (plot.getOwnerUuid() != null) {
-            Player owner = Bukkit.getPlayer(plot.getOwnerUuid());
-            if (owner != null && owner.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
-                owner.sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+            // Notifier si le propriétaire est en ligne
+            if (owner.isOnline() && owner.getPlayer() != null) {
+                owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
                     " jours (" + String.format("%.2f€", totalCost) + ")");
-            } else {
-                town.deposit(totalCost);
             }
         } else {
+            // Pas de propriétaire = l'argent va à la ville
             town.deposit(totalCost);
         }
 
@@ -513,10 +517,13 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            Player previousOwner = Bukkit.getPlayer(group.getOwnerUuid());
-            if (previousOwner != null && previousOwner.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
-                previousOwner.sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+            RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+
+            // Notifier si le propriétaire est en ligne
+            if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
             }
         } else {
             town.deposit(price);
@@ -620,10 +627,13 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            Player owner = Bukkit.getPlayer(group.getOwnerUuid());
-            if (owner != null && owner.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
-                owner.sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+            // Notifier si le propriétaire est en ligne
+            if (owner.isOnline() && owner.getPlayer() != null) {
+                owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
             }
         } else {
             town.deposit(totalCost);
@@ -698,10 +708,13 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            Player owner = Bukkit.getPlayer(group.getOwnerUuid());
-            if (owner != null && owner.isOnline()) {
-                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
-                owner.sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
+            // Verser l'argent au propriétaire même s'il est hors ligne
+            OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+            // Notifier si le propriétaire est en ligne
+            if (owner.isOnline() && owner.getPlayer() != null) {
+                owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
             }
         } else {
             town.deposit(totalCost);
