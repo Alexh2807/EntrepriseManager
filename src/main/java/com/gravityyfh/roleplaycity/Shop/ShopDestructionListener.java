@@ -1,8 +1,8 @@
 // Fichier : /src/main/java/com/gravityyfh/entreprisemanager/Shop/ShopDestructionListener.java
 
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
+import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.palmergames.bukkit.towny.event.PlotClearEvent;
 import com.palmergames.bukkit.towny.event.town.TownUnclaimEvent;
 import com.palmergames.bukkit.towny.event.plot.PlayerChangePlotTypeEvent;
@@ -22,10 +22,10 @@ import org.bukkit.event.block.BlockBreakEvent;
 import java.util.logging.Level;
 
 public class ShopDestructionListener implements Listener {
-   private final EntrepriseManager plugin;
+   private final RoleplayCity plugin;
    private final ShopManager shopManager;
 
-   public ShopDestructionListener(EntrepriseManager plugin) {
+   public ShopDestructionListener(RoleplayCity plugin) {
       this.plugin = plugin;
       this.shopManager = plugin.getShopManager();
    }

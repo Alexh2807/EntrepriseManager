@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Listener;
+package com.gravityyfh.roleplaycity.Listener;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -11,15 +11,15 @@ import java.util.logging.Level; // Pour un log plus précis
 
 public class PlayerConnectionListener implements Listener {
 
-    private final EntrepriseManager plugin; // Référence au plugin principal pour le scheduler
+    private final RoleplayCity plugin; // Référence au plugin principal pour le scheduler
     private final EntrepriseManagerLogic entrepriseLogic;
 
     /**
      * Constructeur pour le listener de connexion des joueurs.
-     * @param plugin L'instance principale du plugin EntrepriseManager.
+     * @param plugin L'instance principale du plugin RoleplayCity.
      * @param entrepriseLogic L'instance de la logique métier du plugin.
      */
-    public PlayerConnectionListener(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public PlayerConnectionListener(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         if (plugin == null) {
             throw new IllegalArgumentException("L'instance du plugin ne peut pas être nulle pour PlayerConnectionListener !");
         }

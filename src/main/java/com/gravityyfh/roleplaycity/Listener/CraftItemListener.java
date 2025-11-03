@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Listener;
+package com.gravityyfh.roleplaycity.Listener;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -18,9 +18,9 @@ import java.util.logging.Level;
 public class CraftItemListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
 
-    public CraftItemListener(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public CraftItemListener(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
     }

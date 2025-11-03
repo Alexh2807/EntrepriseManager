@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Listener;
+package com.gravityyfh.roleplaycity.Listener;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -19,9 +19,9 @@ import java.util.logging.Level;
 public class TreeCutListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
 
-    public TreeCutListener(EntrepriseManagerLogic entrepriseLogic, EntrepriseManager plugin) {
+    public TreeCutListener(EntrepriseManagerLogic entrepriseLogic, RoleplayCity plugin) {
         this.entrepriseLogic = entrepriseLogic;
         this.plugin = plugin;
     }

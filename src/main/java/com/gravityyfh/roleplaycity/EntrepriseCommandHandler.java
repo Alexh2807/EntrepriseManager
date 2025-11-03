@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -20,9 +20,9 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     private final EntrepriseManagerLogic entrepriseLogic;
     private final EntrepriseGUI entrepriseGUI;
     private final CVManager cvManager;
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
 
-    public EntrepriseCommandHandler(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic, EntrepriseGUI entrepriseGUI, CVManager cvManager) {
+    public EntrepriseCommandHandler(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic, EntrepriseGUI entrepriseGUI, CVManager cvManager) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
         this.entrepriseGUI = entrepriseGUI;
@@ -31,23 +31,17 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             sender.sendMessage("Seuls les joueurs peuvent exécuter cette commande.");
             return true;
         }
 
-        Player player = (Player) sender;
         if (args.length == 0) {
             entrepriseGUI.openMainMenu(player);
             return true;
         }
 
-        // AJOUT DE LOGS POUR LE DÉBOGAGE
-        plugin.getLogger().log(Level.INFO, "[DEBUG] Commande reçue par " + player.getName() + ": /" + label + " " + String.join(" ", args));
-
-        String subCommand = args[0].toLowerCase().trim(); // Utilisation de trim() par sécurité
-
-        plugin.getLogger().log(Level.INFO, "[DEBUG] Sous-commande identifiée: '" + subCommand + "'");
+        String subCommand = args[0].toLowerCase().trim();
 
         switch (subCommand) {
             case "create":
@@ -119,25 +113,39 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         return true;
     }
 
-    /**
-     * Rassemble les arguments pour former un seul nom (ex: pour les noms d'entreprise).
-     * @param args Les arguments de la commande.
-     * @param startIndex L'index de début (inclus).
-     * @param endIndex L'index de fin (exclus).
-     * @return Le nom assemblé.
-     */
     private String joinArguments(String[] args, int startIndex, int endIndex) {
-        return Arrays.stream(args, startIndex, endIndex).collect(Collectors.joining(" "));
+        return String.join(" ", Arrays.copyOfRange(args, startIndex, endIndex));
+    }
+
+    private boolean validateEntrepriseAccess(Player player, String nomEntreprise, boolean gerantOnly) {
+        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+        if (entreprise == null) {
+            player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
+            return false;
+        }
+
+        if (gerantOnly && !entreprise.getGerant().equalsIgnoreCase(player.getName())) {
+            player.sendMessage(ChatColor.RED + "Seul le gérant peut effectuer cette action.");
+            return false;
+        }
+
+        boolean isMember = entreprise.getGerant().equalsIgnoreCase(player.getName()) ||
+                          entreprise.getEmployes().contains(player.getName());
+        if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return false;
+        }
+
+        return true;
     }
 
     private void handleShopCommand(Player player, String[] args) {
-        // La logique pour la sous-commande /entreprise shop
         if (args.length < 2) {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise shop <NomDeLEntreprise>");
             return;
         }
 
-        String nomEntreprise = Arrays.stream(args, 1, args.length).collect(Collectors.joining(" "));
+        String nomEntreprise = joinArguments(args, 1, args.length);
         EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
 
         if (entreprise == null) {
@@ -145,14 +153,12 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
 
-        // Vérifie si le joueur est le gérant
         if (!entreprise.getGerantUUID().equals(player.getUniqueId().toString())) {
             player.sendMessage(ChatColor.RED + "Vous devez être le gérant de cette entreprise pour gérer ses boutiques.");
             return;
         }
 
-        // APPEL AU NOUVEAU MENU DE LISTE
-        plugin.getShopGUI().openShopListMenu(player, entreprise, 0); // Ouvre à la page 0
+        plugin.getShopGUI().openShopListMenu(player, entreprise, 0);
     }
 
     private void handleDeleteCommand(Player player, String[] args) {
@@ -200,38 +206,38 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleWithdrawCommandDirect(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise withdraw <NomEntreprise> <Montant>");
-            return;
-        }
-        try {
-            String montantStr = args[args.length - 1];
-            double amount = Double.parseDouble(montantStr);
-            String nomEntreprise = joinArguments(args, 1, args.length - 1);
-            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return; }
-            entrepriseLogic.retirerArgent(player, nomEntreprise, amount);
-        } catch (NumberFormatException e) {
-            player.sendMessage(ChatColor.RED + "Montant invalide.");
-        }
+        handleMoneyTransaction(player, args, "withdraw", "Usage: /entreprise withdraw <NomEntreprise> <Montant>");
     }
 
     private void handleDepositCommandDirect(Player player, String[] args) {
+        handleMoneyTransaction(player, args, "deposit", "Usage: /entreprise deposit <NomEntreprise> <Montant>");
+    }
+
+    private void handleMoneyTransaction(Player player, String[] args, String type, String usage) {
         if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise deposit <NomEntreprise> <Montant>");
+            player.sendMessage(ChatColor.RED + usage);
             return;
         }
+
         try {
-            String montantStr = args[args.length - 1];
-            double amount = Double.parseDouble(montantStr);
+            double amount = Double.parseDouble(args[args.length - 1]);
             String nomEntreprise = joinArguments(args, 1, args.length - 1);
-            if(amount <= 0) { player.sendMessage(ChatColor.RED + "Le montant doit être positif."); return; }
-            entrepriseLogic.deposerArgent(player, nomEntreprise, amount);
+
+            if (amount <= 0) {
+                player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
+                return;
+            }
+
+            if ("withdraw".equals(type)) {
+                entrepriseLogic.retirerArgent(player, nomEntreprise, amount);
+            } else {
+                entrepriseLogic.deposerArgent(player, nomEntreprise, amount);
+            }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Montant invalide.");
         }
     }
 
-    // Le reste de vos méthodes reste identique...
     private void handlePrimeNewsCommand(Player player) {
         player.sendMessage(ChatColor.YELLOW + "Vérification des notifications...");
         entrepriseLogic.envoyerPrimesDifferreesEmployes(player);
@@ -268,26 +274,26 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise list <NomVille|*>");
             return;
         }
+
         String ville = args[1];
-        if (ville.equals("*")) {
+        if ("*".equals(ville)) {
             Set<String> villes = entrepriseLogic.getEntreprises().stream()
                     .map(EntrepriseManagerLogic.Entreprise::getVille)
                     .filter(v -> v != null && !v.isEmpty())
                     .collect(Collectors.toSet());
+
             if (villes.isEmpty()) {
                 player.sendMessage(ChatColor.YELLOW + "Aucune entreprise enregistrée sur le serveur.");
             } else {
-                player.sendMessage(ChatColor.YELLOW + "Villes avec des entreprises: " + ChatColor.AQUA + String.join(ChatColor.GRAY + ", " + ChatColor.AQUA, villes));
-                player.sendMessage(ChatColor.GRAY+"Utilisez /entreprise list <NomVille> pour voir les détails.");
+                player.sendMessage(ChatColor.YELLOW + "Villes avec des entreprises: " + ChatColor.AQUA +
+                                 String.join(ChatColor.GRAY + ", " + ChatColor.AQUA, villes));
+                player.sendMessage(ChatColor.GRAY + "Utilisez /entreprise list <NomVille> pour voir les détails.");
             }
         } else {
             entrepriseLogic.listEntreprises(player, ville);
         }
     }
 
-    // Pour la commande /entreprise rename, la gestion de noms avec espaces est complexe.
-    // Il est recommandé d'utiliser le GUI pour cette action.
-    // La méthode actuelle ne supportera que les noms sans espaces.
     private void handleRenameCommandDirect(Player player, String[] args) {
         if (args.length < 3) {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise rename <AncienNom> <NouveauNom>");
@@ -367,7 +373,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         }
         if (plugin != null) {
             plugin.reloadPluginData();
-            player.sendMessage(ChatColor.GREEN + "Plugin EntrepriseManager et ses données ont été rechargés.");
+            player.sendMessage(ChatColor.GREEN + "Plugin RoleplayCity et ses données ont été rechargés.");
         } else {
             player.sendMessage(ChatColor.RED + "Erreur: Instance du plugin non trouvée.");
         }
@@ -458,9 +464,17 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
     private void handleStatsInfoCommand(Player player, String nomEntreprise) {
         EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
-        if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
-        boolean isMember = ent.getGerant().equalsIgnoreCase(player.getName()) || ent.getEmployes().contains(player.getName());
-        if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
+        if (ent == null) {
+            player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
+            return;
+        }
+
+        boolean isMember = ent.getGerant().equalsIgnoreCase(player.getName()) ||
+                          ent.getEmployes().contains(player.getName());
+        if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
 
         player.sendMessage(ChatColor.GOLD + "--- Stats Financières: " + ChatColor.AQUA + ent.getNom() + ChatColor.GOLD + " ---");
         player.sendMessage(ChatColor.YELLOW + "Solde Actuel: " + ChatColor.GREEN + String.format("%,.2f", ent.getSolde()) + "€");

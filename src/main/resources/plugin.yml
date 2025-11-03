@@ -1,6 +1,6 @@
-name: EntrepriseManager
+name: RoleplayCity
 version: '${project.version}'
-main: com.gravityyfh.entreprisemanager.EntrepriseManager
+main: com.gravityyfh.roleplaycity.RoleplayCity
 api-version: 1.20
 
 softdepend: [QuickShop, CoreProtect, TreeCuter, Towny]
@@ -8,23 +8,23 @@ softdepend: [QuickShop, CoreProtect, TreeCuter, Towny]
 
 commands:
   entreprise:
-    description: Commande principale de l'EntrepriseManager, inclut les fonctionnalités pour les joueurs et les administrateurs
+    description: Commande principale de RoleplayCity, inclut les fonctionnalités pour les joueurs et les administrateurs
     usage: /<command> [sous-commande] [arguments...]
-    aliases: []
+    aliases: [rpc, roleplaycity]
 
 permissions:
-  entreprisemanager.use:
-    description: Permet l'utilisation des commandes de base de l'EntrepriseManager
+  roleplaycity.use:
+    description: Permet l'utilisation des commandes de base de RoleplayCity
     default: true
-  entreprisemanager.admin:
-    description: Permet l'utilisation des fonctionnalités administratives de l'EntrepriseManager
+  roleplaycity.admin:
+    description: Permet l'utilisation des fonctionnalités administratives de RoleplayCity
     default: op
-  entreprisemanager.admin.cleandisplay:
+  roleplaycity.admin.cleandisplay:
     description: Autorise la suppression manuelle d'un item de boutique bloqué
     default: op
-  entreprisemanager.declare:
+  roleplaycity.declare:
     description: Permet de déclarer des entreprises
     default: true
-  entreprisemanager.manage:
+  roleplaycity.manage:
     description: Permet la gestion des entreprises (ajout/suppression d'employés, consultation des infos, etc.)
     default: true

@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
@@ -14,7 +14,7 @@ import java.util.logging.Level;
 
 public class CVManager {
 
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
     private final EntrepriseManagerLogic entrepriseLogic;
     private PlayerCVGUI playerCVGUI; // Injecté via setPlayerCVGUI pour éviter dépendance circulaire directe au constructeur
 
@@ -45,12 +45,12 @@ public class CVManager {
         PLAYER_OFFERS_TO_SHOW_OWN_CV
     }
 
-    public CVManager(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public CVManager(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
     }
 
-    // Méthode pour l'injection de dépendance (appelée depuis EntrepriseManager après initialisation de PlayerCVGUI)
+    // Méthode pour l'injection de dépendance (appelée depuis RoleplayCity après initialisation de PlayerCVGUI)
     public void setPlayerCVGUI(PlayerCVGUI playerCVGUI) {
         this.playerCVGUI = playerCVGUI;
     }

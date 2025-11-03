@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,14 +25,14 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 public class ShopGUI implements Listener {
-   private final EntrepriseManager plugin;
+   private final RoleplayCity plugin;
    private final ShopManager shopManager;
    private final EntrepriseManagerLogic entrepriseLogic;
    private static final String TITLE_SHOP_LIST_PREFIX;
    private static final String TITLE_MANAGE_SHOP_PREFIX;
    private final Map<UUID, ShopGUI.PlayerGUIContext> playerContexts = new HashMap();
 
-   public ShopGUI(EntrepriseManager plugin) {
+   public ShopGUI(RoleplayCity plugin) {
       this.plugin = plugin;
       this.shopManager = plugin.getShopManager();
       this.entrepriseLogic = plugin.getEntrepriseManagerLogic();

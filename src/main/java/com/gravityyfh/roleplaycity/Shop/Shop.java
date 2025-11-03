@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash('C:/Program Files/JetBrains/IntelliJ IDEA Community Edition 2023.3/plugins/maven/lib/maven3/bin/mvn.cmd' -f C:PluginCreatorEntrepriseManagerpom.xml package -q -DskipTests)",
+      "Bash(find:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean package -q -DskipTests)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

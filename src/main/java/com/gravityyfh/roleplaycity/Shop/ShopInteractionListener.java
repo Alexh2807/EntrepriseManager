@@ -1,6 +1,6 @@
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
+import com.gravityyfh.roleplaycity.RoleplayCity;
 import java.util.logging.Level;
 import org.bukkit.ChatColor;
 import org.bukkit.block.Block;
@@ -15,9 +15,9 @@ import org.bukkit.event.player.PlayerInteractEvent;
 
 public class ShopInteractionListener implements Listener {
    private final ShopManager shopManager;
-   private final EntrepriseManager plugin;
+   private final RoleplayCity plugin;
 
-   public ShopInteractionListener(EntrepriseManager plugin) {
+   public ShopInteractionListener(RoleplayCity plugin) {
       this.shopManager = plugin.getShopManager();
       this.plugin = plugin;
    }

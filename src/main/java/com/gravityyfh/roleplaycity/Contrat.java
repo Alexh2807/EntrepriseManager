@@ -1,5 +1,5 @@
 
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

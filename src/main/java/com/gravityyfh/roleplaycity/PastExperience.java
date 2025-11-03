@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager; // Assurez-vous que le package est correct
+package com.gravityyfh.roleplaycity; // Assurez-vous que le package est correct
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

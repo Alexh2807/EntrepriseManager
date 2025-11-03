@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 // --- Imports ---
 import com.palmergames.bukkit.towny.TownyAPI;
@@ -39,7 +39,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseManagerLogic {
-    public static EntrepriseManager plugin;
+    public static RoleplayCity plugin;
     private static Map<String, Entreprise> entreprises;
     private static File entrepriseFile;
 
@@ -151,7 +151,7 @@ public class EntrepriseManagerLogic {
     }
     // --- Fin Enumérations et Classes Internes ---
 
-    public EntrepriseManagerLogic(EntrepriseManager plugin) {
+    public EntrepriseManagerLogic(RoleplayCity plugin) {
         EntrepriseManagerLogic.plugin = plugin;
         entreprises = new ConcurrentHashMap<>();
         entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
@@ -548,7 +548,7 @@ public class EntrepriseManagerLogic {
             if (activity == null || !activity.isActive()) continue; // Only active employees get primes
 
             if (entreprise.getSolde() >= primeConfigurée) {
-                EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(employeOffline, primeConfigurée);
+                EconomyResponse er = RoleplayCity.getEconomy().depositPlayer(employeOffline, primeConfigurée);
                 if (er.transactionSuccess()) {
                     entreprise.setSolde(entreprise.getSolde() - primeConfigurée);
                     entreprise.addTransaction(new Transaction(TransactionType.PRIMES, primeConfigurée, "Prime horaire: " + employeNom, "System"));
@@ -664,7 +664,7 @@ public class EntrepriseManagerLogic {
         int joueursPayes = 0;
         for (Player joueurConnecte : Bukkit.getOnlinePlayers()) {
             if (getNomEntrepriseDuMembre(joueurConnecte.getName()) == null) {
-                EconomyResponse er = EntrepriseManager.getEconomy().depositPlayer(joueurConnecte, montantAllocation);
+                EconomyResponse er = RoleplayCity.getEconomy().depositPlayer(joueurConnecte, montantAllocation);
                 if (er.transactionSuccess()) { joueurConnecte.sendMessage(ChatColor.translateAlternateColorCodes('&', String.format("&6[Alloc. Chômage] &a+%.2f€", montantAllocation))); joueursPayes++; }
                 else { plugin.getLogger().warning("Impossible de verser alloc. chômage à " + joueurConnecte.getName() + ": " + er.errorMessage); }
             }
@@ -1065,10 +1065,10 @@ public class EntrepriseManagerLogic {
         DemandeCreation demande = demandesEnAttente.remove(gerantSignataire.getUniqueId());
         if (demande == null) { gerantSignataire.sendMessage(ChatColor.RED + "Aucune demande."); return; }
         if (demande.isExpired()) { gerantSignataire.sendMessage(ChatColor.RED + "Demande expirée."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Demande pour '" + demande.nomEntreprise + "' (à " + gerantSignataire.getName() + ") expirée."); return; }
-        if (!EntrepriseManager.getEconomy().has(gerantSignataire, demande.cout)) { gerantSignataire.sendMessage(ChatColor.RED + "Fonds insuffisants (" + String.format("%,.2f€", demande.cout) + ")."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Création échouée (fonds " + gerantSignataire.getName() + " insuffisants)."); return; }
-        EconomyResponse er = EntrepriseManager.getEconomy().withdrawPlayer(gerantSignataire, demande.cout);
+        if (!RoleplayCity.getEconomy().has(gerantSignataire, demande.cout)) { gerantSignataire.sendMessage(ChatColor.RED + "Fonds insuffisants (" + String.format("%,.2f€", demande.cout) + ")."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Création échouée (fonds " + gerantSignataire.getName() + " insuffisants)."); return; }
+        EconomyResponse er = RoleplayCity.getEconomy().withdrawPlayer(gerantSignataire, demande.cout);
         if (!er.transactionSuccess()) { gerantSignataire.sendMessage(ChatColor.RED + "Erreur paiement: " + er.errorMessage); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Erreur paiement par " + gerantSignataire.getName() + "."); return; }
-        if (entreprises.containsKey(demande.nomEntreprise)) { gerantSignataire.sendMessage(ChatColor.RED + "Nom '" + demande.nomEntreprise + "' pris. Annulé."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Nom '" + demande.nomEntreprise + "' pris. Annulé."); EntrepriseManager.getEconomy().depositPlayer(gerantSignataire, demande.cout); gerantSignataire.sendMessage(ChatColor.YELLOW + "Frais remboursés."); return; }
+        if (entreprises.containsKey(demande.nomEntreprise)) { gerantSignataire.sendMessage(ChatColor.RED + "Nom '" + demande.nomEntreprise + "' pris. Annulé."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Nom '" + demande.nomEntreprise + "' pris. Annulé."); RoleplayCity.getEconomy().depositPlayer(gerantSignataire, demande.cout); gerantSignataire.sendMessage(ChatColor.YELLOW + "Frais remboursés."); return; }
         declareEntreprise(demande.maire, demande.ville, demande.nomEntreprise, demande.type, gerantSignataire, demande.siret, demande.cout);
         gerantSignataire.sendMessage(ChatColor.GREEN + "Contrat accepté! Frais (" + String.format("%,.2f€", demande.cout) + ") payés. '" + demande.nomEntreprise + "' créée !");
         Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.GREEN + gerantSignataire.getName() + " a validé. '" + demande.nomEntreprise + "' créée.");
@@ -1159,7 +1159,7 @@ public class EntrepriseManagerLogic {
         if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) { player.sendMessage(ChatColor.RED + "Seul le gérant peut retirer."); return; }
         if (montant <= 0) { player.sendMessage(ChatColor.RED + "Montant doit être positif."); return; }
         if (entreprise.getSolde() < montant) { player.sendMessage(ChatColor.RED + "Solde ent. (" + String.format("%,.2f€", entreprise.getSolde()) + ") insuffisant."); return; }
-        EconomyResponse response = EntrepriseManager.getEconomy().depositPlayer(player, montant);
+        EconomyResponse response = RoleplayCity.getEconomy().depositPlayer(player, montant);
         if (response.transactionSuccess()) { entreprise.setSolde(entreprise.getSolde() - montant); entreprise.addTransaction(new Transaction(TransactionType.WITHDRAWAL, montant, "Retrait par gérant " + player.getName(), player.getName())); saveEntreprises(); player.sendMessage(ChatColor.GREEN + String.format("%,.2f€", montant) + " retirés de '" + nomEntreprise + "'. Solde: " + String.format("%,.2f€", entreprise.getSolde()) + "."); }
         else { player.sendMessage(ChatColor.RED + "Erreur dépôt compte: " + response.errorMessage); }
     }
@@ -1177,7 +1177,7 @@ public class EntrepriseManagerLogic {
             player.sendMessage(ChatColor.RED + "Le montant du dépôt doit être positif.");
             return;
         }
-        if (!EntrepriseManager.getEconomy().has(player, montant)) {
+        if (!RoleplayCity.getEconomy().has(player, montant)) {
             player.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent sur votre compte personnel.");
             return;
         }
@@ -1197,7 +1197,7 @@ public class EntrepriseManagerLogic {
             }
         }
 
-        EconomyResponse response = EntrepriseManager.getEconomy().withdrawPlayer(player, montant);
+        EconomyResponse response = RoleplayCity.getEconomy().withdrawPlayer(player, montant);
         if (response.transactionSuccess()) {
             entreprise.setSolde(entreprise.getSolde() + montant);
             entreprise.addTransaction(new Transaction(TransactionType.DEPOSIT, montant, "Dépôt par " + player.getName(), player.getName()));
@@ -1395,7 +1395,7 @@ public class EntrepriseManagerLogic {
     // --- Fin Chargement / Sauvegarde ---
 
     // --- Reload (AVEC HISTORIQUE) ---
-    public void reloadPluginData() { plugin.reloadConfig(); loadEntreprises(); loadPlayerHistory(); planifierTachesHoraires(); planifierVerificationActiviteEmployes(); plugin.getLogger().info("[EntrepriseManager] Données, historique et configuration rechargés."); }
+    public void reloadPluginData() { plugin.reloadConfig(); loadEntreprises(); loadPlayerHistory(); planifierTachesHoraires(); planifierVerificationActiviteEmployes(); plugin.getLogger().info("[RoleplayCity] Données, historique et configuration rechargés."); }
     // --- Fin Reload ---
 
     // --- Messages Différés ---

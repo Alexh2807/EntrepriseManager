@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Listener;
+package com.gravityyfh.roleplaycity.Listener;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.palmergames.bukkit.towny.event.DeleteTownEvent;
 import com.palmergames.bukkit.towny.event.TownRemoveResidentEvent; // Ajout de l'événement pour un résident qui quitte une ville
 import com.palmergames.bukkit.towny.object.Resident;
@@ -15,10 +15,10 @@ import java.util.logging.Level;
 
 public class TownyListener implements Listener {
 
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
     private final EntrepriseManagerLogic entrepriseLogic;
 
-    public TownyListener(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public TownyListener(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
     }

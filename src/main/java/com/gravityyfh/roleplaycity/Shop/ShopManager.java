@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.TownBlock;
@@ -48,12 +48,12 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 public class ShopManager {
-   private final EntrepriseManager plugin;
+   private final RoleplayCity plugin;
    private final EntrepriseManagerLogic entrepriseLogic;
    private final Map<UUID, Shop> shops = new ConcurrentHashMap();
    private final File shopsFile;
 
-   public ShopManager(EntrepriseManager plugin) {
+   public ShopManager(RoleplayCity plugin) {
       this.plugin = plugin;
       this.entrepriseLogic = plugin.getEntrepriseManagerLogic();
       this.shopsFile = new File(plugin.getDataFolder(), "shops.yml");
@@ -83,13 +83,13 @@ public class ShopManager {
 
             } else {
                double price = shop.getPrice();
-               if (!EntrepriseManager.getEconomy().has(buyer, price)) {
+               if (!RoleplayCity.getEconomy().has(buyer, price)) {
                   var10001 = ChatColor.RED;
                   buyer.sendMessage(var10001 + "Vous n'avez pas assez d'argent. Il vous faut " + String.format("%,.2f€", price) + ".");
                } else if (buyer.getInventory().firstEmpty() == -1) {
                   buyer.sendMessage(ChatColor.RED + "Votre inventaire est plein.");
                } else {
-                  EconomyResponse buyerResponse = EntrepriseManager.getEconomy().withdrawPlayer(buyer, price);
+                  EconomyResponse buyerResponse = RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
                   if (!buyerResponse.transactionSuccess()) {
                      buyer.sendMessage(ChatColor.RED + "Une erreur est survenue lors du paiement : " + buyerResponse.errorMessage);
                   } else {

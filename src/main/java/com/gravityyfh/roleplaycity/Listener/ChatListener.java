@@ -1,9 +1,9 @@
-package com.gravityyfh.entreprisemanager.Listener;// Dans ton fichier ChatListener.java
+package com.gravityyfh.roleplaycity.Listener;// Dans ton fichier ChatListener.java
 
-import com.gravityyfh.entreprisemanager.EntrepriseGUI;
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
-import com.gravityyfh.entreprisemanager.Shop.Shop;
+import com.gravityyfh.roleplaycity.EntrepriseGUI;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.Shop.Shop;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class ChatListener implements Listener {
 
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
     private final EntrepriseGUI entrepriseGUI; // Assure-toi que tu as bien ce champ
 
     // Map pour suivre les joueurs en attente d'une saisie
@@ -59,7 +59,7 @@ public class ChatListener implements Listener {
     }
 
     // Ton constructeur
-    public ChatListener(EntrepriseManager plugin, EntrepriseGUI entrepriseGUI) {
+    public ChatListener(RoleplayCity plugin, EntrepriseGUI entrepriseGUI) {
         this.plugin = plugin;
         this.entrepriseGUI = entrepriseGUI;
     }

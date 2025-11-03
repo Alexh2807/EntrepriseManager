@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import org.bukkit.entity.Player;
 

@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -28,7 +28,7 @@ import java.util.logging.Level; // Pour les logs
 
 public class PlayerCVGUI implements Listener {
 
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
     private final EntrepriseManagerLogic entrepriseLogic; // Référence nécessaire pour récupérer l'historique/entreprise actuelle
     private final CVManager cvManager;                 // Référence nécessaire pour initier les partages de CV
 
@@ -39,7 +39,7 @@ public class PlayerCVGUI implements Listener {
     private static final String TITLE_REQUEST_CV_FROM_PLAYER_LIST = ChatColor.YELLOW + "Demander CV à un Joueur"; // Si besoin d'un titre distinct
 
     // Constructeur mis à jour pour inclure EntrepriseManagerLogic et CVManager
-    public PlayerCVGUI(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic, CVManager cvManager) {
+    public PlayerCVGUI(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic, CVManager cvManager) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
         this.cvManager = cvManager;
@@ -181,7 +181,7 @@ public class PlayerCVGUI implements Listener {
                     openRequestCVFromPlayerSelection(player);
                     break;
                 case "Retour au Menu Entreprise":
-                    // Assurez-vous que EntrepriseManager a un getter pour EntrepriseGUI
+                    // Assurez-vous que RoleplayCity a un getter pour EntrepriseGUI
                     if (plugin.getEntrepriseGUI() != null) {
                         plugin.getEntrepriseGUI().openMainMenu(player);
                     } else {

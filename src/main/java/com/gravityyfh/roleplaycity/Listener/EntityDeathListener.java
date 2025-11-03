@@ -1,7 +1,7 @@
-package com.gravityyfh.entreprisemanager.Listener;
+package com.gravityyfh.roleplaycity.Listener;
 
-import com.gravityyfh.entreprisemanager.EntrepriseManager;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import org.bukkit.GameMode;
 // Supprimez Material si non utilisé
 import org.bukkit.entity.EntityType;
@@ -16,9 +16,9 @@ import java.util.logging.Level;
 public class EntityDeathListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
 
-    public EntityDeathListener(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public EntityDeathListener(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
     }

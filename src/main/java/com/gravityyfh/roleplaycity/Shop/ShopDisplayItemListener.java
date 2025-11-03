@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;

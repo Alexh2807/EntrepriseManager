@@ -1,4 +1,4 @@
-package com.gravityyfh.entreprisemanager;
+package com.gravityyfh.roleplaycity;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -19,15 +19,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.DetailedActionType;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.DetailedActionType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
-import com.gravityyfh.entreprisemanager.EntrepriseManagerLogic.Entreprise;
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise;
 
 
 public class EntrepriseGUI implements Listener {
 
-    private final EntrepriseManager plugin;
+    private final RoleplayCity plugin;
     private final EntrepriseManagerLogic entrepriseLogic;
     private final Map<UUID, BukkitTask> guiUpdateTasks = new HashMap<>();
 
@@ -108,7 +108,7 @@ public class EntrepriseGUI implements Listener {
     private static final String TITLE_PROD_STATS_MATERIALS_PREFIX = ChatColor.DARK_GREEN + "Stats Prod. Matériaux: ";
 
 
-    public EntrepriseGUI(EntrepriseManager plugin, EntrepriseManagerLogic entrepriseLogic) {
+    public EntrepriseGUI(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
