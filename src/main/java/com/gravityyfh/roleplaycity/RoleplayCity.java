@@ -250,6 +250,21 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         getLogger().info("Plugin RoleplayCity et ses données ont été rechargés.");
     }
 
+    /**
+     * Intercepte les commandes avec le préfixe "ville:" pour les rediriger vers "/ville"
+     * Permet aux boutons cliquables de fonctionner correctement
+     */
+    @EventHandler
+    public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
+        String message = event.getMessage();
+
+        // Intercepter les commandes ville:xxx et les transformer en /ville xxx
+        if (message.startsWith("/ville:")) {
+            String subCommand = message.substring(7); // Enlever "/ville:"
+            event.setMessage("/ville " + subCommand);
+        }
+    }
+
     // Getters
     public static RoleplayCity getInstance() { return instance; }
     public EntrepriseManagerLogic getEntrepriseManagerLogic() { return entrepriseLogic; }
