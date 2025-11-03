@@ -663,26 +663,93 @@ public class TownEconomyManager {
             return false;
         }
 
-        double price = group.getSalePrice();
-
-        // Vérifier que l'acheteur a assez d'argent
-        if (!RoleplayCity.getEconomy().has(buyer, price)) {
-            buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
-            return false;
+        // === NOUVEAU : Détecter si le groupe contient des terrains PROFESSIONNEL ===
+        boolean hasProfessionalPlot = false;
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
+                    hasProfessionalPlot = true;
+                    break;
+                }
+            }
         }
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+        double price = group.getSalePrice();
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        EntrepriseManagerLogic.Entreprise buyerCompany = null;
+
+        // Si le groupe contient des terrains PRO, valider l'entreprise et utiliser les fonds d'entreprise
+        if (hasProfessionalPlot) {
+            if (!companyManager.validateCompanyOwnership(buyer, null)) {
+                // Le message d'erreur est déjà envoyé par validateCompanyOwnership
+                return false;
+            }
+
+            buyerCompany = companyManager.getPlayerCompany(buyer);
+            if (buyerCompany == null) {
+                buyer.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                return false;
+            }
+
+            // Vérifier les fonds de l'entreprise
+            if (buyerCompany.getSolde() < price) {
+                buyer.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
+                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
+                return false;
+            }
+
+            // Prélever de l'entreprise
+            buyerCompany.setSolde(buyerCompany.getSolde() - price);
+        } else {
+            // Groupe PARTICULIER uniquement - utiliser argent personnel
+            if (!RoleplayCity.getEconomy().has(buyer, price)) {
+                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+                return false;
+            }
+            RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+        }
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
-            RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+            // Vérifier si l'ancien propriétaire avait une entreprise
+            String oldCompanySiret = null;
+            for (String plotKey : group.getPlotKeys()) {
+                String[] parts = plotKey.split(":");
+                if (parts.length == 3) {
+                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                    if (plot != null && plot.getCompanySiret() != null) {
+                        oldCompanySiret = plot.getCompanySiret();
+                        break;
+                    }
+                }
+            }
 
-            // Notifier si le propriétaire est en ligne
-            if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+            if (oldCompanySiret != null) {
+                // Ancien terrain PRO - argent va à l'ancienne entreprise
+                EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(oldCompanySiret);
+                if (previousCompany != null) {
+                    previousCompany.setSolde(previousCompany.getSolde() + price);
+                    OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                    if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à l'entreprise " + previousCompany.getNom());
+                    }
+                } else {
+                    town.deposit(price); // Entreprise n'existe plus
+                }
+            } else {
+                // Ancien terrain PARTICULIER - argent va au propriétaire
+                OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+                if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+                }
             }
         } else {
             town.deposit(price);
@@ -692,7 +759,7 @@ public class TownEconomyManager {
         group.setOwner(buyer.getUniqueId(), buyer.getName());
         group.setForSale(false);
 
-        // Transférer aussi toutes les parcelles individuelles
+        // Transférer toutes les parcelles individuelles + companySiret si nécessaire
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
             if (parts.length == 3) {
@@ -704,21 +771,45 @@ public class TownEconomyManager {
                 if (plot != null) {
                     plot.setOwner(buyer.getUniqueId(), buyer.getName());
                     plot.setForSale(false);
+
+                    // Si terrain PROFESSIONNEL, enregistrer l'entreprise
+                    if (plot.getType() == PlotType.PROFESSIONNEL && buyerCompany != null) {
+                        plot.setCompany(buyerCompany.getNom());
+                        plot.setCompanySiret(buyerCompany.getSiret());
+                        plot.resetDebt(); // Réinitialiser la dette si existante
+                    } else {
+                        plot.setCompany(null);
+                        plot.setCompanySiret(null);
+                    }
                 }
             }
         }
 
-        buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles acheté avec succès !");
-        buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
-        buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + price + "€");
+        // Messages personnalisés selon le type
+        if (hasProfessionalPlot && buyerCompany != null) {
+            buyer.sendMessage(ChatColor.GREEN + "✓ Groupe de parcelles PROFESSIONNEL acheté avec succès !");
+            buyer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + buyerCompany.getNom());
+            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
+            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + String.format("%.2f€", price));
+            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
+            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront prélevées du solde de l'entreprise.");
+        } else {
+            buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles acheté avec succès !");
+            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
+            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + price + "€");
+        }
 
         // Enregistrer la transaction
+        String transactionLabel = hasProfessionalPlot && buyerCompany != null ?
+            "Achat groupe PRO: " + group.getGroupName() + " (" + buyerCompany.getNom() + ")" :
+            "Achat groupe: " + group.getGroupName();
+
         addTransaction(townName, new PlotTransaction(
             PlotTransaction.TransactionType.SALE,
             buyer.getUniqueId(),
             buyer.getName(),
             price,
-            "Achat groupe: " + group.getGroupName()
+            transactionLabel
         ));
 
         return true;
