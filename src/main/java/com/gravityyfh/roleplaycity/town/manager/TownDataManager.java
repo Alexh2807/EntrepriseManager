@@ -98,6 +98,20 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".company", plot.getCompanyName());
                 }
 
+                // Sauvegarder le SIRET de l'entreprise (ajouté pour système PRO)
+                if (plot.getCompanySiret() != null) {
+                    townsConfig.set(plotPath + ".company-siret", plot.getCompanySiret());
+                }
+
+                // Sauvegarder les données de dette (système PRO)
+                if (plot.getCompanyDebtAmount() > 0) {
+                    townsConfig.set(plotPath + ".debt-amount", plot.getCompanyDebtAmount());
+                    townsConfig.set(plotPath + ".debt-warning-count", plot.getDebtWarningCount());
+                    if (plot.getLastDebtWarningDate() != null) {
+                        townsConfig.set(plotPath + ".last-debt-warning", plot.getLastDebtWarningDate().format(DATE_FORMAT));
+                    }
+                }
+
                 if (plot.isForSale()) {
                     townsConfig.set(plotPath + ".for-sale", true);
                     townsConfig.set(plotPath + ".sale-price", plot.getSalePrice());
@@ -367,6 +381,26 @@ public class TownDataManager {
         // Charger l'entreprise
         if (section.contains("company")) {
             plot.setCompany(section.getString("company"));
+        }
+
+        // Charger le SIRET de l'entreprise (système PRO)
+        if (section.contains("company-siret")) {
+            plot.setCompanySiret(section.getString("company-siret"));
+        }
+
+        // Charger les données de dette (système PRO)
+        if (section.contains("debt-amount")) {
+            plot.setCompanyDebtAmount(section.getDouble("debt-amount"));
+            plot.setDebtWarningCount(section.getInt("debt-warning-count", 0));
+            if (section.contains("last-debt-warning")) {
+                try {
+                    LocalDateTime debtWarningDate = LocalDateTime.parse(
+                        section.getString("last-debt-warning"), DATE_FORMAT);
+                    plot.setLastDebtWarningDate(debtWarningDate);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Erreur lors du chargement de last-debt-warning pour parcelle");
+                }
+            }
         }
 
         // Charger vente
