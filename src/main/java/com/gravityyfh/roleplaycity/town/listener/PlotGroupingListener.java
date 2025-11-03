@@ -258,6 +258,15 @@ public class PlotGroupingListener implements Listener {
             session.selectedPlotKeys.remove(plotKey);
             player.sendMessage(ChatColor.YELLOW + "✗ Parcelle retirée du groupe (" + session.selectedPlotKeys.size() + ")");
         } else {
+            // Vérifier l'adjacence si ce n'est pas la première parcelle
+            if (!session.selectedPlotKeys.isEmpty()) {
+                if (!isAdjacentToAnySelected(chunk.getX(), chunk.getZ(), session.selectedPlotKeys, town)) {
+                    player.sendMessage(ChatColor.RED + "Cette parcelle doit être adjacente (côte à côte) aux parcelles déjà sélectionnées !");
+                    player.sendMessage(ChatColor.YELLOW + "Les parcelles doivent former un terrain continu.");
+                    return;
+                }
+            }
+
             session.selectedPlotKeys.add(plotKey);
             player.sendMessage(ChatColor.GREEN + "✓ Parcelle ajoutée au groupe (" + session.selectedPlotKeys.size() + ")");
         }
@@ -349,5 +358,25 @@ public class PlotGroupingListener implements Listener {
      */
     public void cleanExpiredSessions() {
         activeSessions.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    }
+
+    /**
+     * Vérifie si une parcelle est adjacente à au moins une parcelle déjà sélectionnée
+     */
+    private boolean isAdjacentToAnySelected(int chunkX, int chunkZ, Set<String> selectedPlotKeys, Town town) {
+        for (String plotKey : selectedPlotKeys) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                int selectedX = Integer.parseInt(parts[1]);
+                int selectedZ = Integer.parseInt(parts[2]);
+
+                // Vérifier les 4 directions (Nord, Sud, Est, Ouest)
+                if ((Math.abs(chunkX - selectedX) == 1 && chunkZ == selectedZ) ||
+                    (Math.abs(chunkZ - selectedZ) == 1 && chunkX == selectedX)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

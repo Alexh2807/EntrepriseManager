@@ -263,7 +263,37 @@ public class TownPlotManagementGUI implements Listener {
                     player.removeMetadata("plot_type_change_town", plugin);
 
                     if (plot != null) {
+                        PlotType oldType = plot.getType();
+
+                        // VALIDATION : Un terrain avec propriétaire ne peut pas devenir MUNICIPAL ou PUBLIC
+                        if (plot.getOwnerUuid() != null &&
+                            (selectedType == PlotType.MUNICIPAL || selectedType == PlotType.PUBLIC)) {
+                            player.sendMessage(ChatColor.RED + "✗ Impossible de changer ce terrain en " + selectedType.getDisplayName() + " !");
+                            player.sendMessage(ChatColor.YELLOW + "Raison : Cette parcelle a un propriétaire (" + plot.getOwnerName() + ")");
+                            player.sendMessage(ChatColor.GRAY + "Vous devez d'abord retirer le propriétaire ou racheter le terrain à la ville.");
+                            player.closeInventory();
+                            return;
+                        }
+
                         plot.setType(selectedType);
+
+                        // Vérifier si la parcelle faisait partie d'un groupe
+                        Town town = townManager.getTown(townName);
+                        if (town != null) {
+                            boolean wasRemoved = town.removePlotFromGroupIfIncompatible(plot);
+
+                            if (wasRemoved) {
+                                player.sendMessage(ChatColor.YELLOW + "⚠ Cette parcelle a été retirée de son groupe de terrain !");
+                                player.sendMessage(ChatColor.GRAY + "Raison : Le type " + selectedType.getDisplayName() +
+                                    " n'est pas compatible avec les groupements.");
+                                player.sendMessage(ChatColor.GRAY + "Seuls les types Particulier et Professionnel peuvent être groupés.");
+
+                                // Si la parcelle était en vente/location via le groupe, annuler
+                                plot.setForSale(false);
+                                plot.setForRent(false);
+                            }
+                        }
+
                         player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
                         player.closeInventory();
                         openPlotMenu(player);

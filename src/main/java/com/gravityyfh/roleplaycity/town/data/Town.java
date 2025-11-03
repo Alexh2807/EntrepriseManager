@@ -215,6 +215,36 @@ public class Town {
         plotGroups.put(group.getGroupId(), group);
     }
 
+    /**
+     * Retire une parcelle de son groupe si le type n'est plus compatible
+     * Retourne true si la parcelle a été retirée d'un groupe
+     */
+    public boolean removePlotFromGroupIfIncompatible(Plot plot) {
+        PlotGroup group = findPlotGroupByPlot(plot);
+        if (group == null) {
+            return false; // Pas dans un groupe
+        }
+
+        // Vérifier si le type est compatible (PARTICULIER ou PROFESSIONNEL uniquement)
+        if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+            // Retirer la parcelle du groupe
+            group.removePlot(plot);
+
+            // Annuler vente/location du groupe si moins de 2 parcelles
+            if (group.getPlotCount() < 2) {
+                group.setForSale(false);
+                group.setForRent(false);
+                group.clearRenter();
+                // Supprimer le groupe complètement
+                plotGroups.remove(group.getGroupId());
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     // === GESTION ÉCONOMIQUE ===
 
     public void deposit(double amount) {
