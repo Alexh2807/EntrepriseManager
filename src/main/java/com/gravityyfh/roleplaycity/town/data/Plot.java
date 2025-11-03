@@ -16,9 +16,15 @@ public class Plot {
     private PlotType type;
     private MunicipalSubType municipalSubType;
 
-    private UUID ownerUuid; // Pour PARTICULIER ou PROFESSIONNEL
+    private UUID ownerUuid; // Pour PARTICULIER : UUID joueur, Pour PROFESSIONNEL : UUID gérant
     private String ownerName;
     private String companyName; // Pour PROFESSIONNEL uniquement
+    private String companySiret; // SIRET de l'entreprise propriétaire (PROFESSIONNEL uniquement)
+
+    // Système de dette pour terrains PROFESSIONNEL
+    private double companyDebtAmount; // Montant de la dette accumulée
+    private LocalDateTime lastDebtWarningDate; // Date du dernier avertissement
+    private int debtWarningCount; // Nombre d'avertissements envoyés
 
     private double salePrice;
     private boolean forSale;
@@ -55,6 +61,8 @@ public class Plot {
         this.forSale = false;
         this.forRent = false;
         this.rentDaysRemaining = 0;
+        this.companyDebtAmount = 0.0;
+        this.debtWarningCount = 0;
         this.protectedBlocks = new HashSet<>();
         this.playerPermissions = new HashMap<>();
         this.trustedPlayers = new HashSet<>();
@@ -76,6 +84,10 @@ public class Plot {
     public UUID getOwnerUuid() { return ownerUuid; }
     public String getOwnerName() { return ownerName; }
     public String getCompanyName() { return companyName; }
+    public String getCompanySiret() { return companySiret; }
+    public double getCompanyDebtAmount() { return companyDebtAmount; }
+    public LocalDateTime getLastDebtWarningDate() { return lastDebtWarningDate; }
+    public int getDebtWarningCount() { return debtWarningCount; }
     public double getSalePrice() { return salePrice; }
     public boolean isForSale() { return forSale; }
     public double getRentPricePerDay() { return rentPricePerDay; }
@@ -111,6 +123,28 @@ public class Plot {
 
     public void setCompany(String companyName) {
         this.companyName = companyName;
+    }
+
+    public void setCompanySiret(String companySiret) {
+        this.companySiret = companySiret;
+    }
+
+    public void setCompanyDebtAmount(double amount) {
+        this.companyDebtAmount = amount;
+    }
+
+    public void setLastDebtWarningDate(LocalDateTime date) {
+        this.lastDebtWarningDate = date;
+    }
+
+    public void setDebtWarningCount(int count) {
+        this.debtWarningCount = count;
+    }
+
+    public void resetDebt() {
+        this.companyDebtAmount = 0.0;
+        this.debtWarningCount = 0;
+        this.lastDebtWarningDate = null;
     }
 
     public void setSalePrice(double price) {
