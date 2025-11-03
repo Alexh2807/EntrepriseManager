@@ -162,6 +162,25 @@ public class TownClaimsGUI implements Listener {
         statsItem.setItemMeta(statsMeta);
         inv.setItem(22, statsItem);
 
+        // Gérer les regroupements de terrains
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
+            ItemStack groupItem = new ItemStack(Material.CHEST_MINECART);
+            ItemMeta groupMeta = groupItem.getItemMeta();
+            groupMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Gérer les Regroupements de Terrains");
+            List<String> groupLore = new ArrayList<>();
+            groupLore.add(ChatColor.GRAY + "Assembler plusieurs parcelles");
+            groupLore.add(ChatColor.GRAY + "en un seul grand terrain");
+            groupLore.add("");
+            groupLore.add(ChatColor.YELLOW + "• Minimum 2 parcelles privées");
+            groupLore.add(ChatColor.YELLOW + "• Même propriétaire requis");
+            groupLore.add("");
+            groupLore.add(ChatColor.AQUA + "Cliquez pour gérer les groupes");
+            groupMeta.setLore(groupLore);
+            groupItem.setItemMeta(groupMeta);
+            inv.setItem(24, groupItem);
+        }
+
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
@@ -225,6 +244,10 @@ public class TownClaimsGUI implements Listener {
             } else {
                 player.sendMessage(ChatColor.RED + "Le système de gestion de parcelles n'est pas disponible.");
             }
+        } else if (displayName.contains("Gérer les Regroupements de Terrains")) {
+            player.closeInventory();
+            // Ouvrir le menu de gestion des groupes (équivalent à /ville groupes)
+            plugin.getPlotGroupManagementGUI().openMainMenu(player, townName);
         } else if (displayName.contains("Fermer")) {
             player.closeInventory();
         }
