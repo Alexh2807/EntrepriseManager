@@ -185,9 +185,9 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
-        // RESTRICTION: Seulement les parcelles PARTICULIER (privées)
-        if (plot.getType() != PlotType.PARTICULIER) {
-            player.sendMessage(ChatColor.RED + "Seules les parcelles privées peuvent être groupées.");
+        // RESTRICTION: Seulement les parcelles PARTICULIER ou PROFESSIONNEL
+        if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+            player.sendMessage(ChatColor.RED + "Seules les parcelles PARTICULIER et PROFESSIONNEL peuvent être groupées.");
             player.sendMessage(ChatColor.GRAY + "Type actuel: " + plot.getType().getDisplayName());
             return;
         }
@@ -197,47 +197,61 @@ public class PlotGroupingListener implements Listener {
         boolean isMayorOrAdjoint = town.isMayor(player.getUniqueId()) ||
                                     (playerMember != null && playerMember.hasRole(com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT));
 
-        // Si pas maire/adjoint, vérifier que la parcelle a un propriétaire et validation de propriétaire
-        if (!isMayorOrAdjoint) {
-            if (plot.getOwnerUuid() == null) {
-                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
-                return;
-            }
-
-            // Si c'est la première parcelle, vérifier que c'est le propriétaire
-            if (session.selectedPlotKeys.isEmpty()) {
-                if (!plot.getOwnerUuid().equals(player.getUniqueId())) {
-                    player.sendMessage(ChatColor.RED + "Vous devez être propriétaire des parcelles pour les grouper.");
-                    player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper les parcelles d'autres joueurs.");
-                    return;
-                }
-            } else {
-                // Vérifier que toutes les parcelles ont le même propriétaire
-                String firstPlotKey = session.selectedPlotKeys.iterator().next();
-                String[] parts = firstPlotKey.split(":");
-                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-
-                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
-                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent appartenir au même propriétaire.");
-                    return;
-                }
-            }
-        } else {
-            // Maire/Adjoint : vérifier que toutes les parcelles ont un propriétaire (même si pas le leur)
-            if (plot.getOwnerUuid() == null) {
-                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
-                player.sendMessage(ChatColor.YELLOW + "Seules les parcelles avec propriétaire peuvent être groupées.");
-                return;
-            }
-
-            // Vérifier que toutes les parcelles du groupe appartiennent au même propriétaire
+        // === Validation selon le rôle ===
+        if (isMayorOrAdjoint) {
+            // MAIRE/ADJOINT : Peut regrouper n'importe quels terrains (avec ou sans propriétaire)
+            // MAIS tous les terrains du groupe doivent avoir le même statut de propriété
             if (!session.selectedPlotKeys.isEmpty()) {
                 String firstPlotKey = session.selectedPlotKeys.iterator().next();
                 String[] parts = firstPlotKey.split(":");
                 Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
 
-                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
-                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent appartenir au même propriétaire.");
+                if (firstPlot != null) {
+                    boolean firstHasOwner = (firstPlot.getOwnerUuid() != null);
+                    boolean currentHasOwner = (plot.getOwnerUuid() != null);
+
+                    // Vérifier cohérence : tous avec proprio OU tous sans proprio
+                    if (firstHasOwner != currentHasOwner) {
+                        player.sendMessage(ChatColor.RED + "Impossible de mélanger des parcelles avec et sans propriétaire !");
+                        if (firstHasOwner) {
+                            player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées ont un propriétaire.");
+                        } else {
+                            player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées sont municipales (sans propriétaire).");
+                        }
+                        return;
+                    }
+
+                    // Si toutes ont un propriétaire, vérifier que c'est le même
+                    if (firstHasOwner && currentHasOwner && !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
+                        player.sendMessage(ChatColor.RED + "Toutes les parcelles avec propriétaire doivent avoir le même propriétaire !");
+                        player.sendMessage(ChatColor.YELLOW + "Propriétaire déjà sélectionné: " + ChatColor.WHITE + firstPlot.getOwnerName());
+                        player.sendMessage(ChatColor.YELLOW + "Propriétaire de cette parcelle: " + ChatColor.WHITE + plot.getOwnerName());
+                        return;
+                    }
+                }
+            }
+        } else {
+            // JOUEUR NORMAL : Ne peut regrouper QUE ses propres terrains (avec propriétaire)
+            if (plot.getOwnerUuid() == null) {
+                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
+                player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper des parcelles municipales.");
+                return;
+            }
+
+            if (!plot.getOwnerUuid().equals(player.getUniqueId())) {
+                player.sendMessage(ChatColor.RED + "Vous devez être propriétaire des parcelles pour les grouper.");
+                player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper les parcelles d'autres joueurs.");
+                return;
+            }
+
+            // Vérifier que toutes les parcelles du groupe appartiennent au joueur
+            if (!session.selectedPlotKeys.isEmpty()) {
+                String firstPlotKey = session.selectedPlotKeys.iterator().next();
+                String[] parts = firstPlotKey.split(":");
+                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+
+                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent vous appartenir.");
                     return;
                 }
             }
