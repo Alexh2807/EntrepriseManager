@@ -33,6 +33,7 @@ public class PlotGroupManagementGUI implements Listener {
 
     // Sessions d'input chat
     private final Map<UUID, ChatInputContext> chatInputSessions = new HashMap<>();
+    private final Map<UUID, SalePriceInputContext> salePriceInputSessions = new HashMap<>();
 
     public PlotGroupManagementGUI(RoleplayCity plugin, TownManager townManager, ClaimManager claimManager) {
         this.plugin = plugin;
@@ -278,18 +279,79 @@ public class PlotGroupManagementGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_PURPLE + group.getGroupName());
 
-        // Désassembler le groupe
-        ItemStack disbandItem = new ItemStack(Material.TNT);
-        ItemMeta disbandMeta = disbandItem.getItemMeta();
-        disbandMeta.setDisplayName(ChatColor.RED + "Désassembler le Groupe");
-        List<String> disbandLore = new ArrayList<>();
-        disbandLore.add(ChatColor.GRAY + "Séparer toutes les parcelles");
-        disbandLore.add(ChatColor.GRAY + "Elles redeviendront indépendantes");
-        disbandLore.add("");
-        disbandLore.add(ChatColor.YELLOW + "Cliquez pour désassembler");
-        disbandMeta.setLore(disbandLore);
-        disbandItem.setItemMeta(disbandMeta);
-        inv.setItem(13, disbandItem);
+        boolean isOwner = group.isOwnedBy(player.getUniqueId());
+
+        // Si propriétaire : options de vente/location
+        if (isOwner) {
+            // Mettre en vente
+            ItemStack sellItem = new ItemStack(Material.GOLD_INGOT);
+            ItemMeta sellMeta = sellItem.getItemMeta();
+            sellMeta.setDisplayName(ChatColor.GREEN + "Mettre en Vente");
+            List<String> sellLore = new ArrayList<>();
+            sellLore.add(ChatColor.GRAY + "Vendre tout le groupe");
+            sellLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            sellLore.add("");
+            if (group.isForSale()) {
+                sellLore.add(ChatColor.GREEN + "Prix actuel: " + String.format("%.2f€", group.getSalePrice()));
+                sellLore.add(ChatColor.YELLOW + "Cliquez pour modifier");
+            } else {
+                sellLore.add(ChatColor.YELLOW + "Cliquez pour définir le prix");
+            }
+            sellMeta.setLore(sellLore);
+            sellItem.setItemMeta(sellMeta);
+            inv.setItem(11, sellItem);
+
+            // Mettre en location
+            ItemStack rentItem = new ItemStack(Material.EMERALD);
+            ItemMeta rentMeta = rentItem.getItemMeta();
+            rentMeta.setDisplayName(ChatColor.AQUA + "Mettre en Location");
+            List<String> rentLore = new ArrayList<>();
+            rentLore.add(ChatColor.GRAY + "Louer tout le groupe");
+            rentLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            rentLore.add("");
+            if (group.isForRent()) {
+                rentLore.add(ChatColor.AQUA + "Prix actuel: " + String.format("%.2f€/jour", group.getRentPricePerDay()));
+                rentLore.add(ChatColor.YELLOW + "Cliquez pour modifier");
+            } else {
+                rentLore.add(ChatColor.YELLOW + "Cliquez pour définir le prix");
+            }
+            rentMeta.setLore(rentLore);
+            rentItem.setItemMeta(rentMeta);
+            inv.setItem(12, rentItem);
+        }
+
+        // Si en vente et pas propriétaire : option d'achat
+        if (group.isForSale() && !isOwner) {
+            ItemStack buyItem = new ItemStack(Material.DIAMOND);
+            ItemMeta buyMeta = buyItem.getItemMeta();
+            buyMeta.setDisplayName(ChatColor.GREEN + "Acheter ce Groupe");
+            List<String> buyLore = new ArrayList<>();
+            buyLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + group.getOwnerName());
+            buyLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            buyLore.add(ChatColor.GRAY + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+            buyLore.add("");
+            buyLore.add(ChatColor.GREEN + "Prix: " + ChatColor.GOLD + String.format("%.2f€", group.getSalePrice()));
+            buyLore.add("");
+            buyLore.add(ChatColor.YELLOW + "Cliquez pour acheter");
+            buyMeta.setLore(buyLore);
+            buyItem.setItemMeta(buyMeta);
+            inv.setItem(13, buyItem);
+        }
+
+        // Désassembler le groupe (seulement propriétaire)
+        if (isOwner) {
+            ItemStack disbandItem = new ItemStack(Material.TNT);
+            ItemMeta disbandMeta = disbandItem.getItemMeta();
+            disbandMeta.setDisplayName(ChatColor.RED + "Désassembler le Groupe");
+            List<String> disbandLore = new ArrayList<>();
+            disbandLore.add(ChatColor.GRAY + "Séparer toutes les parcelles");
+            disbandLore.add(ChatColor.GRAY + "Elles redeviendront indépendantes");
+            disbandLore.add("");
+            disbandLore.add(ChatColor.YELLOW + "Cliquez pour désassembler");
+            disbandMeta.setLore(disbandLore);
+            disbandItem.setItemMeta(disbandMeta);
+            inv.setItem(15, disbandItem);
+        }
 
         player.openInventory(inv);
     }
@@ -329,12 +391,13 @@ public class PlotGroupManagementGUI implements Listener {
         String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
 
         if (displayName.contains("Créer un Nouveau Groupe")) {
-            Chunk chunk = player.getLocation().getChunk();
-            String townName = claimManager.getClaimOwner(player.getLocation());
+            String townName = townManager.getPlayerTown(player.getUniqueId());
             if (townName != null) {
-                startGroupCreation(player, townName);
+                player.closeInventory();
+                // Utiliser le nouveau système interactif de groupement par clic droit
+                plugin.getPlotGroupingListener().startGroupingSession(player, townName);
             } else {
-                player.sendMessage(ChatColor.RED + "Vous devez être dans votre ville.");
+                player.sendMessage(ChatColor.RED + "Vous devez être membre d'une ville.");
             }
         } else if (displayName.contains("Gérer les Groupes Existants")) {
             Chunk chunk = player.getLocation().getChunk();
@@ -414,32 +477,52 @@ public class PlotGroupManagementGUI implements Listener {
 
     private void handleGroupManagementClick(Player player, ItemStack item, String title) {
         String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
+        String groupName = ChatColor.stripColor(title);
+        String townName = claimManager.getClaimOwner(player.getLocation());
 
-        if (displayName.contains("Désassembler le Groupe")) {
-            String groupName = ChatColor.stripColor(title);
-            String townName = claimManager.getClaimOwner(player.getLocation());
-            if (townName != null) {
-                Town town = townManager.getTown(townName);
-                if (town != null) {
-                    PlotGroup group = town.getPlotGroups().values().stream()
-                            .filter(g -> g.getGroupName().equals(groupName))
-                            .findFirst()
-                            .orElse(null);
-                    if (group != null) {
-                        town.removePlotGroup(group.getGroupId());
-                        player.closeInventory();
-                        player.sendMessage(ChatColor.GREEN + "Groupe désassemblé avec succès !");
-                    }
-                }
+        if (townName == null) return;
+        Town town = townManager.getTown(townName);
+        if (town == null) return;
+
+        PlotGroup group = town.getPlotGroups().values().stream()
+                .filter(g -> g.getGroupName().equals(groupName))
+                .findFirst()
+                .orElse(null);
+
+        if (group == null) return;
+
+        if (displayName.contains("Mettre en Vente")) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.GREEN + "Entrez le prix de vente du groupe dans le chat:");
+            player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+
+            SalePriceInputContext context = new SalePriceInputContext();
+            context.townName = townName;
+            context.groupId = group.getGroupId();
+            salePriceInputSessions.put(player.getUniqueId(), context);
+
+        } else if (displayName.contains("Acheter ce Groupe")) {
+            player.closeInventory();
+
+            if (plugin.getTownEconomyManager().buyPlotGroup(townName, group, player)) {
+                player.sendMessage(ChatColor.GREEN + "✓ Groupe de parcelles acheté avec succès !");
+            } else {
+                player.sendMessage(ChatColor.RED + "Impossible d'acheter ce groupe.");
             }
+
+        } else if (displayName.contains("Désassembler le Groupe")) {
+            town.removePlotGroup(group.getGroupId());
+            player.closeInventory();
+            player.sendMessage(ChatColor.GREEN + "Groupe désassemblé avec succès !");
         }
     }
 
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        ChatInputContext context = chatInputSessions.get(player.getUniqueId());
 
+        // Gestion de création de groupe
+        ChatInputContext context = chatInputSessions.get(player.getUniqueId());
         if (context != null) {
             event.setCancelled(true);
             chatInputSessions.remove(player.getUniqueId());
@@ -462,6 +545,47 @@ public class PlotGroupManagementGUI implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "Nom: " + ChatColor.GOLD + input);
                 player.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + context.selectedPlots.size());
             });
+            return;
+        }
+
+        // Gestion de prix de vente de groupe
+        SalePriceInputContext salePriceContext = salePriceInputSessions.get(player.getUniqueId());
+        if (salePriceContext != null) {
+            event.setCancelled(true);
+            salePriceInputSessions.remove(player.getUniqueId());
+
+            String input = event.getMessage();
+
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    double price = Double.parseDouble(input);
+                    if (price <= 0) {
+                        player.sendMessage(ChatColor.RED + "Le prix doit être supérieur à 0.");
+                        return;
+                    }
+
+                    Town town = townManager.getTown(salePriceContext.townName);
+                    if (town == null) return;
+
+                    PlotGroup group = town.getPlotGroup(salePriceContext.groupId);
+                    if (group == null) {
+                        player.sendMessage(ChatColor.RED + "Groupe introuvable.");
+                        return;
+                    }
+
+                    if (plugin.getTownEconomyManager().putPlotGroupForSale(
+                            salePriceContext.townName, group, price, player)) {
+                        player.sendMessage(ChatColor.GREEN + "✓ Groupe mis en vente !");
+                        player.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
+                        player.sendMessage(ChatColor.GRAY + "Surface: " + (group.getPlotCount() * 256) + "m²");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "Impossible de mettre le groupe en vente.");
+                    }
+
+                } catch (NumberFormatException e) {
+                    player.sendMessage(ChatColor.RED + "Prix invalide. Veuillez entrer un nombre.");
+                }
+            });
         }
     }
 
@@ -477,5 +601,10 @@ public class PlotGroupManagementGUI implements Listener {
     private static class ChatInputContext {
         String townName;
         List<Plot> selectedPlots;
+    }
+
+    private static class SalePriceInputContext {
+        String townName;
+        String groupId;
     }
 }

@@ -53,6 +53,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.TownMembersGUI townMembersGUI;
     private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
+    private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
 
     public void onEnable() {
@@ -114,6 +115,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
+        plotGroupingListener = new com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener(this, townManager, claimManager);
 
         // Charger les villes
         townManager.loadTowns(townDataManager.loadTowns());
@@ -189,6 +191,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             townMainGUI, townMembersGUI, townClaimsGUI, townBankGUI, townPlotManagementGUI, plotOwnerGUI, // GUI du système de ville
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
             townProtectionListener, // Protection des territoires de ville
+            plotGroupingListener, // Système interactif de groupement de parcelles
             new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
             townEventListener, // Événements de ville (suppression, départ membres)
             new EventListener(this, entrepriseLogic),
@@ -256,5 +259,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public ShopGUI getShopGUI() { return shopGUI; }
     public TownManager getTownManager() { return townManager; }
     public com.gravityyfh.roleplaycity.town.manager.ClaimManager getClaimManager() { return claimManager; }
+    public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() { return townEconomyManager; }
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
+    public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
 }

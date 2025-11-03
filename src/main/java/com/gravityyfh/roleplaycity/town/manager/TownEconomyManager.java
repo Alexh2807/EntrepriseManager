@@ -450,6 +450,115 @@ public class TownEconomyManager {
     // === GESTION DES GROUPES DE PARCELLES ===
 
     /**
+     * Met un groupe de parcelles en vente
+     */
+    public boolean putPlotGroupForSale(String townName, PlotGroup group, double price, Player seller) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !group.isOwnedBy(seller.getUniqueId())) {
+            return false;
+        }
+
+        group.setSalePrice(price);
+        group.setForSale(true);
+
+        // Mettre aussi toutes les parcelles individuelles en vente
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null) {
+                    plot.setForSale(false); // Empêcher vente individuelle
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Achète un groupe de parcelles
+     */
+    public boolean buyPlotGroup(String townName, PlotGroup group, Player buyer) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !group.isForSale()) {
+            return false;
+        }
+
+        // Vérifier que l'acheteur est membre de la ville
+        if (!town.isMember(buyer.getUniqueId())) {
+            buyer.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour acheter un groupe de parcelles.");
+            return false;
+        }
+
+        // Vérifier que le groupe n'est pas loué
+        if (group.getRenterUuid() != null) {
+            buyer.sendMessage(ChatColor.RED + "Ce groupe de parcelles est actuellement loué.");
+            return false;
+        }
+
+        double price = group.getSalePrice();
+
+        // Vérifier que l'acheteur a assez d'argent
+        if (!RoleplayCity.getEconomy().has(buyer, price)) {
+            buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+
+        // Donner l'argent au propriétaire ou à la banque
+        if (group.getOwnerUuid() != null) {
+            Player previousOwner = Bukkit.getPlayer(group.getOwnerUuid());
+            if (previousOwner != null && previousOwner.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+                previousOwner.sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+            }
+        } else {
+            town.deposit(price);
+        }
+
+        // Transférer la propriété du groupe
+        group.setOwner(buyer.getUniqueId(), buyer.getName());
+        group.setForSale(false);
+
+        // Transférer aussi toutes les parcelles individuelles
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null) {
+                    plot.setOwner(buyer.getUniqueId(), buyer.getName());
+                    plot.setForSale(false);
+                }
+            }
+        }
+
+        buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles acheté avec succès !");
+        buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
+        buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + price + "€");
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.SALE,
+            buyer.getUniqueId(),
+            buyer.getName(),
+            price,
+            "Achat groupe: " + group.getGroupName()
+        ));
+
+        return true;
+    }
+
+    /**
      * Met un groupe de parcelles en location
      */
     public boolean putPlotGroupForRent(String townName, PlotGroup group, double totalPrice, int durationDays, Player owner) {

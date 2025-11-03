@@ -95,6 +95,20 @@ public class TownCommandHandler implements CommandExecutor {
                 plugin.getPlotGroupManagementGUI().openMainMenu(player, townName);
                 return true;
             }
+            case "finishgrouping" -> {
+                // Commande interne pour terminer le groupement
+                if (plugin.getPlotGroupingListener() != null) {
+                    plugin.getPlotGroupingListener().finishGrouping(player);
+                }
+                return true;
+            }
+            case "cancelgrouping" -> {
+                // Commande interne pour annuler le groupement
+                if (plugin.getPlotGroupingListener() != null) {
+                    plugin.getPlotGroupingListener().cancelSession(player);
+                }
+                return true;
+            }
             default -> {
                 player.sendMessage(ChatColor.RED + "Sous-commande inconnue.");
                 townGUI.openMainMenu(player);
