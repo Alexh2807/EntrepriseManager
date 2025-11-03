@@ -5,7 +5,18 @@
       "Bash(find:*)",
       "Bash(powershell -Command:*)",
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean package -q -DskipTests)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\bin\\inspect.bat\" \"C:\\PluginCreator\\EntrepriseManager\" \"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\java-ide-customization\\IntelliJ IDEA.xml\" \"C:\\PluginCreator\\EntrepriseManager\\inspection-results\" -v2)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f C:PluginCreatorEntrepriseManagerpom.xml compile)",
+      "Bash(Select-String -Pattern \"warning|never used|unused\" -Context 1)",
+      "Bash(dir:*)",
+      "Bash(files.txt)",
+      "mcp__ide__getDiagnostics",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\bin\\inspect.bat\" \"C:\\PluginCreator\\EntrepriseManager\" \"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\java-ide-customization\\IntelliJ IDEA.xml\" \"C:\\PluginCreator\\EntrepriseManager\\inspection-results\" -v2)",
+      "Bash(where:*)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2023.3\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f C:PluginCreatorEntrepriseManagerpom.xml compile -q)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

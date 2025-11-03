@@ -1135,10 +1135,7 @@ public class EntrepriseGUI implements Listener {
         }
         return item;
     }
-    private ItemStack createPlayerHead(String playerName, List<String> lore) { return createPlayerHead(playerName, ChatColor.AQUA + playerName, lore); }
-
     private void addBackButton(Inventory inv, int slot, String contextHint) { inv.setItem(slot, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour " + ChatColor.GRAY + contextHint)); }
-    private void addBackButton(Inventory inv, int slot) { inv.setItem(slot, createMenuItem(Material.OAK_DOOR, ChatColor.RED + "Retour")); }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {

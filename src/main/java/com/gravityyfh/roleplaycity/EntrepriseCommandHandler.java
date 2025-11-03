@@ -117,28 +117,6 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         return String.join(" ", Arrays.copyOfRange(args, startIndex, endIndex));
     }
 
-    private boolean validateEntrepriseAccess(Player player, String nomEntreprise, boolean gerantOnly) {
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
-        if (entreprise == null) {
-            player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
-            return false;
-        }
-
-        if (gerantOnly && !entreprise.getGerant().equalsIgnoreCase(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Seul le gérant peut effectuer cette action.");
-            return false;
-        }
-
-        boolean isMember = entreprise.getGerant().equalsIgnoreCase(player.getName()) ||
-                          entreprise.getEmployes().contains(player.getName());
-        if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) {
-            player.sendMessage(ChatColor.RED + "Permission refusée.");
-            return false;
-        }
-
-        return true;
-    }
-
     private void handleShopCommand(Player player, String[] args) {
         if (args.length < 2) {
             player.sendMessage(ChatColor.RED + "Usage: /entreprise shop <NomDeLEntreprise>");

@@ -1,0 +1,690 @@
+package com.gravityyfh.roleplaycity.town.manager;
+
+import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.town.data.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Chunk;
+import org.bukkit.entity.Player;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+
+/**
+ * Gestionnaire de l'économie des villes
+ * Gère les transactions, taxes, ventes et locations de parcelles
+ */
+public class TownEconomyManager {
+
+    private final RoleplayCity plugin;
+    private final TownManager townManager;
+    private final ClaimManager claimManager;
+
+    // Historique des transactions par ville
+    private final Map<String, List<PlotTransaction>> transactionHistory;
+
+    public TownEconomyManager(RoleplayCity plugin, TownManager townManager, ClaimManager claimManager) {
+        this.plugin = plugin;
+        this.townManager = townManager;
+        this.claimManager = claimManager;
+        this.transactionHistory = new HashMap<>();
+    }
+
+    // === VENTE DE PARCELLES ===
+
+    /**
+     * Met une parcelle en vente
+     */
+    public boolean putPlotForSale(String townName, Plot plot, double price, Player seller) {
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return false;
+        }
+
+        // Vérifier que le vendeur a le droit
+        TownRole role = town.getMemberRole(seller.getUniqueId());
+        if (role == null) {
+            return false;
+        }
+
+        // Seul le maire/adjoint peut vendre des parcelles municipales
+        if (plot.isMunicipal() && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+            return false;
+        }
+
+        // Pour les parcelles privées, seul le propriétaire peut vendre
+        if (!plot.isMunicipal() && plot.getOwnerUuid() != null &&
+            !plot.getOwnerUuid().equals(seller.getUniqueId()) &&
+            role != TownRole.MAIRE) {
+            return false;
+        }
+
+        plot.setSalePrice(price);
+        plot.setForSale(true);
+        return true;
+    }
+
+    /**
+     * Achète une parcelle
+     */
+    public boolean buyPlot(String townName, Plot plot, Player buyer) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !plot.isForSale()) {
+            return false;
+        }
+
+        // Vérifier que l'acheteur est membre de la ville
+        if (!town.isMember(buyer.getUniqueId())) {
+            buyer.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour acheter une parcelle.");
+            return false;
+        }
+
+        double price = plot.getSalePrice();
+
+        // Vérifier que l'acheteur a assez d'argent
+        if (!RoleplayCity.getEconomy().has(buyer, price)) {
+            buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+
+        // Si la parcelle appartenait à quelqu'un, lui donner l'argent
+        if (plot.getOwnerUuid() != null) {
+            UUID previousOwner = plot.getOwnerUuid();
+            Player previousOwnerPlayer = Bukkit.getPlayer(previousOwner);
+
+            if (previousOwnerPlayer != null && previousOwnerPlayer.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(previousOwnerPlayer, price);
+                previousOwnerPlayer.sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
+            } else {
+                // Joueur offline, donner l'argent à la ville
+                town.deposit(price);
+            }
+        } else {
+            // Parcelle municipale, l'argent va à la ville
+            town.deposit(price);
+        }
+
+        // Transférer la propriété
+        plot.setOwner(buyer.getUniqueId(), buyer.getName());
+        plot.setForSale(false);
+        plot.setSalePrice(0);
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.SALE,
+            buyer.getUniqueId(),
+            buyer.getName(),
+            price,
+            "Achat parcelle " + plot.getCoordinates()
+        ));
+
+        buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
+        return true;
+    }
+
+    // === LOCATION DE PARCELLES ===
+
+    /**
+     * Met une parcelle en location
+     */
+    public boolean putPlotForRent(String townName, Plot plot, double totalPrice, int durationDays, Player owner) {
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return false;
+        }
+
+        // Vérifier les permissions
+        TownRole role = town.getMemberRole(owner.getUniqueId());
+        if (role == null) {
+            return false;
+        }
+
+        // Seul le maire/adjoint peut louer des parcelles municipales
+        if (plot.isMunicipal() && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+            return false;
+        }
+
+        // Pour les parcelles privées, seul le propriétaire peut louer
+        if (!plot.isMunicipal() && plot.getOwnerUuid() != null &&
+            !plot.getOwnerUuid().equals(owner.getUniqueId()) &&
+            role != TownRole.MAIRE) {
+            return false;
+        }
+
+        // Nouveau système: calculer le prix par jour
+        double pricePerDay = totalPrice / Math.max(1, durationDays);
+        plot.setRentPricePerDay(pricePerDay);
+        plot.setForRent(true);
+
+        // Scanner et protéger tous les blocs existants
+        Chunk chunk = owner.getWorld().getChunkAt(plot.getChunkX(), plot.getChunkZ());
+        plot.scanAndProtectExistingBlocks(chunk);
+
+        return true;
+    }
+
+    /**
+     * Loue une parcelle pour la première fois (paiement initial)
+     */
+    public boolean rentPlot(String townName, Plot plot, Player renter, int days) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !plot.isForRent()) {
+            return false;
+        }
+
+        // Vérifier que le locataire est membre de la ville
+        if (!town.isMember(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour louer une parcelle.");
+            return false;
+        }
+
+        // Limiter à 30 jours max
+        int actualDays = Math.min(days, 30);
+        double totalCost = plot.getRentPricePerDay() * actualDays;
+
+        // Vérifier que le locataire a assez d'argent
+        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
+                String.format("%.2f€", totalCost));
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+
+        // Donner l'argent au propriétaire ou à la ville
+        if (plot.getOwnerUuid() != null) {
+            Player owner = Bukkit.getPlayer(plot.getOwnerUuid());
+            if (owner != null && owner.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+                owner.sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
+                    actualDays + " jours (" + String.format("%.2f€", totalCost) + ") !");
+            } else {
+                town.deposit(totalCost);
+            }
+        } else {
+            town.deposit(totalCost);
+        }
+
+        // Définir le locataire avec son solde de jours
+        plot.setRenter(renter.getUniqueId(), actualDays);
+        plot.setForRent(false);
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.RENT,
+            renter.getUniqueId(),
+            renter.getName(),
+            totalCost,
+            "Location parcelle " + plot.getCoordinates() + " pour " + actualDays + " jours"
+        ));
+
+        renter.sendMessage(ChatColor.GREEN + "Vous avez loué la parcelle " + plot.getCoordinates() +
+            " pour " + actualDays + " jours !");
+        return true;
+    }
+
+    /**
+     * Recharge le solde de location d'une parcelle (max 30 jours total)
+     */
+    public boolean rechargePlotRent(String townName, Plot plot, Player renter, int daysToAdd) {
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return false;
+        }
+
+        // Vérifier que c'est bien le locataire actuel
+        if (!plot.isRentedBy(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous ne louez pas cette parcelle.");
+            return false;
+        }
+
+        // Calculer combien de jours peuvent être ajoutés (max 30 total)
+        int currentDays = plot.getRentDaysRemaining();
+        int maxCanAdd = 30 - currentDays;
+
+        if (maxCanAdd <= 0) {
+            renter.sendMessage(ChatColor.YELLOW + "Votre solde est déjà au maximum (30 jours).");
+            return false;
+        }
+
+        int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
+        double totalCost = plot.getRentPricePerDay() * actualDaysToAdd;
+
+        // Vérifier que le locataire a assez d'argent
+        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
+                String.format("%.2f€", totalCost) + " pour " + actualDaysToAdd + " jours");
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+
+        // Donner l'argent au propriétaire ou à la ville
+        if (plot.getOwnerUuid() != null) {
+            Player owner = Bukkit.getPlayer(plot.getOwnerUuid());
+            if (owner != null && owner.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+                owner.sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
+                    " jours (" + String.format("%.2f€", totalCost) + ")");
+            } else {
+                town.deposit(totalCost);
+            }
+        } else {
+            town.deposit(totalCost);
+        }
+
+        // Recharger le solde
+        int actualAdded = plot.rechargeDays(actualDaysToAdd);
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.RENT,
+            renter.getUniqueId(),
+            renter.getName(),
+            totalCost,
+            "Recharge location parcelle " + plot.getCoordinates() + " (+" + actualAdded + " jours)"
+        ));
+
+        renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
+        renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + plot.getRentDaysRemaining() + "/30");
+
+        return true;
+    }
+
+    /**
+     * Vérifie les locations expirées et les termine
+     */
+    public void checkExpiredRents() {
+        for (Town town : townManager.getAllTowns()) {
+            for (Plot plot : town.getPlots().values()) {
+                if (plot.getRenterUuid() != null && plot.isRentExpired()) {
+                    // Location expirée
+                    UUID renterUuid = plot.getRenterUuid();
+                    Player renter = Bukkit.getPlayer(renterUuid);
+
+                    if (renter != null && renter.isOnline()) {
+                        renter.sendMessage(ChatColor.YELLOW + "Votre location de la parcelle " +
+                            plot.getCoordinates() + " a expiré.");
+                    }
+
+                    plot.setRenter(null);
+                    plot.setForRent(true); // Remettre en location
+                    plugin.getLogger().info("Location expirée pour parcelle " + plot.getCoordinates() +
+                        " dans " + town.getName());
+                }
+            }
+        }
+    }
+
+    // === COLLECTE DES TAXES ===
+
+    /**
+     * Collecte les taxes de toutes les parcelles d'une ville
+     */
+    public TaxCollectionResult collectTaxes(String townName) {
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return new TaxCollectionResult(0, 0, 0, new ArrayList<>());
+        }
+
+        double totalCollected = 0;
+        int parcelsWithTax = 0;
+        List<String> unpaidPlayers = new ArrayList<>();
+
+        for (Plot plot : town.getPlots().values()) {
+            double tax = plot.getDailyTax();
+            if (tax <= 0) {
+                continue; // Pas de taxe pour cette parcelle
+            }
+
+            UUID payerUuid = null;
+            String payerName = null;
+
+            // Déterminer qui doit payer
+            if (plot.getRenterUuid() != null) {
+                payerUuid = plot.getRenterUuid();
+                payerName = "Locataire"; // On ne stocke pas le nom du locataire
+            } else if (plot.getOwnerUuid() != null) {
+                payerUuid = plot.getOwnerUuid();
+                payerName = plot.getOwnerName();
+            }
+
+            if (payerUuid == null) {
+                continue; // Pas de payeur pour cette parcelle
+            }
+
+            Player payer = Bukkit.getPlayer(payerUuid);
+            if (payer == null || !payer.isOnline()) {
+                unpaidPlayers.add(payerName != null ? payerName : payerUuid.toString());
+                continue; // Joueur offline, skip
+            }
+
+            // Vérifier et prélever la taxe
+            if (RoleplayCity.getEconomy().has(payer, tax)) {
+                RoleplayCity.getEconomy().withdrawPlayer(payer, tax);
+                town.deposit(tax);
+                totalCollected += tax;
+                parcelsWithTax++;
+
+                payer.sendMessage(ChatColor.YELLOW + "Taxe parcelle: " + ChatColor.GOLD + tax + "€ " +
+                    ChatColor.GRAY + "prélevée pour " + plot.getCoordinates());
+
+                // Enregistrer la transaction
+                addTransaction(townName, new PlotTransaction(
+                    PlotTransaction.TransactionType.TAX,
+                    payerUuid,
+                    payer.getName(),
+                    tax,
+                    "Taxe parcelle " + plot.getCoordinates()
+                ));
+            } else {
+                unpaidPlayers.add(payer.getName());
+                payer.sendMessage(ChatColor.RED + "Vous n'avez pas pu payer la taxe de " + tax +
+                    "€ pour la parcelle " + plot.getCoordinates());
+            }
+        }
+
+        // Mettre à jour la date de dernière collecte
+        town.setLastTaxCollection(LocalDateTime.now());
+
+        return new TaxCollectionResult(totalCollected, parcelsWithTax, unpaidPlayers.size(), unpaidPlayers);
+    }
+
+    /**
+     * Collecte automatique des taxes pour toutes les villes
+     */
+    public void collectAllTaxes() {
+        plugin.getLogger().info("Début de la collecte automatique des taxes...");
+        int totalTowns = 0;
+        double totalAmount = 0;
+
+        for (String townName : townManager.getTownNames()) {
+            Town town = townManager.getTown(townName);
+            if (town == null) continue;
+
+            // Vérifier si c'est le moment de collecter
+            LocalDateTime lastCollection = town.getLastTaxCollection();
+            Duration duration = Duration.between(lastCollection, LocalDateTime.now());
+
+            if (duration.toHours() >= 24) { // Collecte toutes les 24h
+                TaxCollectionResult result = collectTaxes(townName);
+                totalTowns++;
+                totalAmount += result.totalCollected;
+
+                plugin.getLogger().info("Ville " + townName + ": " +
+                    result.totalCollected + "€ collectés sur " + result.parcelsCollected + " parcelles");
+            }
+        }
+
+        plugin.getLogger().info("Collecte terminée: " + totalTowns + " villes, " + totalAmount + "€ total");
+    }
+
+    // === TRANSACTIONS ===
+
+    private void addTransaction(String townName, PlotTransaction transaction) {
+        transactionHistory.computeIfAbsent(townName, k -> new ArrayList<>()).add(transaction);
+
+        // Limiter l'historique à 100 transactions par ville
+        List<PlotTransaction> history = transactionHistory.get(townName);
+        if (history.size() > 100) {
+            history.remove(0);
+        }
+    }
+
+    public List<PlotTransaction> getTransactionHistory(String townName) {
+        return transactionHistory.getOrDefault(townName, new ArrayList<>());
+    }
+
+    public List<PlotTransaction> getRecentTransactions(String townName, int limit) {
+        List<PlotTransaction> history = getTransactionHistory(townName);
+        int size = history.size();
+        return history.subList(Math.max(0, size - limit), size);
+    }
+
+    // === GESTION DES GROUPES DE PARCELLES ===
+
+    /**
+     * Met un groupe de parcelles en location
+     */
+    public boolean putPlotGroupForRent(String townName, PlotGroup group, double totalPrice, int durationDays, Player owner) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !group.isOwnedBy(owner.getUniqueId())) {
+            return false;
+        }
+
+        // Calculer le prix par jour
+        double pricePerDay = totalPrice / Math.max(1, durationDays);
+        group.setRentPricePerDay(pricePerDay);
+        group.setForRent(true);
+
+        // Scanner et protéger tous les blocs de toutes les parcelles du groupe
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null) {
+                    Chunk chunk = owner.getWorld().getChunkAt(chunkX, chunkZ);
+                    plot.scanAndProtectExistingBlocks(chunk);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Loue un groupe de parcelles
+     */
+    public boolean rentPlotGroup(String townName, PlotGroup group, Player renter, int days) {
+        Town town = townManager.getTown(townName);
+        if (town == null || !group.isForRent()) {
+            return false;
+        }
+
+        // Vérifier que le loueur est membre de la ville
+        if (!town.isMember(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour louer un groupe de parcelles.");
+            return false;
+        }
+
+        int actualDays = Math.min(days, 30);
+        double totalCost = group.getRentPricePerDay() * actualDays;
+
+        // Vérifier que le joueur a assez d'argent
+        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+
+        // Donner l'argent au propriétaire ou à la banque
+        if (group.getOwnerUuid() != null) {
+            Player owner = Bukkit.getPlayer(group.getOwnerUuid());
+            if (owner != null && owner.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+                owner.sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
+            }
+        } else {
+            town.deposit(totalCost);
+        }
+
+        // Configurer la location sur le groupe
+        group.setRenter(renter.getUniqueId(), actualDays);
+        group.setForRent(false);
+
+        // Appliquer la location sur toutes les parcelles individuelles aussi
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null) {
+                    plot.setRenter(renter.getUniqueId(), actualDays);
+                }
+            }
+        }
+
+        renter.sendMessage(ChatColor.GREEN + "Groupe loué avec succès !");
+        renter.sendMessage(ChatColor.YELLOW + "Durée: " + ChatColor.GOLD + actualDays + " jours");
+        renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + totalCost + "€");
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.RENT,
+            renter.getUniqueId(),
+            renter.getName(),
+            totalCost,
+            "Location groupe: " + group.getGroupName()
+        ));
+
+        return true;
+    }
+
+    /**
+     * Recharge le solde d'un groupe loué
+     */
+    public boolean rechargePlotGroupRent(String townName, PlotGroup group, Player renter, int daysToAdd) {
+        if (!group.isRentedBy(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous ne louez pas ce groupe de parcelles.");
+            return false;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) return false;
+
+        int currentDays = group.getRentDaysRemaining();
+        int maxCanAdd = 30 - currentDays;
+
+        if (maxCanAdd <= 0) {
+            renter.sendMessage(ChatColor.YELLOW + "Votre solde est déjà au maximum (30 jours).");
+            return false;
+        }
+
+        int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
+        double totalCost = group.getRentPricePerDay() * actualDaysToAdd;
+
+        // Vérifier que le joueur a assez d'argent
+        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+            return false;
+        }
+
+        // Prélever l'argent
+        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+
+        // Donner l'argent au propriétaire ou à la banque
+        if (group.getOwnerUuid() != null) {
+            Player owner = Bukkit.getPlayer(group.getOwnerUuid());
+            if (owner != null && owner.isOnline()) {
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+                owner.sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
+            }
+        } else {
+            town.deposit(totalCost);
+        }
+
+        // Recharger le solde du groupe
+        int actualAdded = group.rechargeDays(actualDaysToAdd);
+
+        // Synchroniser avec toutes les parcelles du groupe
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null && plot.getRenterUuid() != null) {
+                    plot.rechargeDays(actualAdded);
+                }
+            }
+        }
+
+        renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
+        renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + group.getRentDaysRemaining() + "/30");
+
+        // Enregistrer la transaction
+        addTransaction(townName, new PlotTransaction(
+            PlotTransaction.TransactionType.RENT,
+            renter.getUniqueId(),
+            renter.getName(),
+            totalCost,
+            "Recharge groupe: " + group.getGroupName()
+        ));
+
+        return true;
+    }
+
+    /**
+     * Vérifie les locations de groupes expirées
+     */
+    public void checkExpiredGroupRents() {
+        for (String townName : townManager.getTownNames()) {
+            Town town = townManager.getTown(townName);
+            if (town == null) continue;
+
+            for (PlotGroup group : town.getPlotGroups().values()) {
+                if (group.getRenterUuid() != null && group.getRentDaysRemaining() <= 0) {
+                    // Notifier le locataire si en ligne
+                    Player renter = Bukkit.getPlayer(group.getRenterUuid());
+                    if (renter != null && renter.isOnline()) {
+                        renter.sendMessage(ChatColor.RED + "Votre location du groupe '" + group.getGroupName() + "' a expiré.");
+                    }
+
+                    // Retirer la location du groupe
+                    group.clearRenter();
+
+                    // Retirer aussi de toutes les parcelles
+                    for (String plotKey : group.getPlotKeys()) {
+                        String[] parts = plotKey.split(":");
+                        if (parts.length == 3) {
+                            String worldName = parts[0];
+                            int chunkX = Integer.parseInt(parts[1]);
+                            int chunkZ = Integer.parseInt(parts[2]);
+
+                            Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                            if (plot != null) {
+                                plot.clearRenter();
+                            }
+                        }
+                    }
+
+                    plugin.getLogger().info("Location de groupe expirée: " + group.getGroupName() + " dans " + townName);
+                }
+            }
+        }
+    }
+
+    // === RÉSULTAT DE COLLECTE ===
+
+    public static class TaxCollectionResult {
+        public final double totalCollected;
+        public final int parcelsCollected;
+        public final int unpaidCount;
+        public final List<String> unpaidPlayers;
+
+        public TaxCollectionResult(double totalCollected, int parcelsCollected,
+                                  int unpaidCount, List<String> unpaidPlayers) {
+            this.totalCollected = totalCollected;
+            this.parcelsCollected = parcelsCollected;
+            this.unpaidCount = unpaidCount;
+            this.unpaidPlayers = unpaidPlayers;
+        }
+    }
+}

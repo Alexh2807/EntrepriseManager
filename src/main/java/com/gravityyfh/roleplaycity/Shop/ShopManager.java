@@ -2,11 +2,9 @@ package com.gravityyfh.roleplaycity.Shop;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
-import com.palmergames.bukkit.towny.TownyAPI;
-import com.palmergames.bukkit.towny.object.Resident;
-import com.palmergames.bukkit.towny.object.TownBlock;
-import com.palmergames.bukkit.towny.object.TownBlockType;
-import com.palmergames.bukkit.towny.object.WorldCoord;
+import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotType;
+import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,21 +131,28 @@ public class ShopManager {
                if (this.getShopByChestLocation(chestLocation) != null) {
                   player.sendMessage(ChatColor.RED + "Il y a déjà une boutique sur ce coffre.");
                } else {
-                  try {
-                     TownBlock townBlock = TownyAPI.getInstance().getTownBlock(chestLocation);
-                     Resident resident = TownyAPI.getInstance().getResident(player);
-                     if (townBlock == null || !townBlock.hasResident() || !townBlock.getResident().equals(resident)) {
-                        player.sendMessage(ChatColor.RED + "Vous devez être sur une parcelle Towny qui vous appartient.");
-                        return;
-                     }
+                  // Vérifier avec notre système de ville
+                  ClaimManager claimManager = plugin.getClaimManager();
+                  if (claimManager == null) {
+                     player.sendMessage(ChatColor.RED + "Système de ville non disponible.");
+                     return;
+                  }
 
-                     if (townBlock.getType() != TownBlockType.COMMERCIAL) {
-                        player.sendMessage(ChatColor.RED + "La parcelle doit être de type SHOP pour placer une boutique.");
-                        return;
-                     }
-                  } catch (Exception var8) {
-                     player.sendMessage(ChatColor.RED + "Erreur de communication avec Towny.");
-                     this.plugin.getLogger().log(Level.WARNING, "Erreur Towny lors de la création de boutique", var8);
+                  Plot plot = claimManager.getPlotAt(chestLocation);
+                  if (plot == null) {
+                     player.sendMessage(ChatColor.RED + "Vous devez être sur une parcelle de ville pour créer une boutique.");
+                     return;
+                  }
+
+                  // Vérifier que le joueur est propriétaire ou locataire de la parcelle
+                  if (!plot.isOwnedBy(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId())) {
+                     player.sendMessage(ChatColor.RED + "Vous devez être propriétaire ou locataire de cette parcelle.");
+                     return;
+                  }
+
+                  // Vérifier que c'est une parcelle professionnelle
+                  if (plot.getType() != PlotType.PROFESSIONNEL) {
+                     player.sendMessage(ChatColor.RED + "La parcelle doit être de type PROFESSIONNEL pour placer une boutique.");
                      return;
                   }
 
@@ -169,15 +174,17 @@ public class ShopManager {
          String tbWorld = null;
          int tbX = 0;
          int tbZ = 0;
-         try {
-            TownBlock tb = TownyAPI.getInstance().getTownBlock(chestLocation);
-            if (tb != null) {
-               townName = tb.getTownOrNull() != null ? tb.getTownOrNull().getName() : null;
-               tbWorld = tb.getWorldCoord().getWorldName();
-               tbX = tb.getWorldCoord().getX();
-               tbZ = tb.getWorldCoord().getZ();
+
+         // Utiliser notre système de ville
+         ClaimManager claimManager = plugin.getClaimManager();
+         if (claimManager != null) {
+            Plot plot = claimManager.getPlotAt(chestLocation);
+            if (plot != null) {
+               townName = plot.getTownName();
+               tbWorld = plot.getWorldName();
+               tbX = plot.getChunkX();
+               tbZ = plot.getChunkZ();
             }
-         } catch (Exception ignored) {
          }
 
          Shop newShop = new Shop(entreprise.getNom(), entreprise.getSiret(), gerant.getUniqueId(), gerant.getName(),
@@ -307,18 +314,8 @@ public class ShopManager {
     * @param reason La raison de la suppression (pour les logs).
     * @return Le nombre de boutiques supprimées.
     */
-   public int deleteShopsAt(WorldCoord coord, String reason) {
-      if (coord == null) {
-         return 0;
-      }
-      List<Shop> shopsToDelete = getShopsByPlot(coord);
-      if (shopsToDelete.isEmpty()) {
-         return 0;
-      }
-      plugin.getLogger().log(Level.INFO, "Événement Towny (" + reason + ") : " + shopsToDelete.size() + " boutique(s) à supprimer sur la parcelle " + coord);
-      new ArrayList<>(shopsToDelete).forEach(this::deleteShop);
-      return shopsToDelete.size();
-   }
+   // Méthode supprimée - N'utilise plus Towny
+   // La suppression de boutiques est gérée via TownEventListener
 
 
    public void changeShopItem(Shop shop, ItemStack newItem) {
@@ -346,17 +343,8 @@ public class ShopManager {
       }
    }
 
-   public int deleteShopsOnPlot(TownBlock townBlock, String reason) {
-      if (townBlock == null) {
-         this.plugin.getLogger().log(Level.FINE, "deleteShopsOnPlot appelé avec une parcelle nulle");
-         return 0;
-      } else {
-         List<Shop> shopsToDelete = this.getShopsOnPlot(townBlock);
-         this.plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) sur la parcelle " + townBlock.getWorldCoord() + " : " + reason);
-         shopsToDelete.forEach(this::deleteShop);
-         return shopsToDelete.size();
-      }
-   }
+   // Méthode supprimée - N'utilise plus Towny
+   // La suppression de boutiques est gérée via TownEventListener
 
    public void changeShopQuantity(Shop shop, int newQuantity) {
       if (shop != null && newQuantity > 0) {
@@ -431,21 +419,8 @@ public class ShopManager {
       }).sorted(Comparator.comparing(Shop::getCreationDate)).collect(Collectors.toList());
    }
 
-   public List<Shop> getShopsByPlot(WorldCoord worldCoord) {
-      if (worldCoord == null) {
-         return Collections.emptyList();
-      } else {
-         return this.shops.values().stream().filter((shop) -> {
-            Location loc = shop.getLocation();
-            if (loc == null || loc.getWorld() == null) {
-               return false;
-            }
-
-            com.palmergames.bukkit.towny.object.WorldCoord shopCoord = com.palmergames.bukkit.towny.object.WorldCoord.parseWorldCoord(loc);
-            return worldCoord.equals(shopCoord);
-         }).collect(Collectors.toList());
-      }
-   }
+   // Méthode supprimée - N'utilise plus Towny WorldCoord
+   // Les boutiques sont maintenant gérées via notre système de Plot
 
    private String formatMaterialName(Material material) {
       return material == null ? "Inconnu" : (String) Arrays.stream(material.name().split("_")).map((s) -> {
@@ -569,20 +544,6 @@ public class ShopManager {
             if (signData.getFacing() == face) {
                return relative;
             }
-         }
-      }
-
-      return null;
-   }
-
-   private BlockFace getEmptyFaceForSign(Block block) {
-      BlockFace[] var2 = new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
-      int var3 = var2.length;
-
-      for (int var4 = 0; var4 < var3; ++var4) {
-         BlockFace face = var2[var4];
-         if (block.getRelative(face).getType().isAir()) {
-            return face;
          }
       }
 
@@ -728,41 +689,9 @@ public class ShopManager {
       }
    }
 
-   /**
-    * Retourne une collection non modifiable de toutes les boutiques chargées.
-    * L'utilisation de "Collections.unmodifiableCollection" est une sécurité pour
-    * empêcher d'autres parties du code de modifier la liste des boutiques par accident.
-    *
-    * @return Une collection de tous les objets Shop.
-    */
-   public Collection<Shop> getAllShops() {
-      return Collections.unmodifiableCollection(shops.values());
-   }
-
-   /**
-    * Récupère la liste de toutes les boutiques situées sur une parcelle Towny spécifique.
-    *
-    * @param townBlock La parcelle Towny à vérifier.
-    * @return Une liste d'objets Shop trouvés sur cette parcelle. Peut être vide.
-    */
-   public List<Shop> getShopsOnPlot(TownBlock townBlock) {
-      if (townBlock == null) {
-         return Collections.emptyList(); // Retourne une liste vide si la parcelle est nulle.
-      }
-
-      // On récupère les coordonnées de la parcelle
-      com.palmergames.bukkit.towny.object.WorldCoord plotCoord = townBlock.getWorldCoord();
-
-      // On filtre toutes les boutiques du serveur
-      return shops.values().stream()
-              .filter(shop -> {
-                 // Pour chaque boutique, on récupère ses coordonnées
-                 com.palmergames.bukkit.towny.object.WorldCoord shopCoord = com.palmergames.bukkit.towny.object.WorldCoord.parseWorldCoord(shop.getLocation());
-                 // On compare les coordonnées de la boutique avec celles de la parcelle
-                 return plotCoord.equals(shopCoord);
-              })
-              .collect(Collectors.toList()); // On retourne le résultat sous forme de liste.
-   }
+   // Méthode supprimée - N'utilise plus Towny TownBlock
+   // Les boutiques sont maintenant gérées via notre système de Plot
+   // La suppression de boutiques lors de changements de parcelles est gérée par TownEventListener
 
    public boolean removeTargetedDisplayItem(Player player) {
       // 1. On cherche une entité de type 'Item', et non plus 'Display'.

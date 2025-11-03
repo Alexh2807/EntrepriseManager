@@ -3,7 +3,7 @@ version: '${project.version}'
 main: com.gravityyfh.roleplaycity.RoleplayCity
 api-version: 1.20
 
-softdepend: [QuickShop, CoreProtect, TreeCuter, Towny]
+softdepend: [QuickShop, CoreProtect, TreeCuter]
 
 
 commands:
@@ -11,6 +11,10 @@ commands:
     description: Commande principale de RoleplayCity, inclut les fonctionnalités pour les joueurs et les administrateurs
     usage: /<command> [sous-commande] [arguments...]
     aliases: [rpc, roleplaycity]
+  ville:
+    description: Système de gestion de ville - Interface GUI pour créer, rejoindre et gérer les villes
+    usage: /<command> [info|list|gui]
+    aliases: [town, city]
 
 permissions:
   roleplaycity.use:
@@ -28,3 +32,12 @@ permissions:
   roleplaycity.manage:
     description: Permet la gestion des entreprises (ajout/suppression d'employés, consultation des infos, etc.)
     default: true
+  roleplaycity.town.use:
+    description: Permet l'utilisation du système de ville
+    default: true
+  roleplaycity.town.create:
+    description: Permet de créer une ville
+    default: true
+  roleplaycity.town.admin:
+    description: Permet de gérer toutes les villes (administrateurs)
+    default: op

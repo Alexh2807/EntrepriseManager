@@ -1,12 +1,7 @@
 package com.gravityyfh.roleplaycity;
 
 // --- Imports ---
-import com.palmergames.bukkit.towny.TownyAPI;
-import com.palmergames.bukkit.towny.exceptions.NotRegisteredException;
-import com.palmergames.bukkit.towny.object.Resident;
-import com.palmergames.bukkit.towny.object.Town;
-import com.palmergames.bukkit.towny.object.TownyPermission;
-import com.palmergames.bukkit.towny.utils.PlayerCacheUtil;
+// Towny imports supprimés - Nous utilisons maintenant notre propre système de ville
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -319,7 +314,7 @@ public class EntrepriseManagerLogic {
                 plugin.getLogger().warning("BLOCK_BREAK enregistré sans référence de bloc pour " + player.getName() + " sur " + material.name());
             } else {
                 if (!canPlayerBreakBlock(player, block.getLocation(), material)) {
-                    plugin.getLogger().fine("Action BLOCK_BREAK sur ("+ material.name() +") annulée par protection (ex: Towny) pour " + player.getName());
+                    plugin.getLogger().fine("Action BLOCK_BREAK sur ("+ material.name() +") annulée par protection de Plot pour " + player.getName());
                     return;
                 }
             }
@@ -328,7 +323,7 @@ public class EntrepriseManagerLogic {
                 plugin.getLogger().warning("BLOCK_PLACE enregistré sans référence de bloc pour " + player.getName() + " sur " + material.name());
             } else {
                 if (!canPlayerPlaceBlock(player, block.getLocation(), material)) {
-                    plugin.getLogger().fine("Action BLOCK_PLACE de ("+ material.name() +") annulée par protection (ex: Towny) pour " + player.getName());
+                    plugin.getLogger().fine("Action BLOCK_PLACE de ("+ material.name() +") annulée par protection de Plot pour " + player.getName());
                     return;
                 }
             }
@@ -1149,9 +1144,16 @@ public class EntrepriseManagerLogic {
         entreprise.setPrimePourEmploye(empUUID.toString(), montantPrime);
         saveEntreprises();
     }
-    public String getTownNameFromPlayer(Player player) { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return null; try { Resident resident = TownyAPI.getInstance().getResident(player.getName()); if (resident != null && resident.hasTown()) return resident.getTown().getName(); } catch (NotRegisteredException ignored) {} return null; }
+    public String getTownNameFromPlayer(Player player) {
+        // Utilise notre système de ville au lieu de Towny
+        String townName = plugin.getTownManager().getPlayerTown(player.getUniqueId());
+        return townName;
+    }
     public String generateSiret() { return UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(plugin.getConfig().getInt("siret.longueur", 14), 32)); }
-    public boolean estMaire(Player joueur) { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return false; Resident resident = TownyAPI.getInstance().getResident(joueur.getName()); return resident != null && resident.isMayor(); }
+    public boolean estMaire(Player joueur) {
+        // Utilise notre système de ville au lieu de Towny
+        return plugin.getTownManager().isPlayerMayor(joueur.getUniqueId());
+    }
     public Set<String> getEmployesDeLEntreprise(String nomEntreprise) { Entreprise entreprise = getEntreprise(nomEntreprise); return (entreprise != null) ? entreprise.getEmployes() : Collections.emptySet(); }
     public void retirerArgent(Player player, String nomEntreprise, double montant) {
         Entreprise entreprise = getEntreprise(nomEntreprise);
@@ -1408,15 +1410,72 @@ public class EntrepriseManagerLogic {
     // --- Getters et Utilitaires ---
     public double getActiviteHoraireValeurPour(String nomEntreprise) {double revenusProductifs = activiteProductiveHoraireValeur.getOrDefault(nomEntreprise, 0.0);double revenusMagasins = activiteMagasinHoraireValeur.getOrDefault(nomEntreprise, 0.0);return revenusProductifs + revenusMagasins;
     }    public List<Transaction> getTransactionsPourEntreprise(String nomEntreprise, int limit) { Entreprise entreprise = getEntreprise(nomEntreprise); if (entreprise == null) return Collections.emptyList(); List<Transaction> log = new ArrayList<>(entreprise.getTransactionLog()); Collections.reverse(log); return (limit <= 0 || limit >= log.size()) ? log : log.subList(0, limit); }
-    public Collection<String> getPlayersInMayorTown(Player mayor) { if (!estMaire(mayor) || plugin.getServer().getPluginManager().getPlugin("Towny") == null) return Collections.emptyList(); try { Town town = TownyAPI.getInstance().getResident(mayor).getTown(); return (town != null) ? town.getResidents().stream().map(Resident::getName).collect(Collectors.toList()) : Collections.emptyList(); } catch (NotRegisteredException e) { return Collections.emptyList(); } }
-    public Collection<String> getAllTownsNames() { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return Collections.emptyList(); return TownyAPI.getInstance().getTowns().stream().map(Town::getName).collect(Collectors.toList()); }
+    public Collection<String> getPlayersInMayorTown(Player mayor) {
+        // Utilise notre système de ville au lieu de Towny
+        if (!estMaire(mayor)) {
+            return Collections.emptyList();
+        }
+
+        com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getPlayerTownObject(mayor.getUniqueId());
+        if (town == null) {
+            return Collections.emptyList();
+        }
+
+        return town.getMembers().values().stream()
+                .map(com.gravityyfh.roleplaycity.town.data.TownMember::getPlayerName)
+                .collect(Collectors.toList());
+    }
+    public Collection<String> getAllTownsNames() {
+        // Utilise notre système de ville au lieu de Towny
+        return plugin.getTownManager().getTownNames();
+    }
     public boolean peutCreerEntreprise(Player player) { int max = plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1); return getEntreprisesGereesPar(player.getName()).size() < max; }
     public Collection<String> getNearbyPlayers(Player centerPlayer, int maxDistance) { return Bukkit.getOnlinePlayers().stream().filter(other -> !other.equals(centerPlayer) && other.getWorld().equals(centerPlayer.getWorld()) && other.getLocation().distanceSquared(centerPlayer.getLocation()) <= (long)maxDistance * maxDistance).map(Player::getName).collect(Collectors.toList()); }
     public void listEntreprises(Player player, String ville) { List<Entreprise> entreprisesDansVille = getEntreprisesByVille(ville); if (entreprisesDansVille.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune entreprise à " + ville + "."); return; } TextComponent msg = new TextComponent(ChatColor.GOLD + "=== Entreprises à " + ChatColor.AQUA + ville + ChatColor.GOLD + " ===\n"); for (Entreprise e : entreprisesDansVille) { TextComponent ligne = new TextComponent(ChatColor.AQUA + e.getNom() + ChatColor.GRAY + " (Type: " + e.getType() + ", Gérant: " + e.getGerant() + ")"); ligne.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise info " + e.getNom())); ligne.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Infos '" + e.getNom() + "'").create())); msg.addExtra(ligne); msg.addExtra("\n"); } player.spigot().sendMessage(msg); }
     public Map<Material, Integer> getEmployeeProductionStatsForPeriod(String nomEntreprise, UUID employeeUUID, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter) { Entreprise ent = getEntreprise(nomEntreprise); if (ent == null) return Collections.emptyMap(); Set<Material> relevant = ent.getTrackedProductionMaterials(); return ent.getEmployeeProductionStatsForPeriod(employeeUUID, start, end, actionTypeFilter, relevant); }
     public Map<Material, Integer> getCompanyProductionStatsForPeriod(String nomEntreprise, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter) { Entreprise ent = getEntreprise(nomEntreprise); if (ent == null) return Collections.emptyMap(); Set<Material> relevant = ent.getTrackedProductionMaterials(); return ent.getAggregatedProductionStatsForPeriod(start, end, actionTypeFilter, relevant); }
-    public boolean canPlayerBreakBlock(Player player, Location location, Material material) { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return true; try { return PlayerCacheUtil.getCachePermission(player, location, material, TownyPermission.ActionType.DESTROY); } catch (Exception e) { plugin.getLogger().warning("Erreur Towny (destroy) " + player.getName() + " @ " + location + ": " + e.getMessage()); return false; } }
-    public boolean canPlayerPlaceBlock(Player player, Location location, Material material) { if (plugin.getServer().getPluginManager().getPlugin("Towny") == null) return true; try { return PlayerCacheUtil.getCachePermission(player, location, material, TownyPermission.ActionType.BUILD); } catch (Exception e) { plugin.getLogger().warning("Erreur Towny (build) " + player.getName() + " @ " + location + ": " + e.getMessage()); return false; } }
+    public boolean canPlayerBreakBlock(Player player, Location location, Material material) {
+        // Utilise notre système de Plot au lieu de Towny
+        com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager = plugin.getClaimManager();
+        if (claimManager == null) {
+            return true; // Si pas de système de claim, autoriser
+        }
+
+        com.gravityyfh.roleplaycity.town.data.Plot plot = claimManager.getPlotAt(location);
+        if (plot == null) {
+            return true; // Pas de plot, autoriser
+        }
+
+        // Récupérer la ville associée au plot
+        com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getTown(plot.getTownName());
+        if (town == null) {
+            return true;
+        }
+
+        // Vérifier les permissions de BUILD (qui incluent break)
+        return plot.canBuild(player.getUniqueId(), town);
+    }
+    public boolean canPlayerPlaceBlock(Player player, Location location, Material material) {
+        // Utilise notre système de Plot au lieu de Towny
+        com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager = plugin.getClaimManager();
+        if (claimManager == null) {
+            return true; // Si pas de système de claim, autoriser
+        }
+
+        com.gravityyfh.roleplaycity.town.data.Plot plot = claimManager.getPlotAt(location);
+        if (plot == null) {
+            return true; // Pas de plot, autoriser
+        }
+
+        // Récupérer la ville associée au plot
+        com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getTown(plot.getTownName());
+        if (town == null) {
+            return true;
+        }
+
+        // Vérifier les permissions de BUILD (qui incluent place)
+        return plot.canBuild(player.getUniqueId(), town);
+    }
     // --- Fin Getters / Utilitaires ---
 
     // --- Méthodes spécifiques à l'HISTORIQUE ---

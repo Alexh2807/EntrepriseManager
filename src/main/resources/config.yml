@@ -949,3 +949,27 @@ shop-deletion-on-events:
   # Événements liés à une ville
   town-unclaim-plot: true         # Supprime les shops si une ville "unclaim" une parcelle.
   town-ruin: true                 # Supprime toutes les boutiques d'une ville si elle tombe en ruines.
+
+# ----------------------------------------------------- #
+#              SYSTÈME DE VILLE (TOWN)                  #
+# ----------------------------------------------------- #
+# Configuration du système de gestion de ville intégré
+
+town:
+  # Coût pour créer une ville (prélevé sur le compte du joueur)
+  creation-cost: 10000.0
+
+  # Frais de dossier pour rejoindre une ville (versé dans la banque de la ville)
+  join-cost: 100.0
+
+  # Durée de validité d'une invitation (en heures)
+  invitation-expiration-hours: 24
+
+  # Coût pour renommer une ville (prélevé sur la banque de la ville)
+  rename-cost: 5000.0
+
+  # Coût par chunk pour claim une parcelle
+  claim-cost-per-chunk: 500.0
+
+  # Bonus d'argent récupéré lors du unclaim d'une parcelle (pourcentage)
+  unclaim-refund-percentage: 50.0

@@ -35,7 +35,10 @@ public class ChatListener implements Listener {
         // Pour les boutiques
         SHOP_CREATION_DETAILS, // Un seul type pour prix ET quantité
         SHOP_NEW_PRICE,
-        SHOP_NEW_QUANTITY
+        SHOP_NEW_QUANTITY,
+        // Pour les villes
+        CREATE_TOWN_NAME,
+        RENAME_TOWN_NAME
     }
 
     // Classe interne pour stocker le contexte de la demande
@@ -98,6 +101,12 @@ public class ChatListener implements Listener {
         p.sendMessage(ChatColor.GOLD + "Entrez la nouvelle quantité par vente. Tapez 'annuler' pour annuler.");
     }
 
+    // Méthode générique pour attendre une saisie avec callback
+    public void waitForInput(UUID playerUUID, java.util.function.Consumer<String> callback) {
+        // On utilise un objet Runnable qui contient le callback
+        playersWaitingForInput.put(playerUUID, new PlayerInputContext(InputType.CREATE_TOWN_NAME, callback));
+    }
+
     public boolean isPlayerWaitingForInput(UUID uuid) {
         return playersWaitingForInput.containsKey(uuid);
     }
@@ -157,6 +166,10 @@ public class ChatListener implements Listener {
                             break;
                         case SHOP_NEW_QUANTITY:
                             handleShopNewQuantity(player, context, message);
+                            break;
+                        case CREATE_TOWN_NAME:
+                        case RENAME_TOWN_NAME:
+                            handleGenericCallback(player, context, message);
                             break;
                     }
                 } catch (Exception e) {
@@ -256,6 +269,15 @@ public class ChatListener implements Listener {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre entier (ex: 16).");
         }
         reopenPreviousMenu(player, context);
+    }
+
+    private void handleGenericCallback(Player player, PlayerInputContext context, String message) {
+        // Le callback est stocké dans context.data
+        if (context.data instanceof java.util.function.Consumer) {
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<String> callback = (java.util.function.Consumer<String>) context.data;
+            callback.accept(message);
+        }
     }
 
     // Méthode utilitaire pour ré-ouvrir le menu précédent
