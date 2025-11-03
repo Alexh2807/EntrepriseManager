@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Bukkit;
@@ -81,27 +82,77 @@ public class TownEconomyManager {
             return false;
         }
 
-        double price = plot.getSalePrice();
-
-        // Vérifier que l'acheteur a assez d'argent
-        if (!RoleplayCity.getEconomy().has(buyer, price)) {
-            buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
-            return false;
+        // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        if (!companyManager.validateCompanyOwnership(buyer, plot)) {
+            return false; // Message d'erreur déjà envoyé par validateCompanyOwnership
         }
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+        double price = plot.getSalePrice();
+
+        // NOUVEAU : Gestion différente selon le type de terrain
+        boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
+        EntrepriseManagerLogic.Entreprise buyerCompany = null;
+
+        if (isProfessional) {
+            // Terrain PROFESSIONNEL : Acheter avec l'entreprise
+            buyerCompany = companyManager.getPlayerCompany(buyer);
+            if (buyerCompany == null) {
+                buyer.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                return false;
+            }
+
+            // Vérifier que l'entreprise a assez d'argent
+            if (buyerCompany.getSolde() < price) {
+                buyer.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
+                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
+                buyer.sendMessage(ChatColor.GRAY + "Déposez de l'argent avec /entreprise deposit");
+                return false;
+            }
+
+            // Prélever de l'entreprise
+            buyerCompany.setSolde(buyerCompany.getSolde() - price);
+        } else {
+            // Terrain PARTICULIER : Acheter avec argent personnel
+            if (!RoleplayCity.getEconomy().has(buyer, price)) {
+                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+                return false;
+            }
+
+            // Prélever l'argent personnel
+            RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
+        }
 
         // Si la parcelle appartenait à quelqu'un, lui donner l'argent
         if (plot.getOwnerUuid() != null) {
             UUID previousOwnerUuid = plot.getOwnerUuid();
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
-            RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+            // Verser l'argent au propriétaire (ou son entreprise si PRO)
 
-            // Notifier si le propriétaire est en ligne
-            if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
+            if (plot.getCompanySiret() != null) {
+                // Ancien terrain PRO - argent va à l'ancienne entreprise
+                EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                if (previousCompany != null) {
+                    previousCompany.setSolde(previousCompany.getSolde() + price);
+
+                    // Notifier l'ancien gérant
+                    OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
+                    if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a été vendu pour " + price + "€ !");
+                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + previousCompany.getNom());
+                    }
+                } else {
+                    // Entreprise n'existe plus - argent va à la ville
+                    town.deposit(price);
+                }
+            } else {
+                // Ancien terrain PARTICULIER - argent va au propriétaire
+                OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
+                RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
+
+                if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
+                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
+                }
             }
         } else {
             // Parcelle municipale, l'argent va à la ville
@@ -113,16 +164,38 @@ public class TownEconomyManager {
         plot.setForSale(false);
         plot.setSalePrice(0);
 
+        // NOUVEAU : Si terrain PROFESSIONNEL, enregistrer l'entreprise
+        if (isProfessional && buyerCompany != null) {
+            plot.setCompany(buyerCompany.getNom());
+            plot.setCompanySiret(buyerCompany.getSiret());
+        } else {
+            plot.setCompany(null);
+            plot.setCompanySiret(null);
+        }
+
         // Enregistrer la transaction
         addTransaction(townName, new PlotTransaction(
             PlotTransaction.TransactionType.SALE,
             buyer.getUniqueId(),
             buyer.getName(),
             price,
-            "Achat parcelle " + plot.getCoordinates()
+            isProfessional ?
+                "Achat parcelle PRO " + plot.getCoordinates() + " par " + (buyerCompany != null ? buyerCompany.getNom() : "entreprise") :
+                "Achat parcelle " + plot.getCoordinates()
         ));
 
-        buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
+        // Messages personnalisés
+        if (isProfessional && buyerCompany != null) {
+            buyer.sendMessage(ChatColor.GREEN + "✓ Terrain professionnel acheté avec succès !");
+            buyer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + buyerCompany.getNom());
+            buyer.sendMessage(ChatColor.YELLOW + "Coordonnées: " + ChatColor.WHITE + plot.getCoordinates());
+            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + String.format("%.2f€", price));
+            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
+            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront prélevées du solde de l'entreprise.");
+        } else {
+            buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
+        }
+
         return true;
     }
 

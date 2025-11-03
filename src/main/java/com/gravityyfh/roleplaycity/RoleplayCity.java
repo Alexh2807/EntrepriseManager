@@ -40,6 +40,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private TownMainGUI townMainGUI;
     private com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager;
     private com.gravityyfh.roleplaycity.town.manager.TownEconomyManager townEconomyManager;
+    private com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager companyPlotManager;
     private com.gravityyfh.roleplaycity.town.manager.TownPoliceManager townPoliceManager;
     private com.gravityyfh.roleplaycity.town.manager.TownJusticeManager townJusticeManager;
     private com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager townFinesDataManager;
@@ -95,6 +96,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townManager = new TownManager(this);
         claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
         townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager, claimManager);
+        companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager, entrepriseLogic);
 
         // Police et Justice
         townFinesDataManager = new com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager(this);
@@ -260,6 +262,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public TownManager getTownManager() { return townManager; }
     public com.gravityyfh.roleplaycity.town.manager.ClaimManager getClaimManager() { return claimManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() { return townEconomyManager; }
+    public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
     public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
 }
