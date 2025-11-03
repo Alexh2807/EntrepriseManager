@@ -6,6 +6,9 @@ import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -117,8 +120,13 @@ public class TownHUDListener implements Listener {
             hud.append(ChatColor.GOLD).append("⚑ ");
             hud.append(ChatColor.AQUA).append(claimingTown);
             hud.append(ChatColor.GRAY).append(" | ");
-            hud.append(ChatColor.WHITE).append("256m²");
-            hud.append(ChatColor.GRAY).append(" | ");
+
+            // Afficher la surface uniquement pour les parcelles privées ou en vente/location
+            if (plot.getOwnerUuid() != null || plot.isForSale() || plot.isForRent()) {
+                hud.append(ChatColor.WHITE).append("256m²");
+                hud.append(ChatColor.GRAY).append(" | ");
+            }
+
             hud.append(plot.getType().getDisplayName());
 
             // Ajouter le propriétaire si c'est une parcelle privée
@@ -199,7 +207,21 @@ public class TownHUDListener implements Listener {
         // Informations de vente
         if (plot.isForSale()) {
             player.sendMessage(ChatColor.GREEN + "💰 Prix de vente: " + ChatColor.GOLD + String.format("%.2f€", plot.getSalePrice()));
-            player.sendMessage(ChatColor.GRAY + "Tapez /ville pour acheter cette parcelle");
+            player.sendMessage("");
+
+            // Bouton cliquable pour acheter
+            TextComponent buyButton = new TextComponent("  [💰 ACHETER CETTE PARCELLE]");
+            buyButton.setColor(net.md_5.bungee.api.ChatColor.GREEN);
+            buyButton.setBold(true);
+            buyButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
+                "/ville:buyplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
+            buyButton.setHoverEvent(new HoverEvent(
+                HoverEvent.Action.SHOW_TEXT,
+                new ComponentBuilder("Cliquez pour acheter\nPrix: " + String.format("%.2f€", plot.getSalePrice()))
+                    .color(net.md_5.bungee.api.ChatColor.YELLOW)
+                    .create()
+            ));
+            player.spigot().sendMessage(buyButton);
         }
 
         // Informations de location
@@ -213,7 +235,21 @@ public class TownHUDListener implements Listener {
                 player.sendMessage(ChatColor.GREEN + "Disponible immédiatement");
             }
 
-            player.sendMessage(ChatColor.GRAY + "Tapez /ville pour louer cette parcelle");
+            player.sendMessage("");
+
+            // Bouton cliquable pour louer
+            TextComponent rentButton = new TextComponent("  [📅 LOUER CETTE PARCELLE]");
+            rentButton.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+            rentButton.setBold(true);
+            rentButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
+                "/ville:rentplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
+            rentButton.setHoverEvent(new HoverEvent(
+                HoverEvent.Action.SHOW_TEXT,
+                new ComponentBuilder("Cliquez pour louer\nPrix: " + String.format("%.2f€/jour", plot.getRentPricePerDay()))
+                    .color(net.md_5.bungee.api.ChatColor.YELLOW)
+                    .create()
+            ));
+            player.spigot().sendMessage(rentButton);
         }
 
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");

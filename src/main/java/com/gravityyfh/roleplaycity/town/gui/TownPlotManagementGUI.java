@@ -96,8 +96,9 @@ public class TownPlotManagementGUI implements Listener {
         boolean canManage = role == TownRole.MAIRE || role == TownRole.ADJOINT ||
             (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(player.getUniqueId()));
 
-        // Mettre en vente
-        if (canManage && !plot.isForSale()) {
+        // Mettre en vente (seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
+        if (canManage && !plot.isForSale() &&
+            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
             ItemStack saleItem = new ItemStack(Material.GOLD_INGOT);
             ItemMeta saleMeta = saleItem.getItemMeta();
             saleMeta.setDisplayName(ChatColor.GREEN + "Mettre en Vente");
@@ -134,8 +135,9 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(10, cancelSaleItem);
         }
 
-        // Mettre en location
-        if (canManage && !plot.isForRent() && plot.getRenterUuid() == null) {
+        // Mettre en location (seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
+        if (canManage && !plot.isForRent() && plot.getRenterUuid() == null &&
+            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
             ItemStack rentItem = new ItemStack(Material.PAPER);
             ItemMeta rentMeta = rentItem.getItemMeta();
             rentMeta.setDisplayName(ChatColor.YELLOW + "Mettre en Location");
@@ -305,6 +307,14 @@ public class TownPlotManagementGUI implements Listener {
 
     private void handlePutForSale(Player player, Plot plot, String townName) {
         player.closeInventory();
+
+        // Vérifier que la parcelle est de type PARTICULIER ou PROFESSIONNEL
+        if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+            player.sendMessage(ChatColor.RED + "Seules les parcelles privées (Particulier/Professionnel) peuvent être mises en vente !");
+            player.sendMessage(ChatColor.GRAY + "Type actuel: " + plot.getType().getDisplayName());
+            return;
+        }
+
         player.sendMessage(ChatColor.GREEN + "Entrez le prix de vente dans le chat:");
         player.sendMessage(ChatColor.YELLOW + "(Tapez 'annuler' pour abandonner)");
 
@@ -330,6 +340,14 @@ public class TownPlotManagementGUI implements Listener {
 
     private void handlePutForRent(Player player, Plot plot, String townName) {
         player.closeInventory();
+
+        // Vérifier que la parcelle est de type PARTICULIER ou PROFESSIONNEL
+        if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+            player.sendMessage(ChatColor.RED + "Seules les parcelles privées (Particulier/Professionnel) peuvent être mises en location !");
+            player.sendMessage(ChatColor.GRAY + "Type actuel: " + plot.getType().getDisplayName());
+            return;
+        }
+
         player.sendMessage(ChatColor.GREEN + "Entrez le prix de location PAR JOUR dans le chat:");
         player.sendMessage(ChatColor.GRAY + "Exemple: 10 pour 10€/jour");
         player.sendMessage(ChatColor.YELLOW + "(Tapez 'annuler' pour abandonner)");
