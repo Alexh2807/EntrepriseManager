@@ -100,13 +100,24 @@ public class TownHUDListener implements Listener {
             if (plot.isMunicipal() && plot.getMunicipalSubType() != null) {
                 plotInfo.append(":").append(plot.getMunicipalSubType().name());
             }
+            if (plot.isForSale()) {
+                plotInfo.append(":VENTE:").append(plot.getSalePrice());
+            }
+            if (plot.isForRent()) {
+                plotInfo.append(":LOCATION:").append(plot.getRentPricePerDay());
+            }
+            if (plot.getRenterUuid() != null) {
+                plotInfo.append(":LOUE:").append(plot.getRentDaysRemaining());
+            }
 
             newState = new TerritoryState(claimingTown, plotInfo.toString());
 
-            // Construire le message HUD
+            // Construire le message HUD (ActionBar)
             StringBuilder hud = new StringBuilder();
             hud.append(ChatColor.GOLD).append("⚑ ");
             hud.append(ChatColor.AQUA).append(claimingTown);
+            hud.append(ChatColor.GRAY).append(" | ");
+            hud.append(ChatColor.WHITE).append("256m²");
             hud.append(ChatColor.GRAY).append(" | ");
             hud.append(plot.getType().getDisplayName());
 
@@ -124,7 +135,23 @@ public class TownHUDListener implements Listener {
                 hud.append(ChatColor.GRAY).append(")");
             }
 
+            // Ajouter statut vente/location
+            if (plot.isForSale()) {
+                hud.append(ChatColor.GREEN).append(" [À VENDRE: ").append(String.format("%.0f€", plot.getSalePrice())).append("]");
+            }
+            if (plot.isForRent()) {
+                hud.append(ChatColor.AQUA).append(" [LOCATION: ").append(String.format("%.0f€/j", plot.getRentPricePerDay())).append("]");
+            }
+            if (plot.getRenterUuid() != null) {
+                hud.append(ChatColor.LIGHT_PURPLE).append(" [Loué: ").append(plot.getRentDaysRemaining()).append("j]");
+            }
+
             displayMessage = hud.toString();
+
+            // Envoyer message détaillé dans le chat si en vente ou location
+            if (plot.isForSale() || plot.isForRent()) {
+                sendDetailedPlotInfo(player, plot, claimingTown);
+            }
         } else {
             // Chunk non claim (zone sauvage)
             newState = new TerritoryState(null, null);
@@ -139,6 +166,58 @@ public class TownHUDListener implements Listener {
             player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(displayMessage));
             lastTerritoryState.put(player.getUniqueId(), newState);
         }
+    }
+
+    /**
+     * Envoie un message détaillé dans le chat pour les parcelles en vente/location
+     */
+    private void sendDetailedPlotInfo(Player player, Plot plot, String townName) {
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+
+        if (plot.isForSale()) {
+            player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🏠 PARCELLE À VENDRE");
+        } else if (plot.isForRent()) {
+            player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "🏠 PARCELLE EN LOCATION");
+        }
+
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+
+        // Informations de base
+        player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
+        player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + plot.getType().getDisplayName());
+        player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + "256 m² " + ChatColor.GRAY + "(16x16)");
+        player.sendMessage(ChatColor.YELLOW + "Position: " + ChatColor.WHITE + "X: " + (plot.getChunkX() * 16) + " Z: " + (plot.getChunkZ() * 16));
+
+        // Propriétaire
+        if (plot.getOwnerUuid() != null) {
+            player.sendMessage(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + plot.getOwnerName());
+        }
+
+        player.sendMessage("");
+
+        // Informations de vente
+        if (plot.isForSale()) {
+            player.sendMessage(ChatColor.GREEN + "💰 Prix de vente: " + ChatColor.GOLD + String.format("%.2f€", plot.getSalePrice()));
+            player.sendMessage(ChatColor.GRAY + "Tapez /ville pour acheter cette parcelle");
+        }
+
+        // Informations de location
+        if (plot.isForRent()) {
+            player.sendMessage(ChatColor.AQUA + "📅 Prix de location: " + ChatColor.GOLD + String.format("%.2f€/jour", plot.getRentPricePerDay()));
+            player.sendMessage(ChatColor.GRAY + "Solde maximum: 30 jours rechargeable");
+
+            if (plot.getRenterUuid() != null) {
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "Actuellement loué: " + plot.getRentDaysRemaining() + " jours restants");
+            } else {
+                player.sendMessage(ChatColor.GREEN + "Disponible immédiatement");
+            }
+
+            player.sendMessage(ChatColor.GRAY + "Tapez /ville pour louer cette parcelle");
+        }
+
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage("");
     }
 
     /**
