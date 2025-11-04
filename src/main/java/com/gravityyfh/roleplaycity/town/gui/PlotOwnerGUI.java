@@ -117,12 +117,15 @@ public class PlotOwnerGUI implements Listener {
         trustItem.setItemMeta(trustMeta);
         inv.setItem(15, trustItem);
 
-        // Fermer
-        ItemStack closeItem = new ItemStack(Material.BARRIER);
-        ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
-        closeItem.setItemMeta(closeMeta);
-        inv.setItem(22, closeItem);
+        // Retour à Mes Propriétés
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
+        List<String> backLore = new ArrayList<>();
+        backLore.add(ChatColor.GRAY + "Voir tous vos terrains");
+        backMeta.setLore(backLore);
+        backItem.setItemMeta(backMeta);
+        inv.setItem(22, backItem);
 
         player.openInventory(inv);
     }
@@ -282,8 +285,10 @@ public class PlotOwnerGUI implements Listener {
         } else if (displayName.contains("Joueurs de Confiance")) {
             player.sendMessage(ChatColor.YELLOW + "Fonctionnalité à venir: Gérer les joueurs de confiance");
             player.closeInventory();
-        } else if (displayName.contains("Fermer")) {
+        } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
+            player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
+                ChatColor.YELLOW + " pour accéder à vos propriétés");
         }
     }
 

@@ -40,6 +40,18 @@ public class TownClaimsGUI implements Listener {
         this.plotManagementGUI = plotManagementGUI;
     }
 
+    /**
+     * Vérifie si le joueur possède au moins un terrain dans la ville
+     */
+    private boolean hasOwnedPlots(Player player, Town town) {
+        for (Plot plot : town.getPlots().values()) {
+            if (plot.isOwnedBy(player.getUniqueId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void openClaimsMenu(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
@@ -223,32 +235,61 @@ public class TownClaimsGUI implements Listener {
             return;
         }
 
-        // Vérifier les permissions
         TownRole role = town.getMemberRole(player.getUniqueId());
-        if (role == null || (!role.canManageClaims() && role != TownRole.MAIRE)) {
-            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de gérer les claims.");
-            return;
-        }
-
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
         Chunk currentChunk = player.getLocation().getChunk();
 
-        if (displayName.contains("Claim ce Chunk")) {
-            handleClaim(player, townName, town, currentChunk);
-        } else if (displayName.contains("Unclaim ce Chunk")) {
-            handleUnclaim(player, townName, town, currentChunk);
-        } else if (displayName.contains("Gérer cette Parcelle")) {
+        // === ACTIONS RÉSERVÉES AUX ADMINS ===
+        if (displayName.contains("Claim ce Chunk") || displayName.contains("Unclaim ce Chunk")) {
+            // Vérifier permissions admin
+            if (role == null || (!role.canManageClaims() && role != TownRole.MAIRE)) {
+                player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission de gérer les claims.");
+                player.closeInventory();
+                return;
+            }
+
+            if (displayName.contains("Claim ce Chunk")) {
+                handleClaim(player, townName, town, currentChunk);
+            } else {
+                handleUnclaim(player, townName, town, currentChunk);
+            }
+        }
+        // === GÉRER PARCELLE : Admin OU Propriétaire/Locataire ===
+        else if (displayName.contains("Gérer cette Parcelle")) {
+            Plot plot = claimManager.getPlotAt(currentChunk);
+            boolean isAdmin = (role != null && (role.canManageClaims() || role == TownRole.MAIRE));
+            boolean isOwnerOrRenter = (plot != null &&
+                (plot.isOwnedBy(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId())));
+
+            if (!isAdmin && !isOwnerOrRenter) {
+                player.sendMessage(ChatColor.RED + "Vous devez être propriétaire/locataire de ce terrain ou administrateur.");
+                player.closeInventory();
+                return;
+            }
+
             player.closeInventory();
             if (plotManagementGUI != null) {
                 plotManagementGUI.openPlotMenu(player);
             } else {
                 player.sendMessage(ChatColor.RED + "Le système de gestion de parcelles n'est pas disponible.");
             }
-        } else if (displayName.contains("Gérer les Regroupements de Terrains")) {
+        }
+        // === GÉRER REGROUPEMENTS : Admin OU possède des terrains ===
+        else if (displayName.contains("Gérer les Regroupements de Terrains")) {
+            boolean isAdmin = (role != null && (role.canManageClaims() || role == TownRole.MAIRE));
+            boolean ownsPlots = hasOwnedPlots(player, town);
+
+            if (!isAdmin && !ownsPlots) {
+                player.sendMessage(ChatColor.RED + "Vous devez posséder des terrains ou être administrateur.");
+                player.closeInventory();
+                return;
+            }
+
             player.closeInventory();
-            // Ouvrir le menu de gestion des groupes (équivalent à /ville groupes)
             plugin.getPlotGroupManagementGUI().openMainMenu(player, townName);
-        } else if (displayName.contains("Fermer")) {
+        }
+        // === FERMER ===
+        else if (displayName.contains("Fermer")) {
             player.closeInventory();
         }
     }
