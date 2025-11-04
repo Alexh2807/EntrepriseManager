@@ -49,6 +49,10 @@ public class TownManager {
         playerTowns.put(mayor.getUniqueId(), townName);
 
         plugin.getLogger().info("Ville créée: " + townName + " par " + mayor.getName());
+
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -68,6 +72,10 @@ public class TownManager {
         }
 
         plugin.getLogger().info("Ville supprimée: " + townName);
+
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -96,6 +104,10 @@ public class TownManager {
         }
 
         plugin.getLogger().info("Ville renommée: " + oldName + " -> " + newName);
+
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -187,6 +199,9 @@ public class TownManager {
         // Déposer le coût dans la banque de la ville
         town.deposit(joinCost);
 
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -213,6 +228,9 @@ public class TownManager {
         // Retirer le joueur
         town.removeMember(player.getUniqueId());
         playerTowns.remove(player.getUniqueId());
+
+        // Sauvegarder immédiatement
+        saveTownsNow();
 
         return true;
     }
@@ -252,6 +270,9 @@ public class TownManager {
         town.removeMember(kickedUuid);
         playerTowns.remove(kickedUuid);
 
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -273,6 +294,10 @@ public class TownManager {
 
         // Changer le rôle
         town.setMemberRole(targetUuid, newRole);
+
+        // Sauvegarder immédiatement
+        saveTownsNow();
+
         return true;
     }
 
@@ -384,6 +409,16 @@ public class TownManager {
 
     public Map<String, Town> getTownsForSave() {
         return new HashMap<>(towns);
+    }
+
+    /**
+     * Sauvegarde immédiatement toutes les villes dans towns.yml
+     * Utilisé après chaque modification importante pour éviter la perte de données
+     */
+    public void saveTownsNow() {
+        if (plugin.getTownDataManager() != null) {
+            plugin.getTownDataManager().saveTowns(getTownsForSave());
+        }
     }
 
     // === MÉTHODES UTILITAIRES POUR TERRAINS D'ENTREPRISE ===
