@@ -195,6 +195,13 @@ public class TownPoliceManager {
     }
 
     /**
+     * Vérifie si un joueur a des amendes impayées
+     */
+    public boolean hasUnpaidFines(UUID playerUuid) {
+        return !getUnpaidFines(playerUuid).isEmpty();
+    }
+
+    /**
      * Récupérer toutes les amendes d'une ville
      */
     public List<Fine> getTownFines(String townName) {

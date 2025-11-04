@@ -53,6 +53,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI townCitizenFinesGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownMembersGUI townMembersGUI;
     private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
+    private com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI myPropertyGUI;
+    private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
@@ -114,6 +116,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townJusticeGUI = new com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI(this, townManager, townPoliceManager, townJusticeManager);
         townCitizenFinesGUI = new com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI(this, townPoliceManager);
         plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this, townManager, claimManager);
+        myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager, townMainGUI);
+        myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
@@ -136,6 +140,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townMainGUI.setJusticeGUI(townJusticeGUI);
         townMainGUI.setCitizenFinesGUI(townCitizenFinesGUI);
         townMainGUI.setMembersGUI(townMembersGUI);
+        townMainGUI.setMyPropertyGUI(myPropertyGUI);
+        townMainGUI.setMyCompaniesGUI(myCompaniesGUI);
         townMembersGUI.setMainGUI(townMainGUI);
         townClaimsGUI.setPlotManagementGUI(townPlotManagementGUI);
 
@@ -191,7 +197,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             blockPlaceListener, craftItemListener, smithItemListener,
             entityDamageListener, entityDeathListener, treeCutListener,
             townMainGUI, townMembersGUI, townClaimsGUI, townBankGUI, townPlotManagementGUI, plotOwnerGUI, // GUI du système de ville
+            myPropertyGUI, myCompaniesGUI, // GUI Mes Propriétés et Mes Entreprises
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
+            plotGroupManagementGUI, // GUI Regroupement de parcelles
             townProtectionListener, // Protection des territoires de ville
             plotGroupingListener, // Système interactif de groupement de parcelles
             new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
@@ -278,6 +286,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.manager.ClaimManager getClaimManager() { return claimManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() { return townEconomyManager; }
     public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
+    public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() { return townPlotManagementGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }
     public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
 }

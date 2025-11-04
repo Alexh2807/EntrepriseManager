@@ -1,6 +1,8 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 public class TownMainGUI implements Listener {
 
@@ -32,6 +35,8 @@ public class TownMainGUI implements Listener {
     private TownJusticeGUI justiceGUI;
     private TownCitizenFinesGUI citizenFinesGUI;
     private TownMembersGUI membersGUI;
+    private MyPropertyGUI myPropertyGUI;
+    private MyCompaniesGUI myCompaniesGUI;
 
     private static final String MENU_TITLE = ChatColor.DARK_GREEN + "🏙️ Menu Principal - Ville";
     private static final String CREATE_TOWN_TITLE = ChatColor.DARK_BLUE + "Créer une Ville";
@@ -68,6 +73,44 @@ public class TownMainGUI implements Listener {
 
     public void setMembersGUI(TownMembersGUI membersGUI) {
         this.membersGUI = membersGUI;
+    }
+
+    public void setMyPropertyGUI(MyPropertyGUI myPropertyGUI) {
+        this.myPropertyGUI = myPropertyGUI;
+    }
+
+    public void setMyCompaniesGUI(MyCompaniesGUI myCompaniesGUI) {
+        this.myCompaniesGUI = myCompaniesGUI;
+    }
+
+    /**
+     * Vérifie si le joueur possède ou loue des terrains dans la ville
+     */
+    private boolean hasOwnedOrRentedPlots(Player player, Town town) {
+        UUID playerUuid = player.getUniqueId();
+        for (Plot plot : town.getPlots().values()) {
+            if (playerUuid.equals(plot.getOwnerUuid()) || playerUuid.equals(plot.getRenterUuid())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Vérifie si le joueur gère au moins une entreprise
+     */
+    private boolean hasCompanies(Player player) {
+        List<EntrepriseManagerLogic.Entreprise> companies =
+            plugin.getEntrepriseManagerLogic().getEntreprisesGereesPar(player.getName());
+        return !companies.isEmpty();
+    }
+
+    /**
+     * Vérifie si le joueur a des amendes impayées
+     */
+    private boolean hasUnpaidFines(Player player) {
+        return plugin.getTownPoliceManager() != null &&
+               plugin.getTownPoliceManager().hasUnpaidFines(player.getUniqueId());
     }
 
     public void openMainMenu(Player player) {
@@ -125,11 +168,13 @@ public class TownMainGUI implements Listener {
 
         TownRole role = town.getMemberRole(player.getUniqueId());
         TownMember member = town.getMember(player.getUniqueId());
+        boolean isAdmin = (role == TownRole.MAIRE || role == TownRole.ADJOINT);
 
+        // === LIGNE 1: Informations ===
         // Informations de la ville (slot 4)
         ItemStack infoItem = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = infoItem.getItemMeta();
-        infoMeta.setDisplayName(ChatColor.GOLD + "Informations de la Ville");
+        infoMeta.setDisplayName(ChatColor.GOLD + "📊 Informations de la Ville");
         List<String> infoLore = new ArrayList<>();
         infoLore.add(ChatColor.GRAY + "Nom: " + ChatColor.WHITE + townName);
         infoLore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + town.getDescription());
@@ -147,112 +192,184 @@ public class TownMainGUI implements Listener {
                 infoLore.add(ChatColor.AQUA + "  • " + r.getDisplayName());
             }
         }
+        infoLore.add("");
+        infoLore.add(ChatColor.YELLOW + "▶ Clic: Afficher en détail");
         infoMeta.setLore(infoLore);
         infoItem.setItemMeta(infoMeta);
         inv.setItem(4, infoItem);
 
-        // Gestion de la ville (Maire/Adjoint)
-        if (role.canManageTown() || role == TownRole.ADJOINT) {
-            ItemStack manageItem = new ItemStack(Material.WRITABLE_BOOK);
-            ItemMeta manageMeta = manageItem.getItemMeta();
-            manageMeta.setDisplayName(ChatColor.GREEN + "Gestion de la Ville");
-            List<String> manageLore = new ArrayList<>();
-            manageLore.add(ChatColor.GRAY + "Modifier le nom, la description");
-            manageLore.add(ChatColor.GRAY + "Supprimer la ville (Maire uniquement)");
-            manageLore.add("");
-            manageLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
-            manageMeta.setLore(manageLore);
-            manageItem.setItemMeta(manageMeta);
-            inv.setItem(10, manageItem);
+        // === LIGNE 2: Section Personnelle ===
+        int personalSlot = 10;
+
+        // Mes Propriétés (si le joueur possède/loue des terrains)
+        if (hasOwnedOrRentedPlots(player, town)) {
+            ItemStack propertyItem = new ItemStack(Material.GREEN_CONCRETE);
+            ItemMeta propertyMeta = propertyItem.getItemMeta();
+            propertyMeta.setDisplayName(ChatColor.GREEN + "🏠 Mes Propriétés");
+            List<String> propertyLore = new ArrayList<>();
+            propertyLore.add(ChatColor.GRAY + "Gérer vos terrains");
+            propertyLore.add(ChatColor.GRAY + "Terrains possédés et loués");
+            propertyLore.add("");
+            propertyLore.add(ChatColor.YELLOW + "▶ Clic: Voir mes propriétés");
+            propertyMeta.setLore(propertyLore);
+            propertyItem.setItemMeta(propertyMeta);
+            inv.setItem(personalSlot, propertyItem);
+            personalSlot += 2;
         }
 
-        // Membres et Rôles
+        // Mes Entreprises (si le joueur gère des entreprises)
+        if (hasCompanies(player)) {
+            ItemStack companiesItem = new ItemStack(Material.CHEST);
+            ItemMeta companiesMeta = companiesItem.getItemMeta();
+            companiesMeta.setDisplayName(ChatColor.GOLD + "💼 Mes Entreprises");
+            List<String> companiesLore = new ArrayList<>();
+            companiesLore.add(ChatColor.GRAY + "Gérer vos entreprises");
+            companiesLore.add(ChatColor.GRAY + "Terrains PRO et dettes");
+            companiesLore.add("");
+            companiesLore.add(ChatColor.YELLOW + "▶ Clic: Voir mes entreprises");
+            companiesMeta.setLore(companiesLore);
+            companiesItem.setItemMeta(companiesMeta);
+            inv.setItem(personalSlot, companiesItem);
+            personalSlot += 2;
+        }
+
+        // Mes Amendes (si le joueur a des amendes impayées)
+        if (hasUnpaidFines(player)) {
+            ItemStack finesItem = new ItemStack(Material.PAPER);
+            ItemMeta finesMeta = finesItem.getItemMeta();
+            finesMeta.setDisplayName(ChatColor.RED + "💰 Mes Amendes");
+            List<String> finesLore = new ArrayList<>();
+            finesLore.add(ChatColor.RED + "Vous avez des amendes impayées!");
+            finesLore.add("");
+            finesLore.add(ChatColor.YELLOW + "▶ Clic: Voir et payer");
+            finesMeta.setLore(finesLore);
+            finesItem.setItemMeta(finesMeta);
+            inv.setItem(personalSlot, finesItem);
+        }
+
+        // === LIGNE 3: Section Ville ===
+        // Membres et Rôles (slot 19)
         ItemStack membersItem = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta membersMeta = membersItem.getItemMeta();
-        membersMeta.setDisplayName(ChatColor.AQUA + "Membres et Rôles");
+        membersMeta.setDisplayName(ChatColor.AQUA + "👥 Membres et Rôles");
         List<String> membersLore = new ArrayList<>();
-        membersLore.add(ChatColor.GRAY + "Voir les membres");
-        membersLore.add(ChatColor.GRAY + "Inviter / Exclure");
+        membersLore.add(ChatColor.GRAY + "Voir les membres de la ville");
+        if (isAdmin) {
+            membersLore.add(ChatColor.GRAY + "Inviter / Exclure des membres");
+        }
         if (role == TownRole.MAIRE) {
             membersLore.add(ChatColor.GRAY + "Gérer les rôles");
         }
         membersLore.add("");
-        membersLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
+        membersLore.add(ChatColor.YELLOW + "▶ Clic: Ouvrir");
         membersMeta.setLore(membersLore);
         membersItem.setItemMeta(membersMeta);
-        inv.setItem(12, membersItem);
+        inv.setItem(19, membersItem);
 
-        // Claims et Terrains
-        ItemStack claimsItem = new ItemStack(Material.GRASS_BLOCK);
-        ItemMeta claimsMeta = claimsItem.getItemMeta();
-        claimsMeta.setDisplayName(ChatColor.GREEN + "Claims et Terrains");
-        List<String> claimsLore = new ArrayList<>();
-        claimsLore.add(ChatColor.GRAY + "Gérer les parcelles");
-        claimsLore.add(ChatColor.GRAY + "Claim / Unclaim des chunks");
-        claimsLore.add(ChatColor.GRAY + "Vendre / Louer des parcelles");
-        claimsLore.add("");
-        claimsLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-        claimsMeta.setLore(claimsLore);
-        claimsItem.setItemMeta(claimsMeta);
-        inv.setItem(14, claimsItem);
-
-        // Banque Municipale
+        // Banque Municipale (slot 21)
         ItemStack bankItem = new ItemStack(Material.GOLD_BLOCK);
         ItemMeta bankMeta = bankItem.getItemMeta();
-        bankMeta.setDisplayName(ChatColor.GOLD + "Banque Municipale");
+        bankMeta.setDisplayName(ChatColor.GOLD + "🏦 Banque Municipale");
         List<String> bankLore = new ArrayList<>();
         bankLore.add(ChatColor.GRAY + "Solde: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
         bankLore.add(ChatColor.GRAY + "Dépôt / Retrait");
         bankLore.add(ChatColor.GRAY + "Voir les transactions");
         bankLore.add("");
-        bankLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
+        bankLore.add(ChatColor.YELLOW + "▶ Clic: Ouvrir");
         bankMeta.setLore(bankLore);
         bankItem.setItemMeta(bankMeta);
-        inv.setItem(16, bankItem);
+        inv.setItem(21, bankItem);
 
-        // Services (Police/Justice)
-        ItemStack servicesItem = new ItemStack(Material.IRON_BARS);
-        ItemMeta servicesMeta = servicesItem.getItemMeta();
-        servicesMeta.setDisplayName(ChatColor.BLUE + "Services Municipaux");
-        List<String> servicesLore = new ArrayList<>();
-        servicesLore.add(ChatColor.GRAY + "Police: Amendes");
-        servicesLore.add(ChatColor.GRAY + "Justice: Contestations");
-        servicesLore.add("");
-        servicesLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-        servicesMeta.setLore(servicesLore);
-        servicesItem.setItemMeta(servicesMeta);
-        inv.setItem(28, servicesItem);
-
-        // Règlements
-        ItemStack rulesItem = new ItemStack(Material.PAPER);
+        // Règlements (slot 23)
+        ItemStack rulesItem = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta rulesMeta = rulesItem.getItemMeta();
-        rulesMeta.setDisplayName(ChatColor.WHITE + "Règlements de la Ville");
+        rulesMeta.setDisplayName(ChatColor.WHITE + "📜 Règlements de la Ville");
         List<String> rulesLore = new ArrayList<>();
-        rulesLore.add(ChatColor.GRAY + "Voir les règles municipales");
+        rulesLore.add(ChatColor.GRAY + "Consulter les règles municipales");
         rulesLore.add("");
-        rulesLore.add(ChatColor.YELLOW + "Cliquez pour lire");
+        rulesLore.add(ChatColor.YELLOW + "▶ Clic: Lire");
         rulesMeta.setLore(rulesLore);
         rulesItem.setItemMeta(rulesMeta);
-        inv.setItem(30, rulesItem);
+        inv.setItem(23, rulesItem);
 
-        // Quitter la ville
+        // === LIGNE 4: Section Administration ===
+        int adminSlot = 28;
+
+        // Gestion de la Ville (Maire/Adjoint uniquement)
+        if (isAdmin) {
+            ItemStack manageItem = new ItemStack(Material.COMMAND_BLOCK);
+            ItemMeta manageMeta = manageItem.getItemMeta();
+            manageMeta.setDisplayName(ChatColor.GREEN + "⚙️ Gestion de la Ville");
+            List<String> manageLore = new ArrayList<>();
+            manageLore.add(ChatColor.GRAY + "Modifier le nom, la description");
+            if (role == TownRole.MAIRE) {
+                manageLore.add(ChatColor.GRAY + "Supprimer la ville");
+            }
+            manageLore.add("");
+            manageLore.add(ChatColor.YELLOW + "▶ Clic: Gérer");
+            manageMeta.setLore(manageLore);
+            manageItem.setItemMeta(manageMeta);
+            inv.setItem(adminSlot, manageItem);
+            adminSlot += 2;
+        }
+
+        // Claims et Terrains (Maire/Adjoint/Architecte)
+        if (isAdmin || role == TownRole.ARCHITECTE) {
+            ItemStack claimsItem = new ItemStack(Material.GRASS_BLOCK);
+            ItemMeta claimsMeta = claimsItem.getItemMeta();
+            claimsMeta.setDisplayName(ChatColor.GREEN + "🗺️ Claims et Terrains");
+            List<String> claimsLore = new ArrayList<>();
+            claimsLore.add(ChatColor.GRAY + "Gérer les parcelles municipales");
+            claimsLore.add(ChatColor.GRAY + "Claim / Unclaim des chunks");
+            claimsLore.add(ChatColor.GRAY + "Vendre / Louer des parcelles");
+            claimsLore.add("");
+            claimsLore.add(ChatColor.YELLOW + "▶ Clic: Ouvrir");
+            claimsMeta.setLore(claimsLore);
+            claimsItem.setItemMeta(claimsMeta);
+            inv.setItem(adminSlot, claimsItem);
+            adminSlot += 2;
+        }
+
+        // Services Municipaux (Policier/Juge/Maire/Adjoint ou si le joueur a des amendes)
+        boolean canAccessServices = (role == TownRole.POLICIER || role == TownRole.JUGE || isAdmin || hasUnpaidFines(player));
+        if (canAccessServices) {
+            ItemStack servicesItem = new ItemStack(Material.IRON_BARS);
+            ItemMeta servicesMeta = servicesItem.getItemMeta();
+            servicesMeta.setDisplayName(ChatColor.BLUE + "🚔 Services Municipaux");
+            List<String> servicesLore = new ArrayList<>();
+            if (role == TownRole.POLICIER || isAdmin) {
+                servicesLore.add(ChatColor.GRAY + "Police: Émettre des amendes");
+            }
+            if (role == TownRole.JUGE || isAdmin) {
+                servicesLore.add(ChatColor.GRAY + "Justice: Juger les contestations");
+            }
+            servicesLore.add(ChatColor.GRAY + "Consulter vos amendes");
+            servicesLore.add("");
+            servicesLore.add(ChatColor.YELLOW + "▶ Clic: Ouvrir");
+            servicesMeta.setLore(servicesLore);
+            servicesItem.setItemMeta(servicesMeta);
+            inv.setItem(adminSlot, servicesItem);
+        }
+
+        // === LIGNE 6: Actions ===
+        // Quitter la ville (sauf Maire)
         if (!town.isMayor(player.getUniqueId())) {
-            ItemStack leaveItem = new ItemStack(Material.BARRIER);
+            ItemStack leaveItem = new ItemStack(Material.OAK_DOOR);
             ItemMeta leaveMeta = leaveItem.getItemMeta();
-            leaveMeta.setDisplayName(ChatColor.RED + "Quitter la Ville");
+            leaveMeta.setDisplayName(ChatColor.RED + "🚪 Quitter la Ville");
             List<String> leaveLore = new ArrayList<>();
-            leaveLore.add(ChatColor.GRAY + "Vous perdrez vos parcelles");
+            leaveLore.add(ChatColor.GRAY + "Vous perdrez vos parcelles PARTICULIER");
             leaveLore.add("");
-            leaveLore.add(ChatColor.YELLOW + "Cliquez pour quitter");
+            leaveLore.add(ChatColor.YELLOW + "▶ Clic: Quitter");
             leaveMeta.setLore(leaveLore);
             leaveItem.setItemMeta(leaveMeta);
-            inv.setItem(32, leaveItem);
+            inv.setItem(48, leaveItem);
         }
 
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "❌ Fermer");
         closeItem.setItemMeta(closeMeta);
         inv.setItem(49, closeItem);
 
@@ -366,7 +483,22 @@ public class TownMainGUI implements Listener {
         }
 
         // Gérer les actions des boutons
-        if (strippedName.contains("Claims et Terrains")) {
+        if (strippedName.contains("Mes Propriétés")) {
+            player.closeInventory();
+            String currentTownName = townManager.getPlayerTown(player.getUniqueId());
+            if (myPropertyGUI != null && currentTownName != null) {
+                myPropertyGUI.openPropertyMenu(player, currentTownName);
+            } else {
+                player.sendMessage(ChatColor.RED + "Le système de propriétés n'est pas disponible.");
+            }
+        } else if (strippedName.contains("Mes Entreprises")) {
+            player.closeInventory();
+            if (myCompaniesGUI != null) {
+                myCompaniesGUI.openCompaniesMenu(player);
+            } else {
+                player.sendMessage(ChatColor.RED + "Le système d'entreprises n'est pas disponible.");
+            }
+        } else if (strippedName.contains("Claims et Terrains")) {
             player.closeInventory();
             if (claimsGUI != null) {
                 claimsGUI.openClaimsMenu(player);
