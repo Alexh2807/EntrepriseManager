@@ -83,6 +83,9 @@ public class TownPoliceManager {
         plugin.getLogger().info("Amende émise dans " + townName + ": " + offenderName +
             " - " + amount + "€ (" + reason + ")");
 
+        // Sauvegarder immédiatement
+        plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+
         return fine;
     }
 
@@ -116,6 +119,10 @@ public class TownPoliceManager {
         player.sendMessage(ChatColor.GREEN + "Amende payée avec succès: " + fine.getAmount() + "€");
         plugin.getLogger().info("Amende payée: " + player.getName() + " - " + fine.getAmount() + "€");
 
+        // Sauvegarder immédiatement (amendes + banque ville)
+        plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+        townManager.saveTownsNow();
+
         return true;
     }
 
@@ -148,6 +155,10 @@ public class TownPoliceManager {
         }
 
         plugin.getLogger().info("Amende contestée: " + player.getName() + " - Raison: " + contestReason);
+
+        // Sauvegarder immédiatement
+        plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+
         return true;
     }
 
@@ -175,6 +186,10 @@ public class TownPoliceManager {
         }
 
         plugin.getLogger().info("Amende annulée par " + canceller.getName() + ": " + fine);
+
+        // Sauvegarder immédiatement
+        plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+
         return true;
     }
 

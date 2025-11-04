@@ -331,6 +331,9 @@ public class TownBankGUI implements Listener {
 
                 player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + amount + "€ dans la banque !");
 
+                // Sauvegarder immédiatement pour éviter perte de données
+                townManager.saveTownsNow();
+
             } else if (context.actionType == ActionType.WITHDRAW) {
                 TownRole role = town.getMemberRole(player.getUniqueId());
                 if (role != TownRole.MAIRE && role != TownRole.ADJOINT) {
@@ -347,6 +350,9 @@ public class TownBankGUI implements Listener {
                 RoleplayCity.getEconomy().depositPlayer(player, amount);
 
                 player.sendMessage(ChatColor.YELLOW + "Vous avez retiré " + amount + "€ de la banque.");
+
+                // Sauvegarder immédiatement pour éviter perte de données
+                townManager.saveTownsNow();
             }
 
         } catch (NumberFormatException e) {

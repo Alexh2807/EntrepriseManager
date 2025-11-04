@@ -289,6 +289,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() { return townEconomyManager; }
     public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
+    public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() { return townFinesDataManager; }
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
     public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() { return townPlotManagementGUI; }
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }

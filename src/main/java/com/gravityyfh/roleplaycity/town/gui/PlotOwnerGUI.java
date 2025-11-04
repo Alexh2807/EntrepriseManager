@@ -340,6 +340,10 @@ public class PlotOwnerGUI implements Listener {
         if (displayName.contains("Réinitialiser Tous les Flags")) {
             plot.resetAllFlags();
             player.sendMessage(ChatColor.GREEN + "Tous les flags ont été réinitialisés.");
+
+            // Sauvegarder immédiatement
+            plugin.getTownManager().saveTownsNow();
+
             openFlagsMenu(player);
         } else if (displayName.contains("Retour")) {
             player.closeInventory();
@@ -352,6 +356,10 @@ public class PlotOwnerGUI implements Listener {
                     plot.setFlag(flag, newValue);
                     player.sendMessage(ChatColor.GREEN + "Flag '" + flag.getDisplayName() + "' " +
                         (newValue ? "activé" : "désactivé"));
+
+                    // Sauvegarder immédiatement
+                    plugin.getTownManager().saveTownsNow();
+
                     openFlagsMenu(player);
                     break;
                 }

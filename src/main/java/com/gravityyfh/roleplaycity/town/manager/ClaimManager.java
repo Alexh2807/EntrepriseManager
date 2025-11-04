@@ -134,6 +134,9 @@ public class ClaimManager {
         chunkOwners.put(coord, townName);
 
         plugin.getLogger().info("Chunk " + coord + " claimé par " + townName);
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -175,6 +178,9 @@ public class ClaimManager {
         town.deposit(refund);
 
         plugin.getLogger().info("Chunk " + coord + " unclaimed par " + townName + " (remboursement: " + refund + "€)");
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return refund;
     }
 

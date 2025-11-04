@@ -94,6 +94,9 @@ public class TownJusticeManager {
         plugin.getLogger().info("Jugement rendu par " + judge.getName() + ": Amende " +
             (valid ? "confirmée" : "annulée") + " - " + fine);
 
+        // Sauvegarder immédiatement
+        plugin.getTownFinesDataManager().saveFines(policeManager.getFinesForSave());
+
         return true;
     }
 

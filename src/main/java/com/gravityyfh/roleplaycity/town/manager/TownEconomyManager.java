@@ -64,6 +64,9 @@ public class TownEconomyManager {
 
         plot.setSalePrice(price);
         plot.setForSale(true);
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -196,6 +199,8 @@ public class TownEconomyManager {
             buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
         }
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -237,6 +242,8 @@ public class TownEconomyManager {
         Chunk chunk = owner.getWorld().getChunkAt(plot.getChunkX(), plot.getChunkZ());
         plot.scanAndProtectExistingBlocks(chunk);
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -300,6 +307,9 @@ public class TownEconomyManager {
 
         renter.sendMessage(ChatColor.GREEN + "Vous avez loué la parcelle " + plot.getCoordinates() +
             " pour " + actualDays + " jours !");
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -371,6 +381,8 @@ public class TownEconomyManager {
         renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
         renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + plot.getRentDaysRemaining() + "/30");
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -546,6 +558,9 @@ public class TownEconomyManager {
         // Mettre à jour la date de dernière collecte
         town.setLastTaxCollection(LocalDateTime.now());
 
+        // Sauvegarder immédiatement les changements de taxes et solde banque
+        townManager.saveTownsNow();
+
         return new TaxCollectionResult(totalCollected, parcelsWithTax, unpaidPlayers.size(), unpaidPlayers);
     }
 
@@ -639,6 +654,8 @@ public class TownEconomyManager {
             }
         }
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -812,6 +829,8 @@ public class TownEconomyManager {
             transactionLabel
         ));
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -855,6 +874,8 @@ public class TownEconomyManager {
             }
         }
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -931,6 +952,8 @@ public class TownEconomyManager {
             "Location groupe: " + group.getGroupName()
         ));
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 
@@ -1010,6 +1033,8 @@ public class TownEconomyManager {
             "Recharge groupe: " + group.getGroupName()
         ));
 
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
         return true;
     }
 

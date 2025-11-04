@@ -298,6 +298,10 @@ public class TownPlotManagementGUI implements Listener {
                         }
 
                         player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
+
+                        // Sauvegarder immédiatement
+                        plugin.getTownManager().saveTownsNow();
+
                         player.closeInventory();
                         openPlotMenu(player);
                     }
@@ -371,6 +375,9 @@ public class TownPlotManagementGUI implements Listener {
         plot.setForSale(false);
         plot.setSalePrice(0);
         player.sendMessage(ChatColor.YELLOW + "La vente de la parcelle a été annulée.");
+
+        // Sauvegarder immédiatement
+        plugin.getTownManager().saveTownsNow();
     }
 
     private void handlePutForRent(Player player, Plot plot, String townName) {
@@ -427,6 +434,9 @@ public class TownPlotManagementGUI implements Listener {
         plot.setForRent(false);
         plot.setRent(0, 0);
         player.sendMessage(ChatColor.YELLOW + "La location de la parcelle a été annulée.");
+
+        // Sauvegarder immédiatement
+        plugin.getTownManager().saveTownsNow();
     }
 
     private void handleChangePlotType(Player player, Plot plot, String townName) {

@@ -144,6 +144,9 @@ public class CompanyPlotManager {
             "[CompanyPlotManager] %d terrain(s) vendus et retournés à la ville %s",
             companyPlots.size(), townName
         ));
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
     }
 
     /**
@@ -232,6 +235,9 @@ public class CompanyPlotManager {
                 }
             }
         }
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
     }
 
     /**
@@ -270,5 +276,8 @@ public class CompanyPlotManager {
 
         // Retourner le terrain à la ville
         townManager.transferPlotToTown(plot, "Dette impayée: " + String.format("%.2f€", debtAmount));
+
+        // Sauvegarder immédiatement
+        townManager.saveTownsNow();
     }
 }

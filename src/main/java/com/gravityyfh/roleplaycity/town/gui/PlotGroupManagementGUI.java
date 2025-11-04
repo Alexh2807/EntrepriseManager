@@ -512,6 +512,10 @@ public class PlotGroupManagementGUI implements Listener {
 
         } else if (displayName.contains("Désassembler le Groupe")) {
             town.removePlotGroup(group.getGroupId());
+
+            // Sauvegarder immédiatement
+            townManager.saveTownsNow();
+
             player.closeInventory();
             player.sendMessage(ChatColor.GREEN + "Groupe désassemblé avec succès !");
         }
@@ -544,6 +548,9 @@ public class PlotGroupManagementGUI implements Listener {
                 player.sendMessage(ChatColor.GREEN + "Groupe créé avec succès !");
                 player.sendMessage(ChatColor.YELLOW + "Nom: " + ChatColor.GOLD + input);
                 player.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + context.selectedPlots.size());
+
+                // Sauvegarder immédiatement
+                townManager.saveTownsNow();
             });
             return;
         }
