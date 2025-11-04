@@ -180,8 +180,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (entrepriseLogic != null) {
             entrepriseLogic.saveEntreprises();
         }
-        if (townManager != null && townDataManager != null) {
-            townDataManager.saveTowns(townManager.getTownsForSave());
+        if (townManager != null) {
+            // Utiliser saveTownsSync() pour une sauvegarde synchrone lors de l'arrêt
+            townManager.saveTownsSync();
         }
         if (townPoliceManager != null && townFinesDataManager != null) {
             townFinesDataManager.saveFines(townPoliceManager.getFinesForSave());

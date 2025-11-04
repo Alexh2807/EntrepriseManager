@@ -8,14 +8,21 @@ import com.gravityyfh.roleplaycity.town.event.TownDeleteEvent;
 import com.gravityyfh.roleplaycity.town.event.TownMemberLeaveEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TownManager {
     private final RoleplayCity plugin;
     private final Map<String, Town> towns; // townName -> Town
     private final Map<UUID, String> playerTowns; // playerUUID -> townName
+
+    // Système de sauvegarde asynchrone avec debouncing
+    private final AtomicBoolean savePending = new AtomicBoolean(false);
+    private BukkitTask saveTask = null;
+    private static final long SAVE_DELAY_TICKS = 20L; // 1 seconde de délai
 
     public TownManager(RoleplayCity plugin) {
         this.plugin = plugin;
@@ -412,10 +419,55 @@ public class TownManager {
     }
 
     /**
-     * Sauvegarde immédiatement toutes les villes dans towns.yml
-     * Utilisé après chaque modification importante pour éviter la perte de données
+     * Sauvegarde asynchrone avec debouncing
+     * Si plusieurs modifications arrivent rapidement, on attend avant de sauvegarder
+     * pour éviter d'écrire 10 fois en 1 seconde
      */
     public void saveTownsNow() {
+        // Si une sauvegarde est déjà planifiée, on ne fait rien (debouncing)
+        if (savePending.get()) {
+            return;
+        }
+
+        savePending.set(true);
+
+        // Annuler la tâche précédente si elle existe
+        if (saveTask != null && !saveTask.isCancelled()) {
+            saveTask.cancel();
+        }
+
+        // Planifier la sauvegarde avec un délai de 1 seconde
+        // Si d'autres modifications arrivent dans cette seconde, elles seront ignorées
+        saveTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Sauvegarder de manière asynchrone pour ne pas bloquer le thread principal
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    if (plugin.getTownDataManager() != null) {
+                        plugin.getTownDataManager().saveTowns(getTownsForSave());
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().severe("Erreur lors de la sauvegarde asynchrone des villes: " + e.getMessage());
+                    e.printStackTrace();
+                } finally {
+                    // Réinitialiser le flag pour permettre une nouvelle sauvegarde
+                    savePending.set(false);
+                }
+            });
+        }, SAVE_DELAY_TICKS);
+    }
+
+    /**
+     * Sauvegarde synchrone immédiate (utilisée lors de l'arrêt du serveur)
+     * Ne pas utiliser en jeu, préférer saveTownsNow()
+     */
+    public void saveTownsSync() {
+        // Annuler toute sauvegarde asynchrone en attente
+        if (saveTask != null && !saveTask.isCancelled()) {
+            saveTask.cancel();
+        }
+        savePending.set(false);
+
+        // Sauvegarder immédiatement et de manière synchrone
         if (plugin.getTownDataManager() != null) {
             plugin.getTownDataManager().saveTowns(getTownsForSave());
         }
