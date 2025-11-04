@@ -1,0 +1,24 @@
+# ===================================
+# Fichier de données des amendes
+# RoleplayCity - Système de Police et Justice
+# ===================================
+# Ce fichier est généré automatiquement par le plugin.
+# Il contient toutes les amendes émises par la police des villes.
+#
+# Structure:
+#   fines:
+#     UUID-de-l-amende:
+#       town-name: Nom de la ville
+#       player-uuid: UUID du contrevenant
+#       player-name: Nom du contrevenant
+#       amount: Montant de l'amende
+#       reason: Motif de l'amende
+#       issuer-uuid: UUID de l'agent ayant émis l'amende
+#       issuer-name: Nom de l'agent
+#       date-issued: Date d'émission
+#       status: Statut (UNPAID, PAID, CANCELLED)
+#
+# ATTENTION: Ne modifiez pas manuellement ce fichier sauf si vous savez ce que vous faites.
+# ===================================
+
+fines: {}

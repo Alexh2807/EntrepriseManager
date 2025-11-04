@@ -1,0 +1,22 @@
+# ===================================
+# Fichier de données des villes
+# RoleplayCity - Système de Ville
+# ===================================
+# Ce fichier est généré automatiquement par le plugin.
+# Il contient toutes les informations des villes créées par les joueurs.
+#
+# Structure:
+#   towns:
+#     NomDeLaVille:
+#       mayor-uuid: UUID du maire
+#       description: Description de la ville
+#       bank-balance: Solde de la banque de la ville
+#       members: Liste des membres avec leurs rôles
+#       plots: Parcelles de terrain claimées
+#       taxes: Configuration des taxes
+#       invitations: Invitations en attente
+#
+# ATTENTION: Ne modifiez pas manuellement ce fichier sauf si vous savez ce que vous faites.
+# ===================================
+
+towns: {}

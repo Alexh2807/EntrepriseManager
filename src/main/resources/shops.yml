@@ -1,0 +1,22 @@
+# ===================================
+# Fichier de données des boutiques
+# RoleplayCity - Système de Boutiques
+# ===================================
+# Ce fichier est généré automatiquement par le plugin.
+# Il contient toutes les informations des boutiques créées par les joueurs.
+#
+# Structure:
+#   shops:
+#     UUID-de-la-boutique:
+#       owner-uuid: UUID du propriétaire
+#       owner-name: Nom du propriétaire
+#       location: Coordonnées de la boutique
+#       item-sold: Item vendu
+#       stock: Quantité en stock
+#       price: Prix de vente
+#       creation-date: Date de création
+#
+# ATTENTION: Ne modifiez pas manuellement ce fichier sauf si vous savez ce que vous faites.
+# ===================================
+
+shops: {}
