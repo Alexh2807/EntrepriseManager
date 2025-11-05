@@ -36,6 +36,9 @@ public class TownPlotManagementGUI implements Listener {
     // Système de saisie de prix
     private final Map<UUID, PlotActionContext> pendingActions;
 
+    // FIX UX P2.7: Stockage du Plot actuellement affiché dans le menu
+    private final Map<UUID, Plot> currentMenuPlots;
+
     public TownPlotManagementGUI(RoleplayCity plugin, TownManager townManager,
                                  ClaimManager claimManager, TownEconomyManager economyManager) {
         this.plugin = plugin;
@@ -43,6 +46,7 @@ public class TownPlotManagementGUI implements Listener {
         this.claimManager = claimManager;
         this.economyManager = economyManager;
         this.pendingActions = new HashMap<>();
+        this.currentMenuPlots = new HashMap<>();
     }
 
     /**
@@ -274,6 +278,9 @@ public class TownPlotManagementGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(26, backItem);
 
+        // FIX UX P2.7: Stocker le Plot affiché pour référence ultérieure
+        currentMenuPlots.put(player.getUniqueId(), plot);
+
         player.openInventory(inv);
     }
 
@@ -301,8 +308,11 @@ public class TownPlotManagementGUI implements Listener {
         if (title.contains("Changer le type")) {
             if (displayName.contains("Retour")) {
                 player.closeInventory();
-                Chunk currentChunk = player.getLocation().getChunk();
-                openPlotMenu(player);
+                // FIX UX P2.7: Utiliser le Plot stocké
+                Plot plot = currentMenuPlots.get(player.getUniqueId());
+                if (plot != null) {
+                    openPlotMenu(player, plot);
+                }
             } else if (!displayName.contains("Actuel")) {
                 // Chercher le type sélectionné
                 PlotType selectedType = null;
@@ -314,8 +324,8 @@ public class TownPlotManagementGUI implements Listener {
                 }
 
                 if (selectedType != null && player.hasMetadata("plot_type_change_town")) {
-                    Chunk currentChunk = player.getLocation().getChunk();
-                    Plot plot = claimManager.getPlotAt(currentChunk);
+                    // FIX UX P2.7: Utiliser le Plot stocké
+                    Plot plot = currentMenuPlots.get(player.getUniqueId());
                     String townName = player.getMetadata("plot_type_change_town").get(0).asString();
                     player.removeMetadata("plot_type_change_town", plugin);
 
@@ -357,23 +367,24 @@ public class TownPlotManagementGUI implements Listener {
                         plugin.getTownManager().saveTownsNow();
 
                         player.closeInventory();
-                        openPlotMenu(player);
+                        // FIX UX P2.7: Utiliser le plot stocké
+                        openPlotMenu(player, plot);
                     }
                 }
             }
             return;
         }
 
-        // Gestion du menu principal de parcelle
-        Chunk currentChunk = player.getLocation().getChunk();
-        Plot plot = claimManager.getPlotAt(currentChunk);
+        // FIX UX P2.7: Utiliser le Plot stocké au lieu de player.getLocation()
+        Plot plot = currentMenuPlots.get(player.getUniqueId());
 
         if (plot == null) {
             player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Erreur: Contexte du menu perdu. Réouvrez le menu.");
             return;
         }
 
-        String townName = claimManager.getClaimOwner(currentChunk);
+        String townName = plot.getTownName();
 
         if (displayName.contains("Mettre en Vente")) {
             handlePutForSale(player, plot, townName);
@@ -595,10 +606,26 @@ public class TownPlotManagementGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(22, backItem);
 
+        // FIX UX P2.7: Stocker le Plot affiché pour référence ultérieure
+        currentMenuPlots.put(player.getUniqueId(), plot);
+
         player.openInventory(inv);
 
         // Stocker le plot dans les métadonnées pour le récupérer au clic
         player.setMetadata("plot_type_change_town", new org.bukkit.metadata.FixedMetadataValue(plugin, townName));
+    }
+
+    @EventHandler
+    public void onInventoryClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        String title = event.getView().getTitle();
+        if (title.equals(PLOT_MENU_TITLE) || title.contains("Changer le type")) {
+            // FIX UX P2.7: Nettoyer le Plot stocké quand le menu est fermé
+            currentMenuPlots.remove(player.getUniqueId());
+        }
     }
 
     @EventHandler
