@@ -2,6 +2,7 @@ package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
@@ -19,6 +20,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -160,7 +162,7 @@ public class TownMainGUI implements Listener {
     private void openTownMenu(Player player, String townName) {
         Town town = townManager.getTown(townName);
         if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
             return;
         }
 
@@ -489,28 +491,28 @@ public class TownMainGUI implements Listener {
             if (myPropertyGUI != null && currentTownName != null) {
                 myPropertyGUI.openPropertyMenu(player, currentTownName);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de propriétés n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de propriétés n'est pas disponible.");
             }
         } else if (strippedName.contains("Mes Entreprises")) {
             player.closeInventory();
             if (myCompaniesGUI != null) {
                 myCompaniesGUI.openCompaniesMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système d'entreprises n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système d'entreprises n'est pas disponible.");
             }
         } else if (strippedName.contains("Claims et Terrains")) {
             player.closeInventory();
             if (claimsGUI != null) {
                 claimsGUI.openClaimsMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de claims n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de claims n'est pas disponible.");
             }
         } else if (strippedName.contains("Banque Municipale")) {
             player.closeInventory();
             if (bankGUI != null) {
                 bankGUI.openBankMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de banque n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de banque n'est pas disponible.");
             }
         } else if (strippedName.contains("Services Municipaux")) {
             player.closeInventory();
@@ -520,21 +522,21 @@ public class TownMainGUI implements Listener {
             if (citizenFinesGUI != null) {
                 citizenFinesGUI.openFinesMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système d'amendes n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système d'amendes n'est pas disponible.");
             }
         } else if (strippedName.contains("Police Municipale")) {
             player.closeInventory();
             if (policeGUI != null) {
                 policeGUI.openPoliceMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de police n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de police n'est pas disponible.");
             }
         } else if (strippedName.contains("Justice Municipale")) {
             player.closeInventory();
             if (justiceGUI != null) {
                 justiceGUI.openJusticeMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de justice n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de justice n'est pas disponible.");
             }
         } else if (strippedName.contains("Gestion de la Ville")) {
             player.closeInventory();
@@ -550,7 +552,7 @@ public class TownMainGUI implements Listener {
             if (membersGUI != null) {
                 membersGUI.openMembersMenu(player);
             } else {
-                player.sendMessage(ChatColor.RED + "Le système de membres n'est pas disponible.");
+                NavigationManager.sendError(player, "Le système de membres n'est pas disponible.");
             }
         } else if (strippedName.contains("Règlements")) {
             player.closeInventory();
@@ -577,7 +579,7 @@ public class TownMainGUI implements Listener {
             player.closeInventory();
         } else {
             // Fonctionnalités à implémenter dans les prochaines sessions
-            player.sendMessage(ChatColor.YELLOW + "Fonctionnalité en développement: " + strippedName);
+            NavigationManager.sendInfo(player, "EN DÉVELOPPEMENT", "Fonctionnalité en développement: " + strippedName);
             player.closeInventory();
         }
     }
@@ -585,102 +587,101 @@ public class TownMainGUI implements Listener {
     private void showTownInfo(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
         }
 
         Town town = townManager.getTown(townName);
         if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
             return;
         }
 
         TownRole role = town.getMemberRole(player.getUniqueId());
-
-        player.sendMessage(ChatColor.GOLD + "========= " + ChatColor.AQUA + townName + ChatColor.GOLD + " =========");
-        player.sendMessage("");
-        player.sendMessage(ChatColor.YELLOW + "Informations générales :");
-        player.sendMessage(ChatColor.GRAY + "- Nom: " + ChatColor.WHITE + townName);
-        player.sendMessage(ChatColor.GRAY + "- Description: " + ChatColor.WHITE + town.getDescription());
 
         // Récupérer le nom du maire via le membre
         String mayorName = "Inconnu";
         if (town.getMember(town.getMayorUuid()) != null) {
             mayorName = town.getMember(town.getMayorUuid()).getPlayerName();
         }
-        player.sendMessage(ChatColor.GRAY + "- Maire: " + ChatColor.GOLD + mayorName);
-        player.sendMessage(ChatColor.GRAY + "- Membres: " + ChatColor.WHITE + town.getMemberCount());
-        player.sendMessage(ChatColor.GRAY + "- Parcelles: " + ChatColor.WHITE + town.getTotalClaims());
-        player.sendMessage(ChatColor.GRAY + "- Banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
-        player.sendMessage("");
+
+        List<String> info = new ArrayList<>();
+        info.add("+Informations générales");
+        info.add("");
+        info.add("Nom: " + townName);
+        info.add("Description: " + town.getDescription());
+        info.add("Maire: " + mayorName);
+        info.add("Membres: " + town.getMemberCount());
+        info.add("Parcelles: " + town.getTotalClaims());
+        info.add("Banque: " + String.format("%.2f€", town.getBankBalance()));
+        info.add("");
 
         // Afficher tous les rôles du joueur
         TownMember member = town.getMember(player.getUniqueId());
         if (member != null) {
             Set<TownRole> playerRoles = member.getRoles();
             if (playerRoles.size() == 1) {
-                player.sendMessage(ChatColor.YELLOW + "Votre rôle : " + ChatColor.AQUA + role.getDisplayName());
+                info.add("+Votre rôle: " + role.getDisplayName());
             } else {
-                player.sendMessage(ChatColor.YELLOW + "Vos rôles : ");
+                info.add("+Vos rôles:");
                 for (TownRole r : playerRoles) {
-                    player.sendMessage(ChatColor.AQUA + "  • " + r.getDisplayName());
+                    info.add("*" + r.getDisplayName());
                 }
             }
         }
 
-        player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "================================================");
+        NavigationManager.sendStyledMessage(player, "📊 " + townName.toUpperCase(), info);
     }
 
     private void handleShowRules(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
         }
 
         Town town = townManager.getTown(townName);
         if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
             return;
         }
 
-        player.sendMessage(ChatColor.GOLD + "========= " + ChatColor.AQUA + "Règlements de " + townName + ChatColor.GOLD + " =========");
-        player.sendMessage("");
-        player.sendMessage(ChatColor.YELLOW + "Règles générales :");
-        player.sendMessage(ChatColor.GRAY + "- Respecter les autres citoyens");
-        player.sendMessage(ChatColor.GRAY + "- Ne pas griffer les propriétés d'autrui");
-        player.sendMessage(ChatColor.GRAY + "- Payer ses taxes et amendes");
-        player.sendMessage(ChatColor.GRAY + "- Suivre les instructions des autorités");
-        player.sendMessage("");
-        player.sendMessage(ChatColor.YELLOW + "Description de la ville :");
-        player.sendMessage(ChatColor.WHITE + town.getDescription());
-        player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "================================================");
+        List<String> rules = new ArrayList<>();
+        rules.add("+Règles générales:");
+        rules.add("");
+        rules.add("*Respecter les autres citoyens");
+        rules.add("*Ne pas griffer les propriétés d'autrui");
+        rules.add("*Payer ses taxes et amendes");
+        rules.add("*Suivre les instructions des autorités");
+        rules.add("");
+        rules.add("+Description de la ville:");
+        rules.add(town.getDescription());
+
+        NavigationManager.sendStyledMessage(player, "📜 RÈGLEMENTS DE " + townName.toUpperCase(), rules);
     }
 
     private void handleLeaveTown(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
         }
 
         Town town = townManager.getTown(townName);
         if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
             return;
         }
 
         if (town.isMayor(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "Le maire ne peut pas quitter la ville. Vous devez d'abord supprimer la ville ou transférer la mairie.");
+            NavigationManager.sendError(player, "Le maire ne peut pas quitter la ville. Vous devez d'abord supprimer la ville ou transférer la mairie.");
             return;
         }
 
         if (townManager.leaveTown(player)) {
-            player.sendMessage(ChatColor.GREEN + "Vous avez quitté la ville " + ChatColor.GOLD + townName + ChatColor.GREEN + ".");
+            NavigationManager.sendSuccess(player, "Vous avez quitté la ville " + townName + ".");
         } else {
-            player.sendMessage(ChatColor.RED + "Impossible de quitter la ville.");
+            NavigationManager.sendError(player, "Impossible de quitter la ville.");
         }
     }
 
@@ -690,32 +691,45 @@ public class TownMainGUI implements Listener {
 
     private void handleCreateTown(Player player) {
         // Demander le nom de la ville via le chat
-        player.sendMessage(ChatColor.GOLD + "========================================");
-        player.sendMessage(ChatColor.GREEN + "Création d'une nouvelle ville");
-        player.sendMessage(ChatColor.GRAY + "Tapez le nom de votre ville dans le chat");
-        player.sendMessage(ChatColor.GRAY + "(ou tapez 'annuler' pour annuler)");
-        player.sendMessage(ChatColor.GOLD + "========================================");
+        double cost = plugin.getConfig().getDouble("town.creation-cost", 10000.0);
+        NavigationManager.sendStyledMessage(player, "🏙 CRÉATION D'UNE VILLE", Arrays.asList(
+            "Tapez le nom de votre ville dans le chat",
+            "",
+            "Coût: " + String.format("%.2f€", cost),
+            "",
+            "*Le nom doit être unique",
+            "*Vous deviendrez le maire de la ville",
+            "",
+            "Tapez 'annuler' pour annuler"
+        ));
 
         // Enregistrer le joueur comme "en attente de saisie"
         plugin.getChatListener().waitForInput(player.getUniqueId(), (input) -> {
             if (input.equalsIgnoreCase("annuler")) {
-                player.sendMessage(ChatColor.RED + "Création de ville annulée.");
+                NavigationManager.sendInfo(player, "OPÉRATION ANNULÉE", "Création de ville annulée.");
                 return;
             }
 
             // Créer la ville
-            double cost = plugin.getConfig().getDouble("town.creation-cost", 10000.0);
             if (townManager.createTown(input, player, cost)) {
-                player.sendMessage(ChatColor.GREEN + "Ville '" + ChatColor.GOLD + input + ChatColor.GREEN + "' créée avec succès!");
-                player.sendMessage(ChatColor.GRAY + "Vous êtes maintenant le maire de cette ville.");
+                NavigationManager.sendStyledMessage(player, "✓ VILLE CRÉÉE AVEC SUCCÈS", Arrays.asList(
+                    "+La ville '" + input + "' a été créée !",
+                    "",
+                    "*Vous êtes maintenant le maire de cette ville",
+                    "*Vous pouvez gérer votre ville dans le menu"
+                ));
 
                 // Ouvrir le menu de la ville
                 Bukkit.getScheduler().runTaskLater(plugin, () -> openMainMenu(player), 20L);
             } else {
-                player.sendMessage(ChatColor.RED + "Impossible de créer la ville. Vérifiez:");
-                player.sendMessage(ChatColor.GRAY + "- Que vous avez " + cost + "€");
-                player.sendMessage(ChatColor.GRAY + "- Que le nom n'est pas déjà pris");
-                player.sendMessage(ChatColor.GRAY + "- Que vous n'êtes pas déjà dans une ville");
+                NavigationManager.sendStyledMessage(player, "⚠ ERREUR DE CRÉATION", Arrays.asList(
+                    "!Impossible de créer la ville",
+                    "",
+                    "Vérifiez:",
+                    "*Que vous avez " + String.format("%.2f€", cost),
+                    "*Que le nom n'est pas déjà pris",
+                    "*Que vous n'êtes pas déjà dans une ville"
+                ));
             }
         });
     }
@@ -767,42 +781,53 @@ public class TownMainGUI implements Listener {
         double joinCost = plugin.getConfig().getDouble("town.join-cost", 100.0);
 
         if (townManager.joinTown(player, townName, joinCost)) {
-            player.sendMessage(ChatColor.GREEN + "Vous avez rejoint la ville " + ChatColor.GOLD + townName + ChatColor.GREEN + "!");
+            NavigationManager.sendSuccess(player, "Vous avez rejoint la ville " + townName + " !");
             Bukkit.getScheduler().runTaskLater(plugin, () -> openMainMenu(player), 20L);
         } else {
-            player.sendMessage(ChatColor.RED + "Impossible de rejoindre la ville. Vérifiez:");
-            player.sendMessage(ChatColor.GRAY + "- Que vous avez " + joinCost + "€");
-            player.sendMessage(ChatColor.GRAY + "- Que vous n'êtes pas déjà dans une ville");
+            NavigationManager.sendStyledMessage(player, "⚠ ERREUR", Arrays.asList(
+                "!Impossible de rejoindre la ville",
+                "",
+                "Vérifiez:",
+                "*Que vous avez " + String.format("%.2f€", joinCost),
+                "*Que vous n'êtes pas déjà dans une ville"
+            ));
         }
     }
 
     private void handleRenameTown(Player player) {
         String oldTownName = townManager.getPlayerTown(player.getUniqueId());
         if (oldTownName == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
         }
 
-        player.sendMessage(ChatColor.GOLD + "========================================");
-        player.sendMessage(ChatColor.GREEN + "Renommer la ville");
-        player.sendMessage(ChatColor.GRAY + "Tapez le nouveau nom dans le chat");
-        player.sendMessage(ChatColor.GRAY + "(ou tapez 'annuler' pour annuler)");
-        player.sendMessage(ChatColor.GOLD + "========================================");
+        double renameCost = plugin.getConfig().getDouble("town.rename-cost", 5000.0);
+        NavigationManager.sendStyledMessage(player, "✏ RENOMMER LA VILLE", Arrays.asList(
+            "Tapez le nouveau nom dans le chat",
+            "",
+            "Nom actuel: " + oldTownName,
+            "Coût: " + String.format("%.2f€", renameCost),
+            "",
+            "Tapez 'annuler' pour annuler"
+        ));
 
         plugin.getChatListener().waitForInput(player.getUniqueId(), (input) -> {
             if (input.equalsIgnoreCase("annuler")) {
-                player.sendMessage(ChatColor.RED + "Renommage annulé.");
+                NavigationManager.sendInfo(player, "OPÉRATION ANNULÉE", "Renommage annulé.");
                 return;
             }
 
-            double renameCost = plugin.getConfig().getDouble("town.rename-cost", 5000.0);
             if (townManager.renameTown(oldTownName, input, renameCost)) {
-                player.sendMessage(ChatColor.GREEN + "Ville renommée en '" + ChatColor.GOLD + input + ChatColor.GREEN + "' avec succès!");
+                NavigationManager.sendSuccess(player, "Ville renommée en '" + input + "' avec succès !");
                 Bukkit.getScheduler().runTaskLater(plugin, () -> openMainMenu(player), 20L);
             } else {
-                player.sendMessage(ChatColor.RED + "Impossible de renommer la ville. Vérifiez:");
-                player.sendMessage(ChatColor.GRAY + "- Que la ville a " + renameCost + "€ en banque");
-                player.sendMessage(ChatColor.GRAY + "- Que le nom n'est pas déjà pris");
+                NavigationManager.sendStyledMessage(player, "⚠ ERREUR", Arrays.asList(
+                    "!Impossible de renommer la ville",
+                    "",
+                    "Vérifiez:",
+                    "*Que la ville a " + String.format("%.2f€", renameCost) + " en banque",
+                    "*Que le nom n'est pas déjà pris"
+                ));
             }
         });
     }
@@ -810,40 +835,47 @@ public class TownMainGUI implements Listener {
     private void handleDeleteTown(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
         }
 
         Town town = townManager.getTown(townName);
         if (town == null || !town.isMayor(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "Seul le maire peut supprimer la ville.");
+            NavigationManager.sendError(player, "Seul le maire peut supprimer la ville.");
             return;
         }
 
-        player.sendMessage(ChatColor.RED + "========================================");
-        player.sendMessage(ChatColor.DARK_RED + "ATTENTION: Suppression de ville");
-        player.sendMessage(ChatColor.GRAY + "Cette action est IRRÉVERSIBLE!");
-        player.sendMessage(ChatColor.GRAY + "Tapez le nom de la ville pour confirmer:");
-        player.sendMessage(ChatColor.YELLOW + townName);
-        player.sendMessage(ChatColor.GRAY + "(ou tapez 'annuler' pour annuler)");
-        player.sendMessage(ChatColor.RED + "========================================");
+        NavigationManager.sendStyledMessage(player, "⚠ SUPPRESSION DE VILLE", Arrays.asList(
+            "!ATTENTION: Cette action est IRRÉVERSIBLE !",
+            "",
+            "Ville à supprimer: " + townName,
+            "",
+            "*Tous les membres seront expulsés",
+            "*Toutes les parcelles seront libérées",
+            "*La banque de la ville sera perdue",
+            "",
+            "Tapez le nom de la ville pour confirmer:",
+            "→ " + townName,
+            "",
+            "Tapez 'annuler' pour annuler"
+        ));
 
         plugin.getChatListener().waitForInput(player.getUniqueId(), (input) -> {
             if (input.equalsIgnoreCase("annuler")) {
-                player.sendMessage(ChatColor.GREEN + "Suppression annulée.");
+                NavigationManager.sendInfo(player, "OPÉRATION ANNULÉE", "Suppression annulée.");
                 return;
             }
 
             if (!input.equals(townName)) {
-                player.sendMessage(ChatColor.RED + "Le nom ne correspond pas. Suppression annulée.");
+                NavigationManager.sendError(player, "Le nom ne correspond pas. Suppression annulée.");
                 return;
             }
 
             if (townManager.deleteTown(townName)) {
-                player.sendMessage(ChatColor.GREEN + "La ville " + ChatColor.GOLD + townName + ChatColor.GREEN + " a été supprimée.");
+                NavigationManager.sendSuccess(player, "La ville " + townName + " a été supprimée.");
                 Bukkit.getScheduler().runTaskLater(plugin, () -> openMainMenu(player), 20L);
             } else {
-                player.sendMessage(ChatColor.RED + "Impossible de supprimer la ville.");
+                NavigationManager.sendError(player, "Impossible de supprimer la ville.");
             }
         });
     }
@@ -853,7 +885,7 @@ public class TownMainGUI implements Listener {
 
         Town town = townManager.getTown(townName);
         if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
             return;
         }
 

@@ -200,6 +200,19 @@ public class Town {
         return new HashMap<>(plotGroups);
     }
 
+    /**
+     * Retourne tous les groupes de parcelles appartenant à un joueur spécifique
+     */
+    public List<PlotGroup> getPlayerOwnedGroups(UUID playerUuid) {
+        List<PlotGroup> ownedGroups = new ArrayList<>();
+        for (PlotGroup group : plotGroups.values()) {
+            if (group.isOwnedBy(playerUuid)) {
+                ownedGroups.add(group);
+            }
+        }
+        return ownedGroups;
+    }
+
     public PlotGroup findPlotGroupByPlot(Plot plot) {
         return plotGroups.values().stream()
             .filter(group -> group.containsPlot(plot))

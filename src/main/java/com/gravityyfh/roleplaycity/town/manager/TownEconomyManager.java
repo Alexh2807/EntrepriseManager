@@ -22,6 +22,7 @@ public class TownEconomyManager {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final ClaimManager claimManager;
+    private final NotificationManager notificationManager;
 
     // Historique des transactions par ville
     private final Map<String, List<PlotTransaction>> transactionHistory;
@@ -30,6 +31,7 @@ public class TownEconomyManager {
         this.plugin = plugin;
         this.townManager = townManager;
         this.claimManager = claimManager;
+        this.notificationManager = plugin.getNotificationManager();
         this.transactionHistory = new HashMap<>();
     }
 
@@ -41,6 +43,13 @@ public class TownEconomyManager {
     public boolean putPlotForSale(String townName, Plot plot, double price, Player seller) {
         Town town = townManager.getTown(townName);
         if (town == null) {
+            return false;
+        }
+
+        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        if (town.isPlotInAnyGroup(plot)) {
+            seller.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
+            seller.sendMessage(ChatColor.YELLOW + "Vous devez vendre le groupe entier depuis 'Mes Propriétés'.");
             return false;
         }
 
@@ -76,6 +85,13 @@ public class TownEconomyManager {
     public boolean buyPlot(String townName, Plot plot, Player buyer) {
         Town town = townManager.getTown(townName);
         if (town == null || !plot.isForSale()) {
+            return false;
+        }
+
+        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        if (town.isPlotInAnyGroup(plot)) {
+            buyer.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
+            buyer.sendMessage(ChatColor.YELLOW + "Vous devez acheter le groupe entier.");
             return false;
         }
 
@@ -199,6 +215,13 @@ public class TownEconomyManager {
             buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
         }
 
+        // Notification d'achat
+        notificationManager.notifyPurchaseSuccess(
+            buyer.getUniqueId(),
+            "Terrain " + plot.getCoordinates(),
+            price
+        );
+
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
         return true;
@@ -212,6 +235,13 @@ public class TownEconomyManager {
     public boolean putPlotForRent(String townName, Plot plot, double totalPrice, int durationDays, Player owner) {
         Town town = townManager.getTown(townName);
         if (town == null) {
+            return false;
+        }
+
+        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        if (town.isPlotInAnyGroup(plot)) {
+            owner.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
+            owner.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier depuis 'Mes Propriétés'.");
             return false;
         }
 
@@ -256,9 +286,22 @@ public class TownEconomyManager {
             return false;
         }
 
+        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        if (town.isPlotInAnyGroup(plot)) {
+            renter.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
+            renter.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier.");
+            return false;
+        }
+
         // Vérifier que le locataire est membre de la ville
         if (!town.isMember(renter.getUniqueId())) {
             renter.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour louer une parcelle.");
+            return false;
+        }
+
+        // NOUVEAU : Empêcher le propriétaire de louer son propre terrain
+        if (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous ne pouvez pas louer votre propre parcelle !");
             return false;
         }
 
@@ -307,6 +350,14 @@ public class TownEconomyManager {
 
         renter.sendMessage(ChatColor.GREEN + "Vous avez loué la parcelle " + plot.getCoordinates() +
             " pour " + actualDays + " jours !");
+
+        // Notification de location
+        notificationManager.notifyRentalSuccess(
+            renter.getUniqueId(),
+            "Terrain " + plot.getCoordinates(),
+            actualDays,
+            totalCost
+        );
 
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
@@ -402,6 +453,13 @@ public class TownEconomyManager {
                             plot.getCoordinates() + " a expiré.");
                     }
 
+                    // Notification d'expiration
+                    notificationManager.notifyRentExpired(
+                        renterUuid,
+                        "Terrain " + plot.getCoordinates(),
+                        town.getName()
+                    );
+
                     plot.clearRenter();
                     plot.setForRent(true); // Remettre en location
                     plugin.getLogger().info("Location expirée pour parcelle " + plot.getCoordinates() +
@@ -415,6 +473,7 @@ public class TownEconomyManager {
 
     /**
      * Collecte les taxes de toutes les parcelles d'une ville
+     * SYSTÈME AUTOMATIQUE : Gère les groupes de terrains automatiquement
      */
     public TaxCollectionResult collectTaxes(String townName) {
         Town town = townManager.getTown(townName);
@@ -426,7 +485,83 @@ public class TownEconomyManager {
         int parcelsWithTax = 0;
         List<String> unpaidPlayers = new ArrayList<>();
 
+        // SYSTÈME AUTOMATIQUE : Collecter d'abord les taxes des groupes
+        Set<String> plotsInGroupsProcessed = new HashSet<>();
+        for (PlotGroup group : town.getPlotGroups().values()) {
+            // Marquer toutes les parcelles du groupe comme traitées
+            plotsInGroupsProcessed.addAll(group.getPlotKeys());
+
+            // Calculer la taxe totale du groupe (somme des taxes de toutes les parcelles)
+            double groupTax = 0;
+            List<Plot> groupPlots = new ArrayList<>();
+            for (String plotKey : group.getPlotKeys()) {
+                String[] parts = plotKey.split(":");
+                if (parts.length == 3) {
+                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                    if (plot != null) {
+                        groupPlots.add(plot);
+                        groupTax += plot.getDailyTax();
+                    }
+                }
+            }
+
+            if (groupTax <= 0) {
+                continue; // Pas de taxe pour ce groupe
+            }
+
+            // Déterminer qui paie pour le groupe
+            UUID payerUuid = group.getRenterUuid() != null ? group.getRenterUuid() : group.getOwnerUuid();
+            if (payerUuid == null) {
+                continue; // Pas de payeur
+            }
+
+            Player payer = Bukkit.getPlayer(payerUuid);
+            if (payer == null || !payer.isOnline()) {
+                unpaidPlayers.add(group.getOwnerName() != null ? group.getOwnerName() : payerUuid.toString());
+                continue; // Joueur offline
+            }
+
+            // Prélever la taxe du groupe
+            if (RoleplayCity.getEconomy().has(payer, groupTax)) {
+                RoleplayCity.getEconomy().withdrawPlayer(payer, groupTax);
+                town.deposit(groupTax);
+                totalCollected += groupTax;
+                parcelsWithTax += groupPlots.size(); // Compter toutes les parcelles du groupe
+
+                payer.sendMessage(ChatColor.YELLOW + "Taxe groupe: " + ChatColor.GOLD + String.format("%.2f€", groupTax) +
+                    ChatColor.GRAY + " prélevée pour " + group.getGroupName() +
+                    ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+
+                // Enregistrer la transaction
+                addTransaction(townName, new PlotTransaction(
+                    PlotTransaction.TransactionType.TAX,
+                    payerUuid,
+                    payer.getName(),
+                    groupTax,
+                    "Taxe groupe " + group.getGroupName()
+                ));
+            } else {
+                unpaidPlayers.add(payer.getName());
+                payer.sendMessage(ChatColor.RED + "Vous n'avez pas pu payer la taxe de " + String.format("%.2f€", groupTax) +
+                    " pour le groupe " + group.getGroupName());
+
+                // Notification de taxe impayée
+                notificationManager.notifyTaxDue(
+                    payerUuid,
+                    townName,
+                    groupTax
+                );
+            }
+        }
+
+        // Puis collecter les taxes des parcelles individuelles (non groupées)
         for (Plot plot : town.getPlots().values()) {
+            // SYSTÈME AUTOMATIQUE : Ignorer les parcelles qui font partie d'un groupe
+            String plotKey = plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ();
+            if (plotsInGroupsProcessed.contains(plotKey)) {
+                continue; // Cette parcelle est dans un groupe, déjà traitée
+            }
+
             double tax = plot.getDailyTax();
             if (tax <= 0) {
                 continue; // Pas de taxe pour cette parcelle
@@ -552,6 +687,13 @@ public class TownEconomyManager {
                 unpaidPlayers.add(payer.getName());
                 payer.sendMessage(ChatColor.RED + "Vous n'avez pas pu payer la taxe de " + tax +
                     "€ pour la parcelle " + plot.getCoordinates());
+
+                // Notification de taxe impayée
+                notificationManager.notifyTaxDue(
+                    payerUuid,
+                    townName,
+                    tax
+                );
             }
         }
 
@@ -829,6 +971,13 @@ public class TownEconomyManager {
             transactionLabel
         ));
 
+        // Notification d'achat de groupe
+        notificationManager.notifyPurchaseSuccess(
+            buyer.getUniqueId(),
+            "Groupe '" + group.getGroupName() + "' (" + group.getPlotCount() + " terrains)",
+            price
+        );
+
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
         return true;
@@ -894,6 +1043,12 @@ public class TownEconomyManager {
             return false;
         }
 
+        // NOUVEAU : Empêcher le propriétaire de louer son propre groupe
+        if (group.getOwnerUuid() != null && group.getOwnerUuid().equals(renter.getUniqueId())) {
+            renter.sendMessage(ChatColor.RED + "Vous ne pouvez pas louer votre propre groupe de parcelles !");
+            return false;
+        }
+
         int actualDays = Math.min(days, 30);
         double totalCost = group.getRentPricePerDay() * actualDays;
 
@@ -951,6 +1106,14 @@ public class TownEconomyManager {
             totalCost,
             "Location groupe: " + group.getGroupName()
         ));
+
+        // Notification de location de groupe
+        notificationManager.notifyRentalSuccess(
+            renter.getUniqueId(),
+            "Groupe '" + group.getGroupName() + "' (" + group.getPlotCount() + " terrains)",
+            actualDays,
+            totalCost
+        );
 
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
@@ -1053,6 +1216,13 @@ public class TownEconomyManager {
                     if (renter != null && renter.isOnline()) {
                         renter.sendMessage(ChatColor.RED + "Votre location du groupe '" + group.getGroupName() + "' a expiré.");
                     }
+
+                    // Notification d'expiration de groupe
+                    notificationManager.notifyRentExpired(
+                        group.getRenterUuid(),
+                        "Groupe '" + group.getGroupName() + "'",
+                        townName
+                    );
 
                     // Retirer la location du groupe
                     group.clearRenter();

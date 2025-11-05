@@ -53,11 +53,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI townCitizenFinesGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownMembersGUI townMembersGUI;
     private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
+    private com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI plotGroupDetailGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI myPropertyGUI;
+    private com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI rentedPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
+    private com.gravityyfh.roleplaycity.town.manager.NotificationManager notificationManager;
 
     public void onEnable() {
         instance = this;
@@ -97,6 +100,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townDataManager = new TownDataManager(this);
         townManager = new TownManager(this);
         claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
+
+        // Système de notifications (DOIT être créé AVANT TownEconomyManager)
+        notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this);
+        notificationManager.scheduleAutomaticNotifications();
+
+        // Managers qui dépendent du NotificationManager
         townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager, claimManager);
         companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager, entrepriseLogic);
 
@@ -116,7 +125,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townJusticeGUI = new com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI(this, townManager, townPoliceManager, townJusticeManager);
         townCitizenFinesGUI = new com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI(this, townPoliceManager);
         plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this, townManager, claimManager);
+        plotGroupDetailGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI(this, townManager, claimManager);
         myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager, townMainGUI);
+        rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, myPropertyGUI);
         myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
 
         // Listeners
@@ -165,6 +176,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Town Event Listener (remplace TownyListener)
         townEventListener = new TownEventListener(this, entrepriseLogic);
 
+        // PlaceholderAPI integration
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new com.gravityyfh.roleplaycity.integration.RoleplayCityPlaceholders(this).register();
+            getLogger().info("PlaceholderAPI détecté - Placeholders enregistrés avec succès.");
+        } else {
+            getLogger().warning("PlaceholderAPI non trouvé - Les placeholders ne seront pas disponibles.");
+        }
+
         getLogger().info("Tous les composants ont été initialisés avec succès.");
     }
 
@@ -198,15 +217,16 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             blockPlaceListener, craftItemListener, smithItemListener,
             entityDamageListener, entityDeathListener, treeCutListener,
             townMainGUI, townMembersGUI, townClaimsGUI, townBankGUI, townPlotManagementGUI, plotOwnerGUI, // GUI du système de ville
-            myPropertyGUI, myCompaniesGUI, // GUI Mes Propriétés et Mes Entreprises
+            myPropertyGUI, rentedPropertyGUI, myCompaniesGUI, // GUI Mes Propriétés et Mes Entreprises
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
-            plotGroupManagementGUI, // GUI Regroupement de parcelles
+            plotGroupManagementGUI, plotGroupDetailGUI, // GUI Regroupement de parcelles
             townProtectionListener, // Protection des territoires de ville
             plotGroupingListener, // Système interactif de groupement de parcelles
             new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
             townEventListener, // Événements de ville (suppression, départ membres)
             new EventListener(this, entrepriseLogic),
-            new PlayerConnectionListener(this, entrepriseLogic)
+            new PlayerConnectionListener(this, entrepriseLogic),
+            new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les notifications
         };
 
         for (Listener listener : listeners) {
@@ -291,7 +311,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() { return townFinesDataManager; }
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI getPlotGroupDetailGUI() { return plotGroupDetailGUI; }
     public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() { return townPlotManagementGUI; }
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI getMyPropertyGUI() { return myPropertyGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI getRentedPropertyGUI() { return rentedPropertyGUI; }
     public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
+    public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() { return notificationManager; }
 }

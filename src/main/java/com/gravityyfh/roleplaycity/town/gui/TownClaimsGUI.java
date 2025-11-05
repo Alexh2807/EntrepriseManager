@@ -146,17 +146,49 @@ public class TownClaimsGUI implements Listener {
         infoItem.setItemMeta(infoMeta);
         inv.setItem(15, infoItem);
 
-        // Gérer cette parcelle (si claimée)
+        // SYSTÈME CONTEXTUEL : Détecter si on est sur un groupe ou une parcelle individuelle
+        Plot currentPlot = claimManager.getPlotAt(currentChunk);
+        com.gravityyfh.roleplaycity.town.data.PlotGroup currentGroup = null;
+        boolean isOnGroup = false;
+
+        if (currentPlot != null && claimManager.isClaimed(currentChunk) && claimManager.getClaimOwner(currentChunk).equals(townName)) {
+            currentGroup = town.findPlotGroupByPlot(currentPlot);
+            isOnGroup = (currentGroup != null);
+        }
+
+        // Option contextuelle : Gérer ce terrain (parcelle OU groupe)
         if (claimManager.isClaimed(currentChunk) && claimManager.getClaimOwner(currentChunk).equals(townName)) {
-            ItemStack managePlotItem = new ItemStack(Material.WRITABLE_BOOK);
+            ItemStack managePlotItem = new ItemStack(isOnGroup ? Material.ENDER_CHEST : Material.WRITABLE_BOOK);
             ItemMeta managePlotMeta = managePlotItem.getItemMeta();
-            managePlotMeta.setDisplayName(ChatColor.BLUE + "Gérer cette Parcelle");
-            List<String> managePlotLore = new ArrayList<>();
-            managePlotLore.add(ChatColor.GRAY + "Vendre, louer ou");
-            managePlotLore.add(ChatColor.GRAY + "modifier cette parcelle");
-            managePlotLore.add("");
-            managePlotLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
-            managePlotMeta.setLore(managePlotLore);
+
+            if (isOnGroup) {
+                // On est sur un groupe
+                int totalSurface = currentGroup.getPlotCount() * 256;
+                managePlotMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Gérer ce Groupe de Terrains");
+                List<String> managePlotLore = new ArrayList<>();
+                managePlotLore.add(ChatColor.GRAY + "─────────────────");
+                managePlotLore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + currentGroup.getGroupName());
+                managePlotLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + currentGroup.getPlotCount());
+                managePlotLore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + totalSurface + "m²");
+                managePlotLore.add(ChatColor.GRAY + "─────────────────");
+                managePlotLore.add(ChatColor.GRAY + "Vendre, louer ou modifier");
+                managePlotLore.add(ChatColor.GRAY + "ce groupe comme un seul terrain");
+                managePlotLore.add("");
+                managePlotLore.add(ChatColor.GREEN + "Cliquez pour gérer ce groupe");
+                managePlotMeta.setLore(managePlotLore);
+            } else {
+                // Parcelle individuelle
+                managePlotMeta.setDisplayName(ChatColor.BLUE + "Gérer cette Parcelle");
+                List<String> managePlotLore = new ArrayList<>();
+                managePlotLore.add(ChatColor.GRAY + "Surface: " + ChatColor.WHITE + "256m² (1 chunk)");
+                managePlotLore.add(ChatColor.GRAY + "─────────────────");
+                managePlotLore.add(ChatColor.GRAY + "Vendre, louer ou");
+                managePlotLore.add(ChatColor.GRAY + "modifier cette parcelle");
+                managePlotLore.add("");
+                managePlotLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
+                managePlotMeta.setLore(managePlotLore);
+            }
+
             managePlotItem.setItemMeta(managePlotMeta);
             inv.setItem(20, managePlotItem);
         }
@@ -174,23 +206,42 @@ public class TownClaimsGUI implements Listener {
         statsItem.setItemMeta(statsMeta);
         inv.setItem(22, statsItem);
 
-        // Gérer les regroupements de terrains
+        // Option contextuelle : Assembler/Désassembler selon le contexte
         TownRole role = town.getMemberRole(player.getUniqueId());
         if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
-            ItemStack groupItem = new ItemStack(Material.CHEST_MINECART);
-            ItemMeta groupMeta = groupItem.getItemMeta();
-            groupMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Gérer les Regroupements de Terrains");
-            List<String> groupLore = new ArrayList<>();
-            groupLore.add(ChatColor.GRAY + "Assembler plusieurs parcelles");
-            groupLore.add(ChatColor.GRAY + "en un seul grand terrain");
-            groupLore.add("");
-            groupLore.add(ChatColor.YELLOW + "• Minimum 2 parcelles privées");
-            groupLore.add(ChatColor.YELLOW + "• Même propriétaire requis");
-            groupLore.add("");
-            groupLore.add(ChatColor.AQUA + "Cliquez pour gérer les groupes");
-            groupMeta.setLore(groupLore);
-            groupItem.setItemMeta(groupMeta);
-            inv.setItem(24, groupItem);
+            if (isOnGroup) {
+                // On est sur un groupe : proposer de DÉSASSEMBLER
+                ItemStack ungroupItem = new ItemStack(Material.SHEARS);
+                ItemMeta ungroupMeta = ungroupItem.getItemMeta();
+                ungroupMeta.setDisplayName(ChatColor.RED + "Désassembler ce Groupe");
+                List<String> ungroupLore = new ArrayList<>();
+                ungroupLore.add(ChatColor.GRAY + "Séparer ce groupe en");
+                ungroupLore.add(ChatColor.GRAY + "parcelles individuelles");
+                ungroupLore.add("");
+                ungroupLore.add(ChatColor.YELLOW + "Groupe actuel: " + ChatColor.WHITE + currentGroup.getPlotCount() + " parcelles");
+                ungroupLore.add("");
+                ungroupLore.add(ChatColor.RED + "Cliquez pour désassembler");
+                ungroupMeta.setLore(ungroupLore);
+                ungroupItem.setItemMeta(ungroupMeta);
+                inv.setItem(24, ungroupItem);
+            } else if (currentPlot != null) {
+                // Parcelle individuelle : proposer d'ASSEMBLER
+                ItemStack groupItem = new ItemStack(Material.CHAIN);
+                ItemMeta groupMeta = groupItem.getItemMeta();
+                groupMeta.setDisplayName(ChatColor.AQUA + "Assembler avec d'autres Terrains");
+                List<String> groupLore = new ArrayList<>();
+                groupLore.add(ChatColor.GRAY + "Créer un grand terrain en");
+                groupLore.add(ChatColor.GRAY + "assemblant des parcelles adjacentes");
+                groupLore.add("");
+                groupLore.add(ChatColor.YELLOW + "• Minimum 2 parcelles");
+                groupLore.add(ChatColor.YELLOW + "• Doivent être adjacentes");
+                groupLore.add(ChatColor.YELLOW + "• Même propriétaire");
+                groupLore.add("");
+                groupLore.add(ChatColor.GREEN + "Cliquez pour assembler");
+                groupMeta.setLore(groupLore);
+                groupItem.setItemMeta(groupMeta);
+                inv.setItem(24, groupItem);
+            }
         }
 
         // Fermer
@@ -254,8 +305,8 @@ public class TownClaimsGUI implements Listener {
                 handleUnclaim(player, townName, town, currentChunk);
             }
         }
-        // === GÉRER PARCELLE : Admin OU Propriétaire/Locataire ===
-        else if (displayName.contains("Gérer cette Parcelle")) {
+        // === GÉRER TERRAIN : Contextuel (Parcelle OU Groupe) ===
+        else if (displayName.contains("Gérer cette Parcelle") || displayName.contains("Gérer ce Groupe")) {
             Plot plot = claimManager.getPlotAt(currentChunk);
             boolean isAdmin = (role != null && (role.canManageClaims() || role == TownRole.MAIRE));
             boolean isOwnerOrRenter = (plot != null &&
@@ -268,25 +319,68 @@ public class TownClaimsGUI implements Listener {
             }
 
             player.closeInventory();
-            if (plotManagementGUI != null) {
-                plotManagementGUI.openPlotMenu(player);
-            } else {
-                player.sendMessage(ChatColor.RED + "Le système de gestion de parcelles n'est pas disponible.");
+
+            if (plot != null) {
+                com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
+                if (group != null) {
+                    // Groupe : ouvrir le GUI de gestion de groupe
+                    plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, group.getGroupId());
+                } else {
+                    // Parcelle individuelle : ouvrir le GUI normal
+                    if (plotManagementGUI != null) {
+                        plotManagementGUI.openPlotMenu(player);
+                    } else {
+                        player.sendMessage(ChatColor.RED + "Le système de gestion de parcelles n'est pas disponible.");
+                    }
+                }
             }
         }
-        // === GÉRER REGROUPEMENTS : Admin OU possède des terrains ===
-        else if (displayName.contains("Gérer les Regroupements de Terrains")) {
-            boolean isAdmin = (role != null && (role.canManageClaims() || role == TownRole.MAIRE));
-            boolean ownsPlots = hasOwnedPlots(player, town);
-
-            if (!isAdmin && !ownsPlots) {
-                player.sendMessage(ChatColor.RED + "Vous devez posséder des terrains ou être administrateur.");
+        // === ASSEMBLER : Créer un nouveau groupe ===
+        else if (displayName.contains("Assembler avec d'autres Terrains")) {
+            if (role == null || (role != TownRole.MAIRE && role != TownRole.ADJOINT)) {
+                player.sendMessage(ChatColor.RED + "Seuls le Maire et l'Adjoint peuvent assembler des terrains.");
                 player.closeInventory();
                 return;
             }
 
             player.closeInventory();
-            plugin.getPlotGroupManagementGUI().openMainMenu(player, townName);
+            // Lancer le mode de groupement interactif
+            plugin.getPlotGroupingListener().startGroupingSession(player, townName);
+        }
+        // === DÉSASSEMBLER : Supprimer un groupe ===
+        else if (displayName.contains("Désassembler ce Groupe")) {
+            if (role == null || (role != TownRole.MAIRE && role != TownRole.ADJOINT)) {
+                player.sendMessage(ChatColor.RED + "Seuls le Maire et l'Adjoint peuvent désassembler des groupes.");
+                player.closeInventory();
+                return;
+            }
+
+            Plot plot = claimManager.getPlotAt(currentChunk);
+            if (plot != null) {
+                com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
+                if (group != null) {
+                    // Vérifier si le groupe est loué
+                    if (group.getRenterUuid() != null) {
+                        player.sendMessage(ChatColor.RED + "Impossible de désassembler ce groupe : il est actuellement loué !");
+                        player.closeInventory();
+                        return;
+                    }
+
+                    // Désassembler directement le groupe
+                    String groupName = group.getGroupName();
+                    int plotCount = group.getPlotCount();
+
+                    town.removePlotGroup(group.getGroupId());
+                    townManager.saveTownsNow();
+
+                    player.closeInventory();
+                    player.sendMessage(ChatColor.GREEN + "Groupe '" + groupName + "' désassemblé avec succès !");
+                    player.sendMessage(ChatColor.GRAY + "" + plotCount + " parcelles sont maintenant individuelles.");
+                } else {
+                    player.sendMessage(ChatColor.RED + "Aucun groupe détecté sur ce terrain.");
+                    player.closeInventory();
+                }
+            }
         }
         // === FERMER ===
         else if (displayName.contains("Fermer")) {

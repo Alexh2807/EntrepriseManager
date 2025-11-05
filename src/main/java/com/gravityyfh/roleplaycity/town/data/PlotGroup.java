@@ -33,6 +33,9 @@ public class PlotGroup {
     private LocalDateTime rentStartDate;
     private LocalDateTime lastRentUpdate;
 
+    // NOUVEAU : Tracker des blocs placés par le locataire
+    private RenterBlockTracker renterBlockTracker;
+
     public PlotGroup(String groupId, String townName) {
         this.groupId = groupId;
         this.townName = townName;
@@ -41,6 +44,9 @@ public class PlotGroup {
         this.forRent = false;
         this.forSale = false;
         this.rentDaysRemaining = 0;
+        this.renterBlockTracker = new RenterBlockTracker();
+        // Initialiser avec un nom par défaut
+        this.groupName = "Groupe-" + groupId.substring(0, 8);
     }
 
     /**
@@ -148,10 +154,16 @@ public class PlotGroup {
      * Retire le locataire actuel
      */
     public void clearRenter() {
+        UUID oldRenter = this.renterUuid;
         this.renterUuid = null;
         this.rentDaysRemaining = 0;
         this.rentStartDate = null;
         this.lastRentUpdate = null;
+
+        // NOUVEAU : Nettoyer le tracker des blocs du locataire
+        if (oldRenter != null && renterBlockTracker != null) {
+            renterBlockTracker.clearRenter(oldRenter);
+        }
     }
 
     /**
@@ -261,5 +273,9 @@ public class PlotGroup {
 
     public void setLastRentUpdate(LocalDateTime lastRentUpdate) {
         this.lastRentUpdate = lastRentUpdate;
+    }
+
+    public RenterBlockTracker getRenterBlockTracker() {
+        return renterBlockTracker;
     }
 }

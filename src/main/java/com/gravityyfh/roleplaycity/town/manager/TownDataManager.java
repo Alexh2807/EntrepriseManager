@@ -134,6 +134,26 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".protected-blocks", new ArrayList<>(plot.getProtectedBlocks()));
                 }
 
+                // NOUVEAU : Sauvegarder le RenterBlockTracker
+                if (plot.getRenterBlockTracker() != null) {
+                    Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks =
+                        plot.getRenterBlockTracker().getAllBlocks();
+                    if (!renterBlocks.isEmpty()) {
+                        int renterBlockIndex = 0;
+                        for (Map.Entry<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterEntry : renterBlocks.entrySet()) {
+                            String renterBlockPath = plotPath + ".renter-blocks." + renterBlockIndex;
+                            townsConfig.set(renterBlockPath + ".renter-uuid", renterEntry.getKey().toString());
+
+                            List<String> blockPositions = new ArrayList<>();
+                            for (com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos : renterEntry.getValue()) {
+                                blockPositions.add(blockPos.serialize());
+                            }
+                            townsConfig.set(renterBlockPath + ".blocks", blockPositions);
+                            renterBlockIndex++;
+                        }
+                    }
+                }
+
                 // Permissions des joueurs
                 Map<UUID, Set<PlotPermission>> playerPerms = plot.getAllPlayerPermissions();
                 if (!playerPerms.isEmpty()) {
@@ -199,6 +219,26 @@ public class TownDataManager {
                     townsConfig.set(groupPath + ".rent-start", group.getRentStartDate().format(DATE_FORMAT));
                     townsConfig.set(groupPath + ".last-rent-update", group.getLastRentUpdate().format(DATE_FORMAT));
                     townsConfig.set(groupPath + ".rent-days-remaining", group.getRentDaysRemaining());
+                }
+
+                // NOUVEAU : Sauvegarder le RenterBlockTracker du groupe
+                if (group.getRenterBlockTracker() != null) {
+                    Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks =
+                        group.getRenterBlockTracker().getAllBlocks();
+                    if (!renterBlocks.isEmpty()) {
+                        int renterBlockIndex = 0;
+                        for (Map.Entry<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterEntry : renterBlocks.entrySet()) {
+                            String renterBlockPath = groupPath + ".renter-blocks." + renterBlockIndex;
+                            townsConfig.set(renterBlockPath + ".renter-uuid", renterEntry.getKey().toString());
+
+                            List<String> blockPositions = new ArrayList<>();
+                            for (com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos : renterEntry.getValue()) {
+                                blockPositions.add(blockPos.serialize());
+                            }
+                            townsConfig.set(renterBlockPath + ".blocks", blockPositions);
+                            renterBlockIndex++;
+                        }
+                    }
                 }
 
                 groupIndex++;
@@ -463,6 +503,39 @@ public class TownDataManager {
             }
         }
 
+        // NOUVEAU : Charger le RenterBlockTracker
+        ConfigurationSection renterBlocksSection = section.getConfigurationSection("renter-blocks");
+        if (renterBlocksSection != null) {
+            Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks = new HashMap<>();
+            for (String key : renterBlocksSection.getKeys(false)) {
+                ConfigurationSection renterBlockSection = renterBlocksSection.getConfigurationSection(key);
+                if (renterBlockSection != null) {
+                    try {
+                        UUID renterUuid = UUID.fromString(renterBlockSection.getString("renter-uuid"));
+                        List<String> blocksList = renterBlockSection.getStringList("blocks");
+
+                        Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition> blocks = new HashSet<>();
+                        for (String blockStr : blocksList) {
+                            com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos =
+                                com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition.deserialize(blockStr);
+                            if (blockPos != null) {
+                                blocks.add(blockPos);
+                            }
+                        }
+
+                        if (!blocks.isEmpty()) {
+                            renterBlocks.put(renterUuid, blocks);
+                        }
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Erreur lors du chargement des blocs locataire: " + e.getMessage());
+                    }
+                }
+            }
+            if (!renterBlocks.isEmpty()) {
+                plot.getRenterBlockTracker().loadBlocks(renterBlocks);
+            }
+        }
+
         // Charger les permissions
         ConfigurationSection permsSection = section.getConfigurationSection("permissions");
         if (permsSection != null) {
@@ -568,6 +641,39 @@ public class TownDataManager {
                 } catch (Exception e) {
                     plugin.getLogger().warning("Erreur lors du chargement de last-rent-update du groupe");
                 }
+            }
+        }
+
+        // NOUVEAU : Charger le RenterBlockTracker du groupe
+        ConfigurationSection renterBlocksSection = section.getConfigurationSection("renter-blocks");
+        if (renterBlocksSection != null) {
+            Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks = new HashMap<>();
+            for (String key : renterBlocksSection.getKeys(false)) {
+                ConfigurationSection renterBlockSection = renterBlocksSection.getConfigurationSection(key);
+                if (renterBlockSection != null) {
+                    try {
+                        UUID renterUuid = UUID.fromString(renterBlockSection.getString("renter-uuid"));
+                        List<String> blocksList = renterBlockSection.getStringList("blocks");
+
+                        Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition> blocks = new HashSet<>();
+                        for (String blockStr : blocksList) {
+                            com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos =
+                                com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition.deserialize(blockStr);
+                            if (blockPos != null) {
+                                blocks.add(blockPos);
+                            }
+                        }
+
+                        if (!blocks.isEmpty()) {
+                            renterBlocks.put(renterUuid, blocks);
+                        }
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Erreur lors du chargement des blocs locataire du groupe: " + e.getMessage());
+                    }
+                }
+            }
+            if (!renterBlocks.isEmpty()) {
+                group.getRenterBlockTracker().loadBlocks(renterBlocks);
             }
         }
 

@@ -39,6 +39,9 @@ public class Plot {
     // Blocs existants lors de la mise en location (protégés contre le locataire)
     private Set<String> protectedBlocks; // Format: "x:y:z"
 
+    // NOUVEAU : Tracker des blocs placés par le locataire
+    private RenterBlockTracker renterBlockTracker;
+
     private final LocalDateTime claimDate;
 
     // Système de permissions par joueur
@@ -64,6 +67,7 @@ public class Plot {
         this.companyDebtAmount = 0.0;
         this.debtWarningCount = 0;
         this.protectedBlocks = new HashSet<>();
+        this.renterBlockTracker = new RenterBlockTracker();
         this.playerPermissions = new HashMap<>();
         this.trustedPlayers = new HashSet<>();
         this.flags = new EnumMap<>(PlotFlag.class);
@@ -111,6 +115,7 @@ public class Plot {
     public int getRentDaysRemaining() { return rentDaysRemaining; }
     public LocalDateTime getClaimDate() { return claimDate; }
     public Set<String> getProtectedBlocks() { return new HashSet<>(protectedBlocks); }
+    public RenterBlockTracker getRenterBlockTracker() { return renterBlockTracker; }
 
     // Setters
     public void setType(PlotType type) { this.type = type; }
@@ -180,11 +185,17 @@ public class Plot {
     }
 
     public void clearRenter() {
+        UUID oldRenter = this.renterUuid;
         this.renterUuid = null;
         this.rentStartDate = null;
         this.lastRentUpdate = null;
         this.rentDaysRemaining = 0;
         this.protectedBlocks.clear();
+
+        // NOUVEAU : Nettoyer le tracker des blocs du locataire
+        if (oldRenter != null && renterBlockTracker != null) {
+            renterBlockTracker.clearRenter(oldRenter);
+        }
     }
 
     /**

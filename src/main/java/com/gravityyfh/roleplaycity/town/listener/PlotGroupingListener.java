@@ -12,15 +12,15 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.ChatColor;
-import org.bukkit.Chunk;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.Particle;
 
 import java.util.*;
 
@@ -35,6 +35,18 @@ public class PlotGroupingListener implements Listener {
 
     // Sessions actives de groupement
     private final Map<UUID, GroupingSession> activeSessions = new HashMap<>();
+
+    // Anti-spam pour éviter les doubles clics
+    private final Map<UUID, Long> lastClickTime = new HashMap<>();
+    private static final long CLICK_COOLDOWN = 500; // 500ms entre chaque clic
+
+    // Schedulers pour les indicateurs visuels persistants
+    private final Map<UUID, Integer> visualTaskIds = new HashMap<>();
+
+    // Couleurs RGB pour les particules
+    private static final Particle.DustOptions COLOR_GREEN = new Particle.DustOptions(Color.fromRGB(0, 255, 0), 1.5f);
+    private static final Particle.DustOptions COLOR_BLUE = new Particle.DustOptions(Color.fromRGB(0, 200, 255), 1.5f);
+    private static final Particle.DustOptions COLOR_RED = new Particle.DustOptions(Color.fromRGB(255, 0, 0), 1.5f);
 
     /**
      * Classe pour représenter une session de groupement
@@ -78,19 +90,46 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
+        // NOUVELLE RESTRICTION : Seuls le Maire et l'Adjoint peuvent regrouper des parcelles
+        boolean isMayorOrAdjoint = town.isMayor(player.getUniqueId()) ||
+                                   (member != null && member.hasRole(com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT));
+
+        if (!isMayorOrAdjoint) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.RED + "⚠ PERMISSION INSUFFISANTE ⚠");
+            player.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.YELLOW + "Seuls le Maire et l'Adjoint peuvent");
+            player.sendMessage(ChatColor.YELLOW + "regrouper des parcelles !");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GRAY + "Les terrains appartiennent à la ville,");
+            player.sendMessage(ChatColor.GRAY + "le regroupement est une décision municipale.");
+            player.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+            return;
+        }
+
         GroupingSession session = new GroupingSession(townName);
         activeSessions.put(player.getUniqueId(), session);
 
+        // Démarrer l'affichage persistant des particules
+        startVisualTask(player, session);
+
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "MODE GROUPEMENT DE PARCELLES");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
         player.sendMessage(ChatColor.YELLOW + "Instructions:");
         player.sendMessage(ChatColor.WHITE + "→ Faites un " + ChatColor.AQUA + "clic droit" + ChatColor.WHITE + " sur les parcelles à grouper");
         player.sendMessage(ChatColor.WHITE + "→ Seules les parcelles " + ChatColor.GOLD + "privées" + ChatColor.WHITE + " peuvent être groupées");
         player.sendMessage(ChatColor.WHITE + "→ Minimum 2 parcelles requises");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.YELLOW + "Indicateurs visuels (particules):");
+        player.sendMessage(ChatColor.GREEN + "  ● Vert" + ChatColor.GRAY + " = Parcelle sélectionnée");
+        player.sendMessage(ChatColor.AQUA + "  ● Bleu" + ChatColor.GRAY + " = Parcelle adjacente disponible");
+        player.sendMessage(ChatColor.RED + "  ● Rouge" + ChatColor.GRAY + " = Parcelle non-adjacente (impossible)");
+        player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Session active pendant 5 minutes");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
         player.sendMessage("");
 
         // Envoyer le bouton cliquable pour terminer
@@ -146,13 +185,17 @@ public class PlotGroupingListener implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        GroupingSession session = activeSessions.get(player.getUniqueId());
+        UUID playerUuid = player.getUniqueId();
+
+        GroupingSession session = activeSessions.get(playerUuid);
 
         if (session == null) return;
 
         // Vérifier expiration
         if (session.isExpired()) {
-            activeSessions.remove(player.getUniqueId());
+            cleanupSession(playerUuid);
+            activeSessions.remove(playerUuid);
+            lastClickTime.remove(playerUuid);
             player.sendMessage(ChatColor.RED + "Session de groupement expirée.");
             return;
         }
@@ -162,10 +205,25 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
+        // PROTECTION ANTI-DOUBLE-CLIC
+        long currentTime = System.currentTimeMillis();
+        Long lastClick = lastClickTime.get(playerUuid);
+        if (lastClick != null && (currentTime - lastClick) < CLICK_COOLDOWN) {
+            event.setCancelled(true);
+            return;
+        }
+        lastClickTime.put(playerUuid, currentTime);
+
         // Annuler l'événement pour éviter d'ouvrir des GUIs ou placer des blocs
         event.setCancelled(true);
 
-        Chunk chunk = player.getLocation().getChunk();
+        // Utiliser le chunk du bloc cliqué, pas celui du joueur
+        if (event.getClickedBlock() == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Bloc non détecté. Réessayez.");
+            return;
+        }
+
+        Chunk chunk = event.getClickedBlock().getChunk();
         String claimOwner = claimManager.getClaimOwner(chunk);
 
         if (claimOwner == null || !claimOwner.equals(session.townName)) {
@@ -192,66 +250,36 @@ public class PlotGroupingListener implements Listener {
             return;
         }
 
-        // Vérifier permissions
-        TownMember playerMember = town.getMember(player.getUniqueId());
-        boolean isMayorOrAdjoint = town.isMayor(player.getUniqueId()) ||
-                                    (playerMember != null && playerMember.hasRole(com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT));
+        // === Validation simplifiée (seuls Maire/Adjoint peuvent regrouper) ===
+        // Puisque seuls le Maire et l'Adjoint peuvent démarrer une session,
+        // on n'a plus besoin de vérifications complexes ici.
 
-        // === Validation selon le rôle ===
-        if (isMayorOrAdjoint) {
-            // MAIRE/ADJOINT : Peut regrouper n'importe quels terrains (avec ou sans propriétaire)
-            // MAIS tous les terrains du groupe doivent avoir le même statut de propriété
-            if (!session.selectedPlotKeys.isEmpty()) {
-                String firstPlotKey = session.selectedPlotKeys.iterator().next();
-                String[] parts = firstPlotKey.split(":");
-                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+        // Vérifier la cohérence : tous les terrains doivent avoir le même statut et propriétaire
+        if (!session.selectedPlotKeys.isEmpty()) {
+            String firstPlotKey = session.selectedPlotKeys.iterator().next();
+            String[] parts = firstPlotKey.split(":");
+            Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
 
-                if (firstPlot != null) {
-                    boolean firstHasOwner = (firstPlot.getOwnerUuid() != null);
-                    boolean currentHasOwner = (plot.getOwnerUuid() != null);
+            if (firstPlot != null) {
+                boolean firstHasOwner = (firstPlot.getOwnerUuid() != null);
+                boolean currentHasOwner = (plot.getOwnerUuid() != null);
 
-                    // Vérifier cohérence : tous avec proprio OU tous sans proprio
-                    if (firstHasOwner != currentHasOwner) {
-                        player.sendMessage(ChatColor.RED + "Impossible de mélanger des parcelles avec et sans propriétaire !");
-                        if (firstHasOwner) {
-                            player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées ont un propriétaire.");
-                        } else {
-                            player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées sont municipales (sans propriétaire).");
-                        }
-                        return;
+                // Vérifier cohérence : tous avec proprio OU tous sans proprio
+                if (firstHasOwner != currentHasOwner) {
+                    player.sendMessage(ChatColor.RED + "Impossible de mélanger des parcelles avec et sans propriétaire !");
+                    if (firstHasOwner) {
+                        player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées ont un propriétaire.");
+                    } else {
+                        player.sendMessage(ChatColor.YELLOW + "Les parcelles déjà sélectionnées sont municipales (sans propriétaire).");
                     }
-
-                    // Si toutes ont un propriétaire, vérifier que c'est le même
-                    if (firstHasOwner && currentHasOwner && !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
-                        player.sendMessage(ChatColor.RED + "Toutes les parcelles avec propriétaire doivent avoir le même propriétaire !");
-                        player.sendMessage(ChatColor.YELLOW + "Propriétaire déjà sélectionné: " + ChatColor.WHITE + firstPlot.getOwnerName());
-                        player.sendMessage(ChatColor.YELLOW + "Propriétaire de cette parcelle: " + ChatColor.WHITE + plot.getOwnerName());
-                        return;
-                    }
+                    return;
                 }
-            }
-        } else {
-            // JOUEUR NORMAL : Ne peut regrouper QUE ses propres terrains (avec propriétaire)
-            if (plot.getOwnerUuid() == null) {
-                player.sendMessage(ChatColor.RED + "Cette parcelle n'a pas de propriétaire.");
-                player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper des parcelles municipales.");
-                return;
-            }
 
-            if (!plot.getOwnerUuid().equals(player.getUniqueId())) {
-                player.sendMessage(ChatColor.RED + "Vous devez être propriétaire des parcelles pour les grouper.");
-                player.sendMessage(ChatColor.YELLOW + "Seuls les Maire et Adjoint peuvent grouper les parcelles d'autres joueurs.");
-                return;
-            }
-
-            // Vérifier que toutes les parcelles du groupe appartiennent au joueur
-            if (!session.selectedPlotKeys.isEmpty()) {
-                String firstPlotKey = session.selectedPlotKeys.iterator().next();
-                String[] parts = firstPlotKey.split(":");
-                Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-
-                if (firstPlot == null || !firstPlot.getOwnerUuid().equals(player.getUniqueId())) {
-                    player.sendMessage(ChatColor.RED + "Toutes les parcelles doivent vous appartenir.");
+                // Si toutes ont un propriétaire, vérifier que c'est le même
+                if (firstHasOwner && currentHasOwner && !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
+                    player.sendMessage(ChatColor.RED + "Toutes les parcelles avec propriétaire doivent avoir le même propriétaire !");
+                    player.sendMessage(ChatColor.YELLOW + "Propriétaire déjà sélectionné: " + ChatColor.WHITE + firstPlot.getOwnerName());
+                    player.sendMessage(ChatColor.YELLOW + "Propriétaire de cette parcelle: " + ChatColor.WHITE + plot.getOwnerName());
                     return;
                 }
             }
@@ -260,53 +288,75 @@ public class PlotGroupingListener implements Listener {
         // Si c'est la première parcelle, l'ajouter
         String plotKey = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
 
+
         if (session.selectedPlotKeys.isEmpty()) {
             session.selectedPlotKeys.add(plotKey);
             player.sendMessage(ChatColor.GREEN + "✓ Parcelle ajoutée au groupe (" + session.selectedPlotKeys.size() + ")");
             player.sendMessage(ChatColor.GRAY + "Propriétaire: " + plot.getOwnerName());
+            player.sendMessage(ChatColor.GRAY + "Sélectionnez la parcelle suivante (clic droit)");
+
+            // Ne pas afficher le bouton ici, seulement après le premier ajout réel
             return;
         }
 
         // Vérifier si déjà sélectionnée
+
         if (session.selectedPlotKeys.contains(plotKey)) {
             session.selectedPlotKeys.remove(plotKey);
             player.sendMessage(ChatColor.YELLOW + "✗ Parcelle retirée du groupe (" + session.selectedPlotKeys.size() + ")");
         } else {
+
             // Vérifier l'adjacence si ce n'est pas la première parcelle
             if (!session.selectedPlotKeys.isEmpty()) {
-                if (!isAdjacentToAnySelected(chunk.getX(), chunk.getZ(), session.selectedPlotKeys, town)) {
+                boolean isAdjacent = isAdjacentToAnySelected(chunk.getX(), chunk.getZ(), session.selectedPlotKeys, town);
+
+                if (!isAdjacent) {
                     player.sendMessage(ChatColor.RED + "Cette parcelle doit être adjacente (côte à côte) aux parcelles déjà sélectionnées !");
                     player.sendMessage(ChatColor.YELLOW + "Les parcelles doivent former un terrain continu.");
                     return;
                 }
             }
 
-            session.selectedPlotKeys.add(plotKey);
+            boolean added = session.selectedPlotKeys.add(plotKey);
             player.sendMessage(ChatColor.GREEN + "✓ Parcelle ajoutée au groupe (" + session.selectedPlotKeys.size() + ")");
         }
 
         // Afficher le statut
         if (session.selectedPlotKeys.size() >= 2) {
             player.sendMessage(ChatColor.GRAY + "Surface totale: " + ChatColor.WHITE + (session.selectedPlotKeys.size() * 256) + "m²");
+            player.sendMessage(ChatColor.GREEN + "Vous pouvez terminer le groupement ou continuer à sélectionner");
         } else {
             player.sendMessage(ChatColor.GRAY + "Minimum 2 parcelles requises");
         }
+
+        // Réafficher les boutons après chaque action
+        sendFinishButton(player);
     }
 
     /**
      * Termine la session de groupement
      */
     public boolean finishGrouping(Player player) {
-        GroupingSession session = activeSessions.remove(player.getUniqueId());
+        UUID playerUuid = player.getUniqueId();
+
+        GroupingSession session = activeSessions.get(playerUuid);
         if (session == null) {
             player.sendMessage(ChatColor.RED + "Aucune session de groupement active.");
             return false;
         }
 
+
         if (session.selectedPlotKeys.size() < 2) {
             player.sendMessage(ChatColor.RED + "Vous devez sélectionner au moins 2 parcelles.");
+            player.sendMessage(ChatColor.YELLOW + "[DEBUG] Parcelles dans la session: " + session.selectedPlotKeys.size());
             return false;
         }
+
+        // Retirer la session seulement après vérification
+        cleanupSession(playerUuid);
+        activeSessions.remove(playerUuid);
+        lastClickTime.remove(playerUuid);
+
 
         Town town = townManager.getTown(session.townName);
         if (town == null) {
@@ -314,37 +364,51 @@ public class PlotGroupingListener implements Listener {
             return false;
         }
 
-        // Créer le groupe
-        PlotGroup group = new PlotGroup(UUID.randomUUID().toString(), "Groupe-" + System.currentTimeMillis());
+        // Créer le groupe avec le townName correct
+        PlotGroup group = new PlotGroup(UUID.randomUUID().toString(), session.townName);
+
+        // Déterminer qui sera affiché comme propriétaire du groupe
+        UUID ownerUuid = null;
+        String ownerName = null;
+
+        // Récupérer le propriétaire des parcelles (s'il y en a un)
+        String firstPlotKey = session.selectedPlotKeys.iterator().next();
+        String[] parts = firstPlotKey.split(":");
+        Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+        if (firstPlot != null && firstPlot.getOwnerUuid() != null) {
+            ownerUuid = firstPlot.getOwnerUuid();
+            ownerName = firstPlot.getOwnerName();
+        }
+
+        // Si pas de propriétaire individuel, le groupe appartient à la ville
+        if (ownerUuid == null) {
+            ownerName = town.getName() + " (Municipal)";
+        }
+
+        group.setOwner(ownerUuid, ownerName);
+
+        // Ajouter les parcelles au groupe
         for (String plotKey : session.selectedPlotKeys) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+            String[] keyParts = plotKey.split(":");
+            if (keyParts.length == 3) {
+                Plot plot = town.getPlot(keyParts[0], Integer.parseInt(keyParts[1]), Integer.parseInt(keyParts[2]));
                 if (plot != null) {
                     group.addPlot(plot);
                 }
             }
         }
 
-        // Définir le propriétaire du groupe
-        String firstPlotKey = session.selectedPlotKeys.iterator().next();
-        String[] parts = firstPlotKey.split(":");
-        Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-        if (firstPlot != null) {
-            group.setOwner(firstPlot.getOwnerUuid(), firstPlot.getOwnerName());
-        }
-
         town.addPlotGroup(group);
 
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ GROUPE CRÉÉ AVEC SUCCÈS");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
         player.sendMessage(ChatColor.YELLOW + "Parcelles groupées: " + ChatColor.WHITE + session.selectedPlotKeys.size());
         player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (session.selectedPlotKeys.size() * 256) + "m²");
         player.sendMessage(ChatColor.YELLOW + "ID du groupe: " + ChatColor.GRAY + group.getGroupId());
         player.sendMessage(ChatColor.GRAY + "Utilisez /ville pour gérer ce groupe");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
         player.sendMessage("");
 
         return true;
@@ -354,9 +418,15 @@ public class PlotGroupingListener implements Listener {
      * Annule la session de groupement
      */
     public void cancelSession(Player player) {
-        GroupingSession session = activeSessions.remove(player.getUniqueId());
+        UUID playerUuid = player.getUniqueId();
+        cleanupSession(playerUuid);
+        GroupingSession session = activeSessions.remove(playerUuid);
+        lastClickTime.remove(playerUuid);
+
+
         if (session != null) {
             player.sendMessage(ChatColor.YELLOW + "Session de groupement annulée.");
+        } else {
         }
     }
 
@@ -392,5 +462,196 @@ public class PlotGroupingListener implements Listener {
             }
         }
         return false;
+    }
+
+    /**
+     * Démarre une tâche répétitive pour afficher les particules
+     */
+    private void startVisualTask(Player player, GroupingSession session) {
+        UUID playerUuid = player.getUniqueId();
+
+        // Créer une nouvelle tâche qui s'exécute toutes les 10 ticks (0.5 seconde)
+        int taskId = new BukkitRunnable() {
+            @Override
+            public void run() {
+                // Vérifier si la session est toujours active
+                GroupingSession currentSession = activeSessions.get(playerUuid);
+                if (currentSession == null || !player.isOnline()) {
+                    this.cancel();
+                    cleanupSession(playerUuid);
+                    return;
+                }
+
+                // Vérifier expiration
+                if (currentSession.isExpired()) {
+                    this.cancel();
+                    cleanupSession(playerUuid);
+                    activeSessions.remove(playerUuid);
+                    lastClickTime.remove(playerUuid);
+                    if (player.isOnline()) {
+                        player.sendMessage(ChatColor.RED + "Session de groupement expirée.");
+                    }
+                    return;
+                }
+
+                // Afficher les particules
+                displayVisualIndicators(player, currentSession);
+            }
+        }.runTaskTimer(plugin, 0L, 10L).getTaskId(); // 0 tick delay, répéter toutes les 10 ticks (0.5 sec)
+
+        visualTaskIds.put(playerUuid, taskId);
+    }
+
+    /**
+     * Nettoie toutes les ressources d'une session
+     */
+    private void cleanupSession(UUID playerUuid) {
+        // Arrêter la tâche de particules
+        Integer taskId = visualTaskIds.remove(playerUuid);
+        if (taskId != null) {
+            Bukkit.getScheduler().cancelTask(taskId);
+        }
+    }
+
+    /**
+     * Affiche les indicateurs visuels (particules redstone) pour toutes les parcelles pertinentes
+     */
+    private void displayVisualIndicators(Player player, GroupingSession session) {
+        Town town = townManager.getTown(session.townName);
+        if (town == null) return;
+
+        // Afficher particules pour les parcelles sélectionnées (GREEN)
+        for (String plotKey : session.selectedPlotKeys) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+                spawnParticles(worldName, chunkX, chunkZ, COLOR_GREEN, session);
+            }
+        }
+
+        // Afficher particules pour les parcelles adjacentes disponibles (BLUE) et impossibles (RED)
+        for (Plot plot : town.getPlots().values()) {
+            String plotKey = plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ();
+
+            // Ignorer les parcelles déjà sélectionnées
+            if (session.selectedPlotKeys.contains(plotKey)) {
+                continue;
+            }
+
+            // Vérifier si c'est une parcelle privée (PARTICULIER ou PROFESSIONNEL)
+            if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+                continue;
+            }
+
+            // Vérifier si déjà dans un groupe
+            if (town.isPlotInAnyGroup(plot)) {
+                continue;
+            }
+
+            // Si c'est la première sélection, toutes les parcelles sont adjacentes (BLUE)
+            if (session.selectedPlotKeys.isEmpty()) {
+                spawnParticles(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), COLOR_BLUE, session);
+            } else {
+                // Vérifier si adjacent aux parcelles sélectionnées
+                boolean isAdjacent = isAdjacentToAnySelected(plot.getChunkX(), plot.getChunkZ(),
+                    session.selectedPlotKeys, town);
+
+                if (isAdjacent) {
+                    // Parcelle adjacente = BLUE
+                    spawnParticles(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), COLOR_BLUE, session);
+                } else {
+                    // Parcelle non-adjacente = RED
+                    spawnParticles(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), COLOR_RED, session);
+                }
+            }
+        }
+    }
+
+    /**
+     * Spawn des particules redstone sur tout le contour d'un chunk
+     * Optimisé avec "connected borders" : ne dessine pas les bordures internes entre chunks du même groupe
+     * @param worldName Nom du monde
+     * @param chunkX Coordonnée X du chunk
+     * @param chunkZ Coordonnée Z du chunk
+     * @param dustOptions Options de couleur pour les particules redstone
+     * @param session Session de groupement pour gérer les connected borders
+     */
+    private void spawnParticles(String worldName, int chunkX, int chunkZ, Particle.DustOptions dustOptions, GroupingSession session) {
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return;
+
+        int startX = chunkX * 16;
+        int startZ = chunkZ * 16;
+
+        // Vérifier quels côtés doivent être affichés (connected borders)
+        boolean showNorth = !isChunkInSameGroup(worldName, chunkX, chunkZ - 1, session);
+        boolean showEast = !isChunkInSameGroup(worldName, chunkX + 1, chunkZ, session);
+        boolean showSouth = !isChunkInSameGroup(worldName, chunkX, chunkZ + 1, session);
+        boolean showWest = !isChunkInSameGroup(worldName, chunkX - 1, chunkZ, session);
+
+        // Côté Nord (Z fixe = startZ)
+        if (showNorth) {
+            for (int x = startX; x < startX + 16; x++) {
+                spawnParticleColumn(world, x + 0.5, startZ + 0.5, dustOptions);
+            }
+        }
+
+        // Côté Est (X fixe = startX + 16)
+        if (showEast) {
+            for (int z = startZ; z < startZ + 16; z++) {
+                spawnParticleColumn(world, startX + 16.0, z + 0.5, dustOptions);
+            }
+        }
+
+        // Côté Sud (Z fixe = startZ + 16)
+        if (showSouth) {
+            for (int x = startX; x < startX + 16; x++) {
+                spawnParticleColumn(world, x + 0.5, startZ + 16.0, dustOptions);
+            }
+        }
+
+        // Côté Ouest (X fixe = startX)
+        if (showWest) {
+            for (int z = startZ; z < startZ + 16; z++) {
+                spawnParticleColumn(world, startX + 0.0, z + 0.5, dustOptions);
+            }
+        }
+    }
+
+    /**
+     * Spawn une colonne de particules à une position donnée
+     * Spawn 5 particules espacées verticalement pour une bonne visibilité
+     */
+    private void spawnParticleColumn(World world, double x, double z, Particle.DustOptions dustOptions) {
+        int groundY = world.getHighestBlockYAt((int) x, (int) z);
+
+        // Spawn 5 particules espacées sur 2 blocs de hauteur
+        for (int i = 0; i < 5; i++) {
+            double y = groundY + 0.2 + (i * 0.4);
+
+            // Spawn 3 particules au même endroit pour plus de densité
+            for (int j = 0; j < 3; j++) {
+                world.spawnParticle(
+                    Particle.REDSTONE,
+                    x + (Math.random() * 0.2 - 0.1), // Légère variation X
+                    y,
+                    z + (Math.random() * 0.2 - 0.1), // Légère variation Z
+                    1,
+                    0, 0, 0, 0,
+                    dustOptions
+                );
+            }
+        }
+    }
+
+    /**
+     * Vérifie si un chunk fait partie du même groupe (pour connected borders)
+     */
+    private boolean isChunkInSameGroup(String worldName, int chunkX, int chunkZ, GroupingSession session) {
+        if (session == null) return false;
+        String plotKey = worldName + ":" + chunkX + ":" + chunkZ;
+        return session.selectedPlotKeys.contains(plotKey);
     }
 }

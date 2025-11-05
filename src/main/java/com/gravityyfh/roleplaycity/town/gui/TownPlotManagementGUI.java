@@ -61,6 +61,15 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
+        // CORRECTION : Si la parcelle fait partie d'un groupe, ouvrir le GUI de groupe au lieu de celui-ci
+        com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
+        if (group != null) {
+            player.sendMessage(ChatColor.YELLOW + "Cette parcelle fait partie d'un groupe de terrains.");
+            player.sendMessage(ChatColor.YELLOW + "Ouverture du menu de gestion du groupe...");
+            plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, group.getGroupId());
+            return;
+        }
+
         Inventory inv = Bukkit.createInventory(null, 27, PLOT_MENU_TITLE);
 
         // Informations de la parcelle

@@ -7,7 +7,6 @@ import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -49,37 +48,76 @@ public class MyPropertyGUI implements Listener {
 
         UUID playerUuid = player.getUniqueId();
 
-        // Récupérer tous les terrains possédés
-        List<Plot> ownedPlots = new ArrayList<>();
-        for (Plot plot : town.getPlots().values()) {
-            if (playerUuid.equals(plot.getOwnerUuid())) {
-                ownedPlots.add(plot);
+        // Récupérer les groupes appartenant au joueur
+        List<com.gravityyfh.roleplaycity.town.data.PlotGroup> ownedGroups = town.getPlayerOwnedGroups(playerUuid);
+
+        // NOUVEAU : Récupérer les groupes loués par le joueur
+        List<com.gravityyfh.roleplaycity.town.data.PlotGroup> rentedGroups = new ArrayList<>();
+        for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : town.getPlotGroups().values()) {
+            if (playerUuid.equals(group.getRenterUuid())) {
+                rentedGroups.add(group);
             }
         }
 
-        // Récupérer tous les terrains loués
+        // Récupérer tous les terrains possédés (en excluant ceux qui font partie d'un groupe)
+        List<Plot> ownedPlots = new ArrayList<>();
+        for (Plot plot : town.getPlots().values()) {
+            if (playerUuid.equals(plot.getOwnerUuid())) {
+                // Exclure les parcelles qui font partie d'un groupe
+                if (!town.isPlotInAnyGroup(plot)) {
+                    ownedPlots.add(plot);
+                }
+            }
+        }
+
+        // Récupérer tous les terrains loués (en excluant ceux qui font partie d'un groupe)
         List<Plot> rentedPlots = new ArrayList<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getRenterUuid())) {
-                rentedPlots.add(plot);
+                // Exclure les parcelles qui font partie d'un groupe
+                if (!town.isPlotInAnyGroup(plot)) {
+                    rentedPlots.add(plot);
+                }
             }
         }
 
         // Calculer la taille de l'inventaire (multiple de 9)
-        int totalPlots = ownedPlots.size() + rentedPlots.size();
-        int rows = Math.min(6, Math.max(3, (totalPlots + 9) / 9)); // Entre 3 et 6 lignes
+        int totalItems = ownedGroups.size() + ownedPlots.size() + rentedGroups.size() + rentedPlots.size();
+        int rows = Math.min(6, Math.max(3, (totalItems + 9) / 9)); // Entre 3 et 6 lignes
         int invSize = rows * 9;
 
         Inventory inv = Bukkit.createInventory(null, invSize, ChatColor.GREEN + "🏠 Mes Propriétés");
 
         int slot = 0;
 
+        // Ajouter les groupes de parcelles en premier
+        if (!ownedGroups.isEmpty()) {
+            for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : ownedGroups) {
+                if (slot >= invSize - 9) break; // Garder la dernière ligne pour les boutons
+
+                ItemStack item = createPlotGroupItem(group, town);
+                inv.setItem(slot, item);
+                slot++;
+            }
+        }
+
         // Ajouter les terrains possédés
         if (!ownedPlots.isEmpty()) {
             for (Plot plot : ownedPlots) {
                 if (slot >= invSize - 9) break; // Garder la dernière ligne pour les boutons
 
-                ItemStack item = createPlotItem(plot, false);
+                ItemStack item = createPlotItem(plot, false, town);
+                inv.setItem(slot, item);
+                slot++;
+            }
+        }
+
+        // NOUVEAU : Ajouter les groupes loués
+        if (!rentedGroups.isEmpty()) {
+            for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : rentedGroups) {
+                if (slot >= invSize - 9) break;
+
+                ItemStack item = createRentedGroupItem(group, town);
                 inv.setItem(slot, item);
                 slot++;
             }
@@ -90,7 +128,7 @@ public class MyPropertyGUI implements Listener {
             for (Plot plot : rentedPlots) {
                 if (slot >= invSize - 9) break;
 
-                ItemStack item = createPlotItem(plot, true);
+                ItemStack item = createPlotItem(plot, true, town);
                 inv.setItem(slot, item);
                 slot++;
             }
@@ -127,21 +165,47 @@ public class MyPropertyGUI implements Listener {
     /**
      * Crée un ItemStack représentant un terrain
      */
-    private ItemStack createPlotItem(Plot plot, boolean isRented) {
-        Material material = isRented ? Material.BLUE_CONCRETE : getMaterialForPlotType(plot.getType());
+    private ItemStack createPlotItem(Plot plot, boolean isRented, Town town) {
+        // Vérifier si la parcelle fait partie d'un groupe
+        com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
+        boolean isInGroup = (group != null);
+
+        // Choisir le matériau : ORANGE si groupé, sinon couleur normale
+        Material material;
+        if (isInGroup) {
+            material = Material.ORANGE_CONCRETE;
+        } else {
+            material = isRented ? Material.BLUE_CONCRETE : getMaterialForPlotType(plot.getType());
+        }
+
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
 
         // Titre
-        String title = isRented ?
-            ChatColor.AQUA + "📦 Terrain Loué" :
-            ChatColor.GREEN + "🏠 " + plot.getType().getDisplayName();
+        String title;
+        if (isInGroup) {
+            title = ChatColor.GOLD + "🔗 " + plot.getType().getDisplayName() + " (Groupé)";
+        } else {
+            title = isRented ?
+                ChatColor.AQUA + "📦 Terrain Loué" :
+                ChatColor.GREEN + "🏠 " + plot.getType().getDisplayName();
+        }
         meta.setDisplayName(title);
 
         // Description
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "─────────────────");
-        lore.add(ChatColor.YELLOW + "Position: " + ChatColor.WHITE +
+
+        // Si groupé, afficher les infos du groupe
+        if (isInGroup) {
+            lore.add(ChatColor.LIGHT_PURPLE + "🏘️ Groupe: " + ChatColor.WHITE + group.getGroupName());
+            lore.add(ChatColor.YELLOW + "Surface totale groupe: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+            lore.add(ChatColor.GRAY + "─────────────────");
+        }
+
+        lore.add(ChatColor.YELLOW + "Chunk: " + ChatColor.WHITE +
+            "X: " + plot.getChunkX() + " Z: " + plot.getChunkZ());
+        lore.add(ChatColor.YELLOW + "Position bloc: " + ChatColor.WHITE +
             "X: " + (plot.getChunkX() * 16) + " Z: " + (plot.getChunkZ() * 16));
         lore.add(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + "256m² (1 chunk)");
 
@@ -170,7 +234,90 @@ public class MyPropertyGUI implements Listener {
         lore.add(ChatColor.GRAY + "Actions disponibles:");
         lore.add(ChatColor.GREEN + "▶ Clic gauche: " + ChatColor.WHITE + "Gérer");
         lore.add(ChatColor.AQUA + "▶ Clic droit: " + ChatColor.WHITE + "Permissions");
-        lore.add(ChatColor.YELLOW + "▶ Shift + Clic: " + ChatColor.WHITE + "Téléporter");
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /**
+     * Crée un ItemStack représentant un groupe de parcelles
+     */
+    private ItemStack createPlotGroupItem(com.gravityyfh.roleplaycity.town.data.PlotGroup group, Town town) {
+        ItemStack item = new ItemStack(Material.ENDER_CHEST);
+        ItemMeta meta = item.getItemMeta();
+
+        // Titre
+        String title = ChatColor.LIGHT_PURPLE + "🏘️ " + group.getGroupName();
+        meta.setDisplayName(title);
+
+        // Description
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "─────────────────");
+        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
+        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+
+        // Propriétaire
+        lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+
+        // Statuts de vente/location
+        if (group.isForSale()) {
+            lore.add(ChatColor.GREEN + "✓ En vente: " + String.format("%.2f€", group.getSalePrice()));
+        }
+        if (group.isForRent()) {
+            lore.add(ChatColor.AQUA + "✓ En location: " + String.format("%.2f€/jour", group.getRentPricePerDay()));
+        }
+
+        // Si loué
+        if (group.getRenterUuid() != null) {
+            lore.add(ChatColor.YELLOW + "Jours restants: " + ChatColor.WHITE + group.getRentDaysRemaining() + "/30");
+        }
+
+        lore.add("");
+        lore.add(ChatColor.GRAY + "Actions disponibles:");
+        lore.add(ChatColor.GREEN + "▶ Clic gauche: " + ChatColor.WHITE + "Gérer le groupe");
+        lore.add(ChatColor.AQUA + "▶ Clic droit: " + ChatColor.WHITE + "Voir les parcelles");
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /**
+     * Crée un ItemStack représentant un groupe de parcelles LOUÉ
+     */
+    private ItemStack createRentedGroupItem(com.gravityyfh.roleplaycity.town.data.PlotGroup group, Town town) {
+        ItemStack item = new ItemStack(Material.CYAN_SHULKER_BOX);
+        ItemMeta meta = item.getItemMeta();
+
+        // Titre avec indicateur de location
+        String title = ChatColor.AQUA + "📦 " + group.getGroupName() + " " + ChatColor.GRAY + "(Loué)";
+        meta.setDisplayName(title);
+
+        // Description
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "─────────────────");
+        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
+        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+        lore.add(ChatColor.GRAY + "─────────────────");
+
+        // Propriétaire du groupe
+        lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+
+        // Infos de location
+        lore.add(ChatColor.YELLOW + "Prix/jour: " + ChatColor.GOLD + String.format("%.2f€", group.getRentPricePerDay()));
+        lore.add(ChatColor.YELLOW + "Jours restants: " + ChatColor.WHITE + group.getRentDaysRemaining() + "/30");
+
+        // Si aussi en vente
+        if (group.isForSale()) {
+            lore.add("");
+            lore.add(ChatColor.GREEN + "💰 Disponible à l'achat: " + String.format("%.2f€", group.getSalePrice()));
+        }
+
+        lore.add("");
+        lore.add(ChatColor.GRAY + "Actions disponibles:");
+        lore.add(ChatColor.GREEN + "▶ Cliquez: " + ChatColor.WHITE + "Gérer la location");
+        lore.add(ChatColor.GRAY + "  (Recharger, Résilier, Acheter...)");
 
         meta.setLore(lore);
         item.setItemMeta(meta);
@@ -222,6 +369,36 @@ public class MyPropertyGUI implements Listener {
             return;
         }
 
+        // Clic sur un groupe de parcelles
+        if (clicked.getType() == Material.ENDER_CHEST) {
+            com.gravityyfh.roleplaycity.town.data.PlotGroup group = findGroupFromItem(clicked, town, player.getUniqueId());
+            if (group == null) {
+                player.sendMessage(ChatColor.RED + "Erreur: Groupe introuvable.");
+                return;
+            }
+
+            player.closeInventory();
+
+            // Ouvrir le GUI détaillé pour gérer ce groupe
+            plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, group.getGroupId());
+            return;
+        }
+
+        // NOUVEAU : Clic sur un groupe loué (CYAN_SHULKER_BOX)
+        if (clicked.getType() == Material.CYAN_SHULKER_BOX) {
+            com.gravityyfh.roleplaycity.town.data.PlotGroup group = findRentedGroupFromItem(clicked, town, player.getUniqueId());
+            if (group == null) {
+                player.sendMessage(ChatColor.RED + "Erreur: Groupe loué introuvable.");
+                return;
+            }
+
+            player.closeInventory();
+
+            // Ouvrir le GUI de gestion de location
+            plugin.getRentedPropertyGUI().openRentedManagementMenu(player, townName, group.getGroupId(), true);
+            return;
+        }
+
         // Clic sur un terrain
         if (isPlotItem(clicked.getType())) {
             Plot plot = findPlotFromItem(clicked, town, player.getUniqueId());
@@ -230,29 +407,47 @@ public class MyPropertyGUI implements Listener {
                 return;
             }
 
-            boolean isShiftClick = event.isShiftClick();
+            // NOUVEAU : Vérifier si c'est un terrain loué (BLUE_CONCRETE)
+            boolean isRented = (clicked.getType() == Material.BLUE_CONCRETE);
+
+            player.closeInventory();
+
+            if (isRented) {
+                // Terrain loué → Ouvrir le GUI de gestion de location
+                String identifier = plot.getChunkX() + ":" + plot.getChunkZ() + ":" + plot.getWorldName();
+                plugin.getRentedPropertyGUI().openRentedManagementMenu(player, townName, identifier, false);
+                return;
+            }
+
+            // CORRECTION : Vérifier si le terrain fait partie d'un groupe (ORANGE_CONCRETE)
+            if (clicked.getType() == Material.ORANGE_CONCRETE) {
+                com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
+                if (group != null) {
+                    // Ouvrir le GUI de gestion de groupe au lieu de la parcelle individuelle
+                    plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, group.getGroupId());
+                    return;
+                }
+            }
+
+            // Terrain possédé → Vérifier présence sur le terrain
             boolean isRightClick = event.isRightClick();
 
-            if (isShiftClick) {
-                // Téléportation seule
-                player.closeInventory();
-                teleportToPlot(player, plot);
-            } else if (isRightClick) {
-                // Téléporter puis ouvrir le menu Permissions
-                player.closeInventory();
-                teleportToPlot(player, plot);
-                // Ouvrir le menu après la téléportation
-                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    plugin.getPlotOwnerGUI().openOwnerMenu(player);
-                }, 5L);
+            // Vérifier que le joueur est sur le terrain pour accéder aux menus
+            org.bukkit.Chunk playerChunk = player.getLocation().getChunk();
+            if (playerChunk.getX() != plot.getChunkX() || playerChunk.getZ() != plot.getChunkZ() ||
+                !playerChunk.getWorld().getName().equals(plot.getWorldName())) {
+                player.sendMessage(ChatColor.RED + "Vous devez être sur ce terrain pour le gérer !");
+                player.sendMessage(ChatColor.YELLOW + "Rendez-vous sur le terrain (Chunk X: " +
+                    plot.getChunkX() + " Z: " + plot.getChunkZ() + ")");
+                return;
+            }
+
+            if (isRightClick) {
+                // Ouvrir le menu Permissions
+                plugin.getPlotOwnerGUI().openOwnerMenu(player);
             } else {
-                // Téléporter puis ouvrir le menu Gestion
-                player.closeInventory();
-                teleportToPlot(player, plot);
-                // Ouvrir le menu après la téléportation
-                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    plugin.getTownPlotManagementGUI().openPlotMenu(player);
-                }, 5L);
+                // Ouvrir le menu Gestion
+                plugin.getTownPlotManagementGUI().openPlotMenu(player);
             }
         }
     }
@@ -265,7 +460,51 @@ public class MyPropertyGUI implements Listener {
                material == Material.PURPLE_CONCRETE ||
                material == Material.YELLOW_CONCRETE ||
                material == Material.WHITE_CONCRETE ||
-               material == Material.BLUE_CONCRETE;
+               material == Material.BLUE_CONCRETE ||
+               material == Material.ORANGE_CONCRETE; // Parcelles groupées
+    }
+
+    /**
+     * Trouve le groupe correspondant à l'item cliqué
+     */
+    private com.gravityyfh.roleplaycity.town.data.PlotGroup findGroupFromItem(ItemStack item, Town town, UUID playerUuid) {
+        if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return null;
+
+        String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
+
+        // Format: "🏘️ Nom du groupe" → extraire "Nom du groupe"
+        String groupName = displayName.replace("🏘️", "").trim();
+
+        // Chercher le groupe parmi ceux du joueur
+        for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : town.getPlayerOwnedGroups(playerUuid)) {
+            if (group.getGroupName().equals(groupName)) {
+                return group;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Trouve le groupe loué correspondant à l'item cliqué
+     */
+    private com.gravityyfh.roleplaycity.town.data.PlotGroup findRentedGroupFromItem(ItemStack item, Town town, UUID playerUuid) {
+        if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return null;
+
+        String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
+
+        // Format: "📦 Nom du groupe (Loué)" → extraire "Nom du groupe"
+        String groupName = displayName.replace("📦", "").replace("(Loué)", "").trim();
+
+        // Chercher le groupe parmi tous les groupes de la ville
+        for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : town.getPlotGroups().values()) {
+            // Vérifier que le joueur est le locataire actuel
+            if (playerUuid.equals(group.getRenterUuid()) && group.getGroupName().equals(groupName)) {
+                return group;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -276,19 +515,25 @@ public class MyPropertyGUI implements Listener {
         List<String> lore = item.getItemMeta().getLore();
         if (lore == null || lore.size() < 2) return null;
 
-        // Extraire les coordonnées de la lore (ligne 2: "Position: X: 320 Z: -480")
-        String posLine = ChatColor.stripColor(lore.get(1));
+        // Extraire les coordonnées de chunk de la lore (ligne 2: "Chunk: X: 5 Z: 8")
+        String chunkLine = ChatColor.stripColor(lore.get(1));
         try {
-            String[] parts = posLine.split(":");
-            if (parts.length < 3) return null;
+            // Format: "Chunk: X: 5 Z: 8"
+            // Extraire X et Z directement (ce sont les coordonnées de chunk)
+            String[] parts = chunkLine.split(" ");
+            int chunkX = -1, chunkZ = -1;
 
-            int x = Integer.parseInt(parts[1].trim().split(" ")[0]);
-            int z = Integer.parseInt(parts[2].trim());
+            for (int i = 0; i < parts.length - 1; i++) {
+                if (parts[i].equals("X:")) {
+                    chunkX = Integer.parseInt(parts[i + 1]);
+                } else if (parts[i].equals("Z:")) {
+                    chunkZ = Integer.parseInt(parts[i + 1]);
+                }
+            }
 
-            int chunkX = x / 16;
-            int chunkZ = z / 16;
+            if (chunkX == -1 || chunkZ == -1) return null;
 
-            // Chercher le terrain
+            // Chercher le terrain directement par coordonnées de chunk
             for (Plot plot : town.getPlots().values()) {
                 if (plot.getChunkX() == chunkX && plot.getChunkZ() == chunkZ) {
                     // Vérifier que c'est bien un terrain du joueur
@@ -299,28 +544,9 @@ public class MyPropertyGUI implements Listener {
             }
         } catch (Exception e) {
             plugin.getLogger().warning("Erreur lors de la récupération du terrain: " + e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }
 
-    /**
-     * Téléporte le joueur sur un terrain
-     */
-    private void teleportToPlot(Player player, Plot plot) {
-        org.bukkit.World world = Bukkit.getWorld(plot.getWorldName());
-        if (world == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Monde introuvable.");
-            return;
-        }
-
-        // Téléporter au centre du chunk, en hauteur sécurisée
-        int centerX = plot.getChunkX() * 16 + 8;
-        int centerZ = plot.getChunkZ() * 16 + 8;
-        int safeY = world.getHighestBlockYAt(centerX, centerZ) + 1;
-
-        Location tpLoc = new Location(world, centerX + 0.5, safeY, centerZ + 0.5);
-        player.teleport(tpLoc);
-        player.sendMessage(ChatColor.GREEN + "✓ Téléporté sur votre terrain !");
-        player.sendMessage(ChatColor.GRAY + "Position: X: " + centerX + " Z: " + centerZ);
-    }
 }
