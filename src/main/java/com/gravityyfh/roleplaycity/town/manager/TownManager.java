@@ -7,6 +7,7 @@ import com.gravityyfh.roleplaycity.town.data.TownRole;
 import com.gravityyfh.roleplaycity.town.event.TownDeleteEvent;
 import com.gravityyfh.roleplaycity.town.event.TownMemberLeaveEvent;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -60,7 +61,54 @@ public class TownManager {
         // Sauvegarder immédiatement
         saveTownsNow();
 
+        // Afficher le tutoriel au maire
+        showTownCreationTutorial(mayor, townName);
+
         return true;
+    }
+
+    /**
+     * Affiche un tutoriel complet au maire après la création de sa ville
+     */
+    private void showTownCreationTutorial(Player mayor, String townName) {
+        double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
+
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🏛️ FÉLICITATIONS, MAIRE DE " + townName.toUpperCase() + " !");
+        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "📋 PREMIERS PAS POUR DÉVELOPPER VOTRE VILLE :");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.AQUA + "1. ALIMENTER LA BANQUE DE LA VILLE");
+        mayor.sendMessage(ChatColor.GRAY + "   → Utilisez " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " puis " + ChatColor.WHITE + "Banque de la Ville");
+        mayor.sendMessage(ChatColor.GRAY + "   → Déposez de l'argent pour financer les claims");
+        mayor.sendMessage(ChatColor.GRAY + "   → Sans argent, impossible de revendiquer du terrain !");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.AQUA + "2. REVENDIQUER VOS PREMIERS TERRAINS (CLAIMS)");
+        mayor.sendMessage(ChatColor.GRAY + "   → Coût : " + ChatColor.GOLD + String.format("%.2f€", claimCost) + ChatColor.GRAY + " par chunk (256m²)");
+        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Claims");
+        mayor.sendMessage(ChatColor.GRAY + "   → L'argent est prélevé de la banque de ville");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.AQUA + "3. RECRUTER DES MÉTIERS MUNICIPAUX");
+        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Membres");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "ADJOINT" + ChatColor.GRAY + " - Votre bras droit (gestion ville, claims, économie)");
+        mayor.sendMessage(ChatColor.YELLOW + "   👮 " + ChatColor.WHITE + "POLICIER" + ChatColor.GRAY + " - Maintien de l'ordre (amendes, alertes)");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "JUGE" + ChatColor.GRAY + " - Justice (jugement des affaires, relaxes)");
+        mayor.sendMessage(ChatColor.YELLOW + "   🏗️ " + ChatColor.WHITE + "ARCHITECTE" + ChatColor.GRAY + " - Construction (bâtiments municipaux)");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.AQUA + "4. DÉVELOPPER VOTRE ÉCONOMIE");
+        mayor.sendMessage(ChatColor.GRAY + "   → Vendez/Louez des terrains aux citoyens");
+        mayor.sendMessage(ChatColor.GRAY + "   → Créez des entreprises pour vos citoyens");
+        mayor.sendMessage(ChatColor.GRAY + "   → Gérez les taxes et l'économie municipale");
+        mayor.sendMessage("");
+        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GREEN + "💡 Conseil : " + ChatColor.GRAY + "Commencez par déposer au minimum " +
+            ChatColor.GOLD + String.format("%.2f€", claimCost * 5) + ChatColor.GRAY + " dans");
+        mayor.sendMessage(ChatColor.GRAY + "   la banque pour pouvoir revendiquer 5 chunks de départ.");
+        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage("");
     }
 
     public boolean deleteTown(String townName) {
