@@ -433,6 +433,9 @@ public class PlotGroupingListener implements Listener {
 
         town.addPlotGroup(group);
 
+        // Sauvegarder immédiatement le nouveau groupe
+        townManager.saveTownsNow();
+
         player.sendMessage("");
         player.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ GROUPE CRÉÉ AVEC SUCCÈS");
