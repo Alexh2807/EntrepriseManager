@@ -58,6 +58,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI rentedPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI companySelectionGUI;
+    private com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI debtManagementGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
@@ -131,6 +132,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, myPropertyGUI);
         myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
         companySelectionGUI = new com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI(this);
+        debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI);
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
@@ -155,6 +157,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townMainGUI.setMembersGUI(townMembersGUI);
         townMainGUI.setMyPropertyGUI(myPropertyGUI);
         townMainGUI.setMyCompaniesGUI(myCompaniesGUI);
+        townMainGUI.setDebtManagementGUI(debtManagementGUI);
         townMembersGUI.setMainGUI(townMainGUI);
         townClaimsGUI.setPlotManagementGUI(townPlotManagementGUI);
 
@@ -219,7 +222,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             blockPlaceListener, craftItemListener, smithItemListener,
             entityDamageListener, entityDeathListener, treeCutListener,
             townMainGUI, townMembersGUI, townClaimsGUI, townBankGUI, townPlotManagementGUI, plotOwnerGUI, // GUI du système de ville
-            myPropertyGUI, rentedPropertyGUI, myCompaniesGUI, // GUI Mes Propriétés et Mes Entreprises
+            myPropertyGUI, rentedPropertyGUI, myCompaniesGUI, debtManagementGUI, // GUI Mes Propriétés, Mes Entreprises, et Dettes
             companySelectionGUI, // GUI Sélection Entreprise
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
             plotGroupManagementGUI, plotGroupDetailGUI, // GUI Regroupement de parcelles

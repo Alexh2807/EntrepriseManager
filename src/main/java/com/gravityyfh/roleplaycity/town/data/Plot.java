@@ -26,6 +26,11 @@ public class Plot {
     private LocalDateTime lastDebtWarningDate; // Date du dernier avertissement
     private int debtWarningCount; // Nombre d'avertissements envoyés
 
+    // NOUVEAU : Système de dette pour terrains PARTICULIER
+    private double particularDebtAmount; // Montant de la dette accumulée pour particuliers
+    private LocalDateTime particularLastDebtWarningDate; // Date du dernier avertissement
+    private int particularDebtWarningCount; // Nombre d'avertissements envoyés
+
     private double salePrice;
     private boolean forSale;
 
@@ -67,6 +72,8 @@ public class Plot {
         this.rentDaysRemaining = 0;
         this.companyDebtAmount = 0.0;
         this.debtWarningCount = 0;
+        this.particularDebtAmount = 0.0;
+        this.particularDebtWarningCount = 0;
         this.protectedBlocks = new HashSet<>();
         this.renterBlockTracker = new RenterBlockTracker();
         this.playerPermissions = new HashMap<>();
@@ -93,6 +100,12 @@ public class Plot {
     public double getCompanyDebtAmount() { return companyDebtAmount; }
     public LocalDateTime getLastDebtWarningDate() { return lastDebtWarningDate; }
     public int getDebtWarningCount() { return debtWarningCount; }
+
+    // NOUVEAU : Getters pour dettes particuliers
+    public double getParticularDebtAmount() { return particularDebtAmount; }
+    public LocalDateTime getParticularLastDebtWarningDate() { return particularLastDebtWarningDate; }
+    public int getParticularDebtWarningCount() { return particularDebtWarningCount; }
+
     public double getSalePrice() { return salePrice; }
     public boolean isForSale() { return forSale; }
     public double getRentPricePerDay() { return rentPricePerDay; }
@@ -152,6 +165,25 @@ public class Plot {
         this.companyDebtAmount = 0.0;
         this.debtWarningCount = 0;
         this.lastDebtWarningDate = null;
+    }
+
+    // NOUVEAU : Setters pour dettes particuliers
+    public void setParticularDebtAmount(double amount) {
+        this.particularDebtAmount = amount;
+    }
+
+    public void setParticularLastDebtWarningDate(LocalDateTime date) {
+        this.particularLastDebtWarningDate = date;
+    }
+
+    public void setParticularDebtWarningCount(int count) {
+        this.particularDebtWarningCount = count;
+    }
+
+    public void resetParticularDebt() {
+        this.particularDebtAmount = 0.0;
+        this.particularDebtWarningCount = 0;
+        this.particularLastDebtWarningDate = null;
     }
 
     public void setSalePrice(double price) {

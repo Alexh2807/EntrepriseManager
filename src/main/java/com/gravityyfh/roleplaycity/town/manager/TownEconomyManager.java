@@ -786,6 +786,13 @@ public class TownEconomyManager {
                 totalCollected += groupHourlyTax;
                 parcelsWithTax += groupPlots.size();
 
+                // Réinitialiser les dettes de toutes les parcelles du groupe si endettées
+                for (Plot plot : groupPlots) {
+                    if (plot.getParticularDebtAmount() > 0) {
+                        plot.resetParticularDebt();
+                    }
+                }
+
                 // Enregistrer pour le rapport individuel
                 playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + groupHourlyTax);
 
@@ -805,15 +812,110 @@ public class TownEconomyManager {
                     "Taxe horaire groupe " + group.getGroupName()
                 ));
             } else {
+                // NOUVEAU : Fonds insuffisants - créer/augmenter la dette sur la première parcelle du groupe
                 unpaidPlayers.add(payerName);
 
-                // Notification de taxe impayée
-                notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+                // Utiliser la première parcelle du groupe pour stocker la dette totale
+                Plot firstPlot = groupPlots.isEmpty() ? null : groupPlots.get(0);
+                if (firstPlot != null) {
+                    double newDebt = firstPlot.getParticularDebtAmount() + groupHourlyTax;
+                    firstPlot.setParticularDebtAmount(newDebt);
 
-                // Message si en ligne
-                if (payer.isOnline() && payer.getPlayer() != null) {
-                    payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
-                        String.format("%.2f€", groupHourlyTax) + " pour le groupe " + group.getGroupName());
+                    // Si c'est le premier avertissement
+                    if (firstPlot.getParticularDebtWarningCount() == 0) {
+                        firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
+                        firstPlot.setParticularDebtWarningCount(1);
+
+                        // Avertissement au joueur
+                        if (payer.isOnline() && payer.getPlayer() != null) {
+                            payer.getPlayer().sendMessage("");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - GROUPE");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                            payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette actuelle: " + ChatColor.GOLD +
+                                String.format("%.2f€", newDebt));
+                            payer.getPlayer().sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE +
+                                group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                            payer.getPlayer().sendMessage(ChatColor.GRAY + "Ville: " + townName);
+                            payer.getPlayer().sendMessage("");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "   avant saisie automatique des terrains!");
+                            payer.getPlayer().sendMessage("");
+                            payer.getPlayer().sendMessage(ChatColor.YELLOW + "💡 Réglez vos dettes via:");
+                            payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                            payer.getPlayer().sendMessage("");
+                        }
+
+                        notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                    } else {
+                        // Dette déjà existante
+                        notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+
+                        if (payer.isOnline() && payer.getPlayer() != null) {
+                            payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Taxe impayée groupe ajoutée: " +
+                                ChatColor.GOLD + String.format("+%.2f€", groupHourlyTax) + ChatColor.RED +
+                                " (Total: " + String.format("%.2f€", newDebt) + ")");
+                            payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Groupe: " + ChatColor.WHITE + group.getGroupName());
+                            payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
+                                ChatColor.WHITE + "/ville → Régler vos Dettes");
+                        }
+                    }
+
+                    plugin.getLogger().warning(String.format(
+                        "[TownEconomyManager] Groupe %s - Fonds insuffisants pour taxe de %.2f€ (Propriétaire: %s, Dette: %.2f€)",
+                        group.getGroupName(), groupHourlyTax, payerName, newDebt
+                    ));
+
+                    // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours)
+                    if (firstPlot.getParticularLastDebtWarningDate() != null) {
+                        LocalDateTime warningDate = firstPlot.getParticularLastDebtWarningDate();
+                        long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
+
+                        if (daysSinceWarning >= 7) {
+                            // SAISIE AUTOMATIQUE de tous les terrains du groupe
+                            plugin.getLogger().warning(String.format(
+                                "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
+                                group.getGroupName(), payerName, firstPlot.getParticularDebtAmount()
+                            ));
+
+                            // Notifier le joueur
+                            if (payer.isOnline() && payer.getPlayer() != null) {
+                                payer.getPlayer().sendMessage("");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE GROUPE");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "Votre groupe " + group.getGroupName());
+                                payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                                payer.getPlayer().sendMessage("");
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
+                                    String.format("%.2f€", firstPlot.getParticularDebtAmount()));
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Parcelles: " + groupPlots.size());
+                                payer.getPlayer().sendMessage(ChatColor.GRAY + "Les terrains retournent à la ville.");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage("");
+                            }
+
+                            // Retour de tous les terrains à la ville
+                            for (Plot plot : groupPlots) {
+                                plot.setOwner(null, null);
+                                plot.setForSale(true);
+                                plot.setSalePrice(1000.0); // Prix par défaut
+                                plot.resetParticularDebt();
+                            }
+
+                            // Supprimer le groupe
+                            town.removePlotGroup(group.getGroupId());
+                        }
+                    }
+                } else {
+                    // Pas de parcelle dans le groupe - juste notifier
+                    notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
+                            String.format("%.2f€", groupHourlyTax) + " pour le groupe " + group.getGroupName());
+                    }
                 }
             }
         }
@@ -904,6 +1006,11 @@ public class TownEconomyManager {
                 totalCollected += hourlyTax;
                 parcelsWithTax++;
 
+                // Réinitialiser la dette si le terrain était endetté
+                if (plot.getParticularDebtAmount() > 0) {
+                    plot.resetParticularDebt();
+                }
+
                 // Enregistrer pour le rapport individuel
                 playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + hourlyTax);
 
@@ -922,14 +1029,90 @@ public class TownEconomyManager {
                     "Taxe horaire parcelle " + plot.getCoordinates()
                 ));
             } else {
+                // NOUVEAU : Fonds insuffisants - créer/augmenter la dette
                 unpaidPlayers.add(payerName);
 
-                notificationManager.notifyTaxDue(payerUuid, townName, hourlyTax);
+                double newDebt = plot.getParticularDebtAmount() + hourlyTax;
+                plot.setParticularDebtAmount(newDebt);
 
-                // Message si en ligne
-                if (payer.isOnline() && payer.getPlayer() != null) {
-                    payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
-                        String.format("%.2f€", hourlyTax) + " pour la parcelle " + plot.getCoordinates());
+                // Si c'est le premier avertissement
+                if (plot.getParticularDebtWarningCount() == 0) {
+                    plot.setParticularLastDebtWarningDate(LocalDateTime.now());
+                    plot.setParticularDebtWarningCount(1);
+
+                    // Avertissement au joueur
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage("");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - PARTICULIER");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette actuelle: " + ChatColor.GOLD +
+                            String.format("%.2f€", newDebt));
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE +
+                            plot.getCoordinates() + ChatColor.GRAY + " (ville: " + townName + ")");
+                        payer.getPlayer().sendMessage("");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "   avant saisie automatique du terrain!");
+                        payer.getPlayer().sendMessage("");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "💡 Réglez vos dettes via:");
+                        payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage("");
+                    }
+
+                    notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                } else {
+                    // Dette déjà existante - simple notification
+                    notificationManager.notifyTaxDue(payerUuid, townName, hourlyTax);
+
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Taxe impayée ajoutée à votre dette: " +
+                            ChatColor.GOLD + String.format("+%.2f€", hourlyTax) + ChatColor.RED +
+                            " (Total: " + String.format("%.2f€", newDebt) + ")");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
+                            ChatColor.WHITE + "/ville → Régler vos Dettes");
+                    }
+                }
+
+                plugin.getLogger().warning(String.format(
+                    "[TownEconomyManager] Particulier %s - Fonds insuffisants pour taxe de %.2f€ sur terrain %s:%d,%d (Dette: %.2f€)",
+                    payerName, hourlyTax, plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), newDebt
+                ));
+            }
+
+            // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours) pour les particuliers
+            if (plot.getParticularDebtAmount() > 0 && plot.getParticularLastDebtWarningDate() != null) {
+                LocalDateTime warningDate = plot.getParticularLastDebtWarningDate();
+                long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
+
+                if (daysSinceWarning >= 7) {
+                    // SAISIE AUTOMATIQUE du terrain
+                    plugin.getLogger().warning(String.format(
+                        "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2f€)",
+                        plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), payerName, plot.getParticularDebtAmount()
+                    ));
+
+                    // Notifier le joueur
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage("");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE TERRAIN");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "Votre terrain " + plot.getCoordinates());
+                        payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                        payer.getPlayer().sendMessage("");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
+                            String.format("%.2f€", plot.getParticularDebtAmount()));
+                        payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne à la ville.");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage("");
+                    }
+
+                    // Retour du terrain à la ville
+                    plot.setOwner(null, null);
+                    plot.setForSale(true);
+                    plot.setSalePrice(1000.0); // Prix par défaut
+                    plot.resetParticularDebt();
                 }
             }
         }

@@ -311,6 +311,137 @@ public class Town {
         return stats;
     }
 
+    // === NOUVEAU : GESTION DES DETTES ===
+
+    /**
+     * Classe pour représenter une dette d'un joueur
+     */
+    public static class PlayerDebt {
+        private final Plot plot;
+        private final PlotGroup group; // null si dette individuelle
+        private final double amount;
+        private final LocalDateTime warningDate;
+        private final boolean isGroup;
+
+        public PlayerDebt(Plot plot, PlotGroup group, double amount, LocalDateTime warningDate, boolean isGroup) {
+            this.plot = plot;
+            this.group = group;
+            this.amount = amount;
+            this.warningDate = warningDate;
+            this.isGroup = isGroup;
+        }
+
+        public Plot getPlot() { return plot; }
+        public PlotGroup getGroup() { return group; }
+        public double getAmount() { return amount; }
+        public LocalDateTime getWarningDate() { return warningDate; }
+        public boolean isGroup() { return isGroup; }
+    }
+
+    /**
+     * Récupère toutes les dettes d'un joueur (particulier + entreprise)
+     */
+    public List<PlayerDebt> getPlayerDebts(UUID playerUuid) {
+        List<PlayerDebt> debts = new ArrayList<>();
+
+        // Parcourir tous les groupes pour trouver les dettes de groupes
+        for (PlotGroup group : plotGroups.values()) {
+            UUID ownerUuid = group.getOwnerUuid();
+            if (ownerUuid != null && ownerUuid.equals(playerUuid)) {
+                // Vérifier la dette sur la première parcelle du groupe
+                for (String plotKey : group.getPlotKeys()) {
+                    String[] parts = plotKey.split(":");
+                    if (parts.length == 3) {
+                        Plot plot = getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                        if (plot != null) {
+                            // Dette particulier
+                            if (plot.getParticularDebtAmount() > 0) {
+                                debts.add(new PlayerDebt(
+                                    plot,
+                                    group,
+                                    plot.getParticularDebtAmount(),
+                                    plot.getParticularLastDebtWarningDate(),
+                                    true
+                                ));
+                            }
+                            // Dette entreprise
+                            if (plot.getCompanyDebtAmount() > 0) {
+                                debts.add(new PlayerDebt(
+                                    plot,
+                                    group,
+                                    plot.getCompanyDebtAmount(),
+                                    plot.getLastDebtWarningDate(),
+                                    true
+                                ));
+                            }
+                            break; // Une seule parcelle par groupe pour les dettes
+                        }
+                    }
+                }
+            }
+        }
+
+        // Parcourir toutes les parcelles individuelles (non groupées)
+        Set<String> plotsInGroups = new HashSet<>();
+        for (PlotGroup group : plotGroups.values()) {
+            plotsInGroups.addAll(group.getPlotKeys());
+        }
+
+        for (Plot plot : plots.values()) {
+            String plotKey = plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ();
+
+            // Ignorer les parcelles dans des groupes (déjà traitées)
+            if (plotsInGroups.contains(plotKey)) {
+                continue;
+            }
+
+            // Vérifier si le joueur est propriétaire ou locataire
+            boolean isOwner = plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(playerUuid);
+            boolean isRenter = plot.getRenterUuid() != null && plot.getRenterUuid().equals(playerUuid);
+
+            if (isOwner || isRenter) {
+                // Dette particulier
+                if (plot.getParticularDebtAmount() > 0) {
+                    debts.add(new PlayerDebt(
+                        plot,
+                        null,
+                        plot.getParticularDebtAmount(),
+                        plot.getParticularLastDebtWarningDate(),
+                        false
+                    ));
+                }
+                // Dette entreprise
+                if (plot.getCompanyDebtAmount() > 0) {
+                    debts.add(new PlayerDebt(
+                        plot,
+                        null,
+                        plot.getCompanyDebtAmount(),
+                        plot.getLastDebtWarningDate(),
+                        false
+                    ));
+                }
+            }
+        }
+
+        return debts;
+    }
+
+    /**
+     * Calcule le montant total des dettes d'un joueur
+     */
+    public double getTotalPlayerDebt(UUID playerUuid) {
+        return getPlayerDebts(playerUuid).stream()
+            .mapToDouble(PlayerDebt::getAmount)
+            .sum();
+    }
+
+    /**
+     * Vérifie si un joueur a des dettes
+     */
+    public boolean hasPlayerDebts(UUID playerUuid) {
+        return !getPlayerDebts(playerUuid).isEmpty();
+    }
+
     @Override
     public String toString() {
         return String.format("Town{name='%s', members=%d, claims=%d, balance=%.2f€}",

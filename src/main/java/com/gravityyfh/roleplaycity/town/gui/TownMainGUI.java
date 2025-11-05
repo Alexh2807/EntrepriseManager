@@ -39,6 +39,7 @@ public class TownMainGUI implements Listener {
     private TownMembersGUI membersGUI;
     private MyPropertyGUI myPropertyGUI;
     private MyCompaniesGUI myCompaniesGUI;
+    private DebtManagementGUI debtManagementGUI;
 
     private static final String MENU_TITLE = ChatColor.DARK_GREEN + "🏙️ Menu Principal - Ville";
     private static final String CREATE_TOWN_TITLE = ChatColor.DARK_BLUE + "Créer une Ville";
@@ -85,6 +86,10 @@ public class TownMainGUI implements Listener {
         this.myCompaniesGUI = myCompaniesGUI;
     }
 
+    public void setDebtManagementGUI(DebtManagementGUI debtManagementGUI) {
+        this.debtManagementGUI = debtManagementGUI;
+    }
+
     /**
      * Vérifie si le joueur possède ou loue des terrains dans la ville
      */
@@ -113,6 +118,13 @@ public class TownMainGUI implements Listener {
     private boolean hasUnpaidFines(Player player) {
         return plugin.getTownPoliceManager() != null &&
                plugin.getTownPoliceManager().hasUnpaidFines(player.getUniqueId());
+    }
+
+    /**
+     * Vérifie si le joueur a des dettes dans sa ville
+     */
+    private boolean hasPlayerDebts(Player player, Town town) {
+        return town.hasPlayerDebts(player.getUniqueId());
     }
 
     public void openMainMenu(Player player) {
@@ -247,6 +259,27 @@ public class TownMainGUI implements Listener {
             finesMeta.setLore(finesLore);
             finesItem.setItemMeta(finesMeta);
             inv.setItem(personalSlot, finesItem);
+            personalSlot += 2;
+        }
+
+        // NOUVEAU : Régler vos Dettes (si le joueur a des dettes)
+        if (hasPlayerDebts(player, town)) {
+            ItemStack debtsItem = new ItemStack(Material.RED_CONCRETE);
+            ItemMeta debtsMeta = debtsItem.getItemMeta();
+            debtsMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "🔴 Régler vos Dettes");
+            List<String> debtsLore = new ArrayList<>();
+
+            double totalDebt = town.getTotalPlayerDebt(player.getUniqueId());
+            int debtCount = town.getPlayerDebts(player.getUniqueId()).size();
+
+            debtsLore.add(ChatColor.RED + "Vous avez " + debtCount + " dette(s) impayée(s)!");
+            debtsLore.add(ChatColor.YELLOW + "Total: " + ChatColor.GOLD + String.format("%.2f€", totalDebt));
+            debtsLore.add("");
+            debtsLore.add(ChatColor.YELLOW + "⚠ Cliquez pour gérer vos dettes");
+            debtsLore.add(ChatColor.GRAY + "Particulier & Entreprise");
+            debtsMeta.setLore(debtsLore);
+            debtsItem.setItemMeta(debtsMeta);
+            inv.setItem(personalSlot, debtsItem);
         }
 
         // === LIGNE 3: Section Ville ===
@@ -523,6 +556,18 @@ public class TownMainGUI implements Listener {
                 citizenFinesGUI.openFinesMenu(player);
             } else {
                 NavigationManager.sendError(player, "Le système d'amendes n'est pas disponible.");
+            }
+        } else if (strippedName.contains("Régler vos Dettes")) {
+            player.closeInventory();
+            if (debtManagementGUI != null) {
+                String currentTownName = townManager.getPlayerTown(player.getUniqueId());
+                if (currentTownName != null) {
+                    debtManagementGUI.openDebtMenu(player, currentTownName);
+                } else {
+                    NavigationManager.sendError(player, "Vous n'êtes pas membre d'une ville.");
+                }
+            } else {
+                NavigationManager.sendError(player, "Le système de gestion des dettes n'est pas disponible.");
             }
         } else if (strippedName.contains("Police Municipale")) {
             player.closeInventory();
