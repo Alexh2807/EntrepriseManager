@@ -180,6 +180,9 @@ public class TownCommandHandler implements CommandExecutor {
                 handleConfirmRent(player, args[1], args[2], args[3], args[4]);
                 return true;
             }
+            case "admin" -> {
+                return handleAdminCommand(player, args);
+            }
             default -> {
                 player.sendMessage(ChatColor.RED + "Sous-commande inconnue.");
                 townGUI.openMainMenu(player);
@@ -613,5 +616,197 @@ public class TownCommandHandler implements CommandExecutor {
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Erreur: paramètres invalides.");
         }
+    }
+
+    /**
+     * NOUVEAU: Gère les commandes admin
+     * /ville admin collecttaxes - Force la collecte horaire pour toutes les villes
+     * /ville admin forcepay <joueur> - Force un joueur à payer ses taxes immédiatement
+     * /ville admin cleardebt <joueur> - Efface toutes les dettes d'un joueur
+     */
+    private boolean handleAdminCommand(Player player, String[] args) {
+        // Vérifier les permissions
+        if (!player.hasPermission("roleplaycity.admin") && !player.isOp()) {
+            player.sendMessage(ChatColor.RED + "Vous n'avez pas la permission d'utiliser cette commande.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.GOLD + "=== Commandes Admin - Taxes ===");
+            player.sendMessage(ChatColor.YELLOW + "/ville admin collecttaxes" + ChatColor.GRAY + " - Force la collecte horaire");
+            player.sendMessage(ChatColor.YELLOW + "/ville admin forcepay <joueur>" + ChatColor.GRAY + " - Force le paiement d'un joueur");
+            player.sendMessage(ChatColor.YELLOW + "/ville admin cleardebt <joueur>" + ChatColor.GRAY + " - Efface les dettes d'un joueur");
+            return true;
+        }
+
+        String adminSubCommand = args[1].toLowerCase();
+
+        switch (adminSubCommand) {
+            case "collecttaxes" -> {
+                return handleAdminCollectTaxes(player);
+            }
+            case "forcepay" -> {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Usage: /ville admin forcepay <joueur>");
+                    return true;
+                }
+                return handleAdminForcePay(player, args[2]);
+            }
+            case "cleardebt" -> {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Usage: /ville admin cleardebt <joueur>");
+                    return true;
+                }
+                return handleAdminClearDebt(player, args[2]);
+            }
+            default -> {
+                player.sendMessage(ChatColor.RED + "Sous-commande admin inconnue.");
+                player.sendMessage(ChatColor.YELLOW + "Utilisez /ville admin pour voir les commandes disponibles.");
+                return true;
+            }
+        }
+    }
+
+    /**
+     * Force la collecte horaire des taxes pour toutes les villes
+     */
+    private boolean handleAdminCollectTaxes(Player player) {
+        player.sendMessage(ChatColor.YELLOW + "⏳ Collecte horaire des taxes en cours...");
+
+        TownEconomyManager economyManager = plugin.getTownEconomyManager();
+        if (economyManager == null) {
+            player.sendMessage(ChatColor.RED + "❌ Erreur: Système économique non disponible.");
+            return true;
+        }
+
+        // Lancer la collecte horaire
+        economyManager.collectAllTaxesHourly();
+
+        player.sendMessage(ChatColor.GREEN + "✓ Collecte horaire des taxes terminée!");
+        player.sendMessage(ChatColor.GRAY + "Consultez la console pour les détails.");
+
+        return true;
+    }
+
+    /**
+     * Force un joueur à payer ses taxes immédiatement
+     */
+    private boolean handleAdminForcePay(Player player, String targetName) {
+        org.bukkit.OfflinePlayer target = plugin.getServer().getOfflinePlayer(targetName);
+
+        if (target == null || (!target.hasPlayedBefore() && !target.isOnline())) {
+            player.sendMessage(ChatColor.RED + "❌ Joueur introuvable: " + targetName);
+            return true;
+        }
+
+        // Trouver la ville du joueur
+        String townName = townManager.getPlayerTown(target.getUniqueId());
+        if (townName == null) {
+            player.sendMessage(ChatColor.RED + "❌ Le joueur " + targetName + " n'est dans aucune ville.");
+            return true;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "❌ Ville introuvable.");
+            return true;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "⏳ Collecte des taxes de " + targetName + " en cours...");
+
+        TownEconomyManager economyManager = plugin.getTownEconomyManager();
+        if (economyManager == null) {
+            player.sendMessage(ChatColor.RED + "❌ Erreur: Système économique non disponible.");
+            return true;
+        }
+
+        // Lancer la collecte uniquement pour cette ville
+        // Cela va créer des dettes si le joueur ne peut pas payer
+        economyManager.collectAllTaxesHourly();
+
+        player.sendMessage(ChatColor.GREEN + "✓ Collecte terminée pour " + targetName + "!");
+        player.sendMessage(ChatColor.GRAY + "Si le joueur n'a pas pu payer, une dette a été créée.");
+
+        // Afficher les dettes du joueur
+        if (town.hasPlayerDebts(target.getUniqueId())) {
+            double totalDebt = town.getTotalPlayerDebt(target.getUniqueId());
+            player.sendMessage(ChatColor.RED + "⚠ Dette actuelle: " + ChatColor.GOLD + String.format("%.2f€", totalDebt));
+        } else {
+            player.sendMessage(ChatColor.GREEN + "✓ Aucune dette pour ce joueur.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Efface toutes les dettes d'un joueur
+     */
+    private boolean handleAdminClearDebt(Player player, String targetName) {
+        org.bukkit.OfflinePlayer target = plugin.getServer().getOfflinePlayer(targetName);
+
+        if (target == null || (!target.hasPlayedBefore() && !target.isOnline())) {
+            player.sendMessage(ChatColor.RED + "❌ Joueur introuvable: " + targetName);
+            return true;
+        }
+
+        // Trouver la ville du joueur
+        String townName = townManager.getPlayerTown(target.getUniqueId());
+        if (townName == null) {
+            player.sendMessage(ChatColor.RED + "❌ Le joueur " + targetName + " n'est dans aucune ville.");
+            return true;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "❌ Ville introuvable.");
+            return true;
+        }
+
+        // Vérifier s'il y a des dettes
+        if (!town.hasPlayerDebts(target.getUniqueId())) {
+            player.sendMessage(ChatColor.YELLOW + "ℹ Le joueur " + targetName + " n'a aucune dette.");
+            return true;
+        }
+
+        double totalDebt = town.getTotalPlayerDebt(target.getUniqueId());
+        int debtCount = town.getPlayerDebts(target.getUniqueId()).size();
+
+        // Effacer toutes les dettes
+        for (Town.PlayerDebt debt : town.getPlayerDebts(target.getUniqueId())) {
+            Plot plot = debt.getPlot();
+
+            // Réinitialiser les dettes selon le type
+            if (plot.getParticularDebtAmount() > 0) {
+                plot.resetParticularDebt();
+            }
+            if (plot.getCompanyDebtAmount() > 0) {
+                plot.resetDebt();
+            }
+        }
+
+        // Sauvegarder
+        townManager.saveTownsNow();
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ DETTES EFFACÉES");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.YELLOW + "Joueur: " + ChatColor.WHITE + targetName);
+        player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
+        player.sendMessage(ChatColor.YELLOW + "Dettes effacées: " + ChatColor.WHITE + debtCount);
+        player.sendMessage(ChatColor.YELLOW + "Montant total: " + ChatColor.GOLD + String.format("%.2f€", totalDebt));
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage("");
+
+        // Notifier le joueur s'il est en ligne
+        if (target.isOnline() && target.getPlayer() != null) {
+            Player targetPlayer = target.getPlayer();
+            targetPlayer.sendMessage("");
+            targetPlayer.sendMessage(ChatColor.GREEN + "✓ Toutes vos dettes ont été effacées par un administrateur!");
+            targetPlayer.sendMessage(ChatColor.YELLOW + "Montant: " + ChatColor.GOLD + String.format("%.2f€", totalDebt));
+            targetPlayer.sendMessage("");
+        }
+
+        return true;
     }
 }
