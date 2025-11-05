@@ -45,6 +45,9 @@ public class TownPlotManagementGUI implements Listener {
         this.pendingActions = new HashMap<>();
     }
 
+    /**
+     * Ouvre le menu de gestion pour le chunk actuel du joueur
+     */
     public void openPlotMenu(Player player) {
         Chunk currentChunk = player.getLocation().getChunk();
         Plot plot = claimManager.getPlotAt(currentChunk);
@@ -54,7 +57,15 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
-        String townName = claimManager.getClaimOwner(currentChunk);
+        openPlotMenu(player, plot);
+    }
+
+    /**
+     * FIX UX P2.1: Ouvre le menu de gestion pour un plot spécifique (accès distant depuis "Mes Propriétés")
+     * Permet de gérer un terrain sans être physiquement dessus
+     */
+    public void openPlotMenu(Player player, Plot plot) {
+        String townName = plot.getTownName();
         Town town = townManager.getTown(townName);
 
         if (town == null) {

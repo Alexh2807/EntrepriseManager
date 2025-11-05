@@ -473,25 +473,15 @@ public class MyPropertyGUI implements Listener {
                 }
             }
 
-            // Terrain possédé → Vérifier présence sur le terrain
+            // FIX UX P2.1: Gestion directe depuis "Mes Propriétés" sans vérification de présence physique
             boolean isRightClick = event.isRightClick();
-
-            // Vérifier que le joueur est sur le terrain pour accéder aux menus
-            org.bukkit.Chunk playerChunk = player.getLocation().getChunk();
-            if (playerChunk.getX() != plot.getChunkX() || playerChunk.getZ() != plot.getChunkZ() ||
-                !playerChunk.getWorld().getName().equals(plot.getWorldName())) {
-                player.sendMessage(ChatColor.RED + "Vous devez être sur ce terrain pour le gérer !");
-                player.sendMessage(ChatColor.YELLOW + "Rendez-vous sur le terrain (Chunk X: " +
-                    plot.getChunkX() + " Z: " + plot.getChunkZ() + ")");
-                return;
-            }
 
             if (isRightClick) {
                 // Ouvrir le menu Permissions
-                plugin.getPlotOwnerGUI().openOwnerMenu(player);
+                plugin.getPlotOwnerGUI().openOwnerMenu(player, plot);
             } else {
                 // Ouvrir le menu Gestion
-                plugin.getTownPlotManagementGUI().openPlotMenu(player);
+                plugin.getTownPlotManagementGUI().openPlotMenu(player, plot);
             }
         }
     }

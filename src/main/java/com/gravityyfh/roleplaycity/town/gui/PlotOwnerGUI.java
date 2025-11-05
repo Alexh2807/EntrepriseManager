@@ -45,6 +45,9 @@ public class PlotOwnerGUI implements Listener {
     /**
      * Menu principal du propriétaire
      */
+    /**
+     * Ouvre le menu Permissions pour le chunk actuel du joueur
+     */
     public void openOwnerMenu(Player player) {
         Chunk currentChunk = player.getLocation().getChunk();
         Plot plot = claimManager.getPlotAt(currentChunk);
@@ -54,6 +57,13 @@ public class PlotOwnerGUI implements Listener {
             return;
         }
 
+        openOwnerMenu(player, plot);
+    }
+
+    /**
+     * FIX UX P2.1: Ouvre le menu Permissions pour un plot spécifique (accès distant)
+     */
+    public void openOwnerMenu(Player player, Plot plot) {
         // Vérifier si le joueur est propriétaire ou locataire
         if (!plot.isOwnedBy(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId())) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes pas propriétaire ou locataire de ce plot.");
