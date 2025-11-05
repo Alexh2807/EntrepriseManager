@@ -1112,12 +1112,15 @@ public class TownEconomyManager {
                                 payer.getPlayer().sendMessage("");
                             }
 
-                            // Retour de tous les terrains à la ville
+                            // FIX CRITIQUE: Retour de tous les terrains à la ville avec nettoyage complet
                             for (Plot plot : groupPlots) {
-                                plot.setOwner(null, null);
+                                // Utiliser transferPlotToTown pour un nettoyage complet
+                                townManager.transferPlotToTown(plot, "Dette impayée groupe: " +
+                                    String.format("%.2f€", plot.getParticularDebtAmount()));
+
+                                // Remettre en vente
                                 plot.setForSale(true);
                                 plot.setSalePrice(1000.0); // Prix par défaut
-                                plot.resetParticularDebt();
                             }
 
                             // Supprimer le groupe
@@ -1325,11 +1328,13 @@ public class TownEconomyManager {
                         payer.getPlayer().sendMessage("");
                     }
 
-                    // Retour du terrain à la ville
-                    plot.setOwner(null, null);
+                    // FIX CRITIQUE: Retour du terrain à la ville avec nettoyage complet
+                    townManager.transferPlotToTown(plot, "Dette impayée particulier: " +
+                        String.format("%.2f€", plot.getParticularDebtAmount()));
+
+                    // Remettre en vente
                     plot.setForSale(true);
                     plot.setSalePrice(1000.0); // Prix par défaut
-                    plot.resetParticularDebt();
                 }
             }
         }
@@ -1645,11 +1650,8 @@ public class TownEconomyManager {
             town.deposit(price);
         }
 
-        // Transférer la propriété du groupe
-        group.setOwner(buyer.getUniqueId(), buyer.getName());
-        group.setForSale(false);
-
-        // Transférer toutes les parcelles individuelles + companySiret si nécessaire
+        // FIX CRITIQUE: Vérifier d'abord que TOUTES les parcelles existent
+        List<Plot> existingPlots = new ArrayList<>();
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
             if (parts.length == 3) {
@@ -1658,20 +1660,59 @@ public class TownEconomyManager {
                 int chunkZ = Integer.parseInt(parts[2]);
 
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null) {
-                    plot.setOwner(buyer.getUniqueId(), buyer.getName());
-                    plot.setForSale(false);
+                if (plot == null) {
+                    buyer.sendMessage(ChatColor.RED + "❌ ERREUR: Le groupe contient des parcelles manquantes !");
+                    buyer.sendMessage(ChatColor.YELLOW + "Parcelle introuvable: " + worldName + ":" + chunkX + "," + chunkZ);
+                    buyer.sendMessage(ChatColor.GRAY + "Contactez un administrateur pour nettoyer ce groupe.");
 
-                    // Si terrain PROFESSIONNEL, enregistrer l'entreprise
-                    if (plot.getType() == PlotType.PROFESSIONNEL && buyerCompany != null) {
-                        plot.setCompany(buyerCompany.getNom());
-                        plot.setCompanySiret(buyerCompany.getSiret());
-                        plot.resetDebt(); // Réinitialiser la dette si existante
+                    // Rembourser l'acheteur
+                    if (hasProfessionalPlot && buyerCompany != null) {
+                        buyerCompany.setSolde(buyerCompany.getSolde() + price);
                     } else {
-                        plot.setCompany(null);
-                        plot.setCompanySiret(null);
+                        RoleplayCity.getEconomy().depositPlayer(buyer, price);
                     }
+
+                    // Annuler la transaction avec le vendeur
+                    if (group.getOwnerUuid() != null) {
+                        OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                        if (oldCompanySiret != null) {
+                            EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(oldCompanySiret);
+                            if (previousCompany != null) {
+                                previousCompany.setSolde(previousCompany.getSolde() - price);
+                            }
+                        } else {
+                            RoleplayCity.getEconomy().withdrawPlayer(previousOwner, price);
+                        }
+                    } else {
+                        town.withdraw(price);
+                    }
+
+                    return false;
                 }
+                existingPlots.add(plot);
+            }
+        }
+
+        // Transférer la propriété du groupe
+        group.setOwner(buyer.getUniqueId(), buyer.getName());
+        group.setForSale(false);
+
+        // Transférer toutes les parcelles individuelles + companySiret si nécessaire
+        for (Plot plot : existingPlots) {
+            plot.setOwner(buyer.getUniqueId(), buyer.getName());
+            plot.setForSale(false);
+
+            // FIX CRITIQUE: Réinitialiser TOUTES les dettes (entreprise ET particulier)
+            plot.resetDebt();
+            plot.resetParticularDebt();
+
+            // Si terrain PROFESSIONNEL, enregistrer l'entreprise
+            if (plot.getType() == PlotType.PROFESSIONNEL && buyerCompany != null) {
+                plot.setCompany(buyerCompany.getNom());
+                plot.setCompanySiret(buyerCompany.getSiret());
+            } else {
+                plot.setCompany(null);
+                plot.setCompanySiret(null);
             }
         }
 
@@ -1748,8 +1789,12 @@ public class TownEconomyManager {
 
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
                 if (plot != null) {
-                    Chunk chunk = owner.getWorld().getChunkAt(chunkX, chunkZ);
-                    plot.scanAndProtectExistingBlocks(chunk);
+                    // FIX CRITIQUE: Utiliser le monde de la parcelle, pas celui du propriétaire
+                    org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
+                    if (world != null) {
+                        Chunk chunk = world.getChunkAt(chunkX, chunkZ);
+                        plot.scanAndProtectExistingBlocks(chunk);
+                    }
                 }
             }
         }

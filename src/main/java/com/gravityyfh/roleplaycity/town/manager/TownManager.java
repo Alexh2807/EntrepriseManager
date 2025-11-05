@@ -568,10 +568,10 @@ public class TownManager {
         // Effacer le locataire
         plot.clearRenter();
 
-        // Retirer du groupe si nécessaire
+        // FIX CRITIQUE: Retirer FORCÉMENT du groupe (pas seulement si incompatible)
         Town town = getTown(plot.getTownName());
         if (town != null) {
-            town.removePlotFromGroupIfIncompatible(plot);
+            town.removePlotFromGroup(plot);
         }
 
         plugin.getLogger().info(String.format(

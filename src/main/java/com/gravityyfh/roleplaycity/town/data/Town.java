@@ -148,8 +148,20 @@ public class Town {
 
     public void removePlot(String worldName, int chunkX, int chunkZ) {
         String key = getPlotKey(worldName, chunkX, chunkZ);
-        if (plots.remove(key) != null) {
+        Plot removedPlot = plots.remove(key);
+        if (removedPlot != null) {
             totalClaims--;
+
+            // FIX CRITIQUE: Retirer la parcelle de tous les groupes
+            PlotGroup group = findPlotGroupByPlot(removedPlot);
+            if (group != null) {
+                group.removePlot(removedPlot);
+
+                // Si le groupe a moins de 2 parcelles, le supprimer complètement
+                if (group.getPlotCount() < 2) {
+                    plotGroups.remove(group.getGroupId());
+                }
+            }
         }
     }
 
@@ -226,6 +238,32 @@ public class Town {
 
     public void addPlotGroup(PlotGroup group) {
         plotGroups.put(group.getGroupId(), group);
+    }
+
+    /**
+     * FIX CRITIQUE: Retire une parcelle de son groupe (peu importe le type)
+     * Utilisé lors de saisie, vente, transfert à la ville
+     * Retourne true si la parcelle a été retirée d'un groupe
+     */
+    public boolean removePlotFromGroup(Plot plot) {
+        PlotGroup group = findPlotGroupByPlot(plot);
+        if (group == null) {
+            return false; // Pas dans un groupe
+        }
+
+        // Retirer la parcelle du groupe
+        group.removePlot(plot);
+
+        // Annuler vente/location du groupe si moins de 2 parcelles
+        if (group.getPlotCount() < 2) {
+            group.setForSale(false);
+            group.setForRent(false);
+            group.clearRenter();
+            // Supprimer le groupe complètement
+            plotGroups.remove(group.getGroupId());
+        }
+
+        return true;
     }
 
     /**
