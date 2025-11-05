@@ -32,6 +32,7 @@ public class Plot {
     private double rentPricePerDay; // Prix par jour
     private boolean forRent;
     private UUID renterUuid;
+    private String renterCompanySiret; // SIRET de l'entreprise du locataire (PROFESSIONNEL uniquement)
     private LocalDateTime rentStartDate;
     private LocalDateTime lastRentUpdate; // Dernière mise à jour du solde
     private int rentDaysRemaining; // Solde de jours restants (max 30)
@@ -110,6 +111,7 @@ public class Plot {
 
     public boolean isForRent() { return forRent; }
     public UUID getRenterUuid() { return renterUuid; }
+    public String getRenterCompanySiret() { return renterCompanySiret; }
     public LocalDateTime getRentStartDate() { return rentStartDate; }
     public LocalDateTime getLastRentUpdate() { return lastRentUpdate; }
     public int getRentDaysRemaining() { return rentDaysRemaining; }
@@ -184,9 +186,16 @@ public class Plot {
         this.rentDaysRemaining = Math.min(initialDays, 30); // Max 30 jours
     }
 
+    public void setRenterCompanySiret(String renterCompanySiret) {
+        this.renterCompanySiret = renterCompanySiret;
+    }
+
     public void clearRenter() {
         UUID oldRenter = this.renterUuid;
+        String oldRenterSiret = this.renterCompanySiret; // SAUVEGARDER avant de clear
+
         this.renterUuid = null;
+        this.renterCompanySiret = null;
         this.rentStartDate = null;
         this.lastRentUpdate = null;
         this.rentDaysRemaining = 0;
@@ -195,6 +204,20 @@ public class Plot {
         // NOUVEAU : Nettoyer le tracker des blocs du locataire
         if (oldRenter != null && renterBlockTracker != null) {
             renterBlockTracker.clearRenter(oldRenter);
+        }
+
+        // NOUVEAU : Supprimer les shops du locataire sur ce terrain
+        if (oldRenterSiret != null) {
+            com.gravityyfh.roleplaycity.Shop.ShopManager shopManager =
+                ((com.gravityyfh.roleplaycity.RoleplayCity) org.bukkit.Bukkit.getPluginManager().getPlugin("RoleplayCity")).getShopManager();
+            if (shopManager != null) {
+                shopManager.deleteShopsByCompanyOnPlot(
+                    oldRenterSiret,
+                    this,
+                    true, // Notifier
+                    "Fin de la location du terrain"
+                );
+            }
         }
     }
 

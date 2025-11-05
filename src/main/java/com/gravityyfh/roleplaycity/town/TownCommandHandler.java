@@ -1,11 +1,13 @@
 package com.gravityyfh.roleplaycity.town;
 
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.ChunkCoordinate;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.gui.TownMainGUI;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
+import com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager;
 import com.gravityyfh.roleplaycity.town.manager.TownEconomyManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -18,6 +20,10 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class TownCommandHandler implements CommandExecutor {
@@ -26,10 +32,28 @@ public class TownCommandHandler implements CommandExecutor {
     private final TownManager townManager;
     private final TownMainGUI townGUI;
 
+    // Cache de sélection d'entreprise pour achats de terrains PROFESSIONNEL
+    // UUID joueur → SIRET entreprise sélectionnée
+    private final Map<UUID, String> selectedCompanyCache = new HashMap<>();
+
     public TownCommandHandler(RoleplayCity plugin, TownManager townManager) {
         this.plugin = plugin;
         this.townManager = townManager;
         this.townGUI = new TownMainGUI(plugin, townManager);
+    }
+
+    /**
+     * Définit l'entreprise sélectionnée par un joueur pour un achat
+     */
+    public void setSelectedCompany(UUID playerUuid, String siret) {
+        selectedCompanyCache.put(playerUuid, siret);
+    }
+
+    /**
+     * Récupère l'entreprise sélectionnée par un joueur, puis la supprime du cache
+     */
+    public String getAndClearSelectedCompany(UUID playerUuid) {
+        return selectedCompanyCache.remove(playerUuid);
     }
 
     @Override
@@ -192,6 +216,42 @@ public class TownCommandHandler implements CommandExecutor {
             if (plot == null) {
                 player.sendMessage(ChatColor.RED + "Parcelle introuvable.");
                 return;
+            }
+
+            // NOUVEAU : Si terrain PROFESSIONNEL, gérer sélection d'entreprise
+            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
+                CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+
+                // Compter les entreprises du joueur
+                List<EntrepriseManagerLogic.Entreprise> playerCompanies = new ArrayList<>();
+                for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+                    String gerantUuidStr = entreprise.getGerantUUID();
+                    if (gerantUuidStr != null) {
+                        try {
+                            UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                            if (gerantUuid.equals(player.getUniqueId())) {
+                                playerCompanies.add(entreprise);
+                            }
+                        } catch (IllegalArgumentException e) {
+                            // UUID invalide, ignorer
+                        }
+                    }
+                }
+
+                if (playerCompanies.isEmpty()) {
+                    player.sendMessage(ChatColor.RED + "Vous devez posséder une entreprise pour acheter un terrain PROFESSIONNEL !");
+                    player.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
+                    return;
+                }
+
+                if (playerCompanies.size() > 1) {
+                    // 2+ entreprises : ouvrir GUI de sélection
+                    plugin.getCompanySelectionGUI().open(player, chunkX, chunkZ, worldName, false);
+                    return; // Stopper ici, la confirmation viendra après sélection
+                } else {
+                    // 1 seule entreprise : stocker automatiquement
+                    setSelectedCompany(player.getUniqueId(), playerCompanies.get(0).getSiret());
+                }
             }
 
             // Vérifier si la parcelle est dans un groupe

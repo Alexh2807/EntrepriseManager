@@ -114,6 +114,23 @@ public class CompanyPlotManager {
             return;
         }
 
+        // NOUVEAU : Supprimer TOUS les shops de cette entreprise
+        com.gravityyfh.roleplaycity.Shop.ShopManager shopManager = plugin.getShopManager();
+        if (shopManager != null) {
+            int deletedShops = shopManager.deleteAllShopsByCompany(
+                siret,
+                true, // Notifier
+                "Dissolution de l'entreprise"
+            );
+
+            if (deletedShops > 0) {
+                plugin.getLogger().info(String.format(
+                    "[CompanyPlotManager] %d boutique(s) supprimée(s) suite à dissolution entreprise SIRET %s",
+                    deletedShops, siret
+                ));
+            }
+        }
+
         List<Plot> companyPlots = townManager.getPlotsByCompanySiret(siret, townName);
         Town town = townManager.getTown(townName);
 

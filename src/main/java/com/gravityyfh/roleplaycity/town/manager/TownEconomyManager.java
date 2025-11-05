@@ -305,6 +305,29 @@ public class TownEconomyManager {
             return false;
         }
 
+        // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
+            if (!companyManager.validateCompanyOwnership(renter, plot)) {
+                return false; // Message d'erreur déjà envoyé par validateCompanyOwnership
+            }
+
+            // Récupérer le SIRET sélectionné du cache (mis par CompanySelectionGUI)
+            String selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(renter.getUniqueId());
+            if (selectedSiret == null) {
+                // Pas de SIRET dans le cache, récupérer l'entreprise du joueur
+                EntrepriseManagerLogic.Entreprise renterCompany = companyManager.getPlayerCompany(renter);
+                if (renterCompany == null) {
+                    renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                    return false;
+                }
+                selectedSiret = renterCompany.getSiret();
+            }
+
+            // Stocker le SIRET de l'entreprise du locataire
+            plot.setRenterCompanySiret(selectedSiret);
+        }
+
         // Limiter à 30 jours max
         int actualDays = Math.min(days, 30);
         double totalCost = plot.getRentPricePerDay() * actualDays;

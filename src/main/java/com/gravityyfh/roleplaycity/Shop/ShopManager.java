@@ -144,15 +144,55 @@ public class ShopManager {
                      return;
                   }
 
-                  // Vérifier que le joueur est propriétaire ou locataire de la parcelle
-                  if (!plot.isOwnedBy(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId())) {
-                     player.sendMessage(ChatColor.RED + "Vous devez être propriétaire ou locataire de cette parcelle.");
-                     return;
-                  }
-
                   // Vérifier que c'est une parcelle professionnelle
                   if (plot.getType() != PlotType.PROFESSIONNEL) {
                      player.sendMessage(ChatColor.RED + "La parcelle doit être de type PROFESSIONNEL pour placer une boutique.");
+                     return;
+                  }
+
+                  // NOUVEAU : Déterminer quel SIRET est autorisé sur ce terrain
+                  String authorizedSiret = null;
+                  boolean isRented = (plot.getRenterUuid() != null);
+
+                  if (isRented) {
+                     // Terrain loué → seul le locataire peut créer des shops (avec SON entreprise)
+                     if (!plot.isRentedBy(player.getUniqueId())) {
+                        player.sendMessage(ChatColor.RED + "Ce terrain est loué par quelqu'un d'autre.");
+                        player.sendMessage(ChatColor.YELLOW + "Seul le locataire actuel peut créer des boutiques ici.");
+                        return;
+                     }
+                     // Récupérer le SIRET de l'entreprise du locataire
+                     authorizedSiret = plot.getRenterCompanySiret();
+
+                     if (authorizedSiret == null) {
+                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associée à votre location.");
+                        return;
+                     }
+                  } else {
+                     // Terrain PAS loué → seul le propriétaire peut créer des shops
+                     if (!plot.isOwnedBy(player.getUniqueId())) {
+                        player.sendMessage(ChatColor.RED + "Vous devez être propriétaire de cette parcelle.");
+                        return;
+                     }
+                     // Récupérer le SIRET de l'entreprise propriétaire
+                     authorizedSiret = plot.getCompanySiret();
+
+                     if (authorizedSiret == null) {
+                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associée à ce terrain.");
+                        return;
+                     }
+                  }
+
+                  // NOUVEAU : Vérifier que l'entreprise du shop correspond au terrain
+                  if (!entreprise.getSiret().equals(authorizedSiret)) {
+                     player.sendMessage(ChatColor.RED + "✗ Cette entreprise n'est pas autorisée sur ce terrain !");
+                     player.sendMessage(ChatColor.YELLOW + "Seule l'entreprise liée au terrain peut créer des boutiques ici.");
+
+                     // Afficher quelle entreprise est autorisée
+                     EntrepriseManagerLogic.Entreprise authorizedCompany = this.entrepriseLogic.getEntrepriseBySiret(authorizedSiret);
+                     if (authorizedCompany != null) {
+                        player.sendMessage(ChatColor.GRAY + "Entreprise autorisée: " + ChatColor.WHITE + authorizedCompany.getNom());
+                     }
                      return;
                   }
 
@@ -316,6 +356,97 @@ public class ShopManager {
     */
    // Méthode supprimée - N'utilise plus Towny
    // La suppression de boutiques est gérée via TownEventListener
+
+   /**
+    * Supprime tous les shops d'une entreprise sur un terrain spécifique
+    * Utilisé lors de délocation ou perte d'entreprise
+    *
+    * @param siret SIRET de l'entreprise dont on supprime les shops
+    * @param plot Terrain concerné
+    * @param notifyOwner Si true, notifie le gérant
+    * @param reason Raison de la suppression
+    * @return Nombre de shops supprimés
+    */
+   public int deleteShopsByCompanyOnPlot(String siret, Plot plot, boolean notifyOwner, String reason) {
+      if (siret == null || plot == null) return 0;
+
+      List<Shop> shopsToDelete = new ArrayList<>();
+
+      // Trouver tous les shops de cette entreprise sur ce terrain
+      for (Shop shop : shops.values()) {
+         if (siret.equals(shop.getEntrepriseSiret())) {
+            // Vérifier si le shop est sur ce terrain
+            Location shopLoc = shop.getLocation();
+            if (shopLoc.getWorld().getName().equals(plot.getWorldName())) {
+               int shopChunkX = shopLoc.getBlockX() >> 4;
+               int shopChunkZ = shopLoc.getBlockZ() >> 4;
+
+               if (shopChunkX == plot.getChunkX() && shopChunkZ == plot.getChunkZ()) {
+                  shopsToDelete.add(shop);
+               }
+            }
+         }
+      }
+
+      // Supprimer les shops trouvés
+      for (Shop shop : shopsToDelete) {
+         deleteShop(shop);
+      }
+
+      // Notifier le gérant si demandé
+      if (notifyOwner && !shopsToDelete.isEmpty()) {
+         Player owner = Bukkit.getPlayer(shopsToDelete.get(0).getOwnerUUID());
+         if (owner != null && owner.isOnline()) {
+            owner.sendMessage("");
+            owner.sendMessage(ChatColor.RED + "⚠ SUPPRESSION DE BOUTIQUES");
+            owner.sendMessage(ChatColor.YELLOW + "Raison: " + reason);
+            owner.sendMessage(ChatColor.GRAY + "Nombre de boutiques supprimées: " + ChatColor.WHITE + shopsToDelete.size());
+            owner.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
+            owner.sendMessage("");
+         }
+      }
+
+      plugin.getLogger().info(String.format(
+         "[ShopManager] Suppression de %d shop(s) de l'entreprise %s sur terrain %s (Raison: %s)",
+         shopsToDelete.size(), siret, plot.getCoordinates(), reason
+      ));
+
+      return shopsToDelete.size();
+   }
+
+   /**
+    * Supprime TOUS les shops d'une entreprise (toutes parcelles confondues)
+    * Utilisé lors de dissolution d'entreprise
+    */
+   public int deleteAllShopsByCompany(String siret, boolean notifyOwner, String reason) {
+      if (siret == null) return 0;
+
+      List<Shop> shopsToDelete = shops.values().stream()
+         .filter(shop -> siret.equals(shop.getEntrepriseSiret()))
+         .collect(Collectors.toList());
+
+      for (Shop shop : shopsToDelete) {
+         deleteShop(shop);
+      }
+
+      if (notifyOwner && !shopsToDelete.isEmpty()) {
+         Player owner = Bukkit.getPlayer(shopsToDelete.get(0).getOwnerUUID());
+         if (owner != null && owner.isOnline()) {
+            owner.sendMessage("");
+            owner.sendMessage(ChatColor.RED + "⚠ SUPPRESSION DE TOUTES VOS BOUTIQUES");
+            owner.sendMessage(ChatColor.YELLOW + "Raison: " + reason);
+            owner.sendMessage(ChatColor.GRAY + "Nombre total: " + ChatColor.WHITE + shopsToDelete.size());
+            owner.sendMessage("");
+         }
+      }
+
+      plugin.getLogger().info(String.format(
+         "[ShopManager] Suppression de %d shop(s) de l'entreprise %s (Raison: %s)",
+         shopsToDelete.size(), siret, reason
+      ));
+
+      return shopsToDelete.size();
+   }
 
 
    public void changeShopItem(Shop shop, ItemStack newItem) {

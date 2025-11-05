@@ -470,15 +470,53 @@ public class TownHUDListener implements Listener {
             objective.getScore(" " + ChatColor.LIGHT_PURPLE + plotGroup.getGroupName()).setScore(line--);
         }
 
-        // Propriétaire (seulement si le terrain a un propriétaire réel)
+        // Propriétaire / Entreprise
         if (plot.getOwnerUuid() != null) {
-            String ownerName = plot.getOwnerName();
-            if (ownerName.length() > 12) {
-                ownerName = ownerName.substring(0, 12) + "...";
+            // Terrain a un propriétaire
+            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                // Terrain PROFESSIONNEL → afficher infos entreprise
+                String companyName = plot.getCompanyName();
+                if (companyName != null && companyName.length() > 12) {
+                    companyName = companyName.substring(0, 12) + "...";
+                }
+                String ownerName = plot.getOwnerName();
+                if (ownerName != null && ownerName.length() > 12) {
+                    ownerName = ownerName.substring(0, 12) + "...";
+                }
+
+                objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
+                objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
+                objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
+                objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + plot.getCompanySiret().substring(0, 8) + "...").setScore(line--);
+            } else {
+                // Terrain PARTICULIER → afficher nom proprio
+                String ownerName = plot.getOwnerName();
+                if (ownerName.length() > 12) {
+                    ownerName = ownerName.substring(0, 12) + "...";
+                }
+                objective.getScore(" " + ChatColor.GRAY + "Proprio: " + ChatColor.YELLOW + ownerName).setScore(line--);
             }
-            objective.getScore(" " + ChatColor.GRAY + "Proprio: " + ChatColor.YELLOW + ownerName).setScore(line--);
         }
         // Si ownerUuid == null, le terrain appartient à la ville (pas de ligne affichée)
+
+        // Si terrain loué, afficher info locataire entreprise
+        if (plot.getRenterUuid() != null) {
+            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getRenterCompanySiret() != null) {
+                // Locataire avec entreprise
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(plot.getRenterCompanySiret());
+
+                if (renterCompany != null) {
+                    String renterCompanyName = renterCompany.getNom();
+                    if (renterCompanyName.length() > 12) {
+                        renterCompanyName = renterCompanyName.substring(0, 12) + "...";
+                    }
+
+                    objective.getScore(" " + ChatColor.AQUA + "Loué par:").setScore(line--);
+                    objective.getScore(" " + ChatColor.LIGHT_PURPLE + renterCompanyName).setScore(line--);
+                }
+            }
+        }
 
         // Ligne vide
         objective.getScore(ChatColor.DARK_GRAY + "  ").setScore(line--);

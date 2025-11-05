@@ -57,6 +57,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI myPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI rentedPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
+    private com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI companySelectionGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
@@ -129,6 +130,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager, townMainGUI);
         rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, myPropertyGUI);
         myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
+        companySelectionGUI = new com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI(this);
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
@@ -218,6 +220,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             entityDamageListener, entityDeathListener, treeCutListener,
             townMainGUI, townMembersGUI, townClaimsGUI, townBankGUI, townPlotManagementGUI, plotOwnerGUI, // GUI du système de ville
             myPropertyGUI, rentedPropertyGUI, myCompaniesGUI, // GUI Mes Propriétés et Mes Entreprises
+            companySelectionGUI, // GUI Sélection Entreprise
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
             plotGroupManagementGUI, plotGroupDetailGUI, // GUI Regroupement de parcelles
             townProtectionListener, // Protection des territoires de ville
@@ -316,6 +319,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }
     public com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI getMyPropertyGUI() { return myPropertyGUI; }
     public com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI getRentedPropertyGUI() { return rentedPropertyGUI; }
+    public com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI getCompanySelectionGUI() { return companySelectionGUI; }
     public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
     public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() { return notificationManager; }
+    public TownCommandHandler getTownCommandHandler() {
+        return (TownCommandHandler) getCommand("ville").getExecutor();
+    }
 }

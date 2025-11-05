@@ -19,9 +19,14 @@
       "Bash(findstr:*)",
       "Bash(mvn package:*)",
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean package -DskipTests -q)",
-      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" compile -q)"
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" compile -q)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" clean compile -q)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\PluginCreator\\EntrepriseManager\\cleanup_debug.ps1\")",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" package -DskipTests -q)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "outputStyle": "default"
 }
