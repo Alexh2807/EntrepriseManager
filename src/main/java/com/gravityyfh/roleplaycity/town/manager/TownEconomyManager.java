@@ -971,9 +971,57 @@ public class TownEconomyManager {
                             firstPlot.setLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setDebtWarningCount(1);
 
-                            // Utiliser le système existant pour les entreprises
-                            CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                            companyManager.handleInsufficientFunds(firstPlot, company, groupHourlyTax);
+                            // Notifier le gérant
+                            String gerantUuidStr = company.getGerantUUID();
+                            if (gerantUuidStr != null) {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
+                                if (gerant.isOnline() && gerant.getPlayer() != null) {
+                                    Player gerantPlayer = gerant.getPlayer();
+                                    gerantPlayer.sendMessage("");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - GROUPE PROFESSIONNEL");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + company.getNom());
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + group.getGroupName() +
+                                        ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.GOLD +
+                                        String.format("%.2f€", newDebt));
+                                    gerantPlayer.sendMessage(ChatColor.GRAY + "Ville: " + townName);
+                                    gerantPlayer.sendMessage("");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "   avant saisie automatique des terrains!");
+                                    gerantPlayer.sendMessage("");
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "💡 Pour recharger l'entreprise:");
+                                    gerantPlayer.sendMessage(ChatColor.GRAY + "   /entreprise → Mes Entreprises → " + company.getNom() + " → Déposer Argent");
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "💡 Pour régler la dette:");
+                                    gerantPlayer.sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                    gerantPlayer.sendMessage("");
+                                }
+                            }
+
+                            notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                        } else {
+                            // Dette déjà existante
+                            String gerantUuidStr = company.getGerantUUID();
+                            if (gerantUuidStr != null) {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
+                                if (gerant.isOnline() && gerant.getPlayer() != null) {
+                                    long daysRemaining = 7 - java.time.Duration.between(firstPlot.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                                    gerant.getPlayer().sendMessage(ChatColor.RED + "⚠ Dette groupe augmentée: " +
+                                        ChatColor.GOLD + String.format("%.2f€", newDebt) + ChatColor.RED +
+                                        " (J-" + daysRemaining + ")");
+                                    gerant.getPlayer().sendMessage(ChatColor.YELLOW + "   Groupe: " + ChatColor.WHITE + group.getGroupName() +
+                                        ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                                    gerant.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
+                                        ChatColor.WHITE + "/ville → Régler vos Dettes");
+                                }
+                            }
+
+                            firstPlot.setDebtWarningCount(firstPlot.getDebtWarningCount() + 1);
+                            notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
                         }
 
                         plugin.getLogger().warning(String.format(
