@@ -62,9 +62,17 @@ public class CompanyPlotManager {
     public String getPlayerCompanyName(Player player) {
         // Parcourir toutes les entreprises pour trouver celle dont le joueur est gérant
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            if (entreprise.getGerantUUID() != null &&
-                entreprise.getGerantUUID().equals(player.getUniqueId())) {
-                return entreprise.getNom();
+            String gerantUuidStr = entreprise.getGerantUUID();
+            if (gerantUuidStr != null) {
+                try {
+                    UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                    if (gerantUuid.equals(player.getUniqueId())) {
+                        return entreprise.getNom();
+                    }
+                } catch (IllegalArgumentException e) {
+                    // UUID invalide, ignorer cette entreprise
+                    plugin.getLogger().warning("UUID invalide pour entreprise " + entreprise.getNom() + ": " + gerantUuidStr);
+                }
             }
         }
         return null;
@@ -75,9 +83,17 @@ public class CompanyPlotManager {
      */
     public EntrepriseManagerLogic.Entreprise getPlayerCompany(Player player) {
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
-            if (entreprise.getGerantUUID() != null &&
-                entreprise.getGerantUUID().equals(player.getUniqueId())) {
-                return entreprise;
+            String gerantUuidStr = entreprise.getGerantUUID();
+            if (gerantUuidStr != null) {
+                try {
+                    UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                    if (gerantUuid.equals(player.getUniqueId())) {
+                        return entreprise;
+                    }
+                } catch (IllegalArgumentException e) {
+                    // UUID invalide, ignorer cette entreprise
+                    plugin.getLogger().warning("UUID invalide pour entreprise " + entreprise.getNom() + ": " + gerantUuidStr);
+                }
             }
         }
         return null;

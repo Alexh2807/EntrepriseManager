@@ -142,7 +142,18 @@ public class RoleplayCityPlaceholders extends PlaceholderExpansion {
         // Vérifier si le joueur possède au moins une entreprise via EntrepriseManagerLogic
         if (plugin.getEntrepriseManagerLogic() != null) {
             return plugin.getEntrepriseManagerLogic().getEntreprises().stream()
-                .anyMatch(entreprise -> entreprise.getGerant().equals(playerUuid));
+                .anyMatch(entreprise -> {
+                    String gerantUuidStr = entreprise.getGerantUUID();
+                    if (gerantUuidStr != null) {
+                        try {
+                            UUID gerantUuid = java.util.UUID.fromString(gerantUuidStr);
+                            return gerantUuid.equals(playerUuid);
+                        } catch (IllegalArgumentException e) {
+                            return false;
+                        }
+                    }
+                    return false;
+                });
         }
         return false;
     }
