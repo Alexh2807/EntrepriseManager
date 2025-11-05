@@ -404,12 +404,30 @@ public class TownClaimsGUI implements Listener {
         // Vérifier et effectuer le claim
         double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
 
+        // Vérifier le solde AVANT de tenter le claim pour un message d'erreur approprié
+        if (town.getBankBalance() < claimCost) {
+            player.sendMessage(ChatColor.RED + "Solde insuffisant dans la banque de la ville !");
+            player.sendMessage(ChatColor.GRAY + "Requis: " + ChatColor.GOLD + String.format("%.2f€", claimCost) +
+                ChatColor.GRAY + " | Disponible: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
+            player.closeInventory();
+            return;
+        }
+
+        // Vérifier l'adjacence AVANT de tenter le claim
+        if (!claimManager.isAdjacentToTownClaim(townName, chunk)) {
+            player.sendMessage(ChatColor.RED + "✗ Les claims doivent être adjacents (côte à côte) !");
+            player.sendMessage(ChatColor.YELLOW + "→ Vous ne pouvez pas claim des chunks espacés.");
+            player.sendMessage(ChatColor.GRAY + "Le chunk doit toucher au moins un chunk existant de votre ville.");
+            player.closeInventory();
+            return;
+        }
+
         if (claimManager.claimChunk(townName, chunk, claimCost)) {
             player.sendMessage(ChatColor.GREEN + "Chunk claimé avec succès pour " + claimCost + "€ !");
             player.sendMessage(ChatColor.GRAY + "Position: " + chunk.getX() + ", " + chunk.getZ());
             player.closeInventory();
         } else {
-            player.sendMessage(ChatColor.RED + "Impossible de claim ce chunk. Vérifiez le solde de la ville.");
+            player.sendMessage(ChatColor.RED + "Impossible de claim ce chunk.");
             player.closeInventory();
         }
     }

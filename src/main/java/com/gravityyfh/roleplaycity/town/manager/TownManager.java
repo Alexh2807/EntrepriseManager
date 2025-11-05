@@ -89,6 +89,7 @@ public class TownManager {
         mayor.sendMessage(ChatColor.GRAY + "   → Coût : " + ChatColor.GOLD + String.format("%.2f€", claimCost) + ChatColor.GRAY + " par chunk (256m²)");
         mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Claims");
         mayor.sendMessage(ChatColor.GRAY + "   → L'argent est prélevé de la banque de ville");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚠ Important: " + ChatColor.GRAY + "Les claims doivent être adjacents (côte à côte)!");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.AQUA + "3. RECRUTER DES MÉTIERS MUNICIPAUX");
         mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Membres");

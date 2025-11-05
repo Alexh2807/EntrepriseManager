@@ -102,6 +102,42 @@ public class ClaimManager {
     }
 
     /**
+     * Vérifie si un chunk est adjacent à au moins un chunk de la ville
+     * Un chunk est adjacent s'il partage un côté (pas diagonal)
+     */
+    public boolean isAdjacentToTownClaim(String townName, Chunk chunk) {
+        Town town = townManager.getTown(townName);
+        if (town == null || town.getPlots().isEmpty()) {
+            return true; // Premier claim, toujours autorisé
+        }
+
+        String worldName = chunk.getWorld().getName();
+        int chunkX = chunk.getX();
+        int chunkZ = chunk.getZ();
+
+        // Vérifier les 4 directions (Nord, Sud, Est, Ouest)
+        int[][] directions = {
+            {0, -1},  // Nord (Z-)
+            {0, 1},   // Sud (Z+)
+            {-1, 0},  // Ouest (X-)
+            {1, 0}    // Est (X+)
+        };
+
+        for (int[] dir : directions) {
+            int adjacentX = chunkX + dir[0];
+            int adjacentZ = chunkZ + dir[1];
+
+            // Vérifier si ce chunk adjacent appartient à la ville
+            Plot adjacentPlot = town.getPlot(worldName, adjacentX, adjacentZ);
+            if (adjacentPlot != null) {
+                return true; // Trouvé un chunk adjacent de la ville
+            }
+        }
+
+        return false; // Aucun chunk adjacent trouvé
+    }
+
+    /**
      * Claim un chunk pour une ville
      * @return true si le claim a réussi, false sinon
      */
@@ -115,6 +151,11 @@ public class ClaimManager {
 
         Town town = townManager.getTown(townName);
         if (town == null) {
+            return false;
+        }
+
+        // NOUVEAU : Vérifier que le chunk est adjacent (sauf premier claim)
+        if (!isAdjacentToTownClaim(townName, chunk)) {
             return false;
         }
 
