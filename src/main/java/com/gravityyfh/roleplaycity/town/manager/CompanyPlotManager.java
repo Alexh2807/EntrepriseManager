@@ -49,7 +49,7 @@ public class CompanyPlotManager {
         String playerEntreprise = getPlayerCompanyName(player);
         if (playerEntreprise == null) {
             player.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour acheter un terrain PROFESSIONNEL !");
-            player.sendMessage(ChatColor.YELLOW + "Créez une entreprise avec /entreprise create");
+            player.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
             return false;
         }
 
