@@ -332,26 +332,68 @@ public class TownEconomyManager {
         int actualDays = Math.min(days, 30);
         double totalCost = plot.getRentPricePerDay() * actualDays;
 
-        // Vérifier que le locataire a assez d'argent
-        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
-                String.format("%.2f€", totalCost));
-            return false;
-        }
+        // NOUVEAU : Gestion différente selon le type de terrain
+        boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
+        EntrepriseManagerLogic.Entreprise renterCompany = null;
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        if (isProfessional) {
+            // Terrain PROFESSIONNEL : Louer avec l'entreprise
+            renterCompany = companyManager.getPlayerCompany(renter);
+            if (renterCompany == null) {
+                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                return false;
+            }
+
+            // Vérifier que l'entreprise a assez d'argent
+            if (renterCompany.getSolde() < totalCost) {
+                renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                return false;
+            }
+
+            // Prélever de l'entreprise
+            renterCompany.setSolde(renterCompany.getSolde() - totalCost);
+        } else {
+            // Terrain PARTICULIER : Vérifier l'argent personnel
+            if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
+                    String.format("%.2f€", totalCost));
+                return false;
+            }
+
+            // Prélever l'argent personnel
+            RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        }
 
         // Donner l'argent au propriétaire ou à la ville
         if (plot.getOwnerUuid() != null) {
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
-            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+            if (isProfessional && plot.getCompanySiret() != null) {
+                // Terrain PRO - argent va à l'entreprise du propriétaire
+                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                if (ownerCompany != null) {
+                    ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-            // Notifier si le propriétaire est en ligne
-            if (owner.isOnline() && owner.getPlayer() != null) {
-                owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
-                    actualDays + " jours (" + String.format("%.2f€", totalCost) + ") !");
+                    // Notifier le propriétaire si en ligne
+                    OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+                    if (owner.isOnline() && owner.getPlayer() != null) {
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a été loué pour " + actualDays + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                    }
+                } else {
+                    // Entreprise n'existe plus - argent va à la ville
+                    town.deposit(totalCost);
+                }
+            } else {
+                // Terrain PARTICULIER - argent va au propriétaire
+                OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+                // Notifier si le propriétaire est en ligne
+                if (owner.isOnline() && owner.getPlayer() != null) {
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
+                        actualDays + " jours (" + String.format("%.2f€", totalCost) + ") !");
+                }
             }
         } else {
             // Pas de propriétaire = l'argent va à la ville
@@ -414,26 +456,76 @@ public class TownEconomyManager {
         int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
         double totalCost = plot.getRentPricePerDay() * actualDaysToAdd;
 
-        // Vérifier que le locataire a assez d'argent
-        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
-                String.format("%.2f€", totalCost) + " pour " + actualDaysToAdd + " jours");
-            return false;
-        }
+        // NOUVEAU : Gestion différente selon le type de terrain
+        boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        EntrepriseManagerLogic.Entreprise renterCompany = null;
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        if (isProfessional) {
+            // Terrain PROFESSIONNEL : Recharger avec l'entreprise
+            String renterSiret = plot.getRenterCompanySiret();
+            if (renterSiret != null) {
+                renterCompany = companyManager.getCompanyBySiret(renterSiret);
+            }
+            if (renterCompany == null) {
+                renterCompany = companyManager.getPlayerCompany(renter);
+            }
+
+            if (renterCompany == null) {
+                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                return false;
+            }
+
+            // Vérifier que l'entreprise a assez d'argent
+            if (renterCompany.getSolde() < totalCost) {
+                renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                return false;
+            }
+
+            // Prélever de l'entreprise
+            renterCompany.setSolde(renterCompany.getSolde() - totalCost);
+        } else {
+            // Terrain PARTICULIER : Vérifier l'argent personnel
+            if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
+                    String.format("%.2f€", totalCost) + " pour " + actualDaysToAdd + " jours");
+                return false;
+            }
+
+            // Prélever l'argent personnel
+            RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        }
 
         // Donner l'argent au propriétaire ou à la ville
         if (plot.getOwnerUuid() != null) {
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
-            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+            if (isProfessional && plot.getCompanySiret() != null) {
+                // Terrain PRO - argent va à l'entreprise du propriétaire
+                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                if (ownerCompany != null) {
+                    ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-            // Notifier si le propriétaire est en ligne
-            if (owner.isOnline() && owner.getPlayer() != null) {
-                owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
-                    " jours (" + String.format("%.2f€", totalCost) + ")");
+                    // Notifier le propriétaire si en ligne
+                    OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+                    if (owner.isOnline() && owner.getPlayer() != null) {
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + actualDaysToAdd + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                    }
+                } else {
+                    // Entreprise n'existe plus - argent va à la ville
+                    town.deposit(totalCost);
+                }
+            } else {
+                // Terrain PARTICULIER - argent va au propriétaire
+                OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+                // Notifier si le propriétaire est en ligne
+                if (owner.isOnline() && owner.getPlayer() != null) {
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
+                        " jours (" + String.format("%.2f€", totalCost) + ")");
+                }
             }
         } else {
             // Pas de propriétaire = l'argent va à la ville
@@ -1443,14 +1535,10 @@ public class TownEconomyManager {
 
         // Si le groupe contient des terrains PRO, valider l'entreprise et utiliser les fonds d'entreprise
         if (hasProfessionalPlot) {
-            if (!companyManager.validateCompanyOwnership(buyer, null)) {
-                // Le message d'erreur est déjà envoyé par validateCompanyOwnership
-                return false;
-            }
-
             buyerCompany = companyManager.getPlayerCompany(buyer);
             if (buyerCompany == null) {
-                buyer.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                buyer.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour acheter un groupe contenant des terrains PROFESSIONNELS !");
+                buyer.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
                 return false;
             }
 
@@ -1651,24 +1739,89 @@ public class TownEconomyManager {
         int actualDays = Math.min(days, 30);
         double totalCost = group.getRentPricePerDay() * actualDays;
 
-        // Vérifier que le joueur a assez d'argent
-        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
-            return false;
+        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL (entreprise)
+        boolean isProfessionalGroup = false;
+        String renterCompanySiret = null;
+        String ownerCompanySiret = null;
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        EntrepriseManagerLogic.Entreprise renterCompany = null;
+
+        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
+                    isProfessionalGroup = true;
+                    if (plot.getCompanySiret() != null) {
+                        ownerCompanySiret = plot.getCompanySiret();
+                    }
+                    break;
+                }
+            }
         }
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        // Si groupe PRO, valider l'entreprise du locataire
+        if (isProfessionalGroup) {
+            renterCompany = companyManager.getPlayerCompany(renter);
+            if (renterCompany == null) {
+                renter.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour louer un groupe contenant des terrains PROFESSIONNELS !");
+                renter.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
+                return false;
+            }
+            renterCompanySiret = renterCompany.getSiret();
+
+            // Vérifier les fonds de l'entreprise
+            if (renterCompany.getSolde() < totalCost) {
+                renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                return false;
+            }
+
+            // Prélever de l'entreprise du locataire
+            renterCompany.setSolde(renterCompany.getSolde() - totalCost);
+        } else {
+            // Groupe PARTICULIER : Vérifier l'argent personnel
+            if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+                return false;
+            }
+
+            // Prélever l'argent personnel
+            RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        }
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
-            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+            if (isProfessionalGroup && ownerCompanySiret != null) {
+                // Groupe PRO - argent va à l'entreprise du propriétaire
+                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(ownerCompanySiret);
+                if (ownerCompany != null) {
+                    ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-            // Notifier si le propriétaire est en ligne
-            if (owner.isOnline() && owner.getPlayer() != null) {
-                owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
+                    // Notifier le propriétaire si en ligne
+                    OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                    if (owner.isOnline() && owner.getPlayer() != null) {
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe professionnel a été loué pour " + actualDays + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                    }
+                } else {
+                    // Entreprise n'existe plus - argent va à la ville
+                    town.deposit(totalCost);
+                }
+            } else {
+                // Groupe PARTICULIER - argent va au propriétaire
+                OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+                // Notifier si le propriétaire est en ligne
+                if (owner.isOnline() && owner.getPlayer() != null) {
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
+                }
             }
         } else {
             town.deposit(totalCost);
@@ -1689,6 +1842,10 @@ public class TownEconomyManager {
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
                 if (plot != null) {
                     plot.setRenter(renter.getUniqueId(), actualDays);
+                    // Si groupe PRO, stocker le SIRET de l'entreprise du locataire
+                    if (isProfessionalGroup && renterCompanySiret != null) {
+                        plot.setRenterCompanySiret(renterCompanySiret);
+                    }
                 }
             }
         }
@@ -1742,24 +1899,96 @@ public class TownEconomyManager {
         int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
         double totalCost = group.getRentPricePerDay() * actualDaysToAdd;
 
-        // Vérifier que le joueur a assez d'argent
-        if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-            renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
-            return false;
+        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL
+        boolean isProfessionalGroup = false;
+        String renterCompanySiret = null;
+        String ownerCompanySiret = null;
+        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        EntrepriseManagerLogic.Entreprise renterCompany = null;
+
+        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
+        for (String plotKey : group.getPlotKeys()) {
+            String[] parts = plotKey.split(":");
+            if (parts.length == 3) {
+                String worldName = parts[0];
+                int chunkX = Integer.parseInt(parts[1]);
+                int chunkZ = Integer.parseInt(parts[2]);
+                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
+                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
+                    isProfessionalGroup = true;
+                    if (plot.getCompanySiret() != null) {
+                        ownerCompanySiret = plot.getCompanySiret();
+                    }
+                    if (plot.getRenterCompanySiret() != null) {
+                        renterCompanySiret = plot.getRenterCompanySiret();
+                    }
+                    break;
+                }
+            }
         }
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        // Si groupe PRO, utiliser l'entreprise du locataire
+        if (isProfessionalGroup) {
+            if (renterCompanySiret != null) {
+                renterCompany = companyManager.getCompanyBySiret(renterCompanySiret);
+            }
+            if (renterCompany == null) {
+                renterCompany = companyManager.getPlayerCompany(renter);
+            }
+
+            if (renterCompany == null) {
+                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                return false;
+            }
+
+            // Vérifier les fonds de l'entreprise
+            if (renterCompany.getSolde() < totalCost) {
+                renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                return false;
+            }
+
+            // Prélever de l'entreprise du locataire
+            renterCompany.setSolde(renterCompany.getSolde() - totalCost);
+        } else {
+            // Groupe PARTICULIER : Vérifier l'argent personnel
+            if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+                return false;
+            }
+
+            // Prélever l'argent personnel
+            RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
+        }
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            // Verser l'argent au propriétaire même s'il est hors ligne
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
-            RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+            if (isProfessionalGroup && ownerCompanySiret != null) {
+                // Groupe PRO - argent va à l'entreprise du propriétaire
+                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(ownerCompanySiret);
+                if (ownerCompany != null) {
+                    ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-            // Notifier si le propriétaire est en ligne
-            if (owner.isOnline() && owner.getPlayer() != null) {
-                owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
+                    // Notifier le propriétaire si en ligne
+                    OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                    if (owner.isOnline() && owner.getPlayer() != null) {
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                    }
+                } else {
+                    // Entreprise n'existe plus - argent va à la ville
+                    town.deposit(totalCost);
+                }
+            } else {
+                // Groupe PARTICULIER - argent va au propriétaire
+                OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
+                RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
+
+                // Notifier si le propriétaire est en ligne
+                if (owner.isOnline() && owner.getPlayer() != null) {
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
+                }
             }
         } else {
             town.deposit(totalCost);
