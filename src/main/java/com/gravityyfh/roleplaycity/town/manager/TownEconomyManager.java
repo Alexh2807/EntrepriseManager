@@ -730,6 +730,288 @@ public class TownEconomyManager {
     }
 
     /**
+     * NOUVEAU : Collecte horaire des taxes d'une ville
+     * - Prélève les joueurs OFFLINE
+     * - Montant horaire (dailyTax / 24)
+     * - Génère rapports individuels
+     * - Génère rapport maire
+     */
+    public TaxCollectionResult collectTaxesHourly(String townName) {
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return new TaxCollectionResult(0, 0, 0, new ArrayList<>());
+        }
+
+        double totalCollected = 0;
+        int parcelsWithTax = 0;
+        List<String> unpaidPlayers = new ArrayList<>();
+        Map<UUID, Double> playerTaxes = new HashMap<>(); // Pour les rapports individuels
+
+        // SYSTÈME AUTOMATIQUE : Collecter d'abord les taxes des groupes
+        Set<String> plotsInGroupsProcessed = new HashSet<>();
+        for (PlotGroup group : town.getPlotGroups().values()) {
+            plotsInGroupsProcessed.addAll(group.getPlotKeys());
+
+            // Calculer la taxe horaire totale du groupe
+            double groupDailyTax = 0;
+            List<Plot> groupPlots = new ArrayList<>();
+            for (String plotKey : group.getPlotKeys()) {
+                String[] parts = plotKey.split(":");
+                if (parts.length == 3) {
+                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                    if (plot != null) {
+                        groupPlots.add(plot);
+                        groupDailyTax += plot.getDailyTax();
+                    }
+                }
+            }
+
+            if (groupDailyTax <= 0) continue;
+
+            // NOUVEAU : Montant HORAIRE au lieu de quotidien
+            double groupHourlyTax = groupDailyTax / 24.0;
+
+            // Déterminer qui paie pour le groupe
+            UUID payerUuid = group.getRenterUuid() != null ? group.getRenterUuid() : group.getOwnerUuid();
+            if (payerUuid == null) continue;
+
+            // NOUVEAU : Prélever même OFFLINE
+            OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
+            String payerName = payer.getName() != null ? payer.getName() : payerUuid.toString();
+
+            // Prélever la taxe du groupe
+            if (RoleplayCity.getEconomy().has(payer, groupHourlyTax)) {
+                RoleplayCity.getEconomy().withdrawPlayer(payer, groupHourlyTax);
+                town.deposit(groupHourlyTax);
+                totalCollected += groupHourlyTax;
+                parcelsWithTax += groupPlots.size();
+
+                // Enregistrer pour le rapport individuel
+                playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + groupHourlyTax);
+
+                // Message si en ligne
+                if (payer.isOnline() && payer.getPlayer() != null) {
+                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "💰 Taxe horaire groupe: " + ChatColor.GOLD +
+                        String.format("%.2f€", groupHourlyTax) + ChatColor.GRAY + " prélevée pour " +
+                        group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                }
+
+                // Transaction
+                addTransaction(townName, new PlotTransaction(
+                    PlotTransaction.TransactionType.TAX,
+                    payerUuid,
+                    payerName,
+                    groupHourlyTax,
+                    "Taxe horaire groupe " + group.getGroupName()
+                ));
+            } else {
+                unpaidPlayers.add(payerName);
+
+                // Notification de taxe impayée
+                notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+
+                // Message si en ligne
+                if (payer.isOnline() && payer.getPlayer() != null) {
+                    payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
+                        String.format("%.2f€", groupHourlyTax) + " pour le groupe " + group.getGroupName());
+                }
+            }
+        }
+
+        // Puis collecter les taxes des parcelles individuelles (non groupées)
+        for (Plot plot : town.getPlots().values()) {
+            String plotKey = plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ();
+            if (plotsInGroupsProcessed.contains(plotKey)) continue;
+
+            double dailyTax = plot.getDailyTax();
+            if (dailyTax <= 0) continue;
+
+            // NOUVEAU : Montant HORAIRE
+            double hourlyTax = dailyTax / 24.0;
+
+            // === Gestion des terrains PROFESSIONNEL avec entreprise ===
+            if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+                EntrepriseManagerLogic.Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
+
+                if (company != null) {
+                    if (company.getSolde() >= hourlyTax) {
+                        company.setSolde(company.getSolde() - hourlyTax);
+                        town.deposit(hourlyTax);
+                        totalCollected += hourlyTax;
+                        parcelsWithTax++;
+
+                        if (plot.getCompanyDebtAmount() > 0) {
+                            plot.resetDebt();
+                        }
+
+                        UUID gerantUuid = plot.getOwnerUuid();
+                        if (gerantUuid != null) {
+                            playerTaxes.put(gerantUuid, playerTaxes.getOrDefault(gerantUuid, 0.0) + hourlyTax);
+
+                            Player gerant = Bukkit.getPlayer(gerantUuid);
+                            if (gerant != null && gerant.isOnline()) {
+                                gerant.sendMessage(ChatColor.YELLOW + "💼 Taxe horaire entreprise: " +
+                                    ChatColor.GOLD + String.format("%.2f€", hourlyTax) + ChatColor.GRAY +
+                                    " prélevée pour " + plot.getCoordinates());
+                            }
+                        }
+
+                        addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            plot.getOwnerUuid(),
+                            company.getNom() + " (PRO)",
+                            hourlyTax,
+                            "Taxe horaire entreprise " + plot.getCoordinates()
+                        ));
+                    } else {
+                        companyManager.handleInsufficientFunds(plot, company, hourlyTax);
+                    }
+
+                    if (companyManager.checkCompanyDebtStatus(plot)) {
+                        companyManager.seizePlotForDebt(plot, townName);
+                    }
+                } else {
+                    companyManager.handleCompanyDeletion(plot.getCompanySiret(), townName);
+                }
+
+                continue;
+            }
+
+            // === Gestion des terrains PARTICULIER ===
+            UUID payerUuid = null;
+            String payerName = null;
+
+            if (plot.getRenterUuid() != null) {
+                payerUuid = plot.getRenterUuid();
+                payerName = "Locataire";
+            } else if (plot.getOwnerUuid() != null) {
+                payerUuid = plot.getOwnerUuid();
+                payerName = plot.getOwnerName();
+            }
+
+            if (payerUuid == null) continue;
+
+            // NOUVEAU : Prélever même OFFLINE
+            OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
+            if (payer.getName() != null) {
+                payerName = payer.getName();
+            }
+
+            if (RoleplayCity.getEconomy().has(payer, hourlyTax)) {
+                RoleplayCity.getEconomy().withdrawPlayer(payer, hourlyTax);
+                town.deposit(hourlyTax);
+                totalCollected += hourlyTax;
+                parcelsWithTax++;
+
+                // Enregistrer pour le rapport individuel
+                playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + hourlyTax);
+
+                // Message si en ligne
+                if (payer.isOnline() && payer.getPlayer() != null) {
+                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "💰 Taxe horaire parcelle: " +
+                        ChatColor.GOLD + String.format("%.2f€", hourlyTax) + ChatColor.GRAY +
+                        " prélevée pour " + plot.getCoordinates());
+                }
+
+                addTransaction(townName, new PlotTransaction(
+                    PlotTransaction.TransactionType.TAX,
+                    payerUuid,
+                    payerName,
+                    hourlyTax,
+                    "Taxe horaire parcelle " + plot.getCoordinates()
+                ));
+            } else {
+                unpaidPlayers.add(payerName);
+
+                notificationManager.notifyTaxDue(payerUuid, townName, hourlyTax);
+
+                // Message si en ligne
+                if (payer.isOnline() && payer.getPlayer() != null) {
+                    payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
+                        String.format("%.2f€", hourlyTax) + " pour la parcelle " + plot.getCoordinates());
+                }
+            }
+        }
+
+        // Sauvegarder
+        townManager.saveTownsNow();
+
+        // NOUVEAU : Générer les rapports
+        generateTaxReports(town, totalCollected, parcelsWithTax, unpaidPlayers.size(), playerTaxes);
+
+        return new TaxCollectionResult(totalCollected, parcelsWithTax, unpaidPlayers.size(), unpaidPlayers);
+    }
+
+    /**
+     * Génère les rapports de taxes individuels et le rapport maire
+     */
+    private void generateTaxReports(Town town, double totalCollected, int parcelsWithTax,
+                                   int unpaidCount, Map<UUID, Double> playerTaxes) {
+        // === RAPPORTS INDIVIDUELS ===
+        for (Map.Entry<UUID, Double> entry : playerTaxes.entrySet()) {
+            UUID playerUuid = entry.getKey();
+            double taxAmount = entry.getValue();
+
+            Player player = Bukkit.getPlayer(playerUuid);
+            if (player != null && player.isOnline()) {
+                // Envoyer rapport individuel
+                player.sendMessage("");
+                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "    RAPPORT TAXES HORAIRES");
+                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
+                player.sendMessage(ChatColor.AQUA + "Montant prélevé: " + ChatColor.GOLD + String.format("%.2f€", taxAmount));
+                player.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
+                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage("");
+            }
+        }
+
+        // === RAPPORT MAIRE ===
+        UUID mayorUuid = town.getMayorUuid();
+        if (mayorUuid != null) {
+            Player mayor = Bukkit.getPlayer(mayorUuid);
+            if (mayor != null && mayor.isOnline()) {
+                mayor.sendMessage("");
+                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "  RAPPORT MAIRE - TAXES HORAIRES");
+                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
+                mayor.sendMessage(ChatColor.AQUA + "Total collecté: " + ChatColor.GOLD + String.format("%.2f€", totalCollected));
+                mayor.sendMessage(ChatColor.AQUA + "Parcelles taxées: " + ChatColor.WHITE + parcelsWithTax);
+                mayor.sendMessage(ChatColor.AQUA + "Solde ville: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
+
+                if (unpaidCount > 0) {
+                    mayor.sendMessage("");
+                    mayor.sendMessage(ChatColor.RED + "⚠ " + unpaidCount + " paiement(s) impayé(s)");
+                }
+
+                mayor.sendMessage("");
+                mayor.sendMessage(ChatColor.YELLOW + "Contribuables (" + playerTaxes.size() + "):");
+                int count = 0;
+                for (Map.Entry<UUID, Double> entry : playerTaxes.entrySet()) {
+                    if (count >= 10) {
+                        mayor.sendMessage(ChatColor.GRAY + "  ... et " + (playerTaxes.size() - 10) + " autre(s)");
+                        break;
+                    }
+                    OfflinePlayer taxpayer = Bukkit.getOfflinePlayer(entry.getKey());
+                    String name = taxpayer.getName() != null ? taxpayer.getName() : "Inconnu";
+                    mayor.sendMessage(ChatColor.GRAY + "  • " + ChatColor.WHITE + name + ": " +
+                        ChatColor.GOLD + String.format("%.2f€", entry.getValue()));
+                    count++;
+                }
+
+                mayor.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
+                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage("");
+            }
+        }
+    }
+
+    /**
      * Collecte automatique des taxes pour toutes les villes
      */
     public void collectAllTaxes() {
@@ -756,6 +1038,36 @@ public class TownEconomyManager {
         }
 
         plugin.getLogger().info("Collecte terminée: " + totalTowns + " villes, " + totalAmount + "€ total");
+    }
+
+    /**
+     * NOUVEAU : Collecte horaire des taxes pour toutes les villes
+     * - Collecte toutes les heures (au lieu de 24h)
+     * - Prélève les joueurs OFFLINE
+     * - Génère des rapports individuels et rapport maire
+     * - Synchronisé avec les paiements entreprises
+     */
+    public void collectAllTaxesHourly() {
+        plugin.getLogger().info("[TAXES HORAIRES] Début de la collecte horaire des taxes...");
+        int totalTowns = 0;
+        double totalAmount = 0;
+
+        for (String townName : townManager.getTownNames()) {
+            Town town = townManager.getTown(townName);
+            if (town == null) continue;
+
+            // Collecte horaire (pas de vérification de 24h)
+            TaxCollectionResult result = collectTaxesHourly(townName);
+            totalTowns++;
+            totalAmount += result.totalCollected;
+
+            plugin.getLogger().info("[TAXES HORAIRES] Ville " + townName + ": " +
+                String.format("%.2f€", result.totalCollected) + " collectés sur " +
+                result.parcelsCollected + " parcelles");
+        }
+
+        plugin.getLogger().info("[TAXES HORAIRES] Collecte terminée: " + totalTowns + " villes, " +
+            String.format("%.2f€", totalAmount) + " total");
     }
 
     // === TRANSACTIONS ===

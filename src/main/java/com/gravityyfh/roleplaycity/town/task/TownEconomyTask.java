@@ -5,9 +5,12 @@ import com.gravityyfh.roleplaycity.town.manager.TownEconomyManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 /**
  * Tâche récurrente pour gérer l'économie des villes
- * - Collecte automatique des taxes
+ * - Collecte automatique des taxes (TOUTES LES HEURES - synchronisé avec paiements entreprises)
  * - Vérification des locations expirées
  * - Nettoyage des invitations expirées
  */
@@ -18,6 +21,7 @@ public class TownEconomyTask extends BukkitRunnable {
     private final TownEconomyManager economyManager;
 
     private int tickCounter = 0;
+    private BukkitRunnable hourlyTaxTask; // Tâche horaire pour les taxes
 
     public TownEconomyTask(RoleplayCity plugin, TownManager townManager, TownEconomyManager economyManager) {
         this.plugin = plugin;
@@ -40,11 +44,6 @@ public class TownEconomyTask extends BukkitRunnable {
         // Toutes les 30 minutes (36000 ticks) : Nettoyer les invitations expirées
         if (tickCounter % 36000 == 0) {
             townManager.cleanupExpiredInvitations();
-        }
-
-        // Toutes les heures (72000 ticks) : Collecter les taxes automatiquement
-        if (tickCounter % 72000 == 0) {
-            economyManager.collectAllTaxes();
         }
 
         // Reset du compteur après 24h pour éviter l'overflow
@@ -108,5 +107,51 @@ public class TownEconomyTask extends BukkitRunnable {
     public void start() {
         this.runTaskTimer(plugin, 20L, 20L); // Delay 1 seconde, repeat toutes les secondes
         plugin.getLogger().info("TownEconomyTask démarrée (vérifications toutes les secondes)");
+
+        // Démarrer la collecte des taxes horaire (synchronisée avec les paiements entreprises)
+        startHourlyTaxCollection();
+    }
+
+    /**
+     * Démarre la collecte horaire des taxes, synchronisée avec les paiements entreprises
+     * S'exécute à chaque heure pile (14:00:00, 15:00:00, etc.)
+     */
+    private void startHourlyTaxCollection() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime nextFullHour = now.withMinute(0).withSecond(0).withNano(0).plusHours(1);
+        long initialDelayTicks = java.time.Duration.between(now, nextFullHour).toSeconds() * 20L;
+
+        // Sécurité pour éviter un délai négatif
+        if (initialDelayTicks <= 0) {
+            initialDelayTicks = 20L * 60L * 60L; // Reprogramme dans une heure
+            nextFullHour = nextFullHour.plusHours(1);
+        }
+
+        long ticksParHeure = 20L * 60L * 60L; // 72000 ticks = 1 heure
+
+        hourlyTaxTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                // Collecte horaire des taxes (au lieu de toutes les 24h)
+                plugin.getLogger().info("Début de la collecte horaire des taxes...");
+                economyManager.collectAllTaxesHourly();
+                plugin.getLogger().info("Collecte horaire des taxes terminée.");
+            }
+        };
+
+        hourlyTaxTask.runTaskTimer(plugin, initialDelayTicks, ticksParHeure);
+
+        plugin.getLogger().info("Collecte horaire des taxes planifiée. Prochaine exécution vers: " +
+            nextFullHour.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+    }
+
+    /**
+     * Arrête toutes les tâches
+     */
+    public void stop() {
+        this.cancel();
+        if (hourlyTaxTask != null) {
+            hourlyTaxTask.cancel();
+        }
     }
 }
