@@ -168,7 +168,8 @@ public class TownMainGUI implements Listener {
         joinItem.setItemMeta(joinMeta);
         inv.setItem(15, joinItem);
 
-        player.openInventory(inv);
+        // FIX P2.5: Utiliser NavigationManager pour navigation avec fil d'Ariane
+        NavigationManager.navigateTo(player, "no-town-menu", "Menu Principal", inv, NavigationManager.NavigationType.MAIN_MENU);
     }
 
     private void openTownMenu(Player player, String townName) {
@@ -408,7 +409,8 @@ public class TownMainGUI implements Listener {
         closeItem.setItemMeta(closeMeta);
         inv.setItem(49, closeItem);
 
-        player.openInventory(inv);
+        // FIX P2.5: Utiliser NavigationManager pour navigation avec fil d'Ariane
+        NavigationManager.navigateTo(player, "town-menu", townName, inv, NavigationManager.NavigationType.TOWN_MENU);
     }
 
     private void openServicesMenu(Player player) {
@@ -476,7 +478,8 @@ public class TownMainGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(22, backItem);
 
-        player.openInventory(inv);
+        // FIX P2.5: Utiliser NavigationManager pour navigation avec fil d'Ariane
+        NavigationManager.navigateTo(player, "services-menu", "Services", inv, NavigationManager.NavigationType.TOWN_MENU);
     }
 
     @EventHandler
@@ -819,7 +822,8 @@ public class TownMainGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(49, backItem);
 
-        player.openInventory(inv);
+        // FIX P2.5: Utiliser NavigationManager pour navigation avec fil d'Ariane
+        NavigationManager.navigateTo(player, "join-town-menu", "Rejoindre", inv, NavigationManager.NavigationType.MAIN_MENU);
     }
 
     private void handleJoinTown(Player player, String townName) {
@@ -969,6 +973,7 @@ public class TownMainGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(22, backItem);
 
-        player.openInventory(inv);
+        // FIX P2.5: Utiliser NavigationManager pour navigation avec fil d'Ariane
+        NavigationManager.navigateTo(player, "manage-town-menu", "Gestion", inv, NavigationManager.NavigationType.ADMIN_MENU);
     }
 }
