@@ -470,16 +470,15 @@ public class TownHUDListener implements Listener {
             objective.getScore(" " + ChatColor.LIGHT_PURPLE + plotGroup.getGroupName()).setScore(line--);
         }
 
-        // Propriétaire
+        // Propriétaire (seulement si le terrain a un propriétaire réel)
         if (plot.getOwnerUuid() != null) {
             String ownerName = plot.getOwnerName();
             if (ownerName.length() > 12) {
                 ownerName = ownerName.substring(0, 12) + "...";
             }
             objective.getScore(" " + ChatColor.GRAY + "Proprio: " + ChatColor.YELLOW + ownerName).setScore(line--);
-        } else {
-            objective.getScore(" " + ChatColor.GRAY + "Proprio: " + ChatColor.AQUA + "Municipal").setScore(line--);
         }
+        // Si ownerUuid == null, le terrain appartient à la ville (pas de ligne affichée)
 
         // Ligne vide
         objective.getScore(ChatColor.DARK_GRAY + "  ").setScore(line--);

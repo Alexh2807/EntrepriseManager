@@ -3,10 +3,10 @@ package com.gravityyfh.roleplaycity.town.data;
 import org.bukkit.Material;
 
 public enum PlotType {
-    PARTICULIER("🏠 Particulier", Material.RED_BED, 24.0, true, false),
-    PROFESSIONNEL("🏢 Professionnel", Material.CRAFTING_TABLE, 48.0, true, true),
-    MUNICIPAL("🏛️ Municipal", Material.STONE_BRICKS, 0.0, false, false),
-    PUBLIC("⚙️ Public", Material.GRASS_BLOCK, 0.0, false, false);
+    PARTICULIER("Particulier", Material.RED_BED, 24.0, true, false),
+    PROFESSIONNEL("Professionnel", Material.CRAFTING_TABLE, 48.0, true, true),
+    MUNICIPAL("Municipal", Material.STONE_BRICKS, 0.0, false, false),
+    PUBLIC("Public", Material.GRASS_BLOCK, 0.0, false, false);
 
     private final String displayName;
     private final Material icon;
