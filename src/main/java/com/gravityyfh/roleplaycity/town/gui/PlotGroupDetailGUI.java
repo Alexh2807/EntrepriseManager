@@ -139,7 +139,34 @@ public class PlotGroupDetailGUI implements Listener {
         infoLore.add(ChatColor.YELLOW + "Nom: " + ChatColor.WHITE + group.getGroupName());
         infoLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
         infoLore.add(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
-        infoLore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+
+        // Récupérer la première parcelle du groupe pour vérifier le type
+        Plot firstPlot = null;
+        if (!group.getPlotKeys().isEmpty()) {
+            String firstKey = group.getPlotKeys().iterator().next();
+            String[] parts = firstKey.split(":");
+            if (parts.length == 3) {
+                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+            }
+        }
+
+        // Afficher propriétaire ou entreprise selon le type
+        if (group.getOwnerName() != null) {
+            if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
+                // Terrain PROFESSIONNEL : afficher entreprise
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(firstPlot.getCompanySiret());
+                if (ownerCompany != null) {
+                    infoLore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
+                } else {
+                    infoLore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+                }
+            } else {
+                // Terrain PARTICULIER
+                infoLore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+            }
+        }
+
         infoLore.add(ChatColor.GRAY + "─────────────────");
         if (group.isForSale()) {
             infoLore.add(ChatColor.GREEN + "✓ En vente: " + String.format("%.2f€", group.getSalePrice()));
@@ -148,8 +175,22 @@ public class PlotGroupDetailGUI implements Listener {
             infoLore.add(ChatColor.AQUA + "✓ En location: " + String.format("%.2f€/jour", group.getRentPricePerDay()));
         }
         if (group.getRenterUuid() != null) {
-            String renterName = org.bukkit.Bukkit.getOfflinePlayer(group.getRenterUuid()).getName();
-            infoLore.add(ChatColor.LIGHT_PURPLE + "Loué à: " + renterName + " (" + group.getRentDaysRemaining() + "j)");
+            // Afficher locataire ou entreprise locataire selon le type
+            if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getRenterCompanySiret() != null) {
+                // Entreprise locataire
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(firstPlot.getRenterCompanySiret());
+                if (renterCompany != null) {
+                    infoLore.add(ChatColor.LIGHT_PURPLE + "Loué à: " + renterCompany.getNom() + ChatColor.GRAY + " (" + renterCompany.getType() + ") " + ChatColor.WHITE + "(" + group.getRentDaysRemaining() + "j)");
+                } else {
+                    String renterName = org.bukkit.Bukkit.getOfflinePlayer(group.getRenterUuid()).getName();
+                    infoLore.add(ChatColor.LIGHT_PURPLE + "Loué à: " + renterName + " (" + group.getRentDaysRemaining() + "j)");
+                }
+            } else {
+                // Joueur locataire
+                String renterName = org.bukkit.Bukkit.getOfflinePlayer(group.getRenterUuid()).getName();
+                infoLore.add(ChatColor.LIGHT_PURPLE + "Loué à: " + renterName + " (" + group.getRentDaysRemaining() + "j)");
+            }
         }
         infoMeta.setLore(infoLore);
         infoItem.setItemMeta(infoMeta);

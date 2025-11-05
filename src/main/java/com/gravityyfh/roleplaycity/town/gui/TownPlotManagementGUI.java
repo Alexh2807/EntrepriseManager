@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -82,7 +83,19 @@ public class TownPlotManagementGUI implements Listener {
         infoLore.add(ChatColor.GRAY + "Taxe quotidienne: " + ChatColor.GOLD + plot.getDailyTax() + "€");
 
         if (plot.getOwnerName() != null) {
-            infoLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + plot.getOwnerName());
+            // Si terrain PROFESSIONNEL avec entreprise : afficher entreprise
+            if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(plot.getCompanySiret());
+                if (ownerCompany != null) {
+                    infoLore.add(ChatColor.GRAY + "Entreprise: " + ChatColor.YELLOW + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
+                } else {
+                    infoLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + plot.getOwnerName());
+                }
+            } else {
+                // Terrain PARTICULIER
+                infoLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + plot.getOwnerName());
+            }
         } else {
             infoLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.GREEN + "Municipal");
         }
@@ -219,6 +232,27 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(16, typeItem);
         }
 
+        // UNCLAIM - Retourner la parcelle à la ville (slot 22)
+        // Conditions : propriétaire, pas loué, type PARTICULIER ou PROFESSIONNEL
+        if (plot.getOwnerUuid() != null &&
+            plot.getOwnerUuid().equals(player.getUniqueId()) &&
+            plot.getRenterUuid() == null &&
+            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
+
+            ItemStack unclaimItem = new ItemStack(Material.BARRIER);
+            ItemMeta unclaimMeta = unclaimItem.getItemMeta();
+            unclaimMeta.setDisplayName(ChatColor.DARK_RED + "Retourner à la Ville");
+            List<String> unclaimLore = new ArrayList<>();
+            unclaimLore.add(ChatColor.GRAY + "Rendre cette parcelle à la ville");
+            unclaimLore.add("");
+            unclaimLore.add(ChatColor.RED + "Attention: Aucun remboursement");
+            unclaimLore.add("");
+            unclaimLore.add(ChatColor.YELLOW + "Cliquez pour UNCLAIM");
+            unclaimMeta.setLore(unclaimLore);
+            unclaimItem.setItemMeta(unclaimMeta);
+            inv.setItem(22, unclaimItem);
+        }
+
         // Retour à Mes Propriétés
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
@@ -346,6 +380,8 @@ public class TownPlotManagementGUI implements Listener {
             handleCancelRent(player, plot);
         } else if (displayName.contains("Changer le Type")) {
             handleChangePlotType(player, plot, townName);
+        } else if (displayName.contains("Retourner à la Ville")) {
+            handleUnclaimPlot(player, plot, townName);
         } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
             player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
@@ -451,6 +487,54 @@ public class TownPlotManagementGUI implements Listener {
     private void handleChangePlotType(Player player, Plot plot, String townName) {
         player.closeInventory();
         openPlotTypeSelectionMenu(player, plot, townName);
+    }
+
+    private void handleUnclaimPlot(Player player, Plot plot, String townName) {
+        player.closeInventory();
+
+        // SÉCURITÉ : Vérifier que la parcelle n'est pas louée
+        if (plot.getRenterUuid() != null) {
+            NavigationManager.sendError(player, "Impossible de retourner cette parcelle à la ville : elle est actuellement louée !");
+            return;
+        }
+
+        // SÉCURITÉ : Vérifier que le joueur est bien le propriétaire
+        if (plot.getOwnerUuid() == null || !plot.getOwnerUuid().equals(player.getUniqueId())) {
+            NavigationManager.sendError(player, "Vous n'êtes pas le propriétaire de cette parcelle !");
+            return;
+        }
+
+        // SÉCURITÉ : Vérifier que c'est bien un terrain PARTICULIER ou PROFESSIONNEL
+        if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+            NavigationManager.sendError(player, "Seules les parcelles de type Particulier ou Professionnel peuvent être retournées à la ville !");
+            return;
+        }
+
+        // Retirer le propriétaire
+        plot.setOwner(null, null);
+
+        // Nettoyer les paramètres de vente/location
+        plot.setForRent(false);
+        plot.clearRenter();
+
+        // Remettre la parcelle en vente avec un prix par défaut
+        plot.setForSale(true);
+        double defaultPrice = 1000.0; // Prix par défaut : 1000€
+        plot.setSalePrice(defaultPrice);
+
+        // Sauvegarder
+        townManager.saveTownsNow();
+
+        // Message de confirmation
+        NavigationManager.sendStyledMessage(player, "PARCELLE RETOURNÉE À LA VILLE", Arrays.asList(
+            "+La parcelle a été retournée à la ville",
+            "",
+            "Type: " + plot.getType().getDisplayName(),
+            "Position: " + plot.getCoordinates(),
+            "",
+            "*La parcelle est maintenant en vente",
+            "*Prix: " + String.format("%.2f€", defaultPrice)
+        ));
     }
 
     private void openPlotTypeSelectionMenu(Player player, Plot plot, String townName) {

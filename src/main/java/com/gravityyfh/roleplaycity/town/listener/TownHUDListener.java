@@ -177,9 +177,20 @@ public class TownHUDListener implements Listener {
 
             // Ajouter le propriétaire si c'est une parcelle privée
             if (plot.getOwnerUuid() != null) {
-                String ownerName = plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu";
+                String displayName;
+
+                // Si terrain PROFESSIONNEL avec entreprise : afficher le nom de l'entreprise
+                if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                    com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                        .getCompanyBySiret(plot.getCompanySiret());
+                    displayName = (ownerCompany != null) ? ownerCompany.getNom() : (plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu");
+                } else {
+                    // Terrain PARTICULIER : afficher le nom du joueur
+                    displayName = plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu";
+                }
+
                 hud.append(ChatColor.GRAY).append(" - ");
-                hud.append(ChatColor.YELLOW).append(ownerName);
+                hud.append(ChatColor.YELLOW).append(displayName);
             }
 
             // Ajouter le sous-type si municipal
@@ -341,9 +352,26 @@ public class TownHUDListener implements Listener {
 
         player.sendMessage(ChatColor.YELLOW + "Position: " + ChatColor.WHITE + "X: " + (plot.getChunkX() * 16) + " Z: " + (plot.getChunkZ() * 16));
 
-        // Propriétaire
+        // Propriétaire / Entreprise
         if (plot.getOwnerUuid() != null) {
-            player.sendMessage(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + plot.getOwnerName());
+            // Si terrain PROFESSIONNEL avec entreprise : afficher infos complètes de l'entreprise
+            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(plot.getCompanySiret());
+
+                if (ownerCompany != null) {
+                    player.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom());
+                    player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + ownerCompany.getType());
+                    player.sendMessage(ChatColor.YELLOW + "Gérant: " + ChatColor.WHITE + ownerCompany.getGerant());
+                    player.sendMessage(ChatColor.YELLOW + "SIRET: " + ChatColor.WHITE + ownerCompany.getSiret());
+                } else {
+                    // Fallback si entreprise non trouvée
+                    player.sendMessage(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + plot.getOwnerName());
+                }
+            } else {
+                // Terrain PARTICULIER : afficher le nom du joueur
+                player.sendMessage(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + plot.getOwnerName());
+            }
         }
 
         player.sendMessage("");
@@ -474,20 +502,50 @@ public class TownHUDListener implements Listener {
         if (plot.getOwnerUuid() != null) {
             // Terrain a un propriétaire
             if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                // Terrain PROFESSIONNEL → afficher infos entreprise
-                String companyName = plot.getCompanyName();
-                if (companyName != null && companyName.length() > 12) {
-                    companyName = companyName.substring(0, 12) + "...";
-                }
-                String ownerName = plot.getOwnerName();
-                if (ownerName != null && ownerName.length() > 12) {
-                    ownerName = ownerName.substring(0, 12) + "...";
-                }
+                // Terrain PROFESSIONNEL → afficher infos entreprise complètes
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(plot.getCompanySiret());
 
-                objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
-                objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
-                objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
-                objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + plot.getCompanySiret().substring(0, 8) + "...").setScore(line--);
+                if (ownerCompany != null) {
+                    String companyName = ownerCompany.getNom();
+                    if (companyName.length() > 14) {
+                        companyName = companyName.substring(0, 14) + "...";
+                    }
+
+                    String companyType = ownerCompany.getType();
+                    if (companyType.length() > 14) {
+                        companyType = companyType.substring(0, 14) + "...";
+                    }
+
+                    String ownerName = ownerCompany.getGerant();
+                    if (ownerName.length() > 12) {
+                        ownerName = ownerName.substring(0, 12) + "...";
+                    }
+
+                    String siret = ownerCompany.getSiret();
+                    String siretShort = siret.length() > 10 ? siret.substring(0, 10) + "..." : siret;
+
+                    objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
+                    objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + companyType).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + siretShort).setScore(line--);
+                } else {
+                    // Fallback si l'entreprise n'est pas trouvée
+                    String companyName = plot.getCompanyName();
+                    if (companyName != null && companyName.length() > 12) {
+                        companyName = companyName.substring(0, 12) + "...";
+                    }
+                    String ownerName = plot.getOwnerName();
+                    if (ownerName != null && ownerName.length() > 12) {
+                        ownerName = ownerName.substring(0, 12) + "...";
+                    }
+
+                    objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
+                    objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + plot.getCompanySiret().substring(0, 8) + "...").setScore(line--);
+                }
             } else {
                 // Terrain PARTICULIER → afficher nom proprio
                 String ownerName = plot.getOwnerName();
@@ -508,12 +566,28 @@ public class TownHUDListener implements Listener {
 
                 if (renterCompany != null) {
                     String renterCompanyName = renterCompany.getNom();
-                    if (renterCompanyName.length() > 12) {
-                        renterCompanyName = renterCompanyName.substring(0, 12) + "...";
+                    if (renterCompanyName.length() > 14) {
+                        renterCompanyName = renterCompanyName.substring(0, 14) + "...";
                     }
+
+                    String renterCompanyType = renterCompany.getType();
+                    if (renterCompanyType.length() > 14) {
+                        renterCompanyType = renterCompanyType.substring(0, 14) + "...";
+                    }
+
+                    String renterGerant = renterCompany.getGerant();
+                    if (renterGerant.length() > 12) {
+                        renterGerant = renterGerant.substring(0, 12) + "...";
+                    }
+
+                    String siret = renterCompany.getSiret();
+                    String siretShort = siret.length() > 10 ? siret.substring(0, 10) + "..." : siret;
 
                     objective.getScore(" " + ChatColor.AQUA + "Loué par:").setScore(line--);
                     objective.getScore(" " + ChatColor.LIGHT_PURPLE + renterCompanyName).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + renterCompanyType).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + renterGerant).setScore(line--);
+                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + siretShort).setScore(line--);
                 }
             }
         }
@@ -561,11 +635,38 @@ public class TownHUDListener implements Listener {
             }
 
             if (renterUuid != null) {
-                String renterName = org.bukkit.Bukkit.getOfflinePlayer(renterUuid).getName();
-                if (renterName != null && renterName.length() > 12) {
-                    renterName = renterName.substring(0, 12) + "...";
+                // Récupérer le SIRET du locataire depuis la parcelle actuelle
+                // (même si dans un groupe, toutes les parcelles partagent le même locataire)
+                String renterCompanySiret = plot.getRenterCompanySiret();
+
+                // Si c'est un terrain PROFESSIONNEL avec une entreprise locataire, afficher les infos de l'entreprise
+                if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && renterCompanySiret != null) {
+                    com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
+                        .getCompanyBySiret(renterCompanySiret);
+
+                    if (renterCompany != null) {
+                        String companyName = renterCompany.getNom();
+                        if (companyName.length() > 14) {
+                            companyName = companyName.substring(0, 14) + "...";
+                        }
+                        objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué: " + ChatColor.WHITE + companyName).setScore(line--);
+                    } else {
+                        // Fallback si l'entreprise n'est pas trouvée
+                        String renterName = org.bukkit.Bukkit.getOfflinePlayer(renterUuid).getName();
+                        if (renterName != null && renterName.length() > 12) {
+                            renterName = renterName.substring(0, 12) + "...";
+                        }
+                        objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué par: " + ChatColor.WHITE + renterName).setScore(line--);
+                    }
+                } else {
+                    // Terrain PARTICULIER ou pas d'entreprise : afficher le nom du joueur
+                    String renterName = org.bukkit.Bukkit.getOfflinePlayer(renterUuid).getName();
+                    if (renterName != null && renterName.length() > 12) {
+                        renterName = renterName.substring(0, 12) + "...";
+                    }
+                    objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué par: " + ChatColor.WHITE + renterName).setScore(line--);
                 }
-                objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué par: " + ChatColor.WHITE + renterName).setScore(line--);
+
                 objective.getScore(" " + ChatColor.GRAY + "Jours: " + ChatColor.WHITE + rentDays + "j").setScore(line--);
             }
 

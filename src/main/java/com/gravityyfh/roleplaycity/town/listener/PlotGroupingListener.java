@@ -278,8 +278,28 @@ public class PlotGroupingListener implements Listener {
                 // Si toutes ont un propriétaire, vérifier que c'est le même
                 if (firstHasOwner && currentHasOwner && !firstPlot.getOwnerUuid().equals(plot.getOwnerUuid())) {
                     player.sendMessage(ChatColor.RED + "Toutes les parcelles avec propriétaire doivent avoir le même propriétaire !");
-                    player.sendMessage(ChatColor.YELLOW + "Propriétaire déjà sélectionné: " + ChatColor.WHITE + firstPlot.getOwnerName());
-                    player.sendMessage(ChatColor.YELLOW + "Propriétaire de cette parcelle: " + ChatColor.WHITE + plot.getOwnerName());
+
+                    // Afficher entreprise ou joueur selon le type
+                    String firstOwnerDisplay = firstPlot.getOwnerName();
+                    if (firstPlot.getType() == PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
+                        com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise firstCompany = plugin.getCompanyPlotManager()
+                            .getCompanyBySiret(firstPlot.getCompanySiret());
+                        if (firstCompany != null) {
+                            firstOwnerDisplay = firstCompany.getNom();
+                        }
+                    }
+
+                    String currentOwnerDisplay = plot.getOwnerName();
+                    if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                        com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise currentCompany = plugin.getCompanyPlotManager()
+                            .getCompanyBySiret(plot.getCompanySiret());
+                        if (currentCompany != null) {
+                            currentOwnerDisplay = currentCompany.getNom();
+                        }
+                    }
+
+                    player.sendMessage(ChatColor.YELLOW + "Propriétaire déjà sélectionné: " + ChatColor.WHITE + firstOwnerDisplay);
+                    player.sendMessage(ChatColor.YELLOW + "Propriétaire de cette parcelle: " + ChatColor.WHITE + currentOwnerDisplay);
                     return;
                 }
             }
@@ -292,7 +312,20 @@ public class PlotGroupingListener implements Listener {
         if (session.selectedPlotKeys.isEmpty()) {
             session.selectedPlotKeys.add(plotKey);
             player.sendMessage(ChatColor.GREEN + "✓ Parcelle ajoutée au groupe (" + session.selectedPlotKeys.size() + ")");
-            player.sendMessage(ChatColor.GRAY + "Propriétaire: " + plot.getOwnerName());
+
+            // Afficher propriétaire ou entreprise
+            if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(plot.getCompanySiret());
+                if (ownerCompany != null) {
+                    player.sendMessage(ChatColor.GRAY + "Entreprise: " + ownerCompany.getNom());
+                } else {
+                    player.sendMessage(ChatColor.GRAY + "Propriétaire: " + plot.getOwnerName());
+                }
+            } else {
+                player.sendMessage(ChatColor.GRAY + "Propriétaire: " + plot.getOwnerName());
+            }
+
             player.sendMessage(ChatColor.GRAY + "Sélectionnez la parcelle suivante (clic droit)");
 
             // Ne pas afficher le bouton ici, seulement après le premier ajout réel

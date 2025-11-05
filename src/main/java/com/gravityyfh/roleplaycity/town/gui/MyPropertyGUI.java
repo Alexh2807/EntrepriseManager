@@ -257,8 +257,30 @@ public class MyPropertyGUI implements Listener {
         lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
         lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
 
-        // Propriétaire
-        lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+        // Récupérer la première parcelle du groupe pour vérifier le type
+        Plot firstPlot = null;
+        if (!group.getPlotKeys().isEmpty()) {
+            String firstKey = group.getPlotKeys().iterator().next();
+            String[] parts = firstKey.split(":");
+            if (parts.length == 3) {
+                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+            }
+        }
+
+        // Propriétaire ou Entreprise
+        if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
+            // Terrain PROFESSIONNEL : afficher entreprise
+            com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                .getCompanyBySiret(firstPlot.getCompanySiret());
+            if (ownerCompany != null) {
+                lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
+            } else {
+                lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+            }
+        } else {
+            // Terrain PARTICULIER
+            lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+        }
 
         // Statuts de vente/location
         if (group.isForSale()) {
@@ -301,8 +323,30 @@ public class MyPropertyGUI implements Listener {
         lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
         lore.add(ChatColor.GRAY + "─────────────────");
 
-        // Propriétaire du groupe
-        lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+        // Récupérer la première parcelle du groupe pour vérifier le type
+        Plot firstPlot = null;
+        if (!group.getPlotKeys().isEmpty()) {
+            String firstKey = group.getPlotKeys().iterator().next();
+            String[] parts = firstKey.split(":");
+            if (parts.length == 3) {
+                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+            }
+        }
+
+        // Propriétaire du groupe ou Entreprise
+        if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
+            // Terrain PROFESSIONNEL : afficher entreprise
+            com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                .getCompanyBySiret(firstPlot.getCompanySiret());
+            if (ownerCompany != null) {
+                lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
+            } else {
+                lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+            }
+        } else {
+            // Terrain PARTICULIER
+            lore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + group.getOwnerName());
+        }
 
         // Infos de location
         lore.add(ChatColor.YELLOW + "Prix/jour: " + ChatColor.GOLD + String.format("%.2f€", group.getRentPricePerDay()));
