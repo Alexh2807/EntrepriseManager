@@ -570,7 +570,8 @@ public class PlotGroupDetailGUI implements Listener {
 
                 Plot plot = town.getPlot(world, x, z);
                 if (plot != null) {
-                    plot.setOwner(null, null);
+                    // FIX CRITIQUE: Nettoyer TOUTES les données du terrain (propriétaire, entreprise, dettes)
+                    townManager.clearPlotOwnership(plot);
                     // Ne pas mettre les parcelles individuelles en vente
                     // C'est le groupe qui sera en vente
                     plot.setForSale(false);

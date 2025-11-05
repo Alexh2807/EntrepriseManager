@@ -354,23 +354,22 @@ public class Town {
                     if (parts.length == 3) {
                         Plot plot = getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
                         if (plot != null) {
-                            // Dette particulier
-                            if (plot.getParticularDebtAmount() > 0) {
-                                debts.add(new PlayerDebt(
-                                    plot,
-                                    group,
-                                    plot.getParticularDebtAmount(),
-                                    plot.getParticularLastDebtWarningDate(),
-                                    true
-                                ));
-                            }
-                            // Dette entreprise
+                            // FIX: Un groupe ne doit avoir qu'UNE seule dette (entreprise OU particulier, pas les deux)
+                            // Prioriser la dette entreprise si elle existe
                             if (plot.getCompanyDebtAmount() > 0) {
                                 debts.add(new PlayerDebt(
                                     plot,
                                     group,
                                     plot.getCompanyDebtAmount(),
                                     plot.getLastDebtWarningDate(),
+                                    true
+                                ));
+                            } else if (plot.getParticularDebtAmount() > 0) {
+                                debts.add(new PlayerDebt(
+                                    plot,
+                                    group,
+                                    plot.getParticularDebtAmount(),
+                                    plot.getParticularLastDebtWarningDate(),
                                     true
                                 ));
                             }
@@ -400,23 +399,22 @@ public class Town {
             boolean isRenter = plot.getRenterUuid() != null && plot.getRenterUuid().equals(playerUuid);
 
             if (isOwner || isRenter) {
-                // Dette particulier
-                if (plot.getParticularDebtAmount() > 0) {
-                    debts.add(new PlayerDebt(
-                        plot,
-                        null,
-                        plot.getParticularDebtAmount(),
-                        plot.getParticularLastDebtWarningDate(),
-                        false
-                    ));
-                }
-                // Dette entreprise
+                // FIX: Une parcelle ne doit avoir qu'UNE seule dette (entreprise OU particulier, pas les deux)
+                // Prioriser la dette entreprise si elle existe
                 if (plot.getCompanyDebtAmount() > 0) {
                     debts.add(new PlayerDebt(
                         plot,
                         null,
                         plot.getCompanyDebtAmount(),
                         plot.getLastDebtWarningDate(),
+                        false
+                    ));
+                } else if (plot.getParticularDebtAmount() > 0) {
+                    debts.add(new PlayerDebt(
+                        plot,
+                        null,
+                        plot.getParticularDebtAmount(),
+                        plot.getParticularLastDebtWarningDate(),
                         false
                     ));
                 }

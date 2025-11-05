@@ -420,6 +420,30 @@ public class PlotGroupingListener implements Listener {
 
         group.setOwner(ownerUuid, ownerName);
 
+        // FIX: Vérifier qu'aucune parcelle n'a de dette avant de grouper
+        for (String plotKey : session.selectedPlotKeys) {
+            String[] keyParts = plotKey.split(":");
+            if (keyParts.length == 3) {
+                Plot plot = town.getPlot(keyParts[0], Integer.parseInt(keyParts[1]), Integer.parseInt(keyParts[2]));
+                if (plot != null) {
+                    // Vérifier les dettes
+                    if (plot.getParticularDebtAmount() > 0 || plot.getCompanyDebtAmount() > 0) {
+                        player.sendMessage("");
+                        player.sendMessage(ChatColor.RED + "❌ GROUPEMENT IMPOSSIBLE");
+                        player.sendMessage(ChatColor.YELLOW + "Au moins une parcelle a une dette impayée !");
+                        player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
+                        player.sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.RED +
+                            String.format("%.2f€", plot.getParticularDebtAmount() + plot.getCompanyDebtAmount()));
+                        player.sendMessage("");
+                        player.sendMessage(ChatColor.GRAY + "💡 Réglez toutes les dettes avant de grouper:");
+                        player.sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
+                        player.sendMessage("");
+                        return false;
+                    }
+                }
+            }
+        }
+
         // Ajouter les parcelles au groupe
         for (String plotKey : session.selectedPlotKeys) {
             String[] keyParts = plotKey.split(":");

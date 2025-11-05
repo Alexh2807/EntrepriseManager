@@ -510,8 +510,8 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
-        // Retirer le propriétaire
-        plot.setOwner(null, null);
+        // FIX CRITIQUE: Nettoyer TOUTES les données du terrain (propriétaire, entreprise, dettes)
+        townManager.clearPlotOwnership(plot);
 
         // Nettoyer les paramètres de vente/location
         plot.setForRent(false);

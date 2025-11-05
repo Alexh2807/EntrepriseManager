@@ -183,6 +183,10 @@ public class TownEconomyManager {
         plot.setForSale(false);
         plot.setSalePrice(0);
 
+        // FIX CRITIQUE: Réinitialiser TOUTES les dettes lors d'une vente
+        plot.resetDebt();
+        plot.resetParticularDebt();
+
         // NOUVEAU : Si terrain PROFESSIONNEL, enregistrer l'entreprise
         if (isProfessional && buyerCompany != null) {
             plot.setCompany(buyerCompany.getNom());
@@ -971,7 +975,7 @@ public class TownEconomyManager {
                             firstPlot.setLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setDebtWarningCount(1);
 
-                            // Notifier le gérant
+                            // Notifier le gérant - FORMAT UNIFIÉ
                             String gerantUuidStr = company.getGerantUUID();
                             if (gerantUuidStr != null) {
                                 UUID gerantUuid = UUID.fromString(gerantUuidStr);
@@ -979,24 +983,19 @@ public class TownEconomyManager {
                                 if (gerant.isOnline() && gerant.getPlayer() != null) {
                                     Player gerantPlayer = gerant.getPlayer();
                                     gerantPlayer.sendMessage("");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - GROUPE PROFESSIONNEL");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "⚠⚠⚠ AVERTISSEMENT - DETTE DE TERRAIN ⚠⚠⚠");
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Professionnel");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + company.getNom());
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + group.getGroupName() +
                                         ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
-                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.GOLD +
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
                                         String.format("%.2f€", newDebt));
-                                    gerantPlayer.sendMessage(ChatColor.GRAY + "Ville: " + townName);
                                     gerantPlayer.sendMessage("");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "   avant saisie automatique des terrains!");
-                                    gerantPlayer.sendMessage("");
-                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "💡 Pour recharger l'entreprise:");
-                                    gerantPlayer.sendMessage(ChatColor.GRAY + "   /entreprise → Mes Entreprises → " + company.getNom() + " → Déposer Argent");
-                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "💡 Pour régler la dette:");
-                                    gerantPlayer.sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                    gerantPlayer.sendMessage(ChatColor.GOLD + "Votre entreprise n'a pas pu payer les taxes du groupe !");
+                                    gerantPlayer.sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                        ChatColor.GOLD + " pour renflouer le compte.");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
                                     gerantPlayer.sendMessage("");
                                 }
                             }
@@ -1046,24 +1045,21 @@ public class TownEconomyManager {
                             firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setParticularDebtWarningCount(1);
 
-                            // Avertissement au joueur
+                            // Avertissement au joueur - FORMAT UNIFIÉ
                             if (payer.isOnline() && payer.getPlayer() != null) {
                                 payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - GROUPE");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
-                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette actuelle: " + ChatColor.GOLD +
-                                    String.format("%.2f€", newDebt));
+                                payer.getPlayer().sendMessage(ChatColor.RED + "⚠⚠⚠ AVERTISSEMENT - DETTE DE TERRAIN ⚠⚠⚠");
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Particulier");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE +
                                     group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
-                                payer.getPlayer().sendMessage(ChatColor.GRAY + "Ville: " + townName);
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
+                                    String.format("%.2f€", newDebt));
                                 payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "   avant saisie automatique des terrains!");
-                                payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "💡 Réglez vos dettes via:");
-                                payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage(ChatColor.GOLD + "Vous n'avez pas pu payer les taxes du groupe !");
+                                payer.getPlayer().sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                    ChatColor.GOLD + " pour renflouer le compte.");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
                                 payer.getPlayer().sendMessage("");
                             }
 
