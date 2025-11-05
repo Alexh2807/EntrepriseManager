@@ -247,6 +247,24 @@ public class EntrepriseManagerLogic {
         }
     }
 
+    /**
+     * FIX CRITIQUE P1.1: Annule un revenu de vente en boutique (en cas de transaction échouée).
+     * @param nomEntreprise Le nom de l'entreprise dont il faut annuler le revenu.
+     * @param montant Le montant à soustraire du CA horaire.
+     */
+    public void annulerRevenuMagasin(String nomEntreprise, double montant) {
+        if (nomEntreprise != null && montant > 0) {
+            activiteMagasinHoraireValeur.compute(nomEntreprise, (key, oldValue) -> {
+                if (oldValue == null) {
+                    return 0.0; // Aucun revenu enregistré
+                }
+                double newValue = oldValue - montant;
+                return newValue > 0 ? newValue : 0.0; // Ne pas avoir de valeur négative
+            });
+            plugin.getLogger().warning("Revenu boutique de " + montant + "€ ANNULÉ pour '" + nomEntreprise + "' (transaction échouée).");
+        }
+    }
+
     // --- Fin Activité/Productivité ---
 
     // --- Gestion Entreprises ---
