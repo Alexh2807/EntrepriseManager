@@ -216,37 +216,47 @@ public class TownMainGUI implements Listener {
         // === LIGNE 2: Section Personnelle ===
         int personalSlot = 10;
 
-        // Mes Propriétés (si le joueur possède/loue des terrains)
-        if (hasOwnedOrRentedPlots(player, town)) {
-            ItemStack propertyItem = new ItemStack(Material.GREEN_CONCRETE);
-            ItemMeta propertyMeta = propertyItem.getItemMeta();
-            propertyMeta.setDisplayName(ChatColor.GREEN + "🏠 Mes Propriétés");
-            List<String> propertyLore = new ArrayList<>();
+        // FIX P3.2: Mes Propriétés (toujours visible, grisé si vide)
+        boolean hasProperties = hasOwnedOrRentedPlots(player, town);
+        ItemStack propertyItem = new ItemStack(hasProperties ? Material.GREEN_CONCRETE : Material.GRAY_CONCRETE);
+        ItemMeta propertyMeta = propertyItem.getItemMeta();
+        propertyMeta.setDisplayName((hasProperties ? ChatColor.GREEN : ChatColor.GRAY) + "🏠 Mes Propriétés");
+        List<String> propertyLore = new ArrayList<>();
+        if (hasProperties) {
             propertyLore.add(ChatColor.GRAY + "Gérer vos terrains");
             propertyLore.add(ChatColor.GRAY + "Terrains possédés et loués");
             propertyLore.add("");
             propertyLore.add(ChatColor.YELLOW + "▶ Clic: Voir mes propriétés");
-            propertyMeta.setLore(propertyLore);
-            propertyItem.setItemMeta(propertyMeta);
-            inv.setItem(personalSlot, propertyItem);
-            personalSlot += 2;
+        } else {
+            propertyLore.add(ChatColor.DARK_GRAY + "Aucune propriété");
+            propertyLore.add("");
+            propertyLore.add(ChatColor.GRAY + "Vous ne possédez aucun terrain");
         }
+        propertyMeta.setLore(propertyLore);
+        propertyItem.setItemMeta(propertyMeta);
+        inv.setItem(personalSlot, propertyItem);
+        personalSlot += 2;
 
-        // Mes Entreprises (si le joueur gère des entreprises)
-        if (hasCompanies(player)) {
-            ItemStack companiesItem = new ItemStack(Material.CHEST);
-            ItemMeta companiesMeta = companiesItem.getItemMeta();
-            companiesMeta.setDisplayName(ChatColor.GOLD + "💼 Mes Entreprises");
-            List<String> companiesLore = new ArrayList<>();
+        // FIX P3.2: Mes Entreprises (toujours visible, grisé si vide)
+        boolean hasCompaniesFlag = hasCompanies(player);
+        ItemStack companiesItem = new ItemStack(hasCompaniesFlag ? Material.CHEST : Material.BARRIER);
+        ItemMeta companiesMeta = companiesItem.getItemMeta();
+        companiesMeta.setDisplayName((hasCompaniesFlag ? ChatColor.GOLD : ChatColor.GRAY) + "💼 Mes Entreprises");
+        List<String> companiesLore = new ArrayList<>();
+        if (hasCompaniesFlag) {
             companiesLore.add(ChatColor.GRAY + "Gérer vos entreprises");
             companiesLore.add(ChatColor.GRAY + "Terrains PRO et dettes");
             companiesLore.add("");
             companiesLore.add(ChatColor.YELLOW + "▶ Clic: Voir mes entreprises");
-            companiesMeta.setLore(companiesLore);
-            companiesItem.setItemMeta(companiesMeta);
-            inv.setItem(personalSlot, companiesItem);
-            personalSlot += 2;
+        } else {
+            companiesLore.add(ChatColor.DARK_GRAY + "Aucune entreprise");
+            companiesLore.add("");
+            companiesLore.add(ChatColor.GRAY + "Vous ne gérez aucune entreprise");
         }
+        companiesMeta.setLore(companiesLore);
+        companiesItem.setItemMeta(companiesMeta);
+        inv.setItem(personalSlot, companiesItem);
+        personalSlot += 2;
 
         // Mes Amendes (si le joueur a des amendes impayées)
         if (hasUnpaidFines(player)) {
@@ -263,13 +273,14 @@ public class TownMainGUI implements Listener {
             personalSlot += 2;
         }
 
-        // NOUVEAU : Régler vos Dettes (si le joueur a des dettes)
-        if (hasPlayerDebts(player, town)) {
-            ItemStack debtsItem = new ItemStack(Material.RED_CONCRETE);
-            ItemMeta debtsMeta = debtsItem.getItemMeta();
-            debtsMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "🔴 Régler vos Dettes");
-            List<String> debtsLore = new ArrayList<>();
+        // FIX P3.2: Régler vos Dettes (toujours visible, grisé si vide)
+        boolean hasDebts = hasPlayerDebts(player, town);
+        ItemStack debtsItem = new ItemStack(hasDebts ? Material.RED_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
+        ItemMeta debtsMeta = debtsItem.getItemMeta();
+        debtsMeta.setDisplayName((hasDebts ? ChatColor.RED + "" + ChatColor.BOLD : ChatColor.GRAY) + "🔴 Régler vos Dettes");
+        List<String> debtsLore = new ArrayList<>();
 
+        if (hasDebts) {
             double totalDebt = town.getTotalPlayerDebt(player.getUniqueId());
             int debtCount = town.getPlayerDebts(player.getUniqueId()).size();
 
@@ -278,10 +289,14 @@ public class TownMainGUI implements Listener {
             debtsLore.add("");
             debtsLore.add(ChatColor.YELLOW + "⚠ Cliquez pour gérer vos dettes");
             debtsLore.add(ChatColor.GRAY + "Particulier & Entreprise");
-            debtsMeta.setLore(debtsLore);
-            debtsItem.setItemMeta(debtsMeta);
-            inv.setItem(personalSlot, debtsItem);
+        } else {
+            debtsLore.add(ChatColor.DARK_GRAY + "Aucune dette");
+            debtsLore.add("");
+            debtsLore.add(ChatColor.GRAY + "Vous n'avez aucune dette impayée");
         }
+        debtsMeta.setLore(debtsLore);
+        debtsItem.setItemMeta(debtsMeta);
+        inv.setItem(personalSlot, debtsItem);
 
         // === LIGNE 3: Section Ville ===
         // Membres et Rôles (slot 19)
@@ -523,6 +538,11 @@ public class TownMainGUI implements Listener {
         // Gérer les actions des boutons
         if (strippedName.contains("Mes Propriétés")) {
             player.closeInventory();
+            // FIX P3.2: Vérifier si l'item est grisé (vide)
+            if (clicked.getType() == Material.GRAY_CONCRETE) {
+                NavigationManager.sendInfo(player, "AUCUNE PROPRIÉTÉ", "Vous ne possédez actuellement aucun terrain.");
+                return;
+            }
             String currentTownName = townManager.getPlayerTown(player.getUniqueId());
             if (myPropertyGUI != null && currentTownName != null) {
                 myPropertyGUI.openPropertyMenu(player, currentTownName);
@@ -531,6 +551,11 @@ public class TownMainGUI implements Listener {
             }
         } else if (strippedName.contains("Mes Entreprises")) {
             player.closeInventory();
+            // FIX P3.2: Vérifier si l'item est grisé (vide)
+            if (clicked.getType() == Material.BARRIER) {
+                NavigationManager.sendInfo(player, "AUCUNE ENTREPRISE", "Vous ne gérez actuellement aucune entreprise.");
+                return;
+            }
             if (myCompaniesGUI != null) {
                 myCompaniesGUI.openCompaniesMenu(player);
             } else {
@@ -562,6 +587,11 @@ public class TownMainGUI implements Listener {
             }
         } else if (strippedName.contains("Régler vos Dettes")) {
             player.closeInventory();
+            // FIX P3.2: Vérifier si l'item est grisé (vide)
+            if (clicked.getType() == Material.LIGHT_GRAY_CONCRETE) {
+                NavigationManager.sendInfo(player, "AUCUNE DETTE", "Vous n'avez aucune dette impayée. Parfait !");
+                return;
+            }
             if (debtManagementGUI != null) {
                 String currentTownName = townManager.getPlayerTown(player.getUniqueId());
                 if (currentTownName != null) {
