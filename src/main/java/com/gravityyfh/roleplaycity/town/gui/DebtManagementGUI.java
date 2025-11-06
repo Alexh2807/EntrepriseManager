@@ -32,11 +32,13 @@ public class DebtManagementGUI implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final TownMainGUI mainGUI;
+    private final com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService;
 
-    public DebtManagementGUI(RoleplayCity plugin, TownManager townManager, TownMainGUI mainGUI) {
+    public DebtManagementGUI(RoleplayCity plugin, TownManager townManager, TownMainGUI mainGUI, com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService) {
         this.plugin = plugin;
         this.townManager = townManager;
         this.mainGUI = mainGUI;
+        this.debtNotificationService = debtNotificationService;
     }
 
     /**
@@ -321,6 +323,7 @@ public class DebtManagementGUI implements Listener {
 
         // Sauvegarder
         townManager.saveTownsNow();
+        debtNotificationService.refresh(player.getUniqueId(), com.gravityyfh.roleplaycity.town.manager.DebtNotificationService.DebtUpdateReason.PAYMENT);
 
         // Rouvrir le menu s'il reste des dettes
         List<Town.PlayerDebt> remainingDebts = town.getPlayerDebts(player.getUniqueId());

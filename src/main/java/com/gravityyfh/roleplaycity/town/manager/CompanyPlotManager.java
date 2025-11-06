@@ -26,14 +26,16 @@ public class CompanyPlotManager {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final EntrepriseManagerLogic entrepriseLogic;
+    private final com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService;
 
     // Délai de grâce: 7 jours avant saisie
     private static final long DEBT_GRACE_PERIOD_DAYS = 7;
 
-    public CompanyPlotManager(RoleplayCity plugin, TownManager townManager, EntrepriseManagerLogic entrepriseLogic) {
+    public CompanyPlotManager(RoleplayCity plugin, TownManager townManager, EntrepriseManagerLogic entrepriseLogic, com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService) {
         this.plugin = plugin;
         this.townManager = townManager;
         this.entrepriseLogic = entrepriseLogic;
+        this.debtNotificationService = debtNotificationService;
     }
 
     /**
@@ -227,26 +229,14 @@ public class CompanyPlotManager {
 
             // Notifier le gérant
             String gerantUuidStr = entreprise.getGerantUUID();
-            if (gerantUuidStr != null) {
-                UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-                if (gerant.isOnline() && gerant.getPlayer() != null) {
-                    Player gerantPlayer = gerant.getPlayer();
-                    gerantPlayer.sendMessage("");
-                    gerantPlayer.sendMessage(ChatColor.RED + "⚠⚠⚠ AVERTISSEMENT - DETTE DE TERRAIN ⚠⚠⚠");
-                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + entreprise.getNom());
-                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE +
-                        plot.getWorldName() + " (" + plot.getChunkX() + "," + plot.getChunkZ() + ")");
-                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
-                        String.format("%.2f€", newDebt));
-                    gerantPlayer.sendMessage("");
-                    gerantPlayer.sendMessage(ChatColor.GOLD + "Votre entreprise n'a pas pu payer les taxes du terrain !");
-                    gerantPlayer.sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + DEBT_GRACE_PERIOD_DAYS + " jours" +
-                        ChatColor.GOLD + " pour renflouer le compte.");
-                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas payée, le terrain sera SAISI automatiquement.");
-                    gerantPlayer.sendMessage("");
-                }
-            }
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, com.gravityyfh.roleplaycity.town.manager.DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + entreprise.getNom() + ": " + gerantUuidStr);
+                            }
+                        }
 
             plugin.getLogger().warning(String.format(
                 "[CompanyPlotManager] Entreprise %s (SIRET %s) - Dette de %.2f€ sur terrain %s:%d,%d. Délai: %d jours.",
@@ -258,15 +248,14 @@ public class CompanyPlotManager {
             plot.setDebtWarningCount(plot.getDebtWarningCount() + 1);
 
             String gerantUuidStr = entreprise.getGerantUUID();
-            if (gerantUuidStr != null) {
-                UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-                if (gerant.isOnline() && gerant.getPlayer() != null) {
-                    gerant.getPlayer().sendMessage(ChatColor.RED + "⚠ Dette terrain augmentée: " +
-                        String.format("%.2f€", newDebt) + " (J-" +
-                        (DEBT_GRACE_PERIOD_DAYS - java.time.Duration.between(plot.getLastDebtWarningDate(), LocalDateTime.now()).toDays()) + ")");
-                }
-            }
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, com.gravityyfh.roleplaycity.town.manager.DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + entreprise.getNom() + ": " + gerantUuidStr);
+                            }
+                        }
         }
 
         // Sauvegarder immédiatement

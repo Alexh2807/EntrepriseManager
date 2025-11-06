@@ -116,7 +116,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
         // Managers qui dépendent du NotificationManager
         townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager, claimManager);
-        companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager, entrepriseLogic);
+        companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager, entrepriseLogic, debtNotificationService);
 
         // Police et Justice
         townFinesDataManager = new com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager(this);
@@ -139,7 +139,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, myPropertyGUI);
         myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
         companySelectionGUI = new com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI(this);
-        debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI);
+        debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI, debtNotificationService);
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
