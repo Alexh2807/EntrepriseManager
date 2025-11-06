@@ -1,4 +1,4 @@
-﻿package com.gravityyfh.roleplaycity.Shop;
+package com.gravityyfh.roleplaycity.Shop;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
@@ -66,7 +66,7 @@ public class ShopManager {
    public void purchaseItem(Player buyer, Shop shop) {
       EntrepriseManagerLogic.Entreprise entreprise = this.entrepriseLogic.getEntrepriseBySiret(shop.getEntrepriseSiret());
       if (entreprise == null) {
-         buyer.sendMessage(ChatColor.RED + "L'entreprise propri├®taire de cette boutique n'existe plus.");
+         buyer.sendMessage(ChatColor.RED + "L'entreprise propriétaire de cette boutique n'existe plus.");
       } else if (UUID.fromString(entreprise.getGerantUUID()).equals(buyer.getUniqueId())) {
          buyer.sendMessage(ChatColor.YELLOW + "Vous ne pouvez pas acheter dans la boutique de votre propre entreprise.");
       } else {
@@ -82,14 +82,14 @@ public class ShopManager {
                Player owner = Bukkit.getPlayer(shop.getOwnerUUID());
                if (owner != null && owner.isOnline()) {
                   var10001 = ChatColor.YELLOW;
-                  owner.sendMessage(var10001 + "[Boutique] " + buyer.getName() + " a tent├® d'acheter '" + this.formatMaterialName(itemToSell.getType()) + "' mais une de vos boutiques est en rupture de stock !");
+                  owner.sendMessage(var10001 + "[Boutique] " + buyer.getName() + " a tenté d'acheter '" + this.formatMaterialName(itemToSell.getType()) + "' mais une de vos boutiques est en rupture de stock !");
                }
 
             } else {
                double price = shop.getPrice();
                if (!RoleplayCity.getEconomy().has(buyer, price)) {
                   var10001 = ChatColor.RED;
-                  buyer.sendMessage(var10001 + "Vous n'avez pas assez d'argent. Il vous faut " + String.format("%,.2fÔé¼", price) + ".");
+                  buyer.sendMessage(var10001 + "Vous n'avez pas assez d'argent. Il vous faut " + String.format("%,.2f€", price) + ".");
                } else if (buyer.getInventory().firstEmpty() == -1) {
                   buyer.sendMessage(ChatColor.RED + "Votre inventaire est plein.");
                } else {
@@ -126,13 +126,13 @@ public class ShopManager {
                      // Succès du retrait → Donner l'item à l'acheteur
                      buyer.getInventory().addItem(itemToSell.clone());
                      var10001 = ChatColor.GREEN;
-                     buyer.sendMessage(var10001 + "Vous avez achet├® " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " pour " + String.format("%,.2fÔé¼", price) + ".");
+                     buyer.sendMessage(var10001 + "Vous avez acheté " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " pour " + String.format("%,.2f€", price) + ".");
                      Player owner = Bukkit.getPlayer(shop.getOwnerUUID());
                      if (owner != null && owner.isOnline()) {
                         // The message to the owner is simplified as the balance is no longer updated instantly.
                         var10001 = ChatColor.GREEN;
-                        owner.sendMessage(var10001 + "[Boutique] Vente de " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " ├á " + buyer.getName() + " pour " + String.format("%,.2fÔé¼", price) + ".");
-                        owner.sendMessage(ChatColor.AQUA + "Les revenus de la vente seront trait├®s dans le prochain rapport horaire de l'entreprise '" + entreprise.getNom() + "'.");
+                        owner.sendMessage(var10001 + "[Boutique] Vente de " + itemToSell.getAmount() + "x " + this.formatMaterialName(itemToSell.getType()) + " à " + buyer.getName() + " pour " + String.format("%,.2f€", price) + ".");
+                        owner.sendMessage(ChatColor.AQUA + "Les revenus de la vente seront traités dans le prochain rapport horaire de l'entreprise '" + entreprise.getNom() + "'.");
                      }
                   }
                }
@@ -143,81 +143,81 @@ public class ShopManager {
 
    public void startShopCreationProcess(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
       if (!UUID.fromString(entreprise.getGerantUUID()).equals(player.getUniqueId())) {
-         player.sendMessage(ChatColor.RED + "Seul le g├®rant peut cr├®er des boutiques pour cette entreprise.");
+         player.sendMessage(ChatColor.RED + "Seul le gérant peut créer des boutiques pour cette entreprise.");
       } else {
          int maxShops = this.plugin.getConfig().getInt("shop.max-shops-per-enterprise", 10);
          if (this.getShopsBySiret(entreprise.getSiret()).size() >= maxShops) {
-            player.sendMessage(ChatColor.RED + "Cette entreprise a d├®j├á atteint le nombre maximum de boutiques (" + maxShops + ").");
+            player.sendMessage(ChatColor.RED + "Cette entreprise a déjà atteint le nombre maximum de boutiques (" + maxShops + ").");
          } else {
             Block targetBlock = this.getTargetChest(player);
             if (targetBlock == null) {
-               player.sendMessage(ChatColor.RED + "Vous devez regarder un coffre pour cr├®er une boutique.");
+               player.sendMessage(ChatColor.RED + "Vous devez regarder un coffre pour créer une boutique.");
             } else {
                Location chestLocation = targetBlock.getLocation();
                if (this.getShopByChestLocation(chestLocation) != null) {
-                  player.sendMessage(ChatColor.RED + "Il y a d├®j├á une boutique sur ce coffre.");
+                  player.sendMessage(ChatColor.RED + "Il y a déjà une boutique sur ce coffre.");
                } else {
-                  // V├®rifier avec notre syst├¿me de ville
+                  // Vérifier avec notre système de ville
                   ClaimManager claimManager = plugin.getClaimManager();
                   if (claimManager == null) {
-                     player.sendMessage(ChatColor.RED + "Syst├¿me de ville non disponible.");
+                     player.sendMessage(ChatColor.RED + "Système de ville non disponible.");
                      return;
                   }
 
                   Plot plot = claimManager.getPlotAt(chestLocation);
                   if (plot == null) {
-                     player.sendMessage(ChatColor.RED + "Vous devez ├¬tre sur une parcelle de ville pour cr├®er une boutique.");
+                     player.sendMessage(ChatColor.RED + "Vous devez être sur une parcelle de ville pour créer une boutique.");
                      return;
                   }
 
-                  // V├®rifier que c'est une parcelle professionnelle
+                  // Vérifier que c'est une parcelle professionnelle
                   if (plot.getType() != PlotType.PROFESSIONNEL) {
-                     player.sendMessage(ChatColor.RED + "La parcelle doit ├¬tre de type PROFESSIONNEL pour placer une boutique.");
+                     player.sendMessage(ChatColor.RED + "La parcelle doit être de type PROFESSIONNEL pour placer une boutique.");
                      return;
                   }
 
-                  // NOUVEAU : D├®terminer quel SIRET est autoris├® sur ce terrain
+                  // NOUVEAU : Déterminer quel SIRET est autorisé sur ce terrain
                   String authorizedSiret = null;
                   boolean isRented = (plot.getRenterUuid() != null);
 
                   if (isRented) {
-                     // Terrain lou├® ÔåÆ seul le locataire peut cr├®er des shops (avec SON entreprise)
+                     // Terrain loué ÔåÆ seul le locataire peut créer des shops (avec SON entreprise)
                      if (!plot.isRentedBy(player.getUniqueId())) {
-                        player.sendMessage(ChatColor.RED + "Ce terrain est lou├® par quelqu'un d'autre.");
-                        player.sendMessage(ChatColor.YELLOW + "Seul le locataire actuel peut cr├®er des boutiques ici.");
+                        player.sendMessage(ChatColor.RED + "Ce terrain est loué par quelqu'un d'autre.");
+                        player.sendMessage(ChatColor.YELLOW + "Seul le locataire actuel peut créer des boutiques ici.");
                         return;
                      }
-                     // R├®cup├®rer le SIRET de l'entreprise du locataire
+                     // Récupérer le SIRET de l'entreprise du locataire
                      authorizedSiret = plot.getRenterCompanySiret();
 
                      if (authorizedSiret == null) {
-                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associ├®e ├á votre location.");
+                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associée à votre location.");
                         return;
                      }
                   } else {
-                     // Terrain PAS lou├® ÔåÆ seul le propri├®taire peut cr├®er des shops
+                     // Terrain PAS loué ÔåÆ seul le propriétaire peut créer des shops
                      if (!plot.isOwnedBy(player.getUniqueId())) {
-                        player.sendMessage(ChatColor.RED + "Vous devez ├¬tre propri├®taire de cette parcelle.");
+                        player.sendMessage(ChatColor.RED + "Vous devez être propriétaire de cette parcelle.");
                         return;
                      }
-                     // R├®cup├®rer le SIRET de l'entreprise propri├®taire
+                     // Récupérer le SIRET de l'entreprise propriétaire
                      authorizedSiret = plot.getCompanySiret();
 
                      if (authorizedSiret == null) {
-                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associ├®e ├á ce terrain.");
+                        player.sendMessage(ChatColor.RED + "Erreur: Aucune entreprise associée à ce terrain.");
                         return;
                      }
                   }
 
-                  // NOUVEAU : V├®rifier que l'entreprise du shop correspond au terrain
+                  // NOUVEAU : Vérifier que l'entreprise du shop correspond au terrain
                   if (!entreprise.getSiret().equals(authorizedSiret)) {
-                     player.sendMessage(ChatColor.RED + "Ô£ù Cette entreprise n'est pas autoris├®e sur ce terrain !");
-                     player.sendMessage(ChatColor.YELLOW + "Seule l'entreprise li├®e au terrain peut cr├®er des boutiques ici.");
+                     player.sendMessage(ChatColor.RED + "Ô£ù Cette entreprise n'est pas autorisée sur ce terrain !");
+                     player.sendMessage(ChatColor.YELLOW + "Seule l'entreprise liée au terrain peut créer des boutiques ici.");
 
-                     // Afficher quelle entreprise est autoris├®e
+                     // Afficher quelle entreprise est autorisée
                      EntrepriseManagerLogic.Entreprise authorizedCompany = this.entrepriseLogic.getEntrepriseBySiret(authorizedSiret);
                      if (authorizedCompany != null) {
-                        player.sendMessage(ChatColor.GRAY + "Entreprise autoris├®e: " + ChatColor.WHITE + authorizedCompany.getNom());
+                        player.sendMessage(ChatColor.GRAY + "Entreprise autorisée: " + ChatColor.WHITE + authorizedCompany.getNom());
                      }
                      return;
                   }
@@ -241,7 +241,7 @@ public class ShopManager {
          int tbX = 0;
          int tbZ = 0;
 
-         // Utiliser notre syst├¿me de ville
+         // Utiliser notre système de ville
          ClaimManager claimManager = plugin.getClaimManager();
          if (claimManager != null) {
             Plot plot = claimManager.getPlotAt(chestLocation);
@@ -260,22 +260,22 @@ public class ShopManager {
          this.shops.put(newShop.getShopId(), newShop);
          this.saveShops();
          ChatColor var10001 = ChatColor.GREEN;
-         gerant.sendMessage(var10001 + "Nouvelle boutique pour '" + entreprise.getNom() + "' cr├®├®e avec succ├¿s !");
+         gerant.sendMessage(var10001 + "Nouvelle boutique pour '" + entreprise.getNom() + "' créée avec succès !");
       } else {
-         gerant.sendMessage(ChatColor.RED + "Le prix et la quantit├® doivent ├¬tre positifs.");
+         gerant.sendMessage(ChatColor.RED + "Le prix et la quantité doivent être positifs.");
       }
    }
 
 // Dans /src/main/java/com/gravityyfh/entreprisemanager/Shop/ShopManager.java
 
    /**
-    * Supprime compl├¿tement une boutique de mani├¿re s├®curis├®e (thread-safe).
+    * Supprime complètement une boutique de manière sécurisée (thread-safe).
     * <p>
-    * Cette m├®thode retire imm├®diatement la boutique du registre de donn├®es,
-    * puis planifie la suppression des ├®l├®ments visuels (panneau, item flottant)
-    * sur le thread principal du serveur pour ├®viter les erreurs asynchrones.
+    * Cette méthode retire immédiatement la boutique du registre de données,
+    * puis planifie la suppression des éléments visuels (panneau, item flottant)
+    * sur le thread principal du serveur pour éviter les erreurs asynchrones.
     *
-    * @param shop La boutique ├á supprimer.
+    * @param shop La boutique à supprimer.
     */
    public void deleteShop(Shop shop) {
       if (shop == null) {
@@ -284,34 +284,34 @@ public class ShopManager {
 
       // 1. Retire la boutique du registre interne. C'est une action s├╗re depuis n'importe quel thread.
       if (this.shops.remove(shop.getShopId()) == null) {
-         // La boutique n'├®tait pas dans la liste, elle a peut-├¬tre d├®j├á ├®t├® supprim├®e.
-         this.plugin.getLogger().log(Level.WARNING, "[Suppression] Tentative de suppression d'une boutique (" + shop.getShopId() + ") qui n'├®tait pas dans le registre.");
+         // La boutique n'était pas dans la liste, elle a peut-être déjà été supprimée.
+         this.plugin.getLogger().log(Level.WARNING, "[Suppression] Tentative de suppression d'une boutique (" + shop.getShopId() + ") qui n'était pas dans le registre.");
          return;
       }
 
-      this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " retir├®e du registre. Planification du nettoyage visuel sur le thread principal.");
+      this.plugin.getLogger().log(Level.INFO, "[Suppression] Boutique " + shop.getShopId() + " retirée du registre. Planification du nettoyage visuel sur le thread principal.");
 
-      // 2. Planifie toutes les interactions avec le monde du jeu pour qu'elles s'ex├®cutent sur le thread principal.
-      //    Ceci emp├¬che l'erreur "Asynchronous chunk load!".
+      // 2. Planifie toutes les interactions avec le monde du jeu pour qu'elles s'exécutent sur le thread principal.
+      //    Ceci empêche l'erreur "Asynchronous chunk load!".
       Bukkit.getScheduler().runTask(this.plugin, () -> {
-         // --- D├®but du code ex├®cut├® en toute s├®curit├® sur le thread principal ---
+         // --- Début du code exécuté en toute sécurité sur le thread principal ---
 
          // A. Logique de suppression de l'item flottant (Display Item)
          if (shop.getDisplayItemID() != null) {
             Entity entity = Bukkit.getEntity(shop.getDisplayItemID());
             if (entity instanceof Item) {
                entity.remove();
-               this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant " + shop.getDisplayItemID() + " supprim├®.");
+               this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant " + shop.getDisplayItemID() + " supprimé.");
             }
          }
 
-         // S├®curit├® suppl├®mentaire : nettoyer les items flottants orphelins ├á proximit├® au cas o├╣ l'UUID serait perdu.
+         // Sécurité supplémentaire : nettoyer les items flottants orphelins à proximité au cas o├╣ l'UUID serait perdu.
          Location floatingItemLocation = getFloatingItemLocation(shop.getLocation());
          if (floatingItemLocation != null && floatingItemLocation.isWorldLoaded()) {
             for (Entity nearby : floatingItemLocation.getWorld().getNearbyEntities(floatingItemLocation, 0.3D, 0.3D, 0.3D)) {
                if (nearby instanceof Item && ((Item) nearby).getPickupDelay() == Integer.MAX_VALUE) {
                   nearby.remove();
-                  this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant orphelin ├á proximit├® de " + floatingItemLocation.toVector() + " supprim├®.");
+                  this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Item flottant orphelin à proximité de " + floatingItemLocation.toVector() + " supprimé.");
                   break;
                }
             }
@@ -322,38 +322,38 @@ public class ShopManager {
          Block signBlock = findSignAttachedToChest(chestBlock);
          if (signBlock != null) {
             signBlock.setType(Material.AIR, false); // Modifie le monde
-            this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Panneau ├á " + signBlock.getLocation().toVector() + " supprim├®.");
+            this.plugin.getLogger().log(Level.FINE, "[Suppression-Sync] Panneau à " + signBlock.getLocation().toVector() + " supprimé.");
          }
 
-         // --- Fin du code s├®curis├® ---
+         // --- Fin du code sécurisé ---
       });
 
-      // 3. Sauvegarde la liste des boutiques mise ├á jour.
-      //    Cette m├®thode est d├®j├á asynchrone et donc non-bloquante.
+      // 3. Sauvegarde la liste des boutiques mise à jour.
+      //    Cette méthode est déjà asynchrone et donc non-bloquante.
       this.saveShops();
    }
 
    /**
-    * Supprime toutes les boutiques associ├®es ├á un SIRET d'entreprise sp├®cifique.
-    * ├Ç appeler lorsque l'entreprise elle-m├¬me est dissoute.
+    * Supprime toutes les boutiques associées à un SIRET d'entreprise spécifique.
+    * à appeler lorsque l'entreprise elle-même est dissoute.
     *
-    * @param siret Le SIRET de l'entreprise dont les boutiques doivent ├¬tre supprim├®es.
+    * @param siret Le SIRET de l'entreprise dont les boutiques doivent être supprimées.
     */
    public void deleteAllShopsForEnterprise(String siret) {
       if (siret == null || siret.isEmpty()) {
          return;
       }
-      // On cr├®e une copie de la liste pour ├®viter les modifications concurrentes
+      // On crée une copie de la liste pour éviter les modifications concurrentes
       List<Shop> shopsToDelete = new ArrayList<>(getShopsBySiret(siret));
       if (!shopsToDelete.isEmpty()) {
          plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) pour l'entreprise SIRET: " + siret);
-         shopsToDelete.forEach(this::deleteShop); // Appelle la m├®thode de suppression s├®curis├®e pour chaque boutique
+         shopsToDelete.forEach(this::deleteShop); // Appelle la méthode de suppression sécurisée pour chaque boutique
       }
    }
 
    /**
-    * Supprime toutes les boutiques situ├®es dans une ville sp├®cifique.
-    * ├Ç appeler lorsque la ville est supprim├®e.
+    * Supprime toutes les boutiques situées dans une ville spécifique.
+    * à appeler lorsque la ville est supprimée.
     *
     * @param townName Le nom de la ville.
     */
@@ -366,32 +366,32 @@ public class ShopManager {
               .collect(Collectors.toList());
 
       if (!shopsToDelete.isEmpty()) {
-         plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) suite ├á la suppression de la ville : " + townName);
-         // On it├¿re sur une copie pour ├¬tre s├╗r
+         plugin.getLogger().log(Level.INFO, "Suppression de " + shopsToDelete.size() + " boutique(s) suite à la suppression de la ville : " + townName);
+         // On itère sur une copie pour être s├╗r
          new ArrayList<>(shopsToDelete).forEach(this::deleteShop);
       }
    }
 
    /**
-    * Supprime toutes les boutiques situ├®es dans les coordonn├®es d'une parcelle donn├®e.
-    * C'est la m├®thode ├á appeler depuis les listeners de parcelle (plot).
+    * Supprime toutes les boutiques situées dans les coordonnées d'une parcelle donnée.
+    * C'est la méthode à appeler depuis les listeners de parcelle (plot).
     *
-    * @param coord  Les coordonn├®es de la parcelle.
+    * @param coord  Les coordonnées de la parcelle.
     * @param reason La raison de la suppression (pour les logs).
-    * @return Le nombre de boutiques supprim├®es.
+    * @return Le nombre de boutiques supprimées.
     */
-   // M├®thode supprim├®e - N'utilise plus Towny
-   // La suppression de boutiques est g├®r├®e via TownEventListener
+   // Méthode supprimée - N'utilise plus Towny
+   // La suppression de boutiques est gérée via TownEventListener
 
    /**
-    * Supprime tous les shops d'une entreprise sur un terrain sp├®cifique
-    * Utilis├® lors de d├®location ou perte d'entreprise
+    * Supprime tous les shops d'une entreprise sur un terrain spécifique
+    * Utilisé lors de délocation ou perte d'entreprise
     *
     * @param siret SIRET de l'entreprise dont on supprime les shops
-    * @param plot Terrain concern├®
-    * @param notifyOwner Si true, notifie le g├®rant
+    * @param plot Terrain concerné
+    * @param notifyOwner Si true, notifie le gérant
     * @param reason Raison de la suppression
-    * @return Nombre de shops supprim├®s
+    * @return Nombre de shops supprimés
     */
    public int deleteShopsByCompanyOnPlot(String siret, Plot plot, boolean notifyOwner, String reason) {
       if (siret == null || plot == null) return 0;
@@ -401,7 +401,7 @@ public class ShopManager {
       // Trouver tous les shops de cette entreprise sur ce terrain
       for (Shop shop : shops.values()) {
          if (siret.equals(shop.getEntrepriseSiret())) {
-            // V├®rifier si le shop est sur ce terrain
+            // Vérifier si le shop est sur ce terrain
             Location shopLoc = shop.getLocation();
             if (shopLoc.getWorld().getName().equals(plot.getWorldName())) {
                int shopChunkX = shopLoc.getBlockX() >> 4;
@@ -414,19 +414,19 @@ public class ShopManager {
          }
       }
 
-      // Supprimer les shops trouv├®s
+      // Supprimer les shops trouvés
       for (Shop shop : shopsToDelete) {
          deleteShop(shop);
       }
 
-      // Notifier le g├®rant si demand├®
+      // Notifier le gérant si demandé
       if (notifyOwner && !shopsToDelete.isEmpty()) {
          Player owner = Bukkit.getPlayer(shopsToDelete.get(0).getOwnerUUID());
          if (owner != null && owner.isOnline()) {
             owner.sendMessage("");
             owner.sendMessage(ChatColor.RED + "ÔÜá SUPPRESSION DE BOUTIQUES");
             owner.sendMessage(ChatColor.YELLOW + "Raison: " + reason);
-            owner.sendMessage(ChatColor.GRAY + "Nombre de boutiques supprim├®es: " + ChatColor.WHITE + shopsToDelete.size());
+            owner.sendMessage(ChatColor.GRAY + "Nombre de boutiques supprimées: " + ChatColor.WHITE + shopsToDelete.size());
             owner.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
             owner.sendMessage("");
          }
@@ -442,7 +442,7 @@ public class ShopManager {
 
    /**
     * Supprime TOUS les shops d'une entreprise (toutes parcelles confondues)
-    * Utilis├® lors de dissolution d'entreprise
+    * Utilisé lors de dissolution d'entreprise
     */
    public int deleteAllShopsByCompany(String siret, boolean notifyOwner, String reason) {
       if (siret == null) return 0;
@@ -500,8 +500,8 @@ public class ShopManager {
       }
    }
 
-   // M├®thode supprim├®e - N'utilise plus Towny
-   // La suppression de boutiques est g├®r├®e via TownEventListener
+   // Méthode supprimée - N'utilise plus Towny
+   // La suppression de boutiques est gérée via TownEventListener
 
    public void changeShopQuantity(Shop shop, int newQuantity) {
       if (shop != null && newQuantity > 0) {
@@ -576,8 +576,8 @@ public class ShopManager {
       }).sorted(Comparator.comparing(Shop::getCreationDate)).collect(Collectors.toList());
    }
 
-   // M├®thode supprim├®e - N'utilise plus Towny WorldCoord
-   // Les boutiques sont maintenant g├®r├®es via notre syst├¿me de Plot
+   // Méthode supprimée - N'utilise plus Towny WorldCoord
+   // Les boutiques sont maintenant gérées via notre système de Plot
 
    private String formatMaterialName(Material material) {
       return material == null ? "Inconnu" : (String) Arrays.stream(material.name().split("_")).map((s) -> {
@@ -587,31 +587,31 @@ public class ShopManager {
    }
 
    /**
-    * Place ou met ├á jour le panneau d'une boutique.
+    * Place ou met à jour le panneau d'une boutique.
     * Tente de placer le panneau en face du joueur s'il est fourni.
     *
-    * @param shop       La boutique concern├®e.
-    * @param entreprise L'entreprise propri├®taire.
-    * @param creator    Le joueur qui cr├®e la boutique (peut ├¬tre null lors d'une simple mise ├á jour).
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
     */
 
    /**
-    * Place ou met ├á jour le panneau d'une boutique.
+    * Place ou met à jour le panneau d'une boutique.
     * Tente de placer le panneau sur la face du coffre que le joueur regarde.
     *
-    * @param shop       La boutique concern├®e.
-    * @param entreprise L'entreprise propri├®taire.
-    * @param creator    Le joueur qui cr├®e la boutique (peut ├¬tre null lors d'une simple mise ├á jour).
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
     */
 // Dans /src/main/java/com/gravityyfh/entreprisemanager/Shop/ShopManager.java
 
    /**
-    * Place ou met ├á jour le panneau d'une boutique.
+    * Place ou met à jour le panneau d'une boutique.
     * Tente de placer le panneau sur la face du coffre que le joueur regarde.
     *
-    * @param shop       La boutique concern├®e.
-    * @param entreprise L'entreprise propri├®taire.
-    * @param creator    Le joueur qui cr├®e la boutique (peut ├¬tre null lors d'une simple mise ├á jour).
+    * @param shop       La boutique concernée.
+    * @param entreprise L'entreprise propriétaire.
+    * @param creator    Le joueur qui crée la boutique (peut être null lors d'une simple mise à jour).
     */
    public void placeAndUpdateShopSign(Shop shop, EntrepriseManagerLogic.Entreprise entreprise, Player creator) {
       Block chestBlock = shop.getLocation().getBlock();
@@ -621,26 +621,26 @@ public class ShopManager {
 
       Block signBlock = this.findSignAttachedToChest(chestBlock);
 
-      // Si aucun panneau n'existe, il faut en cr├®er un au bon endroit.
+      // Si aucun panneau n'existe, il faut en créer un au bon endroit.
       if (signBlock == null) {
-         // La face du coffre sur laquelle le panneau sera attach├®.
+         // La face du coffre sur laquelle le panneau sera attaché.
          BlockFace attachFace = null;
 
-         // Cas id├®al : le cr├®ateur est connu, on se base sur sa position.
+         // Cas idéal : le créateur est connu, on se base sur sa position.
          if (creator != null) {
             BlockFace desiredAttachFace = creator.getFacing().getOppositeFace();
 
             // --- MODIFICATION ICI ---
-            // Remplacement de isCardinal() par une v├®rification manuelle compatible partout.
+            // Remplacement de isCardinal() par une vérification manuelle compatible partout.
             if (desiredAttachFace == BlockFace.NORTH || desiredAttachFace == BlockFace.SOUTH || desiredAttachFace == BlockFace.EAST || desiredAttachFace == BlockFace.WEST) {
-               // On v├®rifie que l'espace est libre.
+               // On vérifie que l'espace est libre.
                if (chestBlock.getRelative(desiredAttachFace).getType().isAir()) {
                   attachFace = desiredAttachFace;
                }
             }
          }
 
-         // Fallback : Si la place id├®ale est prise ou si la m├®thode est appel├®e sans cr├®ateur.
+         // Fallback : Si la place idéale est prise ou si la méthode est appelée sans créateur.
          if (attachFace == null) {
             for (BlockFace cardinalFace : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
                if (chestBlock.getRelative(cardinalFace).getType().isAir()) {
@@ -654,24 +654,24 @@ public class ShopManager {
          if (attachFace == null) {
             plugin.getLogger().warning("Impossible de placer un panneau pour la boutique " + shop.getShopId() + " : pas d'espace libre autour du coffre.");
             if (creator != null) {
-               creator.sendMessage(ChatColor.RED + "Impossible de placer le panneau, tous les c├┤t├®s du coffre sont bloqu├®s !");
+               creator.sendMessage(ChatColor.RED + "Impossible de placer le panneau, tous les c├┤tés du coffre sont bloqués !");
             }
             return;
          }
 
-         // On place le nouveau panneau ├á l'endroit d├®termin├®.
+         // On place le nouveau panneau à l'endroit déterminé.
          signBlock = chestBlock.getRelative(attachFace);
          signBlock.setType(Material.OAK_WALL_SIGN, false);
          BlockData data = signBlock.getBlockData();
          if (data instanceof WallSign) {
             WallSign signData = (WallSign) data;
-            // L'orientation du texte du panneau doit correspondre ├á la face sur laquelle il est attach├®.
+            // L'orientation du texte du panneau doit correspondre à la face sur laquelle il est attaché.
             signData.setFacing(attachFace);
             signBlock.setBlockData(signData, true);
          }
       }
 
-      // Mise ├á jour du texte du panneau (qu'il soit nouveau ou existant).
+      // Mise à jour du texte du panneau (qu'il soit nouveau ou existant).
       Sign signState = (Sign) signBlock.getState();
       signState.setLine(0, ChatColor.DARK_BLUE + "[Boutique]");
       String nomEntreprise = ChatColor.stripColor(entreprise.getNom());
@@ -739,7 +739,7 @@ public class ShopManager {
 
    private void deleteDisplayItem(Shop shop) {
       if (shop.getDisplayItemID() == null) {
-         this.plugin.getLogger().log(Level.FINE, "Aucun item flottant ├á supprimer pour la boutique " + shop.getShopId());
+         this.plugin.getLogger().log(Level.FINE, "Aucun item flottant à supprimer pour la boutique " + shop.getShopId());
          return;
       }
 
@@ -778,7 +778,7 @@ public class ShopManager {
    private Location getFloatingItemLocation(Location chestLocation) {
       Block block = chestLocation.getBlock();
       if (!(block.getState() instanceof Chest)) {
-         // Si le coffre n'existe plus, on estime simplement la position bas├®e sur l'ancienne localisation
+         // Si le coffre n'existe plus, on estime simplement la position basée sur l'ancienne localisation
          return chestLocation.clone().add(0.5D, 1.2D, 0.5D);
       }
 
@@ -845,7 +845,7 @@ public class ShopManager {
                if (shop != null) {
                   this.shops.put(shop.getShopId(), shop);
                   if (shop.getDisplayItemID() != null && Bukkit.getEntity(shop.getDisplayItemID()) == null) {
-                     this.plugin.getLogger().warning("Item flottant pour la boutique " + shop.getShopId() + " introuvable. Il sera recr├®├® si n├®cessaire.");
+                     this.plugin.getLogger().warning("Item flottant pour la boutique " + shop.getShopId() + " introuvable. Il sera recréé si nécessaire.");
                   }
                }
             } catch (Exception var7) {
@@ -853,38 +853,38 @@ public class ShopManager {
             }
          }
 
-         this.plugin.getLogger().info(this.shops.size() + " boutique(s) charg├®e(s) depuis shops.yml.");
+         this.plugin.getLogger().info(this.shops.size() + " boutique(s) chargée(s) depuis shops.yml.");
       }
    }
 
-   // M├®thode supprim├®e - N'utilise plus Towny TownBlock
-   // Les boutiques sont maintenant g├®r├®es via notre syst├¿me de Plot
-   // La suppression de boutiques lors de changements de parcelles est g├®r├®e par TownEventListener
+   // Méthode supprimée - N'utilise plus Towny TownBlock
+   // Les boutiques sont maintenant gérées via notre système de Plot
+   // La suppression de boutiques lors de changements de parcelles est gérée par TownEventListener
 
    public boolean removeTargetedDisplayItem(Player player) {
-      // 1. On cherche une entit├® de type 'Item', et non plus 'Display'.
+      // 1. On cherche une entité de type 'Item', et non plus 'Display'.
       RayTraceResult entityTrace = player.getWorld().rayTraceEntities(
               player.getEyeLocation(),
               player.getEyeLocation().getDirection(),
               10.0D, // La distance du rayon
-              entity -> entity instanceof Item // On cible les entit├®s Item
+              entity -> entity instanceof Item // On cible les entités Item
       );
 
       if (entityTrace != null && entityTrace.getHitEntity() != null) {
          Item item = (Item) entityTrace.getHitEntity();
 
-         // 2. Pour la s├®curit├®, on v├®rifie que l'item a les bonnes propri├®t├®s
-         //    (celles d├®finies dans votre ancienne m├®thode de cr├®ation).
-         //    Cela ├®vite de supprimer n'importe quel objet jet├® par terre.
+         // 2. Pour la sécurité, on vérifie que l'item a les bonnes propriétés
+         //    (celles définies dans votre ancienne méthode de création).
+         //    Cela évite de supprimer n'importe quel objet jeté par terre.
          boolean isShopDisplayItem = !item.hasGravity() && item.getPickupDelay() > 30000;
 
          if (isShopDisplayItem) {
-            item.remove(); // On supprime l'entit├®
-            return true;   // On retourne un succ├¿s
+            item.remove(); // On supprime l'entité
+            return true;   // On retourne un succès
          }
       }
 
-      // Si on n'a rien trouv├®, ou si ce n'├®tait pas un item de boutique, on retourne un ├®chec.
+      // Si on n'a rien trouvé, ou si ce n'était pas un item de boutique, on retourne un échec.
       return false;
    }
 
@@ -906,7 +906,7 @@ public class ShopManager {
                         Item item = (Item) entity;
                         if (item.getPickupDelay() == Integer.MAX_VALUE) {
                            item.remove();
-                           this.plugin.getLogger().log(Level.INFO, "Nettoyage d'un item flottant orphelin ├á la position: " + expectedItemLocation.toVector());
+                           this.plugin.getLogger().log(Level.INFO, "Nettoyage d'un item flottant orphelin à la position: " + expectedItemLocation.toVector());
                            break;
                         }
                      }

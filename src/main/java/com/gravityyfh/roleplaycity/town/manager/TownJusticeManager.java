@@ -51,42 +51,44 @@ public class TownJusticeManager {
         // Enregistrer le jugement
         fine.setJudgeVerdict(judge.getUniqueId(), valid, verdict);
 
-        // Notifier le contrevenant
-        Player offender = Bukkit.getPlayer(fine.getOffenderUuid());
-        if (offender != null && offender.isOnline()) {
-            offender.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            offender.sendMessage(ChatColor.GOLD + "   ⚖️ JUGEMENT RENDU ⚖️");
-            offender.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            offender.sendMessage(ChatColor.GRAY + "Amende: " + ChatColor.WHITE + fine.getReason());
-            offender.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + fine.getAmount() + "€");
-            offender.sendMessage(ChatColor.GRAY + "Juge: " + ChatColor.YELLOW + judge.getName());
-            offender.sendMessage("");
-
-            if (valid) {
-                offender.sendMessage(ChatColor.RED + "✘ Contestation REJETÉE");
-                offender.sendMessage(ChatColor.GRAY + "Verdict: " + ChatColor.WHITE + verdict);
-                offender.sendMessage("");
-                offender.sendMessage(ChatColor.YELLOW + "Vous devez payer l'amende de " + fine.getAmount() + "€");
-            } else {
-                offender.sendMessage(ChatColor.GREEN + "✔ Contestation ACCEPTÉE");
-                offender.sendMessage(ChatColor.GRAY + "Verdict: " + ChatColor.WHITE + verdict);
-                offender.sendMessage("");
-                offender.sendMessage(ChatColor.GREEN + "L'amende est annulée !");
-            }
-
-            offender.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        // Notification au contrevenant
+        if (valid) {
+            // Contestation rejetée
+            plugin.getNotificationManager().sendNotification(
+                fine.getOffenderUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+                "Contestation rejetée",
+                String.format("Le juge %s a rejeté votre contestation. Amende: %.2f€. Verdict: %s",
+                    judge.getName(), fine.getAmount(), verdict)
+            );
+        } else {
+            // Contestation acceptée
+            plugin.getNotificationManager().sendNotification(
+                fine.getOffenderUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Contestation acceptée !",
+                String.format("Le juge %s a accepté votre contestation. L'amende de %.2f€ est annulée ! Verdict: %s",
+                    judge.getName(), fine.getAmount(), verdict)
+            );
         }
 
-        // Notifier le policier qui a émis l'amende
-        Player policier = Bukkit.getPlayer(fine.getPolicierUuid());
-        if (policier != null && policier.isOnline()) {
-            if (valid) {
-                policier.sendMessage(ChatColor.GREEN + "Le juge " + judge.getName() +
-                    " a confirmé votre amende de " + fine.getAmount() + "€");
-            } else {
-                policier.sendMessage(ChatColor.YELLOW + "Le juge " + judge.getName() +
-                    " a annulé votre amende de " + fine.getAmount() + "€");
-            }
+        // Notification au policier qui a émis l'amende
+        if (valid) {
+            plugin.getNotificationManager().sendNotification(
+                fine.getPolicierUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Amende confirmée",
+                String.format("Le juge %s a confirmé votre amende de %.2f€ contre %s.",
+                    judge.getName(), fine.getAmount(), fine.getOffenderName())
+            );
+        } else {
+            plugin.getNotificationManager().sendNotification(
+                fine.getPolicierUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+                "Amende annulée",
+                String.format("Le juge %s a annulé votre amende de %.2f€ contre %s. Verdict: %s",
+                    judge.getName(), fine.getAmount(), fine.getOffenderName(), verdict)
+            );
         }
 
         judge.sendMessage(ChatColor.GREEN + "Jugement enregistré avec succès.");

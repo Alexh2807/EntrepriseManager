@@ -14,8 +14,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Gestionnaire centralis├® des notifications
- * G├¿re les notifications en ligne et hors ligne pour tous les ├®v├®nements du plugin
+ * Gestionnaire centralisé des notifications
+ * Gère les notifications en ligne et hors ligne pour tous les événements du plugin
  */
 public class NotificationManager {
 
@@ -27,7 +27,7 @@ public class NotificationManager {
     private final DateTimeFormatter timeFormatter;
 
     public enum NotificationType {
-        URGENT(ChatColor.RED, Sound.ENTITY_ENDER_DRAGON_GROWL, 10),     // Tr├¿s important
+        URGENT(ChatColor.RED, Sound.ENTITY_ENDER_DRAGON_GROWL, 10),     // Très important
         IMPORTANT(ChatColor.YELLOW, Sound.BLOCK_NOTE_BLOCK_BELL, 7),    // Important
         INFO(ChatColor.GREEN, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 5),    // Information
         SOCIAL(ChatColor.AQUA, Sound.BLOCK_NOTE_BLOCK_CHIME, 3),        // Social
@@ -106,34 +106,34 @@ public class NotificationManager {
     }
 
     /**
-     * Envoie une notification ├á un joueur
+     * Envoie une notification à un joueur
      */
     public void sendNotification(UUID playerUuid, NotificationType type, String title, String message) {
         Player player = Bukkit.getPlayer(playerUuid);
         Notification notification = new Notification(type, title, message);
 
         if (player != null && player.isOnline()) {
-            // Joueur en ligne - envoi imm├®diat
+            // Joueur en ligne ─ envoi immédiat
             sendOnlineNotification(player, notification);
 
-            // Ajouter ├á l'historique
+            // Ajouter à l'historique
             addToHistory(playerUuid, notification);
         } else {
-            // Joueur hors ligne - sauvegarder pour plus tard
+            // Joueur hors ligne ─ sauvegarder pour plus tard
             addOfflineNotification(playerUuid, notification);
         }
     }
 
     /**
-     * Envoie une notification ├á tous les membres d'une ville
+     * Envoie une notification à tous les membres d'une ville
      */
     public void sendTownNotification(String townName, NotificationType type, String title, String message) {
-        // ├Ç impl├®menter avec TownManager
-        // town.getMembers().forEach(member -> sendNotification(...))
+        // à implémenter avec TownManager
+        // town.getMembers().forEach(member ─> sendNotification(...))
     }
 
     /**
-     * Envoie une notification broadcast ├á tous les joueurs
+     * Envoie une notification broadcast à tous les joueurs
      */
     public void broadcastNotification(NotificationType type, String title, String message) {
         Notification notification = new Notification(type, title, message);
@@ -144,25 +144,25 @@ public class NotificationManager {
     }
 
     /**
-     * Envoie la notification ├á un joueur en ligne
+     * Envoie la notification à un joueur en ligne
      */
     private void sendOnlineNotification(Player player, Notification notification) {
         NotificationType type = notification.getType();
 
         // Message dans le chat
         player.sendMessage("");
-        player.sendMessage(type.getColor() + "Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼");
+        player.sendMessage(type.getColor() + "─────────────────────────────");
         player.sendMessage(type.getColor() + "" + ChatColor.BOLD + "­ƒôó " + notification.getTitle());
         player.sendMessage(ChatColor.WHITE + notification.getMessage());
         player.sendMessage(ChatColor.GRAY + "ÔÅ░ " + timeFormatter.format(notification.getTimestamp()));
-        player.sendMessage(type.getColor() + "Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼");
+        player.sendMessage(type.getColor() + "─────────────────────────────");
         player.sendMessage("");
 
         // ActionBar pour les notifications importantes
         if (type.getPriority() >= 7) {
             player.spigot().sendMessage(
                 ChatMessageType.ACTION_BAR,
-                new TextComponent(type.getColor() + "ÔÜá " + notification.getTitle())
+                new TextComponent(type.getColor() + "⚠ " + notification.getTitle())
             );
         }
 
@@ -172,7 +172,7 @@ public class NotificationManager {
         // Title pour les notifications URGENT
         if (type == NotificationType.URGENT) {
             player.sendTitle(
-                type.getColor() + "" + ChatColor.BOLD + "ÔÜá URGENT",
+                type.getColor() + "" + ChatColor.BOLD + "⚠ URGENT",
                 ChatColor.WHITE + notification.getTitle(),
                 10, 70, 20
             );
@@ -187,12 +187,12 @@ public class NotificationManager {
     }
 
     /**
-     * Ajoute ├á l'historique des notifications
+     * Ajoute à l'historique des notifications
      */
     private void addToHistory(UUID playerUuid, Notification notification) {
         notificationHistory.computeIfAbsent(playerUuid, k -> new ArrayList<>()).add(notification);
 
-        // Limiter l'historique ├á 50 derni├¿res notifications
+        // Limiter l'historique à 50 dernières notifications
         List<Notification> history = notificationHistory.get(playerUuid);
         if (history.size() > 50) {
             history.remove(0);
@@ -200,19 +200,19 @@ public class NotificationManager {
     }
 
     /**
-     * V├®rifie et envoie les notifications en attente quand un joueur se connecte
+     * Vérifie et envoie les notifications en attente quand un joueur se connecte
      */
     public void checkPendingNotifications(Player player) {
         UUID playerUuid = player.getUniqueId();
         Queue<Notification> pending = offlineNotifications.get(playerUuid);
 
         if (pending != null && !pending.isEmpty()) {
-            player.sendMessage(ChatColor.GOLD + "Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼");
+            player.sendMessage(ChatColor.GOLD + "─────────────────────────────");
             player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD +
                              "Vous avez " + pending.size() + " notification(s) en attente !");
-            player.sendMessage(ChatColor.GOLD + "Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼Ôû¼");
+            player.sendMessage(ChatColor.GOLD + "─────────────────────────────");
 
-            // Envoyer les notifications avec un d├®lai
+            // Envoyer les notifications avec un délai
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 while (!pending.isEmpty()) {
                     Notification notif = pending.poll();
@@ -220,26 +220,26 @@ public class NotificationManager {
                     addToHistory(playerUuid, notif);
                 }
                 offlineNotifications.remove(playerUuid);
-            }, 40L); // 2 secondes de d├®lai
+            }, 40L); // 2 secondes de délai
         }
     }
 
     /**
-     * Notifications automatiques pour les ├®v├®nements r├®currents
+     * Notifications automatiques pour les événements récurrents
      */
     public void scheduleAutomaticNotifications() {
-        // Location expiration check - toutes les heures
+        // Location expiration check ─ toutes les heures
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::checkRentExpirations, 0L, 72000L);
 
-        // Tax reminder - tous les jours ├á minuit (simul├® toutes les 20 minutes pour test)
+        // Tax reminder ─ tous les jours à minuit (simulé toutes les 20 minutes pour test)
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::sendTaxReminders, 0L, 24000L);
     }
 
     /**
-     * V├®rifie les locations qui expirent bient├┤t
+     * Vérifie les locations qui expirent bient├┤t
      */
     private void checkRentExpirations() {
-        // ├Ç impl├®menter avec le TownManager
+        // à implémenter avec le TownManager
         // Parcourir toutes les locations et notifier si < 3 jours restants
     }
 
@@ -247,12 +247,12 @@ public class NotificationManager {
      * Envoie les rappels de taxes
      */
     private void sendTaxReminders() {
-        // ├Ç impl├®menter avec le TownManager
+        // à implémenter avec le TownManager
         // Parcourir toutes les villes et notifier les citoyens des taxes dues
     }
 
     /**
-     * R├®cup├¿re l'historique des notifications d'un joueur
+     * Récupère l'historique des notifications d'un joueur
      */
     public List<Notification> getNotificationHistory(UUID playerUuid) {
         return notificationHistory.getOrDefault(playerUuid, new ArrayList<>());
@@ -284,31 +284,31 @@ public class NotificationManager {
     public void notifyRentExpiring(UUID playerUuid, String plotInfo, int daysRemaining) {
         String title = "Location expire bient├┤t !";
         String message = String.format(
-            "Votre location pour %s expire dans %d jour(s). Pensez ├á renouveler !",
+            "Votre location pour %s expire dans %d jour(s). Pensez à renouveler !",
             plotInfo, daysRemaining
         );
         sendNotification(playerUuid, NotificationType.WARNING, title, message);
     }
 
     /**
-     * Notification d'achat r├®ussi
+     * Notification d'achat réussi
      */
     public void notifyPurchaseSuccess(UUID playerUuid, String itemName, double price) {
-        String title = "Achat effectu├®";
+        String title = "Achat effectué";
         String message = String.format(
-            "Vous avez achet├® %s pour %.2fÔé¼",
+            "Vous avez acheté %s pour %.2f€",
             itemName, price
         );
         sendNotification(playerUuid, NotificationType.ECONOMY, title, message);
     }
 
     /**
-     * Notification d'invitation ├á une ville
+     * Notification d'invitation à une ville
      */
     public void notifyTownInvitation(UUID playerUuid, String townName, String inviterName) {
-        String title = "Invitation ├á rejoindre une ville";
+        String title = "Invitation à rejoindre une ville";
         String message = String.format(
-            "%s vous invite ├á rejoindre la ville de %s. Utilisez /ville join %s pour accepter.",
+            "%s vous invite à rejoindre la ville de %s. Utilisez /ville join %s pour accepter.",
             inviterName, townName, townName
         );
         sendNotification(playerUuid, NotificationType.SOCIAL, title, message);
@@ -318,19 +318,19 @@ public class NotificationManager {
      * Notification de taxe due
      */
     public void notifyTaxDue(UUID playerUuid, String townName, double amount) {
-        String title = "Taxes ├á payer";
+        String title = "Taxes à payer";
         String message = String.format(
-            "Vous devez %.2fÔé¼ de taxes ├á la ville de %s",
+            "Vous devez %.2f€ de taxes à la ville de %s",
             amount, townName
         );
         sendNotification(playerUuid, NotificationType.IMPORTANT, title, message);
     }
 
     /**
-     * Notification de nouveau maire ├®lu
+     * Notification de nouveau maire élu
      */
     public void notifyNewMayor(UUID playerUuid, String townName, String mayorName) {
-        String title = "Nouveau Maire ├®lu";
+        String title = "Nouveau Maire élu";
         String message = String.format(
             "%s est maintenant le nouveau Maire de %s !",
             mayorName, townName
@@ -339,24 +339,24 @@ public class NotificationManager {
     }
 
     /**
-     * Notification de location r├®ussie
+     * Notification de location réussie
      */
     public void notifyRentalSuccess(UUID playerUuid, String plotInfo, int days, double price) {
-        String title = "Location effectu├®e";
+        String title = "Location effectuée";
         String message = String.format(
-            "Vous avez lou├® %s pour %d jours (%.2fÔé¼)",
+            "Vous avez loué %s pour %d jours (%.2f€)",
             plotInfo, days, price
         );
         sendNotification(playerUuid, NotificationType.ECONOMY, title, message);
     }
 
     /**
-     * Notification de location expir├®e
+     * Notification de location expirée
      */
     public void notifyRentExpired(UUID playerUuid, String plotInfo, String townName) {
-        String title = "Location expir├®e";
+        String title = "Location expirée";
         String message = String.format(
-            "Votre location de %s dans %s a expir├®",
+            "Votre location de %s dans %s a expiré",
             plotInfo, townName
         );
         sendNotification(playerUuid, NotificationType.WARNING, title, message);

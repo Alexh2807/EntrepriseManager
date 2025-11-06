@@ -65,20 +65,14 @@ public class TownPoliceManager {
         townFines.computeIfAbsent(townName, k -> new ArrayList<>()).add(fine);
         playerFines.computeIfAbsent(offenderUuid, k -> new ArrayList<>()).add(fine);
 
-        // Notifier le joueur s'il est en ligne
-        Player offender = Bukkit.getPlayer(offenderUuid);
-        if (offender != null && offender.isOnline()) {
-            offender.sendMessage(ChatColor.RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            offender.sendMessage(ChatColor.RED + "   🚨 AMENDE REÇUE 🚨");
-            offender.sendMessage(ChatColor.RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            offender.sendMessage(ChatColor.GRAY + "Ville: " + ChatColor.GOLD + townName);
-            offender.sendMessage(ChatColor.GRAY + "Motif: " + ChatColor.WHITE + reason);
-            offender.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
-            offender.sendMessage(ChatColor.GRAY + "Policier: " + ChatColor.YELLOW + policier.getName());
-            offender.sendMessage("");
-            offender.sendMessage(ChatColor.YELLOW + "Ouvrez /ville → Mes Amendes pour payer ou contester");
-            offender.sendMessage(ChatColor.RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        }
+        // Envoyer notification au contrevenant
+        plugin.getNotificationManager().sendNotification(
+            offenderUuid,
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+            "Amende reçue !",
+            String.format("Vous avez reçu une amende de %.2f€ à %s pour: %s. Payez ou contestez dans /ville → Mes Amendes",
+                amount, townName, reason)
+        );
 
         plugin.getLogger().info("Amende émise dans " + townName + ": " + offenderName +
             " - " + amount + "€ (" + reason + ")");
@@ -119,6 +113,14 @@ public class TownPoliceManager {
         player.sendMessage(ChatColor.GREEN + "Amende payée avec succès: " + fine.getAmount() + "€");
         plugin.getLogger().info("Amende payée: " + player.getName() + " - " + fine.getAmount() + "€");
 
+        // Notification économique
+        plugin.getNotificationManager().sendNotification(
+            player.getUniqueId(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
+            "Amende payée",
+            String.format("Vous avez payé une amende de %.2f€ à %s.", fine.getAmount(), fine.getTownName())
+        );
+
         // Sauvegarder immédiatement (amendes + banque ville)
         plugin.getTownFinesDataManager().saveFines(getFinesForSave());
         townManager.saveTownsNow();
@@ -140,16 +142,28 @@ public class TownPoliceManager {
         player.sendMessage(ChatColor.YELLOW + "Votre contestation a été enregistrée.");
         player.sendMessage(ChatColor.GRAY + "Elle sera examinée par un juge.");
 
-        // Notifier les juges en ligne
+        // Notification au contestataire
+        plugin.getNotificationManager().sendNotification(
+            player.getUniqueId(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+            "Contestation enregistrée",
+            String.format("Votre contestation d'amende de %.2f€ à %s a été enregistrée. Un juge l'examinera.",
+                fine.getAmount(), fine.getTownName())
+        );
+
+        // Notifier les juges et le maire
         Town town = townManager.getTown(fine.getTownName());
         if (town != null) {
             for (UUID memberUuid : town.getMembers().keySet()) {
                 TownRole role = town.getMemberRole(memberUuid);
                 if (role == TownRole.JUGE || role == TownRole.MAIRE) {
-                    Player judge = Bukkit.getPlayer(memberUuid);
-                    if (judge != null && judge.isOnline()) {
-                        judge.sendMessage(ChatColor.GOLD + "Une amende a été contestée par " + player.getName());
-                    }
+                    plugin.getNotificationManager().sendNotification(
+                        memberUuid,
+                        com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.IMPORTANT,
+                        "Amende contestée",
+                        String.format("%s a contesté une amende de %.2f€. Motif: %s",
+                            player.getName(), fine.getAmount(), fine.getReason())
+                    );
                 }
             }
         }

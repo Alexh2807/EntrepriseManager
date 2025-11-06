@@ -48,7 +48,7 @@ public class Plot {
     // NOUVEAU : Tracker des blocs placés par le locataire
     private RenterBlockTracker renterBlockTracker;
 
-    private final LocalDateTime claimDate;
+    private LocalDateTime claimDate;
 
     // Système de permissions par joueur
     private final Map<UUID, Set<PlotPermission>> playerPermissions;
@@ -155,6 +155,10 @@ public class Plot {
 
     public void setLastDebtWarningDate(LocalDateTime date) {
         this.lastDebtWarningDate = date;
+    }
+
+    public void setClaimDate(LocalDateTime date) {
+        this.claimDate = date;
     }
 
     public void setDebtWarningCount(int count) {

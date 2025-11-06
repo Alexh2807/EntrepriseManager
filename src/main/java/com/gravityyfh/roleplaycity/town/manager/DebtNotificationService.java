@@ -419,7 +419,7 @@ public class DebtNotificationService {
         }
 
         player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "➤ Règlez vos dettes via :");
-        player.sendMessage(ChatColor.GRAY + "  /ville dettes");
+        player.sendMessage(ChatColor.GRAY + "  /ville → Régler mes dettes !");
         player.sendMessage(ChatColor.RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         player.sendMessage("");
 

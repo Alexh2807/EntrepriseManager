@@ -192,6 +192,16 @@ public class TownManager {
 
         // Ajouter l'invitation
         town.invitePlayer(invited.getUniqueId());
+
+        // Envoyer notification au joueur invité
+        plugin.getNotificationManager().sendNotification(
+            invited.getUniqueId(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
+            "Invitation à rejoindre une ville",
+            String.format("%s vous invite à rejoindre la ville de %s. Utilisez /ville join %s pour accepter.",
+                inviter.getName(), townName, townName)
+        );
+
         return true;
     }
 
@@ -215,6 +225,22 @@ public class TownManager {
         town.addMember(player.getUniqueId(), player.getName(), TownRole.CITOYEN);
         town.cancelInvitation(player.getUniqueId());
         playerTowns.put(player.getUniqueId(), townName);
+
+        // Notification au nouveau membre
+        plugin.getNotificationManager().sendNotification(
+            player.getUniqueId(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+            "Bienvenue dans la ville !",
+            String.format("Vous avez rejoint la ville de %s en tant que Citoyen.", townName)
+        );
+
+        // Notification au Maire
+        plugin.getNotificationManager().sendNotification(
+            town.getMayorUuid(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
+            "Nouveau membre",
+            String.format("%s a rejoint votre ville !", player.getName())
+        );
 
         return true;
     }
@@ -285,6 +311,22 @@ public class TownManager {
         town.removeMember(player.getUniqueId());
         playerTowns.remove(player.getUniqueId());
 
+        // Notification au joueur qui quitte
+        plugin.getNotificationManager().sendNotification(
+            player.getUniqueId(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+            "Vous avez quitté la ville",
+            String.format("Vous avez quitté la ville de %s.", townName)
+        );
+
+        // Notification au Maire
+        plugin.getNotificationManager().sendNotification(
+            town.getMayorUuid(),
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+            "Membre parti",
+            String.format("%s a quitté votre ville.", player.getName())
+        );
+
         // Sauvegarder immédiatement
         saveTownsNow();
 
@@ -326,6 +368,24 @@ public class TownManager {
         town.removeMember(kickedUuid);
         playerTowns.remove(kickedUuid);
 
+        // Notification au joueur expulsé
+        plugin.getNotificationManager().sendNotification(
+            kickedUuid,
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+            "Vous avez été expulsé !",
+            String.format("Vous avez été expulsé de la ville de %s par %s.", townName, kicker.getName())
+        );
+
+        // Notification au Maire si ce n'est pas lui qui a kick
+        if (!town.isMayor(kicker.getUniqueId())) {
+            plugin.getNotificationManager().sendNotification(
+                town.getMayorUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Membre expulsé",
+                String.format("%s a expulsé %s de la ville.", kicker.getName(), kickedName)
+            );
+        }
+
         // Sauvegarder immédiatement
         saveTownsNow();
 
@@ -348,8 +408,25 @@ public class TownManager {
             return false;
         }
 
+        // Récupérer l'ancien rôle et le nom du membre
+        TownMember member = town.getMember(targetUuid);
+        if (member == null) {
+            return false;
+        }
+        TownRole oldRole = member.getRole();
+        String targetName = member.getPlayerName();
+
         // Changer le rôle
         town.setMemberRole(targetUuid, newRole);
+
+        // Notification au membre concerné
+        plugin.getNotificationManager().sendNotification(
+            targetUuid,
+            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.IMPORTANT,
+            "Changement de rôle",
+            String.format("Votre rôle dans %s a été changé de %s à %s par le Maire.",
+                townName, oldRole.getDisplayName(), newRole.getDisplayName())
+        );
 
         // Sauvegarder immédiatement
         saveTownsNow();

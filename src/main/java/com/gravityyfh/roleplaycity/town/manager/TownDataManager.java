@@ -1,4 +1,4 @@
-﻿package com.gravityyfh.roleplaycity.town.manager;
+package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
@@ -37,7 +37,7 @@ public class TownDataManager {
                 townsFile.getParentFile().mkdirs();
                 townsFile.createNewFile();
             } catch (IOException e) {
-                plugin.getLogger().severe("Impossible de crÃ©er towns.yml: " + e.getMessage());
+                plugin.getLogger().severe("Impossible de créer towns.yml: " + e.getMessage());
             }
         }
         townsConfig = YamlConfiguration.loadConfiguration(townsFile);
@@ -56,7 +56,7 @@ public class TownDataManager {
             townsConfig.set(path + ".mayor-uuid", town.getMayorUuid().toString());
             townsConfig.set(path + ".foundation-date", town.getFoundationDate().format(DATE_FORMAT));
 
-            // Ã‰conomie
+            // Économie
             townsConfig.set(path + ".bank-balance", town.getBankBalance());
             townsConfig.set(path + ".citizen-tax", town.getCitizenTax());
             townsConfig.set(path + ".company-tax", town.getCompanyTax());
@@ -69,19 +69,31 @@ public class TownDataManager {
                 townsConfig.set(memberPath + ".uuid", member.getPlayerUuid().toString());
                 townsConfig.set(memberPath + ".name", member.getPlayerName());
 
-                // Sauvegarder tous les rÃ´les
+                // Sauvegarder tous les rôles
                 List<String> roleNames = new ArrayList<>();
                 for (TownRole role : member.getRoles()) {
                     roleNames.add(role.name());
                 }
                 townsConfig.set(memberPath + ".roles", roleNames);
 
-                // Garder "role" pour compatibilitÃ© (rÃ´le principal)
+                // Garder "role" pour compatibilité (rôle principal)
                 townsConfig.set(memberPath + ".role", member.getRole().name());
 
                 townsConfig.set(memberPath + ".join-date", member.getJoinDate().format(DATE_FORMAT));
                 townsConfig.set(memberPath + ".last-online", member.getLastOnline().format(DATE_FORMAT));
                 memberIndex++;
+            }
+
+            // Sauvegarder les invitations en attente
+            Map<UUID, LocalDateTime> invitations = town.getPendingInvitations();
+            if (!invitations.isEmpty()) {
+                int inviteIndex = 0;
+                for (Map.Entry<UUID, LocalDateTime> invite : invitations.entrySet()) {
+                    String invitePath = path + ".invitations." + inviteIndex;
+                    townsConfig.set(invitePath + ".player-uuid", invite.getKey().toString());
+                    townsConfig.set(invitePath + ".invite-date", invite.getValue().format(DATE_FORMAT));
+                    inviteIndex++;
+                }
             }
 
             // Parcelles
@@ -104,17 +116,26 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".company", plot.getCompanyName());
                 }
 
-                // Sauvegarder le SIRET de l'entreprise (ajoutÃ© pour systÃ¨me PRO)
+                // Sauvegarder le SIRET de l'entreprise (ajouté pour système PRO)
                 if (plot.getCompanySiret() != null) {
                     townsConfig.set(plotPath + ".company-siret", plot.getCompanySiret());
                 }
 
-                // Sauvegarder les donnÃ©es de dette (systÃ¨me PRO)
+                // Sauvegarder les données de dette (système PRO)
                 if (plot.getCompanyDebtAmount() > 0) {
                     townsConfig.set(plotPath + ".debt-amount", plot.getCompanyDebtAmount());
                     townsConfig.set(plotPath + ".debt-warning-count", plot.getDebtWarningCount());
                     if (plot.getLastDebtWarningDate() != null) {
                         townsConfig.set(plotPath + ".last-debt-warning", plot.getLastDebtWarningDate().format(DATE_FORMAT));
+                    }
+                }
+
+                // Sauvegarder les données de dette PARTICULIER
+                if (plot.getParticularDebtAmount() > 0) {
+                    townsConfig.set(plotPath + ".particular-debt-amount", plot.getParticularDebtAmount());
+                    townsConfig.set(plotPath + ".particular-debt-warning-count", plot.getParticularDebtWarningCount());
+                    if (plot.getParticularLastDebtWarningDate() != null) {
+                        townsConfig.set(plotPath + ".particular-last-debt-warning", plot.getParticularLastDebtWarningDate().format(DATE_FORMAT));
                     }
                 }
 
@@ -135,7 +156,12 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".rent-days-remaining", plot.getRentDaysRemaining());
                 }
 
-                // Sauvegarder les blocs protÃ©gÃ©s
+                // Sauvegarder le SIRET du locataire (entreprise)
+                if (plot.getRenterCompanySiret() != null) {
+                    townsConfig.set(plotPath + ".renter-company-siret", plot.getRenterCompanySiret());
+                }
+
+                // Sauvegarder les blocs protégés
                 if (!plot.getProtectedBlocks().isEmpty()) {
                     townsConfig.set(plotPath + ".protected-blocks", new ArrayList<>(plot.getProtectedBlocks()));
                 }
@@ -276,7 +302,7 @@ public class TownDataManager {
 
         ConfigurationSection townsSection = townsConfig.getConfigurationSection("towns");
         if (townsSection == null) {
-            plugin.getLogger().info("Aucune ville Ã  charger.");
+            plugin.getLogger().info("Aucune ville à charger.");
             return towns;
         }
 
@@ -292,7 +318,7 @@ public class TownDataManager {
             }
         }
 
-        plugin.getLogger().info("ChargÃ© " + towns.size() + " villes depuis towns.yml");
+        plugin.getLogger().info("Chargé " + towns.size() + " villes depuis towns.yml");
         return towns;
     }
 
@@ -306,10 +332,10 @@ public class TownDataManager {
             section.getString("foundation-date"), DATE_FORMAT);
 
         // Note: On ne peut pas utiliser le constructeur normal car il initialise des valeurs
-        // On doit crÃ©er la ville puis charger les donnÃ©es
-        // Pour simplifier, on va recrÃ©er via reflection ou accepter la limitation
+        // On doit créer la ville puis charger les données
+        // Pour simplifier, on va recréer via reflection ou accepter la limitation
 
-        // CrÃ©ation basique (on aura besoin du nom du maire, on le trouvera dans les membres)
+        // Création basique (on aura besoin du nom du maire, on le trouvera dans les membres)
         ConfigurationSection membersSection = section.getConfigurationSection("members");
         String mayorName = "Unknown";
         if (membersSection != null) {
@@ -324,7 +350,7 @@ public class TownDataManager {
 
         Town town = new Town(townName, mayorUuid, mayorName);
 
-        // Charger l'Ã©conomie
+        // Charger l'économie
         town.setDescription(description);
         double bankBalance = section.getDouble("bank-balance", 0.0);
         if (bankBalance > 0) {
@@ -338,46 +364,61 @@ public class TownDataManager {
                 section.getString("last-tax-collection"), DATE_FORMAT));
         }
 
-        // Charger les membres (sauf le maire dÃ©jÃ  ajoutÃ©)
+        // Charger les membres (sauf le maire déjà ajouté)
         if (membersSection != null) {
             for (String key : membersSection.getKeys(false)) {
                 UUID uuid = UUID.fromString(membersSection.getString(key + ".uuid"));
-                if (uuid.equals(mayorUuid)) continue; // Maire dÃ©jÃ  ajoutÃ©
+                if (uuid.equals(mayorUuid)) continue; // Maire déjà ajouté
 
                 String name = membersSection.getString(key + ".name");
 
-                // Charger tous les rÃ´les (nouveau systÃ¨me multi-rÃ´les)
+                // Charger tous les rôles (nouveau système multi-rôles)
                 List<String> roleNames = membersSection.getStringList(key + ".roles");
                 if (roleNames != null && !roleNames.isEmpty()) {
-                    // SystÃ¨me multi-rÃ´les
+                    // Système multi-rôles
                     Set<TownRole> roles = new HashSet<>();
                     for (String roleName : roleNames) {
                         try {
                             roles.add(TownRole.valueOf(roleName));
                         } catch (IllegalArgumentException e) {
-                            plugin.getLogger().warning("RÃ´le invalide: " + roleName);
+                            plugin.getLogger().warning("Rôle invalide: " + roleName);
                         }
                     }
                     if (!roles.isEmpty()) {
-                        // Ajouter le membre avec le rÃ´le principal, puis ajouter les autres rÃ´les
+                        // Ajouter le membre avec le rôle principal, puis ajouter les autres rôles
                         TownRole primaryRole = roles.stream()
                                 .max((r1, r2) -> Integer.compare(r1.getPower(), r2.getPower()))
                                 .orElse(TownRole.CITOYEN);
                         town.addMember(uuid, name, primaryRole);
 
-                        // Ajouter les autres rÃ´les
+                        // Ajouter les autres rôles
                         TownMember member = town.getMember(uuid);
                         if (member != null) {
                             member.setRoles(roles);
                         }
                     } else {
-                        // Fallback si aucun rÃ´le valide
+                        // Fallback si aucun rôle valide
                         town.addMember(uuid, name, TownRole.CITOYEN);
                     }
                 } else {
-                    // Ancien systÃ¨me (un seul rÃ´le) - pour rÃ©trocompatibilitÃ©
+                    // Ancien système (un seul rôle) - pour rétrocompatibilité
                     TownRole role = TownRole.valueOf(membersSection.getString(key + ".role", "CITOYEN"));
                     town.addMember(uuid, name, role);
+                }
+            }
+        }
+
+        // Charger les invitations en attente
+        ConfigurationSection invitationsSection = section.getConfigurationSection("invitations");
+        if (invitationsSection != null) {
+            for (String key : invitationsSection.getKeys(false)) {
+                try {
+                    UUID playerUuid = UUID.fromString(invitationsSection.getString(key + ".player-uuid"));
+                    LocalDateTime inviteDate = LocalDateTime.parse(
+                        invitationsSection.getString(key + ".invite-date"), DATE_FORMAT);
+                    town.invitePlayer(playerUuid, inviteDate);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Erreur lors du chargement d'une invitation pour " + townName + ": " + e.getMessage());
                 }
             }
         }
@@ -414,7 +455,7 @@ public class TownDataManager {
         int chunkX = section.getInt("chunk-x");
         int chunkZ = section.getInt("chunk-z");
 
-        // CrÃ©er un pseudo-chunk pour le constructeur
+        // Créer un pseudo-chunk pour le constructeur
         LocalDateTime claimDate = null;
         if (section.contains("claim-date")) {
             try {
@@ -427,10 +468,13 @@ public class TownDataManager {
         org.bukkit.World world = plugin.getServer().getWorld(worldName);
         Plot plot;
         if (world != null) {
-            plot = new Plot(townName, world.getChunkAt(chunkX, chunkZ), claimDate);
+            plot = new Plot(townName, world.getChunkAt(chunkX, chunkZ));
+            if (claimDate != null) {
+                plot.setClaimDate(claimDate);
+            }
         } else {
-            plugin.getLogger().warning("Monde introuvable pour la parcelle: " + worldName + ". Parcelle chargée en mode hors-ligne.");
-            plot = new Plot(townName, worldName, chunkX, chunkZ, claimDate);
+            plugin.getLogger().warning("Monde introuvable pour la parcelle: " + worldName + ". Parcelle ignorée.");
+            return null;
         }
 
         // Charger le type et sous-type
@@ -438,7 +482,7 @@ public class TownDataManager {
         plot.setMunicipalSubType(MunicipalSubType.valueOf(
             section.getString("municipal-subtype", "NONE")));
 
-        // Charger le propriÃ©taire
+        // Charger le propriétaire
         if (section.contains("owner-uuid")) {
             UUID ownerUuid = UUID.fromString(section.getString("owner-uuid"));
             String ownerName = section.getString("owner-name");
@@ -450,12 +494,12 @@ public class TownDataManager {
             plot.setCompany(section.getString("company"));
         }
 
-        // Charger le SIRET de l'entreprise (systÃ¨me PRO)
+        // Charger le SIRET de l'entreprise (système PRO)
         if (section.contains("company-siret")) {
             plot.setCompanySiret(section.getString("company-siret"));
         }
 
-        // Charger les donnÃ©es de dette (systÃ¨me PRO)
+        // Charger les données de dette (système PRO)
         if (section.contains("debt-amount")) {
             plot.setCompanyDebtAmount(section.getDouble("debt-amount"));
             plot.setDebtWarningCount(section.getInt("debt-warning-count", 0));
@@ -470,6 +514,21 @@ public class TownDataManager {
             }
         }
 
+        // Charger les données de dette PARTICULIER
+        if (section.contains("particular-debt-amount")) {
+            plot.setParticularDebtAmount(section.getDouble("particular-debt-amount"));
+            plot.setParticularDebtWarningCount(section.getInt("particular-debt-warning-count", 0));
+            if (section.contains("particular-last-debt-warning")) {
+                try {
+                    LocalDateTime particularDebtWarningDate = LocalDateTime.parse(
+                        section.getString("particular-last-debt-warning"), DATE_FORMAT);
+                    plot.setParticularLastDebtWarningDate(particularDebtWarningDate);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Erreur lors du chargement de particular-last-debt-warning pour parcelle");
+                }
+            }
+        }
+
         // Charger vente
         if (section.getBoolean("for-sale", false)) {
             plot.setSalePrice(section.getDouble("sale-price"));
@@ -478,11 +537,11 @@ public class TownDataManager {
 
         // Charger location
         if (section.getBoolean("for-rent", false)) {
-            // Nouveau systÃ¨me: prix par jour
+            // Nouveau système: prix par jour
             if (section.contains("rent-price-per-day")) {
                 plot.setRentPricePerDay(section.getDouble("rent-price-per-day"));
             } else if (section.contains("rent-price")) {
-                // Ancien systÃ¨me: convertir prix total en prix par jour
+                // Ancien système: convertir prix total en prix par jour
                 double totalPrice = section.getDouble("rent-price");
                 int duration = section.getInt("rent-duration", 1);
                 plot.setRentPricePerDay(totalPrice / Math.max(1, duration));
@@ -498,15 +557,20 @@ public class TownDataManager {
 
             // Charger les dates si disponibles
             if (section.contains("last-rent-update")) {
-                // Les dates sont dÃ©jÃ  dÃ©finies par setRenter, mais on peut les surcharger
+                // Les dates sont déjà définies par setRenter, mais on peut les surcharger
                 try {
                     LocalDateTime lastUpdate = LocalDateTime.parse(
                         section.getString("last-rent-update"), DATE_FORMAT);
-                    // Note: il faudrait un setter pour lastRentUpdate si besoin de prÃ©cision
+                    // Note: il faudrait un setter pour lastRentUpdate si besoin de précision
                 } catch (Exception e) {
                     plugin.getLogger().warning("Erreur lors du chargement de last-rent-update");
                 }
             }
+        }
+
+        // Charger le SIRET du locataire (entreprise)
+        if (section.contains("renter-company-siret")) {
+            plot.setRenterCompanySiret(section.getString("renter-company-siret"));
         }
 
         // Charger les blocs protégés uniquement si le monde est disponible
