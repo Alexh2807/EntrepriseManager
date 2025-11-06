@@ -95,6 +95,11 @@ public class Town {
     }
 
     public void removeMember(UUID playerUuid) {
+        // Ne jamais retirer le maire sans transfert explicite
+        if (mayorUuid.equals(playerUuid)) {
+            throw new IllegalArgumentException("Le maire ne peut pas être retiré de la ville sans transfert.");
+        }
+
         members.remove(playerUuid);
         // Retirer également les parcelles du joueur
         plots.values().stream()
@@ -103,6 +108,11 @@ public class Town {
     }
 
     public void setMemberRole(UUID playerUuid, TownRole role) {
+        // Le rôle du maire est fixe
+        if (mayorUuid.equals(playerUuid) && role != TownRole.MAIRE) {
+            throw new IllegalArgumentException("Le rôle du maire ne peut pas être modifié.");
+        }
+
         TownMember member = members.get(playerUuid);
         if (member != null) {
             member.setRole(role);
@@ -125,12 +135,21 @@ public class Town {
         pendingInvitations.put(playerUuid, LocalDateTime.now());
     }
 
+    // Surcharge pour charger depuis la persistance avec une date spécifique
+    public void invitePlayer(UUID playerUuid, LocalDateTime inviteDate) {
+        pendingInvitations.put(playerUuid, inviteDate);
+    }
+
     public void cancelInvitation(UUID playerUuid) {
         pendingInvitations.remove(playerUuid);
     }
 
     public boolean hasInvitation(UUID playerUuid) {
         return pendingInvitations.containsKey(playerUuid);
+    }
+
+    public Map<UUID, LocalDateTime> getPendingInvitations() {
+        return new HashMap<>(pendingInvitations);
     }
 
     public void clearExpiredInvitations(int expirationHours) {
@@ -142,8 +161,10 @@ public class Town {
 
     public void addPlot(Plot plot) {
         String key = getPlotKey(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
-        plots.put(key, plot);
-        totalClaims++;
+        Plot previous = plots.put(key, plot);
+        if (previous == null) {
+            totalClaims++;
+        }
     }
 
     public void removePlot(String worldName, int chunkX, int chunkZ) {
@@ -299,10 +320,16 @@ public class Town {
     // === GESTION ÉCONOMIQUE ===
 
     public void deposit(double amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Le montant déposé doit être positif.");
+        }
         bankBalance += amount;
     }
 
     public boolean withdraw(double amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Le montant à retirer doit être positif.");
+        }
         if (bankBalance >= amount) {
             bankBalance -= amount;
             return true;
@@ -312,11 +339,16 @@ public class Town {
 
     public double calculateTotalTaxes() {
         double total = 0.0;
-        // Taxes des citoyens
-        total += members.size() * citizenTax;
+        // Taxes des citoyens (uniquement si taxe positive)
+        if (citizenTax > 0) {
+            total += members.size() * citizenTax;
+        }
         // Taxes des parcelles
         for (Plot plot : plots.values()) {
             total += plot.getDailyTax();
+            if (companyTax > 0 && plot.getType() == PlotType.PROFESSIONNEL) {
+                total += companyTax;
+            }
         }
         return total;
     }

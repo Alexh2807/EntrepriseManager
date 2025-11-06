@@ -14,8 +14,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Gestionnaire de l'économie des villes
- * Gère les transactions, taxes, ventes et locations de parcelles
+ * Gestionnaire de l'├®conomie des villes
+ * G├¿re les transactions, taxes, ventes et locations de parcelles
  */
 public class TownEconomyManager {
 
@@ -23,6 +23,7 @@ public class TownEconomyManager {
     private final TownManager townManager;
     private final ClaimManager claimManager;
     private final NotificationManager notificationManager;
+    private final DebtNotificationService debtNotificationService;
 
     // Historique des transactions par ville
     private final Map<String, List<PlotTransaction>> transactionHistory;
@@ -32,6 +33,7 @@ public class TownEconomyManager {
         this.townManager = townManager;
         this.claimManager = claimManager;
         this.notificationManager = plugin.getNotificationManager();
+        this.debtNotificationService = plugin.getDebtNotificationService();
         this.transactionHistory = new HashMap<>();
     }
 
@@ -46,14 +48,14 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        // SYNCHRONISATION : V├®rifier si la parcelle fait partie d'un groupe
         if (town.isPlotInAnyGroup(plot)) {
             seller.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
-            seller.sendMessage(ChatColor.YELLOW + "Vous devez vendre le groupe entier depuis 'Mes Propriétés'.");
+            seller.sendMessage(ChatColor.YELLOW + "Vous devez vendre le groupe entier depuis 'Mes Propri├®t├®s'.");
             return false;
         }
 
-        // Vérifier que le vendeur a le droit
+        // V├®rifier que le vendeur a le droit
         TownRole role = town.getMemberRole(seller.getUniqueId());
         if (role == null) {
             return false;
@@ -64,7 +66,7 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Pour les parcelles privées, seul le propriétaire peut vendre
+        // Pour les parcelles priv├®es, seul le propri├®taire peut vendre
         if (!plot.isMunicipal() && plot.getOwnerUuid() != null &&
             !plot.getOwnerUuid().equals(seller.getUniqueId()) &&
             role != TownRole.MAIRE) {
@@ -74,13 +76,13 @@ public class TownEconomyManager {
         plot.setSalePrice(price);
         plot.setForSale(true);
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Achète une parcelle
+     * Ach├¿te une parcelle
      */
     public boolean buyPlot(String townName, Plot plot, Player buyer) {
         Town town = townManager.getTown(townName);
@@ -88,28 +90,28 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        // SYNCHRONISATION : V├®rifier si la parcelle fait partie d'un groupe
         if (town.isPlotInAnyGroup(plot)) {
             buyer.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             buyer.sendMessage(ChatColor.YELLOW + "Vous devez acheter le groupe entier.");
             return false;
         }
 
-        // Vérifier que l'acheteur est membre de la ville
+        // V├®rifier que l'acheteur est membre de la ville
         if (!town.isMember(buyer.getUniqueId())) {
-            buyer.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour acheter une parcelle.");
+            buyer.sendMessage(ChatColor.RED + "Vous devez ├¬tre membre de la ville pour acheter une parcelle.");
             return false;
         }
 
         // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         if (!companyManager.validateCompanyOwnership(buyer, plot)) {
-            return false; // Message d'erreur déjà envoyé par validateCompanyOwnership
+            return false; // Message d'erreur d├®j├á envoy├® par validateCompanyOwnership
         }
 
         double price = plot.getSalePrice();
 
-        // NOUVEAU : Gestion différente selon le type de terrain
+        // NOUVEAU : Gestion diff├®rente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
         EntrepriseManagerLogic.Entreprise buyerCompany = null;
 
@@ -121,87 +123,87 @@ public class TownEconomyManager {
                 return false;
             }
 
-            // Vérifier que l'entreprise a assez d'argent
+            // V├®rifier que l'entreprise a assez d'argent
             if (buyerCompany.getSolde() < price) {
                 buyer.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
-                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
-                buyer.sendMessage(ChatColor.GRAY + "Déposez de l'argent avec /entreprise deposit");
+                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", price));
+                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", buyerCompany.getSolde()));
+                buyer.sendMessage(ChatColor.GRAY + "D├®posez de l'argent avec /entreprise deposit");
                 return false;
             }
 
-            // Prélever de l'entreprise
+            // Pr├®lever de l'entreprise
             buyerCompany.setSolde(buyerCompany.getSolde() - price);
         } else {
             // Terrain PARTICULIER : Acheter avec argent personnel
             if (!RoleplayCity.getEconomy().has(buyer, price)) {
-                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "Ôé¼");
                 return false;
             }
 
-            // Prélever l'argent personnel
+            // Pr├®lever l'argent personnel
             RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
         }
 
-        // Si la parcelle appartenait à quelqu'un, lui donner l'argent
+        // Si la parcelle appartenait ├á quelqu'un, lui donner l'argent
         if (plot.getOwnerUuid() != null) {
             UUID previousOwnerUuid = plot.getOwnerUuid();
-            // Verser l'argent au propriétaire (ou son entreprise si PRO)
+            // Verser l'argent au propri├®taire (ou son entreprise si PRO)
 
             if (plot.getCompanySiret() != null) {
-                // Ancien terrain PRO - argent va à l'ancienne entreprise
+                // Ancien terrain PRO - argent va ├á l'ancienne entreprise
                 EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (previousCompany != null) {
                     previousCompany.setSolde(previousCompany.getSolde() + price);
 
-                    // Notifier l'ancien gérant
+                    // Notifier l'ancien g├®rant
                     OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
                     if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a été vendu pour " + price + "€ !");
-                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + previousCompany.getNom());
+                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a ├®t├® vendu pour " + price + "Ôé¼ !");
+                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á " + previousCompany.getNom());
                     } else {
                         // FIX P2.4: Notification offline pour vente PRO
                         notificationManager.sendNotification(
                             previousOwnerUuid,
                             NotificationManager.NotificationType.ECONOMY,
                             "Terrain PRO vendu",
-                            String.format("Votre terrain %s vendu pour %.2f€. Argent versé à %s",
+                            String.format("Votre terrain %s vendu pour %.2fÔé¼. Argent vers├® ├á %s",
                                 plot.getCoordinates(), price, previousCompany.getNom())
                         );
                     }
                 } else {
-                    // Entreprise n'existe plus - argent va à la ville
+                    // Entreprise n'existe plus - argent va ├á la ville
                     town.deposit(price);
                 }
             } else {
-                // Ancien terrain PARTICULIER - argent va au propriétaire
+                // Ancien terrain PARTICULIER - argent va au propri├®taire
                 OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(previousOwnerUuid);
                 RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
 
                 if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été vendue pour " + price + "€ !");
+                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a ├®t├® vendue pour " + price + "Ôé¼ !");
                 } else {
                     // FIX P2.4: Notification offline pour vente PARTICULIER
                     notificationManager.sendNotification(
                         previousOwnerUuid,
                         NotificationManager.NotificationType.ECONOMY,
                         "Terrain vendu",
-                        String.format("Votre terrain %s vendu pour %.2f€",
+                        String.format("Votre terrain %s vendu pour %.2fÔé¼",
                             plot.getCoordinates(), price)
                     );
                 }
             }
         } else {
-            // Parcelle municipale, l'argent va à la ville
+            // Parcelle municipale, l'argent va ├á la ville
             town.deposit(price);
         }
 
-        // Transférer la propriété
+        // Transf├®rer la propri├®t├®
         plot.setOwner(buyer.getUniqueId(), buyer.getName());
         plot.setForSale(false);
         plot.setSalePrice(0);
 
-        // FIX CRITIQUE: Réinitialiser TOUTES les dettes lors d'une vente
+        // FIX CRITIQUE: R├®initialiser TOUTES les dettes lors d'une vente
         plot.resetDebt();
         plot.resetParticularDebt();
 
@@ -225,16 +227,16 @@ public class TownEconomyManager {
                 "Achat parcelle " + plot.getCoordinates()
         ));
 
-        // Messages personnalisés
+        // Messages personnalis├®s
         if (isProfessional && buyerCompany != null) {
-            buyer.sendMessage(ChatColor.GREEN + "✓ Terrain professionnel acheté avec succès !");
+            buyer.sendMessage(ChatColor.GREEN + "Ô£ô Terrain professionnel achet├® avec succ├¿s !");
             buyer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + buyerCompany.getNom());
-            buyer.sendMessage(ChatColor.YELLOW + "Coordonnées: " + ChatColor.WHITE + plot.getCoordinates());
-            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + String.format("%.2f€", price));
-            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
-            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront prélevées du solde de l'entreprise.");
+            buyer.sendMessage(ChatColor.YELLOW + "Coordonn├®es: " + ChatColor.WHITE + plot.getCoordinates());
+            buyer.sendMessage(ChatColor.YELLOW + "Prix pay├®: " + ChatColor.GOLD + String.format("%.2fÔé¼", price));
+            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2fÔé¼", buyerCompany.getSolde()));
+            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront pr├®lev├®es du solde de l'entreprise.");
         } else {
-            buyer.sendMessage(ChatColor.GREEN + "Vous avez acheté la parcelle " + plot.getCoordinates() + " pour " + price + "€ !");
+            buyer.sendMessage(ChatColor.GREEN + "Vous avez achet├® la parcelle " + plot.getCoordinates() + " pour " + price + "Ôé¼ !");
         }
 
         // Notification d'achat
@@ -244,7 +246,7 @@ public class TownEconomyManager {
             price
         );
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
@@ -260,14 +262,14 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        // SYNCHRONISATION : V├®rifier si la parcelle fait partie d'un groupe
         if (town.isPlotInAnyGroup(plot)) {
             owner.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
-            owner.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier depuis 'Mes Propriétés'.");
+            owner.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier depuis 'Mes Propri├®t├®s'.");
             return false;
         }
 
-        // Vérifier les permissions
+        // V├®rifier les permissions
         TownRole role = town.getMemberRole(owner.getUniqueId());
         if (role == null) {
             return false;
@@ -278,29 +280,29 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Pour les parcelles privées, seul le propriétaire peut louer
+        // Pour les parcelles priv├®es, seul le propri├®taire peut louer
         if (!plot.isMunicipal() && plot.getOwnerUuid() != null &&
             !plot.getOwnerUuid().equals(owner.getUniqueId()) &&
             role != TownRole.MAIRE) {
             return false;
         }
 
-        // Nouveau système: calculer le prix par jour
+        // Nouveau syst├¿me: calculer le prix par jour
         double pricePerDay = totalPrice / Math.max(1, durationDays);
         plot.setRentPricePerDay(pricePerDay);
         plot.setForRent(true);
 
-        // Scanner et protéger tous les blocs existants
+        // Scanner et prot├®ger tous les blocs existants
         Chunk chunk = owner.getWorld().getChunkAt(plot.getChunkX(), plot.getChunkZ());
         plot.scanAndProtectExistingBlocks(chunk);
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Loue une parcelle pour la première fois (paiement initial)
+     * Loue une parcelle pour la premi├¿re fois (paiement initial)
      */
     public boolean rentPlot(String townName, Plot plot, Player renter, int days) {
         Town town = townManager.getTown(townName);
@@ -308,20 +310,20 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
+        // SYNCHRONISATION : V├®rifier si la parcelle fait partie d'un groupe
         if (town.isPlotInAnyGroup(plot)) {
             renter.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             renter.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier.");
             return false;
         }
 
-        // Vérifier que le locataire est membre de la ville
+        // V├®rifier que le locataire est membre de la ville
         if (!town.isMember(renter.getUniqueId())) {
-            renter.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour louer une parcelle.");
+            renter.sendMessage(ChatColor.RED + "Vous devez ├¬tre membre de la ville pour louer une parcelle.");
             return false;
         }
 
-        // NOUVEAU : Empêcher le propriétaire de louer son propre terrain
+        // NOUVEAU : Emp├¬cher le propri├®taire de louer son propre terrain
         if (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(renter.getUniqueId())) {
             renter.sendMessage(ChatColor.RED + "Vous ne pouvez pas louer votre propre parcelle !");
             return false;
@@ -331,13 +333,13 @@ public class TownEconomyManager {
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
             if (!companyManager.validateCompanyOwnership(renter, plot)) {
-                return false; // Message d'erreur déjà envoyé par validateCompanyOwnership
+                return false; // Message d'erreur d├®j├á envoy├® par validateCompanyOwnership
             }
 
-            // Récupérer le SIRET sélectionné du cache (mis par CompanySelectionGUI)
+            // R├®cup├®rer le SIRET s├®lectionn├® du cache (mis par CompanySelectionGUI)
             String selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(renter.getUniqueId());
             if (selectedSiret == null) {
-                // Pas de SIRET dans le cache, récupérer l'entreprise du joueur
+                // Pas de SIRET dans le cache, r├®cup├®rer l'entreprise du joueur
                 EntrepriseManagerLogic.Entreprise renterCompany = companyManager.getPlayerCompany(renter);
                 if (renterCompany == null) {
                     renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
@@ -350,11 +352,11 @@ public class TownEconomyManager {
             plot.setRenterCompanySiret(selectedSiret);
         }
 
-        // Limiter à 30 jours max
+        // Limiter ├á 30 jours max
         int actualDays = Math.min(days, 30);
         double totalCost = plot.getRentPricePerDay() * actualDays;
 
-        // NOUVEAU : Gestion différente selon le type de terrain
+        // NOUVEAU : Gestion diff├®rente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
         EntrepriseManagerLogic.Entreprise renterCompany = null;
 
@@ -366,63 +368,63 @@ public class TownEconomyManager {
                 return false;
             }
 
-            // Vérifier que l'entreprise a assez d'argent
+            // V├®rifier que l'entreprise a assez d'argent
             if (renterCompany.getSolde() < totalCost) {
                 renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
-                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", renterCompany.getSolde()));
                 return false;
             }
 
-            // Prélever de l'entreprise
+            // Pr├®lever de l'entreprise
             renterCompany.setSolde(renterCompany.getSolde() - totalCost);
         } else {
-            // Terrain PARTICULIER : Vérifier l'argent personnel
+            // Terrain PARTICULIER : V├®rifier l'argent personnel
             if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
                 renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
-                    String.format("%.2f€", totalCost));
+                    String.format("%.2fÔé¼", totalCost));
                 return false;
             }
 
-            // Prélever l'argent personnel
+            // Pr├®lever l'argent personnel
             RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
         }
 
-        // Donner l'argent au propriétaire ou à la ville
+        // Donner l'argent au propri├®taire ou ├á la ville
         if (plot.getOwnerUuid() != null) {
             if (isProfessional && plot.getCompanySiret() != null) {
-                // Terrain PRO - argent va à l'entreprise du propriétaire
+                // Terrain PRO - argent va ├á l'entreprise du propri├®taire
                 EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-                    // Notifier le propriétaire si en ligne
+                    // Notifier le propri├®taire si en ligne
                     OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
                     if (owner.isOnline() && owner.getPlayer() != null) {
-                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a été loué pour " + actualDays + " jours!");
-                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre terrain professionnel a ├®t├® lou├® pour " + actualDays + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á " + ownerCompany.getNom() + ": +" + String.format("%.2fÔé¼", totalCost));
                     }
                 } else {
-                    // Entreprise n'existe plus - argent va à la ville
+                    // Entreprise n'existe plus - argent va ├á la ville
                     town.deposit(totalCost);
                 }
             } else {
-                // Terrain PARTICULIER - argent va au propriétaire
+                // Terrain PARTICULIER - argent va au propri├®taire
                 OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
                 RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
 
-                // Notifier si le propriétaire est en ligne
+                // Notifier si le propri├®taire est en ligne
                 if (owner.isOnline() && owner.getPlayer() != null) {
-                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a été louée pour " +
-                        actualDays + " jours (" + String.format("%.2f€", totalCost) + ") !");
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre parcelle a ├®t├® lou├®e pour " +
+                        actualDays + " jours (" + String.format("%.2fÔé¼", totalCost) + ") !");
                 }
             }
         } else {
-            // Pas de propriétaire = l'argent va à la ville
+            // Pas de propri├®taire = l'argent va ├á la ville
             town.deposit(totalCost);
         }
 
-        // Définir le locataire avec son solde de jours
+        // D├®finir le locataire avec son solde de jours
         plot.setRenter(renter.getUniqueId(), actualDays);
         plot.setForRent(false);
 
@@ -435,7 +437,7 @@ public class TownEconomyManager {
             "Location parcelle " + plot.getCoordinates() + " pour " + actualDays + " jours"
         ));
 
-        renter.sendMessage(ChatColor.GREEN + "Vous avez loué la parcelle " + plot.getCoordinates() +
+        renter.sendMessage(ChatColor.GREEN + "Vous avez lou├® la parcelle " + plot.getCoordinates() +
             " pour " + actualDays + " jours !");
 
         // Notification de location
@@ -446,7 +448,7 @@ public class TownEconomyManager {
             totalCost
         );
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
@@ -460,25 +462,25 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Vérifier que c'est bien le locataire actuel
+        // V├®rifier que c'est bien le locataire actuel
         if (!plot.isRentedBy(renter.getUniqueId())) {
             renter.sendMessage(ChatColor.RED + "Vous ne louez pas cette parcelle.");
             return false;
         }
 
-        // Calculer combien de jours peuvent être ajoutés (max 30 total)
+        // Calculer combien de jours peuvent ├¬tre ajout├®s (max 30 total)
         int currentDays = plot.getRentDaysRemaining();
         int maxCanAdd = 30 - currentDays;
 
         if (maxCanAdd <= 0) {
-            renter.sendMessage(ChatColor.YELLOW + "Votre solde est déjà au maximum (30 jours).");
+            renter.sendMessage(ChatColor.YELLOW + "Votre solde est d├®j├á au maximum (30 jours).");
             return false;
         }
 
         int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
         double totalCost = plot.getRentPricePerDay() * actualDaysToAdd;
 
-        // NOUVEAU : Gestion différente selon le type de terrain
+        // NOUVEAU : Gestion diff├®rente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise renterCompany = null;
@@ -498,59 +500,59 @@ public class TownEconomyManager {
                 return false;
             }
 
-            // Vérifier que l'entreprise a assez d'argent
+            // V├®rifier que l'entreprise a assez d'argent
             if (renterCompany.getSolde() < totalCost) {
                 renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
-                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", renterCompany.getSolde()));
                 return false;
             }
 
-            // Prélever de l'entreprise
+            // Pr├®lever de l'entreprise
             renterCompany.setSolde(renterCompany.getSolde() - totalCost);
         } else {
-            // Terrain PARTICULIER : Vérifier l'argent personnel
+            // Terrain PARTICULIER : V├®rifier l'argent personnel
             if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
                 renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " +
-                    String.format("%.2f€", totalCost) + " pour " + actualDaysToAdd + " jours");
+                    String.format("%.2fÔé¼", totalCost) + " pour " + actualDaysToAdd + " jours");
                 return false;
             }
 
-            // Prélever l'argent personnel
+            // Pr├®lever l'argent personnel
             RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
         }
 
-        // Donner l'argent au propriétaire ou à la ville
+        // Donner l'argent au propri├®taire ou ├á la ville
         if (plot.getOwnerUuid() != null) {
             if (isProfessional && plot.getCompanySiret() != null) {
-                // Terrain PRO - argent va à l'entreprise du propriétaire
+                // Terrain PRO - argent va ├á l'entreprise du propri├®taire
                 EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-                    // Notifier le propriétaire si en ligne
+                    // Notifier le propri├®taire si en ligne
                     OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
                     if (owner.isOnline() && owner.getPlayer() != null) {
-                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + actualDaysToAdd + " jours!");
-                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location recharg├®e: +" + actualDaysToAdd + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á " + ownerCompany.getNom() + ": +" + String.format("%.2fÔé¼", totalCost));
                     }
                 } else {
-                    // Entreprise n'existe plus - argent va à la ville
+                    // Entreprise n'existe plus - argent va ├á la ville
                     town.deposit(totalCost);
                 }
             } else {
-                // Terrain PARTICULIER - argent va au propriétaire
+                // Terrain PARTICULIER - argent va au propri├®taire
                 OfflinePlayer owner = Bukkit.getOfflinePlayer(plot.getOwnerUuid());
                 RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
 
-                // Notifier si le propriétaire est en ligne
+                // Notifier si le propri├®taire est en ligne
                 if (owner.isOnline() && owner.getPlayer() != null) {
-                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée : +" + actualDaysToAdd +
-                        " jours (" + String.format("%.2f€", totalCost) + ")");
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location recharg├®e : +" + actualDaysToAdd +
+                        " jours (" + String.format("%.2fÔé¼", totalCost) + ")");
                 }
             }
         } else {
-            // Pas de propriétaire = l'argent va à la ville
+            // Pas de propri├®taire = l'argent va ├á la ville
             town.deposit(totalCost);
         }
 
@@ -566,28 +568,28 @@ public class TownEconomyManager {
             "Recharge location parcelle " + plot.getCoordinates() + " (+" + actualAdded + " jours)"
         ));
 
-        renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
+        renter.sendMessage(ChatColor.GREEN + "Solde recharg├® : +" + actualAdded + " jours");
         renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + plot.getRentDaysRemaining() + "/30");
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Vérifie les locations expirées et les termine
+     * V├®rifie les locations expir├®es et les termine
      */
     public void checkExpiredRents() {
         for (Town town : townManager.getAllTowns()) {
             for (Plot plot : town.getPlots().values()) {
                 if (plot.getRenterUuid() != null && plot.isRentExpired()) {
-                    // Location expirée
+                    // Location expir├®e
                     UUID renterUuid = plot.getRenterUuid();
                     Player renter = Bukkit.getPlayer(renterUuid);
 
                     if (renter != null && renter.isOnline()) {
                         renter.sendMessage(ChatColor.YELLOW + "Votre location de la parcelle " +
-                            plot.getCoordinates() + " a expiré.");
+                            plot.getCoordinates() + " a expir├®.");
                     }
 
                     // Notification d'expiration
@@ -599,7 +601,7 @@ public class TownEconomyManager {
 
                     plot.clearRenter();
                     plot.setForRent(true); // Remettre en location
-                    plugin.getLogger().info("Location expirée pour parcelle " + plot.getCoordinates() +
+                    plugin.getLogger().info("Location expir├®e pour parcelle " + plot.getCoordinates() +
                         " dans " + town.getName());
                 }
             }
@@ -610,7 +612,7 @@ public class TownEconomyManager {
 
     /**
      * Collecte les taxes de toutes les parcelles d'une ville
-     * SYSTÈME AUTOMATIQUE : Gère les groupes de terrains automatiquement
+     * SYST├êME AUTOMATIQUE : G├¿re les groupes de terrains automatiquement
      */
     public TaxCollectionResult collectTaxes(String townName) {
         Town town = townManager.getTown(townName);
@@ -664,6 +666,15 @@ public class TownEconomyManager {
                     break;
                 }
             }
+                debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                if (isProfessionalGroup && company != null && company.getGerantUUID() != null) {
+                    try {
+                        UUID gerantUuid = UUID.fromString(company.getGerantUUID());
+                        debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                    } catch (IllegalArgumentException ex) {
+                        plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + company.getGerantUUID());
+                    }
+                }
 
             boolean paymentSuccess = false;
             if (isProfessionalGroup && company != null) {
@@ -697,12 +708,12 @@ public class TownEconomyManager {
 
                 if (payer.isOnline() && payer.getPlayer() != null) {
                     if (isProfessionalGroup && company != null) {
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "€ Taxe entreprise (groupe): " + ChatColor.GOLD +
-                            String.format("%.2f€", groupTax) + ChatColor.GRAY + " prélevée pour " +
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "Ôé¼ Taxe entreprise (groupe): " + ChatColor.GOLD +
+                            String.format("%.2fÔé¼", groupTax) + ChatColor.GRAY + " pr├®lev├®e pour " +
                             group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                     } else {
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Taxe groupe: " + ChatColor.GOLD +
-                            String.format("%.2f€", groupTax) + ChatColor.GRAY + " prélevée pour " +
+                            String.format("%.2fÔé¼", groupTax) + ChatColor.GRAY + " pr├®lev├®e pour " +
                             group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                     }
                 }
@@ -730,36 +741,44 @@ public class TownEconomyManager {
                             firstPlot.setLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setDebtWarningCount(1);
 
-                            String gerantUuidStr = company.getGerantUUID();
+                                                    String gerantUuidStr = company.getGerantUUID();
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException ex) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
+                            }
+                        }
                             if (gerantUuidStr != null) {
                                 UUID gerantUuid = UUID.fromString(gerantUuidStr);
                                 OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-                                if (gerant.isOnline() && gerant.getPlayer() != null) {
+                                if (false && gerant.isOnline() && gerant.getPlayer() != null) {
                                     Player gerantPlayer = gerant.getPlayer();
                                     gerantPlayer.sendMessage("");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "═══════════════ AVERTISSEMENT - DETTE DE TERRAIN ═══════════════");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ AVERTISSEMENT - DETTE DE TERRAIN ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Professionnel");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + company.getNom());
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE +
                                         group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
-                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
-                                        String.format("%.2f€", newDebt));
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumul├®e: " + ChatColor.RED +
+                                        String.format("%.2fÔé¼", newDebt));
                                     gerantPlayer.sendMessage("");
                                     gerantPlayer.sendMessage(ChatColor.GOLD + "Votre entreprise n'a pas pu payer les taxes du groupe !");
-                                    gerantPlayer.sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                    gerantPlayer.sendMessage(ChatColor.GOLD + "D├®lai: " + ChatColor.WHITE + "7 jours" +
                                         ChatColor.GOLD + " pour renflouer le compte.");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas pay├®e, les terrains seront SAISIS automatiquement.");
                                     gerantPlayer.sendMessage("");
                                 }
                             }
 
                             plugin.getLogger().warning(String.format(
-                                "[TownEconomyManager] Entreprise %s (SIRET %s) - Dette de %.2f€ sur groupe %s (%s)",
+                                "[TownEconomyManager] Entreprise %s (SIRET %s) - Dette de %.2fÔé¼ sur groupe %s (%s)",
                                 company.getNom(), company.getSiret(), newDebt, group.getGroupName(), townName
                             ));
                         } else {
-                            notificationManager.notifyTaxDue(payerUuid, townName, groupTax);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         }
 
                         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
@@ -775,50 +794,50 @@ public class TownEconomyManager {
                             firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setParticularDebtWarningCount(1);
 
-                            if (payer.isOnline() && payer.getPlayer() != null) {
+                            if (false && payer.isOnline() && payer.getPlayer() != null) {
                                 payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════ AVERTISSEMENT - DETTE DE TERRAIN ═══════════════");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ AVERTISSEMENT - DETTE DE TERRAIN ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Particulier");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE +
                                     group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
-                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
-                                    String.format("%.2f€", newDebt));
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette accumul├®e: " + ChatColor.RED +
+                                    String.format("%.2fÔé¼", newDebt));
                                 payer.getPlayer().sendMessage("");
                                 payer.getPlayer().sendMessage(ChatColor.GOLD + "Vous n'avez pas pu payer les taxes du groupe !");
-                                payer.getPlayer().sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                payer.getPlayer().sendMessage(ChatColor.GOLD + "D├®lai: " + ChatColor.WHITE + "7 jours" +
                                     ChatColor.GOLD + " pour renflouer le compte.");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "Si la dette n'est pas pay├®e, les terrains seront SAISIS automatiquement.");
                                 payer.getPlayer().sendMessage("");
                             }
 
-                            notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         } else {
-                            notificationManager.notifyTaxDue(payerUuid, townName, groupTax);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         }
 
                         if (firstPlot.getParticularLastDebtWarningDate() != null) {
                             long daysSinceWarning = Duration.between(firstPlot.getParticularLastDebtWarningDate(), LocalDateTime.now()).toDays();
                             if (daysSinceWarning >= 7) {
                                 plugin.getLogger().warning(String.format(
-                                    "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
+                                    "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propri├®taire: %s, Dette: %.2fÔé¼)",
                                     group.getGroupName(), payerName, firstPlot.getParticularDebtAmount()
                                 ));
 
-                                if (payer.isOnline() && payer.getPlayer() != null) {
+                                if (false && payer.isOnline() && payer.getPlayer() != null) {
                                     payer.getPlayer().sendMessage("");
-                                    payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════ SAISIE DE GROUPE ═══════════════");
+                                    payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SAISIE DE GROUPE ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                                     payer.getPlayer().sendMessage(ChatColor.RED + "Votre groupe " + group.getGroupName());
-                                    payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                                    payer.getPlayer().sendMessage(ChatColor.RED + "a ├®t├® saisi pour dette impay├®e!");
                                     payer.getPlayer().sendMessage("");
-                                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD + String.format("%.2f€", firstPlot.getParticularDebtAmount()));
+                                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD + String.format("%.2fÔé¼", firstPlot.getParticularDebtAmount()));
                                     payer.getPlayer().sendMessage(ChatColor.YELLOW + "Parcelles: " + groupPlots.size());
-                                    payer.getPlayer().sendMessage(ChatColor.GRAY + "Les terrains retournent à la ville.");
+                                    payer.getPlayer().sendMessage(ChatColor.GRAY + "Les terrains retournent ├á la ville.");
                                     payer.getPlayer().sendMessage("");
                                 }
 
                                 for (Plot plot : groupPlots) {
-                                    townManager.transferPlotToTown(plot, "Dette impayée groupe: " + String.format("%.2f€", plot.getParticularDebtAmount()));
+                                    townManager.transferPlotToTown(plot, "Dette impay├®e groupe: " + String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
                                     plot.setForSale(true);
                                     plot.setSalePrice(1000.0);
                                 }
@@ -861,10 +880,10 @@ public class TownEconomyManager {
                         if (gerantUuid != null) {
                             Player gerant = Bukkit.getPlayer(gerantUuid);
                             if (gerant != null && gerant.isOnline()) {
-                                gerant.sendMessage(ChatColor.YELLOW + "€ Taxe entreprise: " + ChatColor.GOLD + String.format("%.2f€", tax) +
-                                    ChatColor.GRAY + " prélevée pour " + plot.getCoordinates());
+                                gerant.sendMessage(ChatColor.YELLOW + "Ôé¼ Taxe entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", tax) +
+                                    ChatColor.GRAY + " pr├®lev├®e pour " + plot.getCoordinates());
                                 gerant.sendMessage(ChatColor.GRAY + "Entreprise: " + company.getNom() +
-                                    " - Solde restant: " + String.format("%.2f€", company.getSolde()));
+                                    " - Solde restant: " + String.format("%.2fÔé¼", company.getSolde()));
                             }
                         }
 
@@ -923,9 +942,9 @@ public class TownEconomyManager {
                     plot.resetParticularDebt();
                 }
 
-                if (payer.isOnline() && payer.getPlayer() != null) {
+                if (false && payer.isOnline() && payer.getPlayer() != null) {
                     payer.getPlayer().sendMessage(ChatColor.YELLOW + "Taxe parcelle: " + ChatColor.GOLD +
-                        String.format("%.2f€", tax) + ChatColor.GRAY + " prélevée pour " + plot.getCoordinates());
+                        String.format("%.2fÔé¼", tax) + ChatColor.GRAY + " pr├®lev├®e pour " + plot.getCoordinates());
                 }
 
                 addTransaction(townName, new PlotTransaction(
@@ -945,49 +964,49 @@ public class TownEconomyManager {
                     plot.setParticularLastDebtWarningDate(LocalDateTime.now());
                     plot.setParticularDebtWarningCount(1);
 
-                    if (payer.isOnline() && payer.getPlayer() != null) {
+                    if (false && payer.isOnline() && payer.getPlayer() != null) {
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════ ALERTE DETTE - PARTICULIER ═══════════════");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ ALERTE DETTE - PARTICULIER ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette actuelle: " + ChatColor.GOLD +
-                            String.format("%.2f€", newDebt));
+                            String.format("%.2fÔé¼", newDebt));
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE +
                             plot.getCoordinates() + ChatColor.GRAY + " (ville: " + townName + ")");
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Vous avez 7 jours pour rembourser");
                         payer.getPlayer().sendMessage(ChatColor.RED + "   avant saisie automatique du terrain!");
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "€ Réglez vos dettes via:");
-                        payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville -> Régler vos Dettes");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "Ôé¼ R├®glez vos dettes via:");
+                        payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville -> R├®gler vos Dettes");
                         payer.getPlayer().sendMessage("");
                     }
 
-                    notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                 } else {
-                    notificationManager.notifyTaxDue(payerUuid, townName, tax);
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                 }
 
                 if (plot.getParticularLastDebtWarningDate() != null) {
                     long daysSinceWarning = Duration.between(plot.getParticularLastDebtWarningDate(), LocalDateTime.now()).toDays();
                     if (daysSinceWarning >= 7) {
                         plugin.getLogger().warning(String.format(
-                            "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2f€)",
+                            "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2fÔé¼)",
                             plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), payerName, plot.getParticularDebtAmount()
                         ));
 
-                        if (payer.isOnline() && payer.getPlayer() != null) {
+                        if (false && payer.isOnline() && payer.getPlayer() != null) {
                             payer.getPlayer().sendMessage("");
-                            payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════ SAISIE DE TERRAIN ═══════════════");
+                            payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SAISIE DE TERRAIN ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                             payer.getPlayer().sendMessage(ChatColor.RED + "Votre terrain " + plot.getCoordinates());
-                            payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                            payer.getPlayer().sendMessage(ChatColor.RED + "a ├®t├® saisi pour dette impay├®e!");
                             payer.getPlayer().sendMessage("");
                             payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
-                                String.format("%.2f€", plot.getParticularDebtAmount()));
-                            payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne à la ville.");
+                                String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
+                            payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne ├á la ville.");
                             payer.getPlayer().sendMessage("");
                         }
 
-                        townManager.transferPlotToTown(plot, "Dette impayée particulier: " +
-                            String.format("%.2f€", plot.getParticularDebtAmount()));
+                        townManager.transferPlotToTown(plot, "Dette impay├®e particulier: " +
+                            String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
                         plot.setForSale(true);
                         plot.setSalePrice(1000.0);
                     }
@@ -1011,7 +1030,7 @@ public class TownEconomyManager {
         List<String> unpaidPlayers = new ArrayList<>();
         Map<UUID, Double> playerTaxes = new HashMap<>(); // Pour les rapports individuels
 
-        // SYSTÈME AUTOMATIQUE : Collecter d'abord les taxes des groupes
+        // SYST├êME AUTOMATIQUE : Collecter d'abord les taxes des groupes
         Set<String> plotsInGroupsProcessed = new HashSet<>();
         for (PlotGroup group : town.getPlotGroups().values()) {
             plotsInGroupsProcessed.addAll(group.getPlotKeys());
@@ -1035,20 +1054,20 @@ public class TownEconomyManager {
             // NOUVEAU : Montant HORAIRE au lieu de quotidien
             double groupHourlyTax = groupDailyTax / 24.0;
 
-            // Déterminer qui paie pour le groupe
+            // D├®terminer qui paie pour le groupe
             UUID payerUuid = group.getRenterUuid() != null ? group.getRenterUuid() : group.getOwnerUuid();
             if (payerUuid == null) continue;
 
-            // NOUVEAU : Prélever même OFFLINE
+            // NOUVEAU : Pr├®lever m├¬me OFFLINE
             OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
             String payerName = payer.getName() != null ? payer.getName() : payerUuid.toString();
 
-            // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL (entreprise)
+            // NOUVEAU : D├®tecter si c'est un groupe PROFESSIONNEL (entreprise)
             boolean isProfessionalGroup = false;
             String companySiret = null;
             EntrepriseManagerLogic.Entreprise company = null;
 
-            // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
+            // V├®rifier si au moins une parcelle du groupe est PROFESSIONNEL
             for (Plot plot : groupPlots) {
                 if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
                     isProfessionalGroup = true;
@@ -1059,17 +1078,17 @@ public class TownEconomyManager {
                 }
             }
 
-            // Prélever la taxe du groupe
+            // Pr├®lever la taxe du groupe
             boolean paymentSuccess = false;
 
             if (isProfessionalGroup && company != null) {
-                // GROUPE PROFESSIONNEL : Prélever du solde de l'entreprise
+                // GROUPE PROFESSIONNEL : Pr├®lever du solde de l'entreprise
                 if (company.getSolde() >= groupHourlyTax) {
                     company.setSolde(company.getSolde() - groupHourlyTax);
                     paymentSuccess = true;
                 }
             } else {
-                // GROUPE PARTICULIER : Prélever de l'argent personnel
+                // GROUPE PARTICULIER : Pr├®lever de l'argent personnel
                 if (RoleplayCity.getEconomy().has(payer, groupHourlyTax)) {
                     RoleplayCity.getEconomy().withdrawPlayer(payer, groupHourlyTax);
                     paymentSuccess = true;
@@ -1081,15 +1100,15 @@ public class TownEconomyManager {
                 totalCollected += groupHourlyTax;
                 parcelsWithTax += groupPlots.size();
 
-                // Réinitialiser les dettes de toutes les parcelles du groupe si endettées
+                // R├®initialiser les dettes de toutes les parcelles du groupe si endett├®es
                 for (Plot plot : groupPlots) {
                     if (isProfessionalGroup) {
-                        // Réinitialiser dettes entreprise
+                        // R├®initialiser dettes entreprise
                         if (plot.getCompanyDebtAmount() > 0) {
                             plot.resetDebt();
                         }
                     } else {
-                        // Réinitialiser dettes particulier
+                        // R├®initialiser dettes particulier
                         if (plot.getParticularDebtAmount() > 0) {
                             plot.resetParticularDebt();
                         }
@@ -1100,14 +1119,14 @@ public class TownEconomyManager {
                 playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + groupHourlyTax);
 
                 // Message si en ligne
-                if (payer.isOnline() && payer.getPlayer() != null) {
+                if (false && payer.isOnline() && payer.getPlayer() != null) {
                     if (isProfessionalGroup && company != null) {
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "💼 Taxe horaire entreprise (groupe): " + ChatColor.GOLD +
-                            String.format("%.2f€", groupHourlyTax) + ChatColor.GRAY + " prélevée pour " +
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "­ƒÆ╝ Taxe horaire entreprise (groupe): " + ChatColor.GOLD +
+                            String.format("%.2fÔé¼", groupHourlyTax) + ChatColor.GRAY + " pr├®lev├®e pour " +
                             group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                     } else {
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "💰 Taxe horaire groupe: " + ChatColor.GOLD +
-                            String.format("%.2f€", groupHourlyTax) + ChatColor.GRAY + " prélevée pour " +
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "­ƒÆ░ Taxe horaire groupe: " + ChatColor.GOLD +
+                            String.format("%.2fÔé¼", groupHourlyTax) + ChatColor.GRAY + " pr├®lev├®e pour " +
                             group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                     }
                 }
@@ -1124,15 +1143,15 @@ public class TownEconomyManager {
                     "Taxe horaire groupe " + group.getGroupName()
                 ));
             } else {
-                // NOUVEAU : Fonds insuffisants - créer/augmenter la dette sur la première parcelle du groupe
+                // NOUVEAU : Fonds insuffisants - cr├®er/augmenter la dette sur la premi├¿re parcelle du groupe
                 unpaidPlayers.add(payerName);
 
-                // Utiliser la première parcelle du groupe pour stocker la dette totale
+                // Utiliser la premi├¿re parcelle du groupe pour stocker la dette totale
                 Plot firstPlot = groupPlots.isEmpty() ? null : groupPlots.get(0);
                 if (firstPlot != null) {
                     double newDebt;
 
-                    // Déterminer le type de dette selon le type de groupe
+                    // D├®terminer le type de dette selon le type de groupe
                     if (isProfessionalGroup && company != null) {
                         // GROUPE PROFESSIONNEL : Dette d'entreprise
                         newDebt = firstPlot.getCompanyDebtAmount() + groupHourlyTax;
@@ -1143,64 +1162,80 @@ public class TownEconomyManager {
                             firstPlot.setLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setDebtWarningCount(1);
 
-                            // Notifier le gérant - FORMAT UNIFIÉ
-                            String gerantUuidStr = company.getGerantUUID();
+                            // Notifier le g├®rant - FORMAT UNIFI├ë
+                                                    String gerantUuidStr = company.getGerantUUID();
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException ex) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
+                            }
+                        }
                             if (gerantUuidStr != null) {
                                 UUID gerantUuid = UUID.fromString(gerantUuidStr);
                                 OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-                                if (gerant.isOnline() && gerant.getPlayer() != null) {
+                                if (false && gerant.isOnline() && gerant.getPlayer() != null) {
                                     Player gerantPlayer = gerant.getPlayer();
                                     gerantPlayer.sendMessage("");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "⚠⚠⚠ AVERTISSEMENT - DETTE DE TERRAIN ⚠⚠⚠");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "ÔÜáÔÜáÔÜá AVERTISSEMENT - DETTE DE TERRAIN ÔÜáÔÜáÔÜá");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Professionnel");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + company.getNom());
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + group.getGroupName() +
                                         ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                                     gerantPlayer.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
-                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
-                                        String.format("%.2f€", newDebt));
+                                    gerantPlayer.sendMessage(ChatColor.YELLOW + "Dette accumul├®e: " + ChatColor.RED +
+                                        String.format("%.2fÔé¼", newDebt));
                                     gerantPlayer.sendMessage("");
                                     gerantPlayer.sendMessage(ChatColor.GOLD + "Votre entreprise n'a pas pu payer les taxes du groupe !");
-                                    gerantPlayer.sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                    gerantPlayer.sendMessage(ChatColor.GOLD + "D├®lai: " + ChatColor.WHITE + "7 jours" +
                                         ChatColor.GOLD + " pour renflouer le compte.");
-                                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
+                                    gerantPlayer.sendMessage(ChatColor.RED + "Si la dette n'est pas pay├®e, les terrains seront SAISIS automatiquement.");
                                     gerantPlayer.sendMessage("");
                                 }
                             }
 
-                            notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         } else {
-                            // Dette déjà existante
-                            String gerantUuidStr = company.getGerantUUID();
+                            // Dette d├®j├á existante
+                                                    String gerantUuidStr = company.getGerantUUID();
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException ex) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
+                            }
+                        }
                             if (gerantUuidStr != null) {
                                 UUID gerantUuid = UUID.fromString(gerantUuidStr);
                                 OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-                                if (gerant.isOnline() && gerant.getPlayer() != null) {
+                                if (false && gerant.isOnline() && gerant.getPlayer() != null) {
                                     long daysRemaining = 7 - java.time.Duration.between(firstPlot.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
-                                    gerant.getPlayer().sendMessage(ChatColor.RED + "⚠ Dette groupe augmentée: " +
-                                        ChatColor.GOLD + String.format("%.2f€", newDebt) + ChatColor.RED +
+                                    gerant.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Dette groupe augment├®e: " +
+                                        ChatColor.GOLD + String.format("%.2fÔé¼", newDebt) + ChatColor.RED +
                                         " (J-" + daysRemaining + ")");
                                     gerant.getPlayer().sendMessage(ChatColor.YELLOW + "   Groupe: " + ChatColor.WHITE + group.getGroupName() +
                                         ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
-                                    gerant.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
-                                        ChatColor.WHITE + "/ville → Régler vos Dettes");
+                                    gerant.getPlayer().sendMessage(ChatColor.YELLOW + "   R├®glez via: " +
+                                        ChatColor.WHITE + "/ville ÔåÆ R├®gler vos Dettes");
                                 }
                             }
 
                             firstPlot.setDebtWarningCount(firstPlot.getDebtWarningCount() + 1);
-                            notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         }
 
                         plugin.getLogger().warning(String.format(
-                            "[TownEconomyManager] Groupe PRO %s - Fonds insuffisants pour taxe de %.2f€ (Entreprise: %s, Dette: %.2f€)",
+                            "[TownEconomyManager] Groupe PRO %s - Fonds insuffisants pour taxe de %.2fÔé¼ (Entreprise: %s, Dette: %.2fÔé¼)",
                             group.getGroupName(), groupHourlyTax, company.getNom(), newDebt
                         ));
 
-                        // Vérifier saisie automatique
+                        // V├®rifier saisie automatique
                         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
                         if (companyManager.checkCompanyDebtStatus(firstPlot)) {
                             companyManager.seizePlotForDebt(firstPlot, townName);
-                            // Supprimer le groupe après saisie
+                            // Supprimer le groupe apr├¿s saisie
                             town.removePlotGroup(group.getGroupId());
                         }
                     } else {
@@ -1213,45 +1248,45 @@ public class TownEconomyManager {
                             firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
                             firstPlot.setParticularDebtWarningCount(1);
 
-                            // Avertissement au joueur - FORMAT UNIFIÉ
-                            if (payer.isOnline() && payer.getPlayer() != null) {
+                            // Avertissement au joueur - FORMAT UNIFI├ë
+                            if (false && payer.isOnline() && payer.getPlayer() != null) {
                                 payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "⚠⚠⚠ AVERTISSEMENT - DETTE DE TERRAIN ⚠⚠⚠");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜáÔÜáÔÜá AVERTISSEMENT - DETTE DE TERRAIN ÔÜáÔÜáÔÜá");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + "Groupe Particulier");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE +
                                     group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
-                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette accumulée: " + ChatColor.RED +
-                                    String.format("%.2f€", newDebt));
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette accumul├®e: " + ChatColor.RED +
+                                    String.format("%.2fÔé¼", newDebt));
                                 payer.getPlayer().sendMessage("");
                                 payer.getPlayer().sendMessage(ChatColor.GOLD + "Vous n'avez pas pu payer les taxes du groupe !");
-                                payer.getPlayer().sendMessage(ChatColor.GOLD + "Délai: " + ChatColor.WHITE + "7 jours" +
+                                payer.getPlayer().sendMessage(ChatColor.GOLD + "D├®lai: " + ChatColor.WHITE + "7 jours" +
                                     ChatColor.GOLD + " pour renflouer le compte.");
-                                payer.getPlayer().sendMessage(ChatColor.RED + "Si la dette n'est pas payée, les terrains seront SAISIS automatiquement.");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "Si la dette n'est pas pay├®e, les terrains seront SAISIS automatiquement.");
                                 payer.getPlayer().sendMessage("");
                             }
 
-                            notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         } else {
-                            // Dette déjà existante
-                            notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+                            // Dette d├®j├á existante
+                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
 
-                            if (payer.isOnline() && payer.getPlayer() != null) {
-                                payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Taxe impayée groupe ajoutée: " +
-                                    ChatColor.GOLD + String.format("+%.2f€", groupHourlyTax) + ChatColor.RED +
-                                    " (Total: " + String.format("%.2f€", newDebt) + ")");
+                            if (false && payer.isOnline() && payer.getPlayer() != null) {
+                                payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Taxe impay├®e groupe ajout├®e: " +
+                                    ChatColor.GOLD + String.format("+%.2fÔé¼", groupHourlyTax) + ChatColor.RED +
+                                    " (Total: " + String.format("%.2fÔé¼", newDebt) + ")");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Groupe: " + ChatColor.WHITE + group.getGroupName());
-                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
-                                    ChatColor.WHITE + "/ville → Régler vos Dettes");
+                                payer.getPlayer().sendMessage(ChatColor.YELLOW + "   R├®glez via: " +
+                                    ChatColor.WHITE + "/ville ÔåÆ R├®gler vos Dettes");
                             }
                         }
 
                         plugin.getLogger().warning(String.format(
-                            "[TownEconomyManager] Groupe %s - Fonds insuffisants pour taxe de %.2f€ (Propriétaire: %s, Dette: %.2f€)",
+                            "[TownEconomyManager] Groupe %s - Fonds insuffisants pour taxe de %.2fÔé¼ (Propri├®taire: %s, Dette: %.2fÔé¼)",
                             group.getGroupName(), groupHourlyTax, payerName, newDebt
                         ));
 
-                        // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours)
+                        // NOUVEAU : V├®rifier si le d├®lai de gr├óce est d├®pass├® (7 jours)
                         if (firstPlot.getParticularLastDebtWarningDate() != null) {
                             LocalDateTime warningDate = firstPlot.getParticularLastDebtWarningDate();
                             long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
@@ -1259,36 +1294,36 @@ public class TownEconomyManager {
                         if (daysSinceWarning >= 7) {
                             // SAISIE AUTOMATIQUE de tous les terrains du groupe
                             plugin.getLogger().warning(String.format(
-                                "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
+                                "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propri├®taire: %s, Dette: %.2fÔé¼)",
                                 group.getGroupName(), payerName, firstPlot.getParticularDebtAmount()
                             ));
 
                             // Notifier le joueur
-                            if (payer.isOnline() && payer.getPlayer() != null) {
+                            if (false && payer.isOnline() && payer.getPlayer() != null) {
                                 payer.getPlayer().sendMessage("");
-                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
-                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE GROUPE");
-                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "ÔÜá SAISIE DE GROUPE");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                                 payer.getPlayer().sendMessage(ChatColor.RED + "Votre groupe " + group.getGroupName());
-                                payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                                payer.getPlayer().sendMessage(ChatColor.RED + "a ├®t├® saisi pour dette impay├®e!");
                                 payer.getPlayer().sendMessage("");
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
-                                    String.format("%.2f€", firstPlot.getParticularDebtAmount()));
+                                    String.format("%.2fÔé¼", firstPlot.getParticularDebtAmount()));
                                 payer.getPlayer().sendMessage(ChatColor.YELLOW + "Parcelles: " + groupPlots.size());
-                                payer.getPlayer().sendMessage(ChatColor.GRAY + "Les terrains retournent à la ville.");
-                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                                payer.getPlayer().sendMessage(ChatColor.GRAY + "Les terrains retournent ├á la ville.");
+                                payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                                 payer.getPlayer().sendMessage("");
                             }
 
-                            // FIX CRITIQUE: Retour de tous les terrains à la ville avec nettoyage complet
+                            // FIX CRITIQUE: Retour de tous les terrains ├á la ville avec nettoyage complet
                             for (Plot plot : groupPlots) {
                                 // Utiliser transferPlotToTown pour un nettoyage complet
-                                townManager.transferPlotToTown(plot, "Dette impayée groupe: " +
-                                    String.format("%.2f€", plot.getParticularDebtAmount()));
+                                townManager.transferPlotToTown(plot, "Dette impay├®e groupe: " +
+                                    String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
 
                                 // Remettre en vente
                                 plot.setForSale(true);
-                                plot.setSalePrice(1000.0); // Prix par défaut
+                                plot.setSalePrice(1000.0); // Prix par d├®faut
                             }
 
                             // Supprimer le groupe
@@ -1298,17 +1333,17 @@ public class TownEconomyManager {
                     }
                 } else {
                     // Pas de parcelle dans le groupe - juste notifier
-                    notificationManager.notifyTaxDue(payerUuid, townName, groupHourlyTax);
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
 
-                    if (payer.isOnline() && payer.getPlayer() != null) {
-                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous n'avez pas pu payer la taxe horaire de " +
-                            String.format("%.2f€", groupHourlyTax) + " pour le groupe " + group.getGroupName());
+                    if (false && payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Vous n'avez pas pu payer la taxe horaire de " +
+                            String.format("%.2fÔé¼", groupHourlyTax) + " pour le groupe " + group.getGroupName());
                     }
                 }
             }
         }
 
-        // Puis collecter les taxes des parcelles individuelles (non groupées)
+        // Puis collecter les taxes des parcelles individuelles (non group├®es)
         for (Plot plot : town.getPlots().values()) {
             String plotKey = plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ();
             if (plotsInGroupsProcessed.contains(plotKey)) continue;
@@ -1341,9 +1376,9 @@ public class TownEconomyManager {
 
                             Player gerant = Bukkit.getPlayer(gerantUuid);
                             if (gerant != null && gerant.isOnline()) {
-                                gerant.sendMessage(ChatColor.YELLOW + "💼 Taxe horaire entreprise: " +
-                                    ChatColor.GOLD + String.format("%.2f€", hourlyTax) + ChatColor.GRAY +
-                                    " prélevée pour " + plot.getCoordinates());
+                                gerant.sendMessage(ChatColor.YELLOW + "­ƒÆ╝ Taxe horaire entreprise: " +
+                                    ChatColor.GOLD + String.format("%.2fÔé¼", hourlyTax) + ChatColor.GRAY +
+                                    " pr├®lev├®e pour " + plot.getCoordinates());
                             }
                         }
 
@@ -1382,7 +1417,7 @@ public class TownEconomyManager {
 
             if (payerUuid == null) continue;
 
-            // NOUVEAU : Prélever même OFFLINE
+            // NOUVEAU : Pr├®lever m├¬me OFFLINE
             OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
             if (payer.getName() != null) {
                 payerName = payer.getName();
@@ -1394,7 +1429,7 @@ public class TownEconomyManager {
                 totalCollected += hourlyTax;
                 parcelsWithTax++;
 
-                // Réinitialiser la dette si le terrain était endetté
+                // R├®initialiser la dette si le terrain ├®tait endett├®
                 if (plot.getParticularDebtAmount() > 0) {
                     plot.resetParticularDebt();
                 }
@@ -1403,10 +1438,10 @@ public class TownEconomyManager {
                 playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + hourlyTax);
 
                 // Message si en ligne
-                if (payer.isOnline() && payer.getPlayer() != null) {
-                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "💰 Taxe horaire parcelle: " +
-                        ChatColor.GOLD + String.format("%.2f€", hourlyTax) + ChatColor.GRAY +
-                        " prélevée pour " + plot.getCoordinates());
+                if (false && payer.isOnline() && payer.getPlayer() != null) {
+                    payer.getPlayer().sendMessage(ChatColor.YELLOW + "­ƒÆ░ Taxe horaire parcelle: " +
+                        ChatColor.GOLD + String.format("%.2fÔé¼", hourlyTax) + ChatColor.GRAY +
+                        " pr├®lev├®e pour " + plot.getCoordinates());
                 }
 
                 addTransaction(townName, new PlotTransaction(
@@ -1417,7 +1452,7 @@ public class TownEconomyManager {
                     "Taxe horaire parcelle " + plot.getCoordinates()
                 ));
             } else {
-                // NOUVEAU : Fonds insuffisants - créer/augmenter la dette
+                // NOUVEAU : Fonds insuffisants - cr├®er/augmenter la dette
                 unpaidPlayers.add(payerName);
 
                 double newDebt = plot.getParticularDebtAmount() + hourlyTax;
@@ -1429,46 +1464,46 @@ public class TownEconomyManager {
                     plot.setParticularDebtWarningCount(1);
 
                     // Avertissement au joueur
-                    if (payer.isOnline() && payer.getPlayer() != null) {
+                    if (false && payer.isOnline() && payer.getPlayer() != null) {
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ ALERTE DETTE - PARTICULIER");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "ÔÜá ALERTE DETTE - PARTICULIER");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette actuelle: " + ChatColor.GOLD +
-                            String.format("%.2f€", newDebt));
+                            String.format("%.2fÔé¼", newDebt));
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE +
                             plot.getCoordinates() + ChatColor.GRAY + " (ville: " + townName + ")");
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Vous avez 7 jours pour rembourser");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Vous avez 7 jours pour rembourser");
                         payer.getPlayer().sendMessage(ChatColor.RED + "   avant saisie automatique du terrain!");
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "💡 Réglez vos dettes via:");
-                        payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville → Régler vos Dettes");
-                        payer.getPlayer().sendMessage(ChatColor.RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "­ƒÆí R├®glez vos dettes via:");
+                        payer.getPlayer().sendMessage(ChatColor.GRAY + "   /ville ÔåÆ R├®gler vos Dettes");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                         payer.getPlayer().sendMessage("");
                     }
 
-                    notificationManager.notifyTaxDue(payerUuid, townName, newDebt);
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                 } else {
-                    // Dette déjà existante - simple notification
-                    notificationManager.notifyTaxDue(payerUuid, townName, hourlyTax);
+                    // Dette d├®j├á existante - simple notification
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
 
-                    if (payer.isOnline() && payer.getPlayer() != null) {
-                        payer.getPlayer().sendMessage(ChatColor.RED + "⚠ Taxe impayée ajoutée à votre dette: " +
-                            ChatColor.GOLD + String.format("+%.2f€", hourlyTax) + ChatColor.RED +
-                            " (Total: " + String.format("%.2f€", newDebt) + ")");
-                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "   Réglez via: " +
-                            ChatColor.WHITE + "/ville → Régler vos Dettes");
+                    if (false && payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.RED + "ÔÜá Taxe impay├®e ajout├®e ├á votre dette: " +
+                            ChatColor.GOLD + String.format("+%.2fÔé¼", hourlyTax) + ChatColor.RED +
+                            " (Total: " + String.format("%.2fÔé¼", newDebt) + ")");
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "   R├®glez via: " +
+                            ChatColor.WHITE + "/ville ÔåÆ R├®gler vos Dettes");
                     }
                 }
 
                 plugin.getLogger().warning(String.format(
-                    "[TownEconomyManager] Particulier %s - Fonds insuffisants pour taxe de %.2f€ sur terrain %s:%d,%d (Dette: %.2f€)",
+                    "[TownEconomyManager] Particulier %s - Fonds insuffisants pour taxe de %.2fÔé¼ sur terrain %s:%d,%d (Dette: %.2fÔé¼)",
                     payerName, hourlyTax, plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), newDebt
                 ));
-            }1
+            }
 
-            // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours) pour les particuliers
+            // NOUVEAU : V├®rifier si le d├®lai de gr├óce est d├®pass├® (7 jours) pour les particuliers
             if (plot.getParticularDebtAmount() > 0 && plot.getParticularLastDebtWarningDate() != null) {
                 LocalDateTime warningDate = plot.getParticularLastDebtWarningDate();
                 long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
@@ -1476,33 +1511,33 @@ public class TownEconomyManager {
                 if (daysSinceWarning >= 7) {
                     // SAISIE AUTOMATIQUE du terrain
                     plugin.getLogger().warning(String.format(
-                        "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2f€)",
+                        "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2fÔé¼)",
                         plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), payerName, plot.getParticularDebtAmount()
                     ));
 
                     // Notifier le joueur
-                    if (payer.isOnline() && payer.getPlayer() != null) {
+                    if (false && payer.isOnline() && payer.getPlayer() != null) {
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE TERRAIN");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "ÔÜá SAISIE DE TERRAIN");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                         payer.getPlayer().sendMessage(ChatColor.RED + "Votre terrain " + plot.getCoordinates());
-                        payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
+                        payer.getPlayer().sendMessage(ChatColor.RED + "a ├®t├® saisi pour dette impay├®e!");
                         payer.getPlayer().sendMessage("");
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
-                            String.format("%.2f€", plot.getParticularDebtAmount()));
-                        payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne à la ville.");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "═══════════════════════════════════════");
+                            String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
+                        payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne ├á la ville.");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                         payer.getPlayer().sendMessage("");
                     }
 
-                    // FIX CRITIQUE: Retour du terrain à la ville avec nettoyage complet
-                    townManager.transferPlotToTown(plot, "Dette impayée particulier: " +
-                        String.format("%.2f€", plot.getParticularDebtAmount()));
+                    // FIX CRITIQUE: Retour du terrain ├á la ville avec nettoyage complet
+                    townManager.transferPlotToTown(plot, "Dette impay├®e particulier: " +
+                        String.format("%.2fÔé¼", plot.getParticularDebtAmount()));
 
                     // Remettre en vente
                     plot.setForSale(true);
-                    plot.setSalePrice(1000.0); // Prix par défaut
+                    plot.setSalePrice(1000.0); // Prix par d├®faut
                 }
             }
         }
@@ -1510,14 +1545,14 @@ public class TownEconomyManager {
         // Sauvegarder
         townManager.saveTownsNow();
 
-        // NOUVEAU : Générer les rapports
+        // NOUVEAU : G├®n├®rer les rapports
         generateTaxReports(town, totalCollected, parcelsWithTax, unpaidPlayers.size(), playerTaxes);
 
         return new TaxCollectionResult(totalCollected, parcelsWithTax, unpaidPlayers.size(), unpaidPlayers);
     }
 
     /**
-     * Génère les rapports de taxes individuels et le rapport maire
+     * G├®n├¿re les rapports de taxes individuels et le rapport maire
      */
     private void generateTaxReports(Town town, double totalCollected, int parcelsWithTax,
                                    int unpaidCount, Map<UUID, Double> playerTaxes) {
@@ -1530,14 +1565,14 @@ public class TownEconomyManager {
             if (player != null && player.isOnline()) {
                 // Envoyer rapport individuel
                 player.sendMessage("");
-                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "    RAPPORT TAXES HORAIRES");
-                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 player.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
-                player.sendMessage(ChatColor.AQUA + "Montant prélevé: " + ChatColor.GOLD + String.format("%.2f€", taxAmount));
+                player.sendMessage(ChatColor.AQUA + "Montant pr├®lev├®: " + ChatColor.GOLD + String.format("%.2fÔé¼", taxAmount));
                 player.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
                     java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 player.sendMessage("");
             }
         }
@@ -1548,17 +1583,17 @@ public class TownEconomyManager {
             Player mayor = Bukkit.getPlayer(mayorUuid);
             if (mayor != null && mayor.isOnline()) {
                 mayor.sendMessage("");
-                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "  RAPPORT MAIRE - TAXES HORAIRES");
-                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 mayor.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
-                mayor.sendMessage(ChatColor.AQUA + "Total collecté: " + ChatColor.GOLD + String.format("%.2f€", totalCollected));
-                mayor.sendMessage(ChatColor.AQUA + "Parcelles taxées: " + ChatColor.WHITE + parcelsWithTax);
-                mayor.sendMessage(ChatColor.AQUA + "Solde ville: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
+                mayor.sendMessage(ChatColor.AQUA + "Total collect├®: " + ChatColor.GOLD + String.format("%.2fÔé¼", totalCollected));
+                mayor.sendMessage(ChatColor.AQUA + "Parcelles tax├®es: " + ChatColor.WHITE + parcelsWithTax);
+                mayor.sendMessage(ChatColor.AQUA + "Solde ville: " + ChatColor.GOLD + String.format("%.2fÔé¼", town.getBankBalance()));
 
                 if (unpaidCount > 0) {
                     mayor.sendMessage("");
-                    mayor.sendMessage(ChatColor.RED + "⚠ " + unpaidCount + " paiement(s) impayé(s)");
+                    mayor.sendMessage(ChatColor.RED + "ÔÜá " + unpaidCount + " paiement(s) impay├®(s)");
                 }
 
                 mayor.sendMessage("");
@@ -1571,14 +1606,14 @@ public class TownEconomyManager {
                     }
                     OfflinePlayer taxpayer = Bukkit.getOfflinePlayer(entry.getKey());
                     String name = taxpayer.getName() != null ? taxpayer.getName() : "Inconnu";
-                    mayor.sendMessage(ChatColor.GRAY + "  • " + ChatColor.WHITE + name + ": " +
-                        ChatColor.GOLD + String.format("%.2f€", entry.getValue()));
+                    mayor.sendMessage(ChatColor.GRAY + "  ÔÇó " + ChatColor.WHITE + name + ": " +
+                        ChatColor.GOLD + String.format("%.2fÔé¼", entry.getValue()));
                     count++;
                 }
 
                 mayor.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
                     java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                mayor.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+                mayor.sendMessage(ChatColor.GOLD + "ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ");
                 mayor.sendMessage("");
             }
         }
@@ -1588,7 +1623,7 @@ public class TownEconomyManager {
      * Collecte automatique des taxes pour toutes les villes
      */
     public void collectAllTaxes() {
-        plugin.getLogger().info("Début de la collecte automatique des taxes...");
+        plugin.getLogger().info("D├®but de la collecte automatique des taxes...");
         int totalTowns = 0;
         double totalAmount = 0;
 
@@ -1596,7 +1631,7 @@ public class TownEconomyManager {
             Town town = townManager.getTown(townName);
             if (town == null) continue;
 
-            // Vérifier si c'est le moment de collecter
+            // V├®rifier si c'est le moment de collecter
             LocalDateTime lastCollection = town.getLastTaxCollection();
             Duration duration = Duration.between(lastCollection, LocalDateTime.now());
 
@@ -1606,22 +1641,22 @@ public class TownEconomyManager {
                 totalAmount += result.totalCollected;
 
                 plugin.getLogger().info("Ville " + townName + ": " +
-                    result.totalCollected + "€ collectés sur " + result.parcelsCollected + " parcelles");
+                    result.totalCollected + "Ôé¼ collect├®s sur " + result.parcelsCollected + " parcelles");
             }
         }
 
-        plugin.getLogger().info("Collecte terminée: " + totalTowns + " villes, " + totalAmount + "€ total");
+        plugin.getLogger().info("Collecte termin├®e: " + totalTowns + " villes, " + totalAmount + "Ôé¼ total");
     }
 
     /**
      * NOUVEAU : Collecte horaire des taxes pour toutes les villes
      * - Collecte toutes les heures (au lieu de 24h)
-     * - Prélève les joueurs OFFLINE
-     * - Génère des rapports individuels et rapport maire
-     * - Synchronisé avec les paiements entreprises
+     * - Pr├®l├¿ve les joueurs OFFLINE
+     * - G├®n├¿re des rapports individuels et rapport maire
+     * - Synchronis├® avec les paiements entreprises
      */
     public void collectAllTaxesHourly() {
-        plugin.getLogger().info("[TAXES HORAIRES] Début de la collecte horaire des taxes...");
+        plugin.getLogger().info("[TAXES HORAIRES] D├®but de la collecte horaire des taxes...");
         int totalTowns = 0;
         double totalAmount = 0;
 
@@ -1629,18 +1664,18 @@ public class TownEconomyManager {
             Town town = townManager.getTown(townName);
             if (town == null) continue;
 
-            // Collecte horaire (pas de vérification de 24h)
+            // Collecte horaire (pas de v├®rification de 24h)
             TaxCollectionResult result = collectTaxesHourly(townName);
             totalTowns++;
             totalAmount += result.totalCollected;
 
             plugin.getLogger().info("[TAXES HORAIRES] Ville " + townName + ": " +
-                String.format("%.2f€", result.totalCollected) + " collectés sur " +
+                String.format("%.2fÔé¼", result.totalCollected) + " collect├®s sur " +
                 result.parcelsCollected + " parcelles");
         }
 
-        plugin.getLogger().info("[TAXES HORAIRES] Collecte terminée: " + totalTowns + " villes, " +
-            String.format("%.2f€", totalAmount) + " total");
+        plugin.getLogger().info("[TAXES HORAIRES] Collecte termin├®e: " + totalTowns + " villes, " +
+            String.format("%.2fÔé¼", totalAmount) + " total");
     }
 
     // === TRANSACTIONS ===
@@ -1648,7 +1683,7 @@ public class TownEconomyManager {
     private void addTransaction(String townName, PlotTransaction transaction) {
         transactionHistory.computeIfAbsent(townName, k -> new ArrayList<>()).add(transaction);
 
-        // Limiter l'historique à 100 transactions par ville
+        // Limiter l'historique ├á 100 transactions par ville
         List<PlotTransaction> history = transactionHistory.get(townName);
         if (history.size() > 100) {
             history.remove(0);
@@ -1676,7 +1711,7 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Vérifier les permissions : propriétaire OU maire/adjoint de la ville
+        // V├®rifier les permissions : propri├®taire OU maire/adjoint de la ville
         boolean isOwner = group.isOwnedBy(seller.getUniqueId());
         boolean isMayor = town.isMayor(seller.getUniqueId());
         TownRole role = town.getMemberRole(seller.getUniqueId());
@@ -1699,18 +1734,18 @@ public class TownEconomyManager {
 
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
                 if (plot != null) {
-                    plot.setForSale(false); // Empêcher vente individuelle
+                    plot.setForSale(false); // Emp├¬cher vente individuelle
                 }
             }
         }
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Achète un groupe de parcelles
+     * Ach├¿te un groupe de parcelles
      */
     public boolean buyPlotGroup(String townName, PlotGroup group, Player buyer) {
         Town town = townManager.getTown(townName);
@@ -1718,19 +1753,19 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Vérifier que l'acheteur est membre de la ville
+        // V├®rifier que l'acheteur est membre de la ville
         if (!town.isMember(buyer.getUniqueId())) {
-            buyer.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour acheter un groupe de parcelles.");
+            buyer.sendMessage(ChatColor.RED + "Vous devez ├¬tre membre de la ville pour acheter un groupe de parcelles.");
             return false;
         }
 
-        // Vérifier que le groupe n'est pas loué
+        // V├®rifier que le groupe n'est pas lou├®
         if (group.getRenterUuid() != null) {
-            buyer.sendMessage(ChatColor.RED + "Ce groupe de parcelles est actuellement loué.");
+            buyer.sendMessage(ChatColor.RED + "Ce groupe de parcelles est actuellement lou├®.");
             return false;
         }
 
-        // === NOUVEAU : Détecter si le groupe contient des terrains PROFESSIONNEL ===
+        // === NOUVEAU : D├®tecter si le groupe contient des terrains PROFESSIONNEL ===
         boolean hasProfessionalPlot = false;
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
@@ -1749,39 +1784,39 @@ public class TownEconomyManager {
         double price = group.getSalePrice();
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise buyerCompany = null;
-        String oldCompanySiret = null; // Déclaré ici pour être accessible dans le bloc d'annulation
+        String oldCompanySiret = null; // D├®clar├® ici pour ├¬tre accessible dans le bloc d'annulation
 
         // Si le groupe contient des terrains PRO, valider l'entreprise et utiliser les fonds d'entreprise
         if (hasProfessionalPlot) {
             buyerCompany = companyManager.getPlayerCompany(buyer);
             if (buyerCompany == null) {
-                buyer.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour acheter un groupe contenant des terrains PROFESSIONNELS !");
-                buyer.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
+                buyer.sendMessage(ChatColor.RED + "Ô£ù Vous devez poss├®der une entreprise pour acheter un groupe contenant des terrains PROFESSIONNELS !");
+                buyer.sendMessage(ChatColor.YELLOW + "ÔåÆ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
                 return false;
             }
 
-            // Vérifier les fonds de l'entreprise
+            // V├®rifier les fonds de l'entreprise
             if (buyerCompany.getSolde() < price) {
                 buyer.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
-                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
+                buyer.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", price));
+                buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", buyerCompany.getSolde()));
                 return false;
             }
 
-            // Prélever de l'entreprise
+            // Pr├®lever de l'entreprise
             buyerCompany.setSolde(buyerCompany.getSolde() - price);
         } else {
             // Groupe PARTICULIER uniquement - utiliser argent personnel
             if (!RoleplayCity.getEconomy().has(buyer, price)) {
-                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "€");
+                buyer.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + price + "Ôé¼");
                 return false;
             }
             RoleplayCity.getEconomy().withdrawPlayer(buyer, price);
         }
 
-        // Donner l'argent au propriétaire ou à la banque
+        // Donner l'argent au propri├®taire ou ├á la banque
         if (group.getOwnerUuid() != null) {
-            // Vérifier si l'ancien propriétaire avait une entreprise
+            // V├®rifier si l'ancien propri├®taire avait une entreprise
             for (String plotKey : group.getPlotKeys()) {
                 String[] parts = plotKey.split(":");
                 if (parts.length == 3) {
@@ -1794,21 +1829,21 @@ public class TownEconomyManager {
             }
 
             if (oldCompanySiret != null) {
-                // Ancien terrain PRO - argent va à l'ancienne entreprise
+                // Ancien terrain PRO - argent va ├á l'ancienne entreprise
                 EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(oldCompanySiret);
                 if (previousCompany != null) {
                     previousCompany.setSolde(previousCompany.getSolde() + price);
                     OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                     if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
-                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à l'entreprise " + previousCompany.getNom());
+                        previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a ├®t├® vendu pour " + price + "Ôé¼");
+                        previousOwner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á l'entreprise " + previousCompany.getNom());
                     } else {
                         // FIX P2.4: Notification offline pour vente groupe PRO
                         notificationManager.sendNotification(
                             group.getOwnerUuid(),
                             NotificationManager.NotificationType.ECONOMY,
                             "Groupe PRO vendu",
-                            String.format("Votre groupe vendu pour %.2f€. Argent versé à %s",
+                            String.format("Votre groupe vendu pour %.2fÔé¼. Argent vers├® ├á %s",
                                 price, previousCompany.getNom())
                         );
                     }
@@ -1816,18 +1851,18 @@ public class TownEconomyManager {
                     town.deposit(price); // Entreprise n'existe plus
                 }
             } else {
-                // Ancien terrain PARTICULIER - argent va au propriétaire
+                // Ancien terrain PARTICULIER - argent va au propri├®taire
                 OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                 RoleplayCity.getEconomy().depositPlayer(previousOwner, price);
                 if (previousOwner.isOnline() && previousOwner.getPlayer() != null) {
-                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été vendu pour " + price + "€");
+                    previousOwner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a ├®t├® vendu pour " + price + "Ôé¼");
                 } else {
                     // FIX P2.4: Notification offline pour vente groupe PARTICULIER
                     notificationManager.sendNotification(
                         group.getOwnerUuid(),
                         NotificationManager.NotificationType.ECONOMY,
                         "Groupe vendu",
-                        String.format("Votre groupe vendu pour %.2f€", price)
+                        String.format("Votre groupe vendu pour %.2fÔé¼", price)
                     );
                 }
             }
@@ -1835,7 +1870,7 @@ public class TownEconomyManager {
             town.deposit(price);
         }
 
-        // FIX CRITIQUE: Vérifier d'abord que TOUTES les parcelles existent
+        // FIX CRITIQUE: V├®rifier d'abord que TOUTES les parcelles existent
         List<Plot> existingPlots = new ArrayList<>();
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
@@ -1846,7 +1881,7 @@ public class TownEconomyManager {
 
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
                 if (plot == null) {
-                    buyer.sendMessage(ChatColor.RED + "❌ ERREUR: Le groupe contient des parcelles manquantes !");
+                    buyer.sendMessage(ChatColor.RED + "ÔØî ERREUR: Le groupe contient des parcelles manquantes !");
                     buyer.sendMessage(ChatColor.YELLOW + "Parcelle introuvable: " + worldName + ":" + chunkX + "," + chunkZ);
                     buyer.sendMessage(ChatColor.GRAY + "Contactez un administrateur pour nettoyer ce groupe.");
 
@@ -1878,16 +1913,16 @@ public class TownEconomyManager {
             }
         }
 
-        // Transférer la propriété du groupe
+        // Transf├®rer la propri├®t├® du groupe
         group.setOwner(buyer.getUniqueId(), buyer.getName());
         group.setForSale(false);
 
-        // Transférer toutes les parcelles individuelles + companySiret si nécessaire
+        // Transf├®rer toutes les parcelles individuelles + companySiret si n├®cessaire
         for (Plot plot : existingPlots) {
             plot.setOwner(buyer.getUniqueId(), buyer.getName());
             plot.setForSale(false);
 
-            // FIX CRITIQUE: Réinitialiser TOUTES les dettes (entreprise ET particulier)
+            // FIX CRITIQUE: R├®initialiser TOUTES les dettes (entreprise ET particulier)
             plot.resetDebt();
             plot.resetParticularDebt();
 
@@ -1901,18 +1936,18 @@ public class TownEconomyManager {
             }
         }
 
-        // Messages personnalisés selon le type
+        // Messages personnalis├®s selon le type
         if (hasProfessionalPlot && buyerCompany != null) {
-            buyer.sendMessage(ChatColor.GREEN + "✓ Groupe de parcelles PROFESSIONNEL acheté avec succès !");
+            buyer.sendMessage(ChatColor.GREEN + "Ô£ô Groupe de parcelles PROFESSIONNEL achet├® avec succ├¿s !");
             buyer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + buyerCompany.getNom());
             buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
-            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + String.format("%.2f€", price));
-            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
-            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront prélevées du solde de l'entreprise.");
+            buyer.sendMessage(ChatColor.YELLOW + "Prix pay├®: " + ChatColor.GOLD + String.format("%.2fÔé¼", price));
+            buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2fÔé¼", buyerCompany.getSolde()));
+            buyer.sendMessage(ChatColor.GRAY + "Les taxes seront pr├®lev├®es du solde de l'entreprise.");
         } else {
-            buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles acheté avec succès !");
+            buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles achet├® avec succ├¿s !");
             buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
-            buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + price + "€");
+            buyer.sendMessage(ChatColor.YELLOW + "Prix pay├®: " + ChatColor.GOLD + price + "Ôé¼");
         }
 
         // Enregistrer la transaction
@@ -1935,7 +1970,7 @@ public class TownEconomyManager {
             price
         );
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
@@ -1949,7 +1984,7 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Vérifier les permissions : propriétaire OU maire/adjoint de la ville
+        // V├®rifier les permissions : propri├®taire OU maire/adjoint de la ville
         boolean isOwner = group.isOwnedBy(owner.getUniqueId());
         boolean isMayor = town.isMayor(owner.getUniqueId());
         TownRole role = town.getMemberRole(owner.getUniqueId());
@@ -1964,7 +1999,7 @@ public class TownEconomyManager {
         group.setRentPricePerDay(pricePerDay);
         group.setForRent(true);
 
-        // Scanner et protéger tous les blocs de toutes les parcelles du groupe
+        // Scanner et prot├®ger tous les blocs de toutes les parcelles du groupe
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
             if (parts.length == 3) {
@@ -1974,7 +2009,7 @@ public class TownEconomyManager {
 
                 Plot plot = town.getPlot(worldName, chunkX, chunkZ);
                 if (plot != null) {
-                    // FIX CRITIQUE: Utiliser le monde de la parcelle, pas celui du propriétaire
+                    // FIX CRITIQUE: Utiliser le monde de la parcelle, pas celui du propri├®taire
                     org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
                     if (world != null) {
                         Chunk chunk = world.getChunkAt(chunkX, chunkZ);
@@ -1984,7 +2019,7 @@ public class TownEconomyManager {
             }
         }
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
@@ -1998,13 +2033,13 @@ public class TownEconomyManager {
             return false;
         }
 
-        // Vérifier que le loueur est membre de la ville
+        // V├®rifier que le loueur est membre de la ville
         if (!town.isMember(renter.getUniqueId())) {
-            renter.sendMessage(ChatColor.RED + "Vous devez être membre de la ville pour louer un groupe de parcelles.");
+            renter.sendMessage(ChatColor.RED + "Vous devez ├¬tre membre de la ville pour louer un groupe de parcelles.");
             return false;
         }
 
-        // NOUVEAU : Empêcher le propriétaire de louer son propre groupe
+        // NOUVEAU : Emp├¬cher le propri├®taire de louer son propre groupe
         if (group.getOwnerUuid() != null && group.getOwnerUuid().equals(renter.getUniqueId())) {
             renter.sendMessage(ChatColor.RED + "Vous ne pouvez pas louer votre propre groupe de parcelles !");
             return false;
@@ -2013,14 +2048,14 @@ public class TownEconomyManager {
         int actualDays = Math.min(days, 30);
         double totalCost = group.getRentPricePerDay() * actualDays;
 
-        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL (entreprise)
+        // NOUVEAU : D├®tecter si c'est un groupe PROFESSIONNEL (entreprise)
         boolean isProfessionalGroup = false;
         String renterCompanySiret = null;
         String ownerCompanySiret = null;
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise renterCompany = null;
 
-        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
+        // V├®rifier si au moins une parcelle du groupe est PROFESSIONNEL
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
             if (parts.length == 3) {
@@ -2042,59 +2077,59 @@ public class TownEconomyManager {
         if (isProfessionalGroup) {
             renterCompany = companyManager.getPlayerCompany(renter);
             if (renterCompany == null) {
-                renter.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour louer un groupe contenant des terrains PROFESSIONNELS !");
-                renter.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
+                renter.sendMessage(ChatColor.RED + "Ô£ù Vous devez poss├®der une entreprise pour louer un groupe contenant des terrains PROFESSIONNELS !");
+                renter.sendMessage(ChatColor.YELLOW + "ÔåÆ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
                 return false;
             }
             renterCompanySiret = renterCompany.getSiret();
 
-            // Vérifier les fonds de l'entreprise
+            // V├®rifier les fonds de l'entreprise
             if (renterCompany.getSolde() < totalCost) {
                 renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
-                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", renterCompany.getSolde()));
                 return false;
             }
 
-            // Prélever de l'entreprise du locataire
+            // Pr├®lever de l'entreprise du locataire
             renterCompany.setSolde(renterCompany.getSolde() - totalCost);
         } else {
-            // Groupe PARTICULIER : Vérifier l'argent personnel
+            // Groupe PARTICULIER : V├®rifier l'argent personnel
             if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "Ôé¼");
                 return false;
             }
 
-            // Prélever l'argent personnel
+            // Pr├®lever l'argent personnel
             RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
         }
 
-        // Donner l'argent au propriétaire ou à la banque
+        // Donner l'argent au propri├®taire ou ├á la banque
         if (group.getOwnerUuid() != null) {
             if (isProfessionalGroup && ownerCompanySiret != null) {
-                // Groupe PRO - argent va à l'entreprise du propriétaire
+                // Groupe PRO - argent va ├á l'entreprise du propri├®taire
                 EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(ownerCompanySiret);
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-                    // Notifier le propriétaire si en ligne
+                    // Notifier le propri├®taire si en ligne
                     OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                     if (owner.isOnline() && owner.getPlayer() != null) {
-                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe professionnel a été loué pour " + actualDays + " jours!");
-                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe professionnel a ├®t├® lou├® pour " + actualDays + " jours!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á " + ownerCompany.getNom() + ": +" + String.format("%.2fÔé¼", totalCost));
                     }
                 } else {
-                    // Entreprise n'existe plus - argent va à la ville
+                    // Entreprise n'existe plus - argent va ├á la ville
                     town.deposit(totalCost);
                 }
             } else {
-                // Groupe PARTICULIER - argent va au propriétaire
+                // Groupe PARTICULIER - argent va au propri├®taire
                 OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                 RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
 
-                // Notifier si le propriétaire est en ligne
+                // Notifier si le propri├®taire est en ligne
                 if (owner.isOnline() && owner.getPlayer() != null) {
-                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a été loué pour " + actualDays + " jours: +" + totalCost + "€");
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Votre groupe de parcelles a ├®t├® lou├® pour " + actualDays + " jours: +" + totalCost + "Ôé¼");
                 }
             }
         } else {
@@ -2124,9 +2159,9 @@ public class TownEconomyManager {
             }
         }
 
-        renter.sendMessage(ChatColor.GREEN + "Groupe loué avec succès !");
-        renter.sendMessage(ChatColor.YELLOW + "Durée: " + ChatColor.GOLD + actualDays + " jours");
-        renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + totalCost + "€");
+        renter.sendMessage(ChatColor.GREEN + "Groupe lou├® avec succ├¿s !");
+        renter.sendMessage(ChatColor.YELLOW + "Dur├®e: " + ChatColor.GOLD + actualDays + " jours");
+        renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + totalCost + "Ôé¼");
 
         // Enregistrer la transaction
         addTransaction(townName, new PlotTransaction(
@@ -2145,13 +2180,13 @@ public class TownEconomyManager {
             totalCost
         );
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Recharge le solde d'un groupe loué
+     * Recharge le solde d'un groupe lou├®
      */
     public boolean rechargePlotGroupRent(String townName, PlotGroup group, Player renter, int daysToAdd) {
         if (!group.isRentedBy(renter.getUniqueId())) {
@@ -2166,21 +2201,21 @@ public class TownEconomyManager {
         int maxCanAdd = 30 - currentDays;
 
         if (maxCanAdd <= 0) {
-            renter.sendMessage(ChatColor.YELLOW + "Votre solde est déjà au maximum (30 jours).");
+            renter.sendMessage(ChatColor.YELLOW + "Votre solde est d├®j├á au maximum (30 jours).");
             return false;
         }
 
         int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
         double totalCost = group.getRentPricePerDay() * actualDaysToAdd;
 
-        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL
+        // NOUVEAU : D├®tecter si c'est un groupe PROFESSIONNEL
         boolean isProfessionalGroup = false;
         String renterCompanySiret = null;
         String ownerCompanySiret = null;
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise renterCompany = null;
 
-        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
+        // V├®rifier si au moins une parcelle du groupe est PROFESSIONNEL
         for (String plotKey : group.getPlotKeys()) {
             String[] parts = plotKey.split(":");
             if (parts.length == 3) {
@@ -2215,53 +2250,53 @@ public class TownEconomyManager {
                 return false;
             }
 
-            // Vérifier les fonds de l'entreprise
+            // V├®rifier les fonds de l'entreprise
             if (renterCompany.getSolde() < totalCost) {
                 renter.sendMessage(ChatColor.RED + "Votre entreprise n'a pas assez d'argent !");
-                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", totalCost));
-                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2f€", renterCompany.getSolde()));
+                renter.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2fÔé¼", totalCost));
+                renter.sendMessage(ChatColor.YELLOW + "Solde entreprise: " + ChatColor.GOLD + String.format("%.2fÔé¼", renterCompany.getSolde()));
                 return false;
             }
 
-            // Prélever de l'entreprise du locataire
+            // Pr├®lever de l'entreprise du locataire
             renterCompany.setSolde(renterCompany.getSolde() - totalCost);
         } else {
-            // Groupe PARTICULIER : Vérifier l'argent personnel
+            // Groupe PARTICULIER : V├®rifier l'argent personnel
             if (!RoleplayCity.getEconomy().has(renter, totalCost)) {
-                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "€");
+                renter.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Prix: " + totalCost + "Ôé¼");
                 return false;
             }
 
-            // Prélever l'argent personnel
+            // Pr├®lever l'argent personnel
             RoleplayCity.getEconomy().withdrawPlayer(renter, totalCost);
         }
 
-        // Donner l'argent au propriétaire ou à la banque
+        // Donner l'argent au propri├®taire ou ├á la banque
         if (group.getOwnerUuid() != null) {
             if (isProfessionalGroup && ownerCompanySiret != null) {
-                // Groupe PRO - argent va à l'entreprise du propriétaire
+                // Groupe PRO - argent va ├á l'entreprise du propri├®taire
                 EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(ownerCompanySiret);
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
-                    // Notifier le propriétaire si en ligne
+                    // Notifier le propri├®taire si en ligne
                     OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                     if (owner.isOnline() && owner.getPlayer() != null) {
-                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée!");
-                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a été versé à " + ownerCompany.getNom() + ": +" + String.format("%.2f€", totalCost));
+                        owner.getPlayer().sendMessage(ChatColor.GREEN + "Location recharg├®e!");
+                        owner.getPlayer().sendMessage(ChatColor.YELLOW + "L'argent a ├®t├® vers├® ├á " + ownerCompany.getNom() + ": +" + String.format("%.2fÔé¼", totalCost));
                     }
                 } else {
-                    // Entreprise n'existe plus - argent va à la ville
+                    // Entreprise n'existe plus - argent va ├á la ville
                     town.deposit(totalCost);
                 }
             } else {
-                // Groupe PARTICULIER - argent va au propriétaire
+                // Groupe PARTICULIER - argent va au propri├®taire
                 OfflinePlayer owner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
                 RoleplayCity.getEconomy().depositPlayer(owner, totalCost);
 
-                // Notifier si le propriétaire est en ligne
+                // Notifier si le propri├®taire est en ligne
                 if (owner.isOnline() && owner.getPlayer() != null) {
-                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location rechargée: +" + totalCost + "€");
+                    owner.getPlayer().sendMessage(ChatColor.GREEN + "Location recharg├®e: +" + totalCost + "Ôé¼");
                 }
             }
         } else {
@@ -2286,7 +2321,7 @@ public class TownEconomyManager {
             }
         }
 
-        renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
+        renter.sendMessage(ChatColor.GREEN + "Solde recharg├® : +" + actualAdded + " jours");
         renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + group.getRentDaysRemaining() + "/30");
 
         // Enregistrer la transaction
@@ -2298,13 +2333,13 @@ public class TownEconomyManager {
             "Recharge groupe: " + group.getGroupName()
         ));
 
-        // Sauvegarder immédiatement
+        // Sauvegarder imm├®diatement
         townManager.saveTownsNow();
         return true;
     }
 
     /**
-     * Vérifie les locations de groupes expirées
+     * V├®rifie les locations de groupes expir├®es
      */
     public void checkExpiredGroupRents() {
         for (String townName : townManager.getTownNames()) {
@@ -2316,7 +2351,7 @@ public class TownEconomyManager {
                     // Notifier le locataire si en ligne
                     Player renter = Bukkit.getPlayer(group.getRenterUuid());
                     if (renter != null && renter.isOnline()) {
-                        renter.sendMessage(ChatColor.RED + "Votre location du groupe '" + group.getGroupName() + "' a expiré.");
+                        renter.sendMessage(ChatColor.RED + "Votre location du groupe '" + group.getGroupName() + "' a expir├®.");
                     }
 
                     // Notification d'expiration de groupe
@@ -2344,13 +2379,13 @@ public class TownEconomyManager {
                         }
                     }
 
-                    plugin.getLogger().info("Location de groupe expirée: " + group.getGroupName() + " dans " + townName);
+                    plugin.getLogger().info("Location de groupe expir├®e: " + group.getGroupName() + " dans " + townName);
                 }
             }
         }
     }
 
-    // === RÉSULTAT DE COLLECTE ===
+    // === R├ëSULTAT DE COLLECTE ===
 
     public static class TaxCollectionResult {
         public final double totalCollected;
@@ -2367,4 +2402,5 @@ public class TownEconomyManager {
         }
     }
 }
+
 

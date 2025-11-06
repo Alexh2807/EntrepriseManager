@@ -62,7 +62,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
+    private com.gravityyfh.roleplaycity.town.manager.NotificationDataManager notificationDataManager;
     private com.gravityyfh.roleplaycity.town.manager.NotificationManager notificationManager;
+    private com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService;
 
     public void onEnable() {
         instance = this;
@@ -104,8 +106,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
 
         // Système de notifications (DOIT être créé AVANT TownEconomyManager)
-        notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this);
+        notificationDataManager = new com.gravityyfh.roleplaycity.town.manager.NotificationDataManager(this);
+        notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this, notificationDataManager, townManager);
+        notificationManager.loadNotifications();
         notificationManager.scheduleAutomaticNotifications();
+
+        debtNotificationService = new com.gravityyfh.roleplaycity.town.manager.DebtNotificationService(this, townManager);
+        debtNotificationService.start();
 
         // Managers qui dépendent du NotificationManager
         townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager, claimManager);
@@ -207,6 +214,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (townManager != null) {
             // Utiliser saveTownsSync() pour une sauvegarde synchrone lors de l'arrêt
             townManager.saveTownsSync();
+        }
+        if (notificationManager != null) {
+            // Sauvegarder les notifications de manière synchrone
+            notificationManager.saveNotificationsSync();
         }
         if (townPoliceManager != null && townFinesDataManager != null) {
             townFinesDataManager.saveFines(townPoliceManager.getFinesForSave());
@@ -325,6 +336,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI getCompanySelectionGUI() { return companySelectionGUI; }
     public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
     public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() { return notificationManager; }
+    public com.gravityyfh.roleplaycity.town.manager.DebtNotificationService getDebtNotificationService() { return debtNotificationService; }
     public TownCommandHandler getTownCommandHandler() {
         return (TownCommandHandler) getCommand("ville").getExecutor();
     }
