@@ -51,18 +51,111 @@ public class TownJusticeManager {
         // Enregistrer le jugement
         fine.setJudgeVerdict(judge.getUniqueId(), valid, verdict);
 
-        // Notification au contrevenant
+        // Récupérer les paramètres de configuration
+        double judgeCommissionPercentage = plugin.getConfig().getDouble("town.commissions.judge-commission-percentage", 50.0);
+        double courtFeesPercentage = plugin.getConfig().getDouble("town.commissions.court-fees-percentage", 30.0);
+        double policeCommissionPercentage = plugin.getConfig().getDouble("town.commissions.police-commission-percentage", 50.0);
+
+        // Calculer les frais de justice
+        double courtFees = fine.getAmount() * (courtFeesPercentage / 100.0);
+        double judgeCommission = courtFees * (judgeCommissionPercentage / 100.0);
+        double townShareFromCourtFees = courtFees - judgeCommission;
+
         if (valid) {
-            // Contestation rejetée
+            // CAS 1: Juge CONFIRME l'amende
+            // Le contrevenant doit payer: Amende + Frais de justice
+
+            Player offender = Bukkit.getPlayer(fine.getOffenderUuid());
+            double totalToPay = fine.getAmount() + courtFees;
+
+            // Vérifier que le contrevenant a assez d'argent
+            if (offender != null && offender.isOnline()) {
+                if (RoleplayCity.getEconomy().has(offender, totalToPay)) {
+                    // Prélever l'argent total
+                    RoleplayCity.getEconomy().withdrawPlayer(offender, totalToPay);
+
+                    // Répartition de l'amende (50/50 policier/ville)
+                    double policeCommission = fine.getAmount() * (policeCommissionPercentage / 100.0);
+                    double townShareFromFine = fine.getAmount() - policeCommission;
+
+                    // Verser la commission au policier
+                    RoleplayCity.getEconomy().depositPlayer(Bukkit.getOfflinePlayer(fine.getPolicierUuid()), policeCommission);
+
+                    // Notification au policier
+                    plugin.getNotificationManager().sendNotification(
+                        fine.getPolicierUuid(),
+                        com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
+                        "Commission reçue",
+                        String.format("Amende confirmée par le juge ! Vous recevez %.2f€ de commission.",
+                            policeCommission)
+                    );
+
+                    // Verser la commission au juge
+                    RoleplayCity.getEconomy().depositPlayer(judge, judgeCommission);
+
+                    // Verser à la ville
+                    if (town != null) {
+                        town.deposit(townShareFromFine + townShareFromCourtFees);
+                    }
+
+                    // Notification au juge
+                    plugin.getNotificationManager().sendNotification(
+                        judge.getUniqueId(),
+                        com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
+                        "Commission de jugement",
+                        String.format("Vous avez reçu %.2f€ pour avoir jugé cette affaire.", judgeCommission)
+                    );
+
+                    plugin.getLogger().info(String.format("Jugement confirmé: Contrevenant payé %.2f€ (Amende: %.2f€ + Frais: %.2f€). Policier: %.2f€, Juge: %.2f€, Ville: %.2f€",
+                        totalToPay, fine.getAmount(), courtFees, policeCommission, judgeCommission, (townShareFromFine + townShareFromCourtFees)));
+                } else {
+                    offender.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent pour payer l'amende et les frais de justice (" + totalToPay + "€)");
+                }
+            }
+
+            // Notification au contrevenant
             plugin.getNotificationManager().sendNotification(
                 fine.getOffenderUuid(),
                 com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
                 "Contestation rejetée",
-                String.format("Le juge %s a rejeté votre contestation. Amende: %.2f€. Verdict: %s",
-                    judge.getName(), fine.getAmount(), verdict)
+                String.format("Le juge %s a rejeté votre contestation. Total à payer: %.2f€ (Amende: %.2f€ + Frais de justice: %.2f€). Verdict: %s",
+                    judge.getName(), totalToPay, fine.getAmount(), courtFees, verdict)
             );
+
         } else {
-            // Contestation acceptée
+            // CAS 2: Juge ANNULE l'amende
+            // Le policier paie la prime du juge
+
+            Player policier = Bukkit.getPlayer(fine.getPolicierUuid());
+
+            // Prélever au policier (même si négatif)
+            if (policier != null && policier.isOnline()) {
+                RoleplayCity.getEconomy().withdrawPlayer(policier, judgeCommission);
+            } else {
+                RoleplayCity.getEconomy().withdrawPlayer(Bukkit.getOfflinePlayer(fine.getPolicierUuid()), judgeCommission);
+            }
+
+            // Verser au juge
+            RoleplayCity.getEconomy().depositPlayer(judge, judgeCommission);
+
+            // Notification au policier
+            plugin.getNotificationManager().sendNotification(
+                fine.getPolicierUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+                "Amende annulée - Pénalité",
+                String.format("Le juge %s a annulé votre amende de %.2f€ contre %s. Vous payez %.2f€ au juge. Verdict: %s",
+                    judge.getName(), fine.getAmount(), fine.getOffenderName(), judgeCommission, verdict)
+            );
+
+            // Notification au juge
+            plugin.getNotificationManager().sendNotification(
+                judge.getUniqueId(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
+                "Commission de jugement",
+                String.format("Vous avez reçu %.2f€ pour avoir jugé cette affaire.", judgeCommission)
+            );
+
+            // Notification au contrevenant
             plugin.getNotificationManager().sendNotification(
                 fine.getOffenderUuid(),
                 com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
@@ -70,25 +163,8 @@ public class TownJusticeManager {
                 String.format("Le juge %s a accepté votre contestation. L'amende de %.2f€ est annulée ! Verdict: %s",
                     judge.getName(), fine.getAmount(), verdict)
             );
-        }
 
-        // Notification au policier qui a émis l'amende
-        if (valid) {
-            plugin.getNotificationManager().sendNotification(
-                fine.getPolicierUuid(),
-                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-                "Amende confirmée",
-                String.format("Le juge %s a confirmé votre amende de %.2f€ contre %s.",
-                    judge.getName(), fine.getAmount(), fine.getOffenderName())
-            );
-        } else {
-            plugin.getNotificationManager().sendNotification(
-                fine.getPolicierUuid(),
-                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
-                "Amende annulée",
-                String.format("Le juge %s a annulé votre amende de %.2f€ contre %s. Verdict: %s",
-                    judge.getName(), fine.getAmount(), fine.getOffenderName(), verdict)
-            );
+            plugin.getLogger().info(String.format("Jugement annulé: Policier paie %.2f€ au juge.", judgeCommission));
         }
 
         judge.sendMessage(ChatColor.GREEN + "Jugement enregistré avec succès.");
@@ -96,8 +172,9 @@ public class TownJusticeManager {
         plugin.getLogger().info("Jugement rendu par " + judge.getName() + ": Amende " +
             (valid ? "confirmée" : "annulée") + " - " + fine);
 
-        // Sauvegarder immédiatement
+        // Sauvegarder immédiatement (amendes + banque ville)
         plugin.getTownFinesDataManager().saveFines(policeManager.getFinesForSave());
+        townManager.saveTownsNow();
 
         return true;
     }

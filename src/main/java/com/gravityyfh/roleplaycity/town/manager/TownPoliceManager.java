@@ -98,27 +98,54 @@ public class TownPoliceManager {
             return false;
         }
 
-        // Prélever l'argent
-        RoleplayCity.getEconomy().withdrawPlayer(player, fine.getAmount());
+        // Récupérer le pourcentage de commission du policier depuis la config
+        double policeCommissionPercentage = plugin.getConfig().getDouble("town.commissions.police-commission-percentage", 50.0);
 
-        // Verser à la ville
+        // Calculer les montants
+        double totalAmount = fine.getAmount();
+        double policeCommission = totalAmount * (policeCommissionPercentage / 100.0);
+        double townShare = totalAmount - policeCommission;
+
+        // Prélever l'argent du contrevenant
+        RoleplayCity.getEconomy().withdrawPlayer(player, totalAmount);
+
+        // Verser la commission au policier
+        Player policier = Bukkit.getPlayer(fine.getPolicierUuid());
+        if (policier != null && policier.isOnline()) {
+            RoleplayCity.getEconomy().depositPlayer(policier, policeCommission);
+
+            // Notification au policier
+            plugin.getNotificationManager().sendNotification(
+                fine.getPolicierUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
+                "Commission reçue",
+                String.format("Vous avez reçu %.2f€ de commission pour l'amende payée par %s.",
+                    policeCommission, fine.getOffenderName())
+            );
+        } else {
+            // Si le policier est hors ligne, lui donner quand même l'argent
+            RoleplayCity.getEconomy().depositPlayer(Bukkit.getOfflinePlayer(fine.getPolicierUuid()), policeCommission);
+        }
+
+        // Verser la part à la ville
         Town town = townManager.getTown(fine.getTownName());
         if (town != null) {
-            town.deposit(fine.getAmount());
+            town.deposit(townShare);
         }
 
         // Marquer comme payée
         fine.markAsPaid();
 
-        player.sendMessage(ChatColor.GREEN + "Amende payée avec succès: " + fine.getAmount() + "€");
-        plugin.getLogger().info("Amende payée: " + player.getName() + " - " + fine.getAmount() + "€");
+        player.sendMessage(ChatColor.GREEN + "Amende payée avec succès: " + totalAmount + "€");
+        plugin.getLogger().info(String.format("Amende payée: %s - %.2f€ (Policier: %.2f€, Ville: %.2f€)",
+            player.getName(), totalAmount, policeCommission, townShare));
 
-        // Notification économique
+        // Notification économique au contrevenant
         plugin.getNotificationManager().sendNotification(
             player.getUniqueId(),
             com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
             "Amende payée",
-            String.format("Vous avez payé une amende de %.2f€ à %s.", fine.getAmount(), fine.getTownName())
+            String.format("Vous avez payé une amende de %.2f€ à %s.", totalAmount, fine.getTownName())
         );
 
         // Sauvegarder immédiatement (amendes + banque ville)

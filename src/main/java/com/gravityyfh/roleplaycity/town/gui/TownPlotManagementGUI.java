@@ -550,10 +550,9 @@ public class TownPlotManagementGUI implements Listener {
         plot.setForRent(false);
         plot.clearRenter();
 
-        // Remettre la parcelle en vente avec un prix par défaut
-        plot.setForSale(true);
-        double defaultPrice = 1000.0; // Prix par défaut : 1000€
-        plot.setSalePrice(defaultPrice);
+        // Retirer la parcelle de la vente (elle appartient maintenant à la ville mais n'est pas en vente)
+        plot.setForSale(false);
+        plot.setSalePrice(0.0);
 
         // Sauvegarder
         townManager.saveTownsNow();
@@ -565,8 +564,8 @@ public class TownPlotManagementGUI implements Listener {
             "Type: " + plot.getType().getDisplayName(),
             "Position: " + plot.getCoordinates(),
             "",
-            "*La parcelle est maintenant en vente",
-            "*Prix: " + String.format("%.2f€", defaultPrice)
+            "*La parcelle appartient maintenant à la ville",
+            "*Elle n'est pas mise en vente automatiquement"
         ));
     }
 

@@ -9,6 +9,7 @@ import com.gravityyfh.roleplaycity.town.manager.TownPoliceManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -17,6 +18,7 @@ import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.*;
 
@@ -27,7 +29,8 @@ public class TownPoliceGUI implements Listener {
     private final TownPoliceManager policeManager;
 
     private static final String POLICE_TITLE = ChatColor.DARK_BLUE + "🚔 Police Municipale";
-    private static final String ISSUE_FINE_TITLE = ChatColor.DARK_BLUE + "📝 Émettre Amende";
+    private static final String SELECT_PLAYER_TITLE = ChatColor.DARK_BLUE + "👤 Sélectionner un joueur";
+    private static final String SELECT_FINE_TITLE = ChatColor.DARK_BLUE + "📋 Type d'amende";
 
     private final Map<UUID, FineContext> pendingFines;
 
@@ -128,14 +131,100 @@ public class TownPoliceGUI implements Listener {
         player.openInventory(inv);
     }
 
+    // PHASE 1: Sélection du joueur en ligne
+    private void openPlayerSelectionMenu(Player player) {
+        Inventory inv = Bukkit.createInventory(null, 54, SELECT_PLAYER_TITLE);
+
+        Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
+        int slot = 0;
+
+        for (Player target : onlinePlayers) {
+            if (slot >= 45) break;
+            if (target.equals(player)) continue; // Ne pas afficher le policier lui-même
+
+            ItemStack playerHead = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta skullMeta = (SkullMeta) playerHead.getItemMeta();
+            skullMeta.setOwningPlayer(target);
+            skullMeta.setDisplayName(ChatColor.YELLOW + target.getName());
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "UUID: " + ChatColor.WHITE + target.getUniqueId().toString().substring(0, 8));
+            lore.add("");
+            lore.add(ChatColor.GREEN + "Cliquez pour sélectionner");
+            skullMeta.setLore(lore);
+
+            playerHead.setItemMeta(skullMeta);
+            inv.setItem(slot++, playerHead);
+        }
+
+        // Bouton retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(49, backItem);
+
+        // Fermer
+        ItemStack closeItem = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = closeItem.getItemMeta();
+        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeItem.setItemMeta(closeMeta);
+        inv.setItem(53, closeItem);
+
+        player.openInventory(inv);
+    }
+
+    // PHASE 2: Sélection de l'amende prédéfinie
+    private void openFineSelectionMenu(Player player) {
+        Inventory inv = Bukkit.createInventory(null, 54, SELECT_FINE_TITLE);
+
+        // Charger les amendes prédéfinies depuis la config
+        List<Map<?, ?>> predefinedFines = plugin.getConfig().getMapList("town.predefined-fines");
+        int slot = 0;
+
+        for (Map<?, ?> fineData : predefinedFines) {
+            if (slot >= 45) break;
+
+            String title = (String) fineData.get("title");
+            double amount = ((Number) fineData.get("amount")).doubleValue();
+            String description = (String) fineData.get("description");
+
+            ItemStack fineItem = new ItemStack(Material.PAPER);
+            ItemMeta fineMeta = fineItem.getItemMeta();
+            fineMeta.setDisplayName(ChatColor.RED + title);
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
+            lore.add("");
+            lore.add(ChatColor.WHITE + description);
+            lore.add("");
+            lore.add(ChatColor.GREEN + "Cliquez pour sélectionner");
+            fineMeta.setLore(lore);
+
+            fineItem.setItemMeta(fineMeta);
+            inv.setItem(slot++, fineItem);
+        }
+
+        // Bouton retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(49, backItem);
+
+        // Fermer
+        ItemStack closeItem = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = closeItem.getItemMeta();
+        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeItem.setItemMeta(closeMeta);
+        inv.setItem(53, closeItem);
+
+        player.openInventory(inv);
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
-        if (!title.equals(POLICE_TITLE)) {
-            return;
-        }
-
-        event.setCancelled(true);
 
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
@@ -146,23 +235,87 @@ public class TownPoliceGUI implements Listener {
             return;
         }
 
-        String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+        // Menu principal de la police
+        if (title.equals(POLICE_TITLE)) {
+            event.setCancelled(true);
+            String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
-        if (displayName.contains("Émettre une Amende")) {
-            handleIssueFine(player);
-        } else if (displayName.contains("Fermer")) {
-            player.closeInventory();
+            if (displayName.contains("Émettre une Amende")) {
+                // Initialiser le contexte et ouvrir la phase 1
+                pendingFines.put(player.getUniqueId(), new FineContext());
+                openPlayerSelectionMenu(player);
+            } else if (displayName.contains("Fermer")) {
+                player.closeInventory();
+            }
         }
-        // TODO: Implémenter l'affichage des listes d'amendes
-    }
+        // PHASE 1: Sélection du joueur
+        else if (title.equals(SELECT_PLAYER_TITLE)) {
+            event.setCancelled(true);
 
-    private void handleIssueFine(Player player) {
-        player.closeInventory();
-        player.sendMessage(ChatColor.GREEN + "=== ÉMETTRE UNE AMENDE ===");
-        player.sendMessage(ChatColor.YELLOW + "Étape 1/3: Entrez le nom du joueur à verbaliser");
-        player.sendMessage(ChatColor.GRAY + "(Tapez 'annuler' pour abandonner)");
+            if (clicked.getType() == Material.PLAYER_HEAD) {
+                SkullMeta skullMeta = (SkullMeta) clicked.getItemMeta();
+                String targetName = ChatColor.stripColor(skullMeta.getDisplayName());
+                Player target = Bukkit.getPlayer(targetName);
 
-        pendingFines.put(player.getUniqueId(), new FineContext());
+                if (target != null) {
+                    FineContext context = pendingFines.get(player.getUniqueId());
+                    if (context != null) {
+                        context.targetUuid = target.getUniqueId();
+                        context.targetName = target.getName();
+                        context.step = 1;
+
+                        // Passer à la phase 2
+                        openFineSelectionMenu(player);
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "Le joueur n'est plus en ligne.");
+                    player.closeInventory();
+                    pendingFines.remove(player.getUniqueId());
+                }
+            } else if (clicked.getType() == Material.ARROW) {
+                openPoliceMenu(player);
+                pendingFines.remove(player.getUniqueId());
+            } else if (clicked.getType() == Material.BARRIER) {
+                player.closeInventory();
+                pendingFines.remove(player.getUniqueId());
+            }
+        }
+        // PHASE 2: Sélection de l'amende
+        else if (title.equals(SELECT_FINE_TITLE)) {
+            event.setCancelled(true);
+
+            if (clicked.getType() == Material.PAPER) {
+                FineContext context = pendingFines.get(player.getUniqueId());
+                if (context != null) {
+                    String fineTitle = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+
+                    // Récupérer les informations de l'amende depuis le lore
+                    List<String> lore = clicked.getItemMeta().getLore();
+                    String amountLine = ChatColor.stripColor(lore.get(0)); // "Montant: 500.0€"
+                    double amount = Double.parseDouble(amountLine.replaceAll("[^0-9.]", ""));
+
+                    context.fineTitle = fineTitle;
+                    context.amount = amount;
+                    context.step = 2;
+
+                    // Passer à la phase 3: demander la description
+                    player.closeInventory();
+                    player.sendMessage(ChatColor.GREEN + "=== ÉMETTRE UNE AMENDE ===");
+                    player.sendMessage(ChatColor.GRAY + "Joueur: " + ChatColor.YELLOW + context.targetName);
+                    player.sendMessage(ChatColor.GRAY + "Type: " + ChatColor.RED + fineTitle);
+                    player.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.YELLOW + "Étape 3/3: Entrez une description détaillée");
+                    player.sendMessage(ChatColor.GRAY + "(Minimum 20 caractères)");
+                    player.sendMessage(ChatColor.GRAY + "(Tapez 'annuler' pour abandonner)");
+                }
+            } else if (clicked.getType() == Material.ARROW) {
+                openPlayerSelectionMenu(player);
+            } else if (clicked.getType() == Material.BARRIER) {
+                player.closeInventory();
+                pendingFines.remove(player.getUniqueId());
+            }
+        }
     }
 
     @EventHandler
@@ -170,7 +323,7 @@ public class TownPoliceGUI implements Listener {
         Player player = event.getPlayer();
         FineContext context = pendingFines.get(player.getUniqueId());
 
-        if (context == null) {
+        if (context == null || context.step != 2) {
             return;
         }
 
@@ -184,96 +337,48 @@ public class TownPoliceGUI implements Listener {
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> {
-            processStep(player, context, input);
+            // Vérifier la longueur minimale
+            if (input.length() < 20) {
+                player.sendMessage(ChatColor.RED + "La description doit contenir au moins 20 caractères.");
+                player.sendMessage(ChatColor.GRAY + "Caractères actuels: " + input.length() + " / 20");
+                return;
+            }
+
+            // Émettre l'amende
+            String townName = townManager.getPlayerTown(player.getUniqueId());
+            String fullReason = context.fineTitle + " - " + input;
+
+            Fine fine = policeManager.issueFine(
+                townName,
+                context.targetUuid,
+                context.targetName,
+                player,
+                fullReason,
+                context.amount
+            );
+
+            if (fine != null) {
+                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage(ChatColor.GREEN + "   Amende émise avec succès !");
+                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage(ChatColor.GRAY + "Joueur: " + ChatColor.YELLOW + context.targetName);
+                player.sendMessage(ChatColor.GRAY + "Type: " + ChatColor.RED + context.fineTitle);
+                player.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + context.amount + "€");
+                player.sendMessage(ChatColor.GRAY + "Description: " + ChatColor.WHITE + input);
+                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            } else {
+                player.sendMessage(ChatColor.RED + "Erreur lors de l'émission de l'amende.");
+            }
+
+            pendingFines.remove(player.getUniqueId());
         });
-    }
-
-    private void processStep(Player player, FineContext context, String input) {
-        switch (context.step) {
-            case 0 -> { // Nom du joueur
-                Player target = Bukkit.getPlayer(input);
-                if (target == null) {
-                    player.sendMessage(ChatColor.RED + "Joueur introuvable. Réessayez ou tapez 'annuler'.");
-                    return;
-                }
-
-                String townName = townManager.getPlayerTown(player.getUniqueId());
-                Town town = townManager.getTown(townName);
-
-                // Vérifier que le joueur est dans la même ville
-                if (!town.isMember(target.getUniqueId())) {
-                    player.sendMessage(ChatColor.RED + "Ce joueur n'est pas membre de votre ville.");
-                    return;
-                }
-
-                context.targetUuid = target.getUniqueId();
-                context.targetName = target.getName();
-                context.step = 1;
-
-                player.sendMessage(ChatColor.GREEN + "Joueur: " + target.getName());
-                player.sendMessage(ChatColor.YELLOW + "Étape 2/3: Entrez le motif de l'amende");
-            }
-            case 1 -> { // Motif
-                if (input.length() < 5) {
-                    player.sendMessage(ChatColor.RED + "Le motif doit contenir au moins 5 caractères.");
-                    return;
-                }
-
-                context.reason = input;
-                context.step = 2;
-
-                player.sendMessage(ChatColor.GREEN + "Motif: " + input);
-                player.sendMessage(ChatColor.YELLOW + "Étape 3/3: Entrez le montant de l'amende (en €)");
-            }
-            case 2 -> { // Montant
-                try {
-                    double amount = Double.parseDouble(input);
-                    if (amount <= 0) {
-                        player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
-                        return;
-                    }
-
-                    if (amount > 10000) {
-                        player.sendMessage(ChatColor.RED + "Le montant maximum est de 10000€.");
-                        return;
-                    }
-
-                    // Émettre l'amende
-                    String townName = townManager.getPlayerTown(player.getUniqueId());
-                    Fine fine = policeManager.issueFine(
-                        townName,
-                        context.targetUuid,
-                        context.targetName,
-                        player,
-                        context.reason,
-                        amount
-                    );
-
-                    if (fine != null) {
-                        player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        player.sendMessage(ChatColor.GREEN + "   Amende émise avec succès !");
-                        player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        player.sendMessage(ChatColor.GRAY + "Joueur: " + ChatColor.YELLOW + context.targetName);
-                        player.sendMessage(ChatColor.GRAY + "Motif: " + ChatColor.WHITE + context.reason);
-                        player.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
-                        player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    } else {
-                        player.sendMessage(ChatColor.RED + "Erreur lors de l'émission de l'amende.");
-                    }
-
-                    pendingFines.remove(player.getUniqueId());
-
-                } catch (NumberFormatException e) {
-                    player.sendMessage(ChatColor.RED + "Veuillez entrer un nombre valide.");
-                }
-            }
-        }
     }
 
     private static class FineContext {
         int step = 0;
         UUID targetUuid;
         String targetName;
-        String reason;
+        String fineTitle;
+        double amount;
     }
 }

@@ -973,3 +973,38 @@ town:
 
   # Bonus d'argent récupéré lors du unclaim d'une parcelle (pourcentage)
   unclaim-refund-percentage: 50.0
+
+  # Système de commissions pour police et justice
+  commissions:
+    # Pourcentage de l'amende qui va au policier quand elle est payée
+    police-commission-percentage: 50.0
+
+    # Pourcentage des frais de justice qui va au juge
+    judge-commission-percentage: 50.0
+
+    # Frais de justice en pourcentage de l'amende (ajouté à l'amende en cas de confirmation par le juge)
+    court-fees-percentage: 30.0
+
+  # Amendes prédéfinies pour les policiers
+  predefined-fines:
+    - title: "Trouble à l'ordre public"
+      amount: 300.0
+      description: "Comportement perturbant l'ordre public"
+    - title: "Vol de bien"
+      amount: 500.0
+      description: "Vol ou tentative de vol de biens"
+    - title: "Agression physique"
+      amount: 400.0
+      description: "Agression physique sur une personne"
+    - title: "Dégradation de propriété"
+      amount: 750.0
+      description: "Destruction ou dégradation de biens publics ou privés"
+    - title: "Non-respect des autorités"
+      amount: 200.0
+      description: "Refus d'obtempérer aux ordres des forces de l'ordre"
+    - title: "Fraude commerciale"
+      amount: 1000.0
+      description: "Pratiques commerciales frauduleuses"
+    - title: "Trouble de voisinage"
+      amount: 250.0
+      description: "Nuisances sonores ou comportement gênant les voisins"

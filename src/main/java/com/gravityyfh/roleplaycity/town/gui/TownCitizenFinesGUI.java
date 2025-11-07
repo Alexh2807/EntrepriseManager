@@ -71,6 +71,7 @@ public class TownCitizenFinesGUI implements Listener {
             meta.setDisplayName(ChatColor.YELLOW + fine.getReason());
 
             List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "ID: " + ChatColor.WHITE + fine.getFineId().toString().substring(0, 8));
             lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + fine.getAmount() + "€");
             lore.add(ChatColor.GRAY + "Ville: " + ChatColor.WHITE + fine.getTownName());
             lore.add(ChatColor.GRAY + "Policier: " + ChatColor.YELLOW + fine.getPolicierName());
@@ -135,14 +136,24 @@ public class TownCitizenFinesGUI implements Listener {
             return;
         }
 
-        // Récupérer l'amende correspondante
+        // Récupérer l'amende correspondante par son ID dans le lore
         List<Fine> fines = policeManager.getPlayerFines(player.getUniqueId());
         Fine selectedFine = null;
 
-        for (Fine fine : fines) {
-            if (fine.getReason().equals(displayName)) {
-                selectedFine = fine;
-                break;
+        if (clicked.hasItemMeta() && clicked.getItemMeta().hasLore()) {
+            List<String> lore = clicked.getItemMeta().getLore();
+            if (!lore.isEmpty()) {
+                String firstLine = ChatColor.stripColor(lore.get(0));
+                if (firstLine.startsWith("ID: ")) {
+                    String fineIdPrefix = firstLine.substring(4); // Récupérer les 8 premiers caractères de l'ID
+
+                    for (Fine fine : fines) {
+                        if (fine.getFineId().toString().startsWith(fineIdPrefix)) {
+                            selectedFine = fine;
+                            break;
+                        }
+                    }
+                }
             }
         }
 
