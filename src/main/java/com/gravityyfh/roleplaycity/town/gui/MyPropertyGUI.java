@@ -2,7 +2,9 @@ package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
+import com.gravityyfh.roleplaycity.town.data.TerritoryEntity;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import org.bukkit.Bukkit;
@@ -59,23 +61,26 @@ public class MyPropertyGUI implements Listener {
             }
         }
 
-        // Récupérer tous les terrains possédés (en excluant ceux qui font partie d'un groupe)
+        // ⚠️ NOUVEAU SYSTÈME : town.getPlots() contient SEULEMENT les plots individuels
+        // Les plots groupés n'existent plus en tant qu'entités séparées, donc pas besoin de filtrer
         List<Plot> ownedPlots = new ArrayList<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getOwnerUuid())) {
-                // Exclure les parcelles qui font partie d'un groupe
-                if (!town.isPlotInAnyGroup(plot)) {
+                // Vérification robuste : s'assurer que ce n'est pas un groupe
+                TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+                if (territory instanceof Plot) {
                     ownedPlots.add(plot);
                 }
             }
         }
 
-        // Récupérer tous les terrains loués (en excluant ceux qui font partie d'un groupe)
+        // ⚠️ NOUVEAU SYSTÈME : Récupérer tous les terrains loués (plots individuels uniquement)
         List<Plot> rentedPlots = new ArrayList<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getRenterUuid())) {
-                // Exclure les parcelles qui font partie d'un groupe
-                if (!town.isPlotInAnyGroup(plot)) {
+                // Vérification robuste : s'assurer que ce n'est pas un groupe
+                TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+                if (territory instanceof Plot) {
                     rentedPlots.add(plot);
                 }
             }
@@ -199,7 +204,7 @@ public class MyPropertyGUI implements Listener {
         // Si groupé, afficher les infos du groupe
         if (isInGroup) {
             lore.add(ChatColor.LIGHT_PURPLE + "🏘️ Groupe: " + ChatColor.WHITE + group.getGroupName());
-            lore.add(ChatColor.YELLOW + "Surface totale groupe: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+            lore.add(ChatColor.YELLOW + "Surface totale groupe: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
             lore.add(ChatColor.GRAY + "─────────────────");
         }
 
@@ -254,24 +259,15 @@ public class MyPropertyGUI implements Listener {
         // Description
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "─────────────────");
-        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
-        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getChunkKeys().size());
+        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
 
-        // Récupérer la première parcelle du groupe pour vérifier le type
-        Plot firstPlot = null;
-        if (!group.getPlotKeys().isEmpty()) {
-            String firstKey = group.getPlotKeys().iterator().next();
-            String[] parts = firstKey.split(":");
-            if (parts.length == 3) {
-                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-            }
-        }
-
+        // ⚠️ NOUVEAU SYSTÈME : Utiliser les propriétés directes du groupe autonome
         // Propriétaire ou Entreprise
-        if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
-            // Terrain PROFESSIONNEL : afficher entreprise
+        if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && group.getCompanySiret() != null) {
+            // Terrain PROFESSIONNEL : afficher entreprise directement du groupe
             com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
-                .getCompanyBySiret(firstPlot.getCompanySiret());
+                .getCompanyBySiret(group.getCompanySiret());
             if (ownerCompany != null) {
                 lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
             } else {
@@ -319,25 +315,16 @@ public class MyPropertyGUI implements Listener {
         // Description
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "─────────────────");
-        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
-        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+        lore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getChunkKeys().size());
+        lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
         lore.add(ChatColor.GRAY + "─────────────────");
 
-        // Récupérer la première parcelle du groupe pour vérifier le type
-        Plot firstPlot = null;
-        if (!group.getPlotKeys().isEmpty()) {
-            String firstKey = group.getPlotKeys().iterator().next();
-            String[] parts = firstKey.split(":");
-            if (parts.length == 3) {
-                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-            }
-        }
-
+        // ⚠️ NOUVEAU SYSTÈME : Utiliser les propriétés directes du groupe autonome
         // Propriétaire du groupe ou Entreprise
-        if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
-            // Terrain PROFESSIONNEL : afficher entreprise
+        if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && group.getCompanySiret() != null) {
+            // Terrain PROFESSIONNEL : afficher entreprise directement du groupe
             com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
-                .getCompanyBySiret(firstPlot.getCompanySiret());
+                .getCompanyBySiret(group.getCompanySiret());
             if (ownerCompany != null) {
                 lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
             } else {

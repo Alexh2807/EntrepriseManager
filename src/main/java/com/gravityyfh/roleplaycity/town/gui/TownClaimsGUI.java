@@ -6,6 +6,8 @@ import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
+
+import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -42,13 +44,25 @@ public class TownClaimsGUI implements Listener {
 
     /**
      * Vérifie si le joueur possède au moins un terrain dans la ville
+     * ⚠️ NOUVEAU SYSTÈME : Vérifie plots individuels ET PlotGroups
      */
     private boolean hasOwnedPlots(Player player, Town town) {
+        UUID playerUuid = player.getUniqueId();
+
+        // Vérifier plots individuels
         for (Plot plot : town.getPlots().values()) {
-            if (plot.isOwnedBy(player.getUniqueId())) {
+            if (plot.isOwnedBy(playerUuid)) {
                 return true;
             }
         }
+
+        // ⚠️ NOUVEAU : Vérifier PlotGroups
+        for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : town.getPlotGroups().values()) {
+            if (playerUuid.equals(group.getOwnerUuid())) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -131,6 +145,23 @@ public class TownClaimsGUI implements Listener {
         if (claimManager.isClaimed(currentChunk)) {
             String owner = claimManager.getClaimOwner(currentChunk);
             Plot plot = claimManager.getPlotAt(currentChunk);
+            // Fallback: si aucun Plot, tenter un PlotGroup autonome directement
+            if (plot == null) {
+                com.gravityyfh.roleplaycity.town.data.PlotGroup groupAt =
+                    town.getPlotGroupAt(currentChunk.getWorld().getName(), currentChunk.getX(), currentChunk.getZ());
+                if (groupAt != null) {
+                    boolean isAdminOrOwner = (role != null && (role.canManageClaims() || role == TownRole.MAIRE))
+                        || groupAt.isOwnedBy(player.getUniqueId()) || groupAt.isRentedBy(player.getUniqueId());
+                    if (!isAdminOrOwner) {
+                        player.sendMessage(ChatColor.RED + "Vous devez Ǧtre propriǸtaire/locataire de ce groupe ou administrateur.");
+                        player.closeInventory();
+                        return;
+                    }
+                    player.closeInventory();
+                    plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, groupAt.getGroupId());
+                    return;
+                }
+            }
             infoLore.add(ChatColor.GRAY + "Ville: " + ChatColor.GOLD + owner);
             if (plot != null) {
                 infoLore.add(ChatColor.GRAY + "Type: " + ChatColor.AQUA + plot.getType().getDisplayName());
@@ -163,12 +194,12 @@ public class TownClaimsGUI implements Listener {
 
             if (isOnGroup) {
                 // On est sur un groupe
-                int totalSurface = currentGroup.getPlotCount() * 256;
+                int totalSurface = currentGroup.getChunkKeys().size() * 256;
                 managePlotMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Gérer ce Groupe de Terrains");
                 List<String> managePlotLore = new ArrayList<>();
                 managePlotLore.add(ChatColor.GRAY + "─────────────────");
                 managePlotLore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + currentGroup.getGroupName());
-                managePlotLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + currentGroup.getPlotCount());
+                managePlotLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + currentGroup.getChunkKeys().size());
                 managePlotLore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + totalSurface + "m²");
                 managePlotLore.add(ChatColor.GRAY + "─────────────────");
                 managePlotLore.add(ChatColor.GRAY + "Vendre, louer ou modifier");
@@ -218,7 +249,7 @@ public class TownClaimsGUI implements Listener {
                 ungroupLore.add(ChatColor.GRAY + "Séparer ce groupe en");
                 ungroupLore.add(ChatColor.GRAY + "parcelles individuelles");
                 ungroupLore.add("");
-                ungroupLore.add(ChatColor.YELLOW + "Groupe actuel: " + ChatColor.WHITE + currentGroup.getPlotCount() + " parcelles");
+                ungroupLore.add(ChatColor.YELLOW + "Groupe actuel: " + ChatColor.WHITE + currentGroup.getChunkKeys().size() + " parcelles");
                 ungroupLore.add("");
                 ungroupLore.add(ChatColor.RED + "Cliquez pour désassembler");
                 ungroupMeta.setLore(ungroupLore);
@@ -368,9 +399,10 @@ public class TownClaimsGUI implements Listener {
 
                     // Désassembler directement le groupe
                     String groupName = group.getGroupName();
-                    int plotCount = group.getPlotCount();
+                    int plotCount = group.getChunkKeys().size();
 
-                    town.removePlotGroup(group.getGroupId());
+                    // ⚠️ CORRECTION : Utiliser dissolveGroup() qui recrée les plots individuels
+                    town.dissolveGroup(group.getGroupId());
                     townManager.saveTownsNow();
 
                     player.closeInventory();
@@ -380,6 +412,22 @@ public class TownClaimsGUI implements Listener {
                     player.sendMessage(ChatColor.RED + "Aucun groupe détecté sur ce terrain.");
                     player.closeInventory();
                 }
+            }
+        }
+        // Gérer ce Groupe de Terrains (prise en charge explicite)
+        else if (displayName.contains("G�rer ce Groupe de Terrains")) {
+            boolean isAdmin = (role != null && (role.canManageClaims() || role == TownRole.MAIRE));
+            com.gravityyfh.roleplaycity.town.data.PlotGroup groupAt =
+                town.getPlotGroupAt(currentChunk.getWorld().getName(), currentChunk.getX(), currentChunk.getZ());
+            boolean allowed = (groupAt != null) && (groupAt.isOwnedBy(player.getUniqueId()) || groupAt.isRentedBy(player.getUniqueId()));
+            if (!isAdmin && !allowed) {
+                player.sendMessage(ChatColor.RED + "Vous devez être propriétaire/locataire de ce groupe ou administrateur.");
+                player.closeInventory();
+                return;
+            }
+            if (groupAt != null) {
+                player.closeInventory();
+                plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, groupAt.getGroupId());
             }
         }
         // === FERMER ===

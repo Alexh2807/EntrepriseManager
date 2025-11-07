@@ -257,8 +257,9 @@ public class TownCommandHandler implements CommandExecutor {
                 }
             }
 
-            // Vérifier si la parcelle est dans un groupe
-            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle est dans un groupe
+            com.gravityyfh.roleplaycity.town.data.TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = (territory instanceof com.gravityyfh.roleplaycity.town.data.PlotGroup) ? (com.gravityyfh.roleplaycity.town.data.PlotGroup) territory : null;
             boolean isInGroup = (plotGroup != null);
 
             // Vérifier la vente (groupe ou parcelle individuelle)
@@ -270,7 +271,7 @@ public class TownCommandHandler implements CommandExecutor {
 
             // Récupérer les informations
             double salePrice = isInGroup ? plotGroup.getSalePrice() : plot.getSalePrice();
-            int surface = isInGroup ? (plotGroup.getPlotCount() * 256) : 256;
+            int surface = isInGroup ? (plotGroup.getChunkKeys().size() * 256) : 256;
 
             // Message de confirmation
             player.sendMessage("");
@@ -278,7 +279,7 @@ public class TownCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRMATION D'ACHAT");
             player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
             if (isInGroup) {
-                player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName() + " (" + plotGroup.getPlotCount() + " parcelles)");
+                player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName() + " (" + plotGroup.getChunkKeys().size() + " parcelles)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + "256m² (" + (chunkX * 16) + ", " + (chunkZ * 16) + ")");
@@ -355,8 +356,9 @@ public class TownCommandHandler implements CommandExecutor {
                 return;
             }
 
-            // Vérifier si la parcelle est dans un groupe
-            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle est dans un groupe
+            com.gravityyfh.roleplaycity.town.data.TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = (territory instanceof com.gravityyfh.roleplaycity.town.data.PlotGroup) ? (com.gravityyfh.roleplaycity.town.data.PlotGroup) territory : null;
             boolean isInGroup = (plotGroup != null);
 
             // Vérifier la location
@@ -370,7 +372,7 @@ public class TownCommandHandler implements CommandExecutor {
             double rentPrice = isInGroup ? plotGroup.getRentPricePerDay() : plot.getRentPricePerDay();
             UUID currentRenter = isInGroup ? plotGroup.getRenterUuid() : plot.getRenterUuid();
             int currentDays = isInGroup ? plotGroup.getRentDaysRemaining() : plot.getRentDaysRemaining();
-            int surface = isInGroup ? (plotGroup.getPlotCount() * 256) : 256;
+            int surface = isInGroup ? (plotGroup.getChunkKeys().size() * 256) : 256;
 
             // NOUVEAU SYSTÈME: Location initiale de 1 jour, rechargeable jusqu'à 30 jours max
             int daysToRent = 1;
@@ -395,7 +397,7 @@ public class TownCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + (isRecharge ? "RECHARGE DE LOCATION" : "LOCATION"));
             player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
             if (isInGroup) {
-                player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName() + " (" + plotGroup.getPlotCount() + " parcelles)");
+                player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName() + " (" + plotGroup.getChunkKeys().size() + " parcelles)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + "256m² (" + (chunkX * 16) + ", " + (chunkZ * 16) + ")");
@@ -483,8 +485,9 @@ public class TownCommandHandler implements CommandExecutor {
                 return;
             }
 
-            // Vérifier si la parcelle est dans un groupe
-            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle est dans un groupe
+            com.gravityyfh.roleplaycity.town.data.TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = (territory instanceof com.gravityyfh.roleplaycity.town.data.PlotGroup) ? (com.gravityyfh.roleplaycity.town.data.PlotGroup) territory : null;
             boolean isInGroup = (plotGroup != null);
 
             // Vérifier la vente
@@ -499,7 +502,7 @@ public class TownCommandHandler implements CommandExecutor {
             int surface;
             if (isInGroup) {
                 success = economyManager.buyPlotGroup(townName, plotGroup, player);
-                surface = plotGroup.getPlotCount() * 256;
+                surface = plotGroup.getChunkKeys().size() * 256;
             } else {
                 success = economyManager.buyPlot(townName, plot, player);
                 surface = 256;
@@ -513,7 +516,7 @@ public class TownCommandHandler implements CommandExecutor {
                 if (isInGroup) {
                     player.sendMessage(ChatColor.YELLOW + "Félicitations ! Vous êtes maintenant propriétaire de ce groupe de parcelles.");
                     player.sendMessage(ChatColor.GRAY + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName());
-                    player.sendMessage(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + plotGroup.getPlotCount());
+                    player.sendMessage(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + plotGroup.getChunkKeys().size());
                 } else {
                     player.sendMessage(ChatColor.YELLOW + "Félicitations ! Vous êtes maintenant propriétaire de cette parcelle.");
                     player.sendMessage(ChatColor.GRAY + "Position: " + ChatColor.WHITE + "X: " + (chunkX * 16) + " Z: " + (chunkZ * 16));
@@ -561,8 +564,9 @@ public class TownCommandHandler implements CommandExecutor {
                 return;
             }
 
-            // Vérifier si la parcelle est dans un groupe
-            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle est dans un groupe
+            com.gravityyfh.roleplaycity.town.data.TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = (territory instanceof com.gravityyfh.roleplaycity.town.data.PlotGroup) ? (com.gravityyfh.roleplaycity.town.data.PlotGroup) territory : null;
             boolean isInGroup = (plotGroup != null);
 
             // Vérifier la location
@@ -580,7 +584,7 @@ public class TownCommandHandler implements CommandExecutor {
 
             if (isInGroup) {
                 success = economyManager.rentPlotGroup(townName, plotGroup, player, days);
-                surface = plotGroup.getPlotCount() * 256;
+                surface = plotGroup.getChunkKeys().size() * 256;
                 rentPrice = plotGroup.getRentPricePerDay();
                 finalDays = plotGroup.getRentDaysRemaining();
             } else {
@@ -599,7 +603,7 @@ public class TownCommandHandler implements CommandExecutor {
                 if (isInGroup) {
                     player.sendMessage(ChatColor.YELLOW + "Vous louez maintenant ce groupe pour " + days + " jour(s) !");
                     player.sendMessage(ChatColor.GRAY + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName());
-                    player.sendMessage(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + plotGroup.getPlotCount());
+                    player.sendMessage(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + plotGroup.getChunkKeys().size());
                 } else {
                     player.sendMessage(ChatColor.YELLOW + "Vous louez maintenant cette parcelle pour " + days + " jour(s) !");
                     player.sendMessage(ChatColor.GRAY + "Position: " + ChatColor.WHITE + "X: " + (chunkX * 16) + " Z: " + (chunkZ * 16));

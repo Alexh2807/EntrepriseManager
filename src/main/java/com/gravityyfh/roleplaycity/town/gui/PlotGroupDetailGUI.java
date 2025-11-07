@@ -130,32 +130,27 @@ public class PlotGroupDetailGUI implements Listener {
 
         // === LIGNE 1 : INFORMATIONS DU GROUPE ===
 
-        // Info groupe (slot 4)
+        // ⚠️ NOUVEAU SYSTÈME : Info groupe à partir des propriétés autonomes
         ItemStack infoItem = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = infoItem.getItemMeta();
         infoMeta.setDisplayName(ChatColor.GOLD + "Informations du Groupe");
         List<String> infoLore = new ArrayList<>();
         infoLore.add(ChatColor.GRAY + "─────────────────");
         infoLore.add(ChatColor.YELLOW + "Nom: " + ChatColor.WHITE + group.getGroupName());
-        infoLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + group.getPlotCount());
-        infoLore.add(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+        infoLore.add(ChatColor.YELLOW + "Chunks: " + ChatColor.WHITE + group.getChunkKeys().size());
+        infoLore.add(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
 
-        // Récupérer la première parcelle du groupe pour vérifier le type
-        Plot firstPlot = null;
-        if (!group.getPlotKeys().isEmpty()) {
-            String firstKey = group.getPlotKeys().iterator().next();
-            String[] parts = firstKey.split(":");
-            if (parts.length == 3) {
-                firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-            }
+        // Afficher le type depuis le groupe directement
+        if (group.getType() != null) {
+            infoLore.add(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + group.getType().name());
         }
 
-        // Afficher propriétaire ou entreprise selon le type
+        // Afficher propriétaire ou entreprise selon le type du groupe
         if (group.getOwnerName() != null) {
-            if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getCompanySiret() != null) {
-                // Terrain PROFESSIONNEL : afficher entreprise
+            if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && group.getCompanySiret() != null) {
+                // Terrain PROFESSIONNEL : afficher entreprise directement du groupe
                 com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
-                    .getCompanyBySiret(firstPlot.getCompanySiret());
+                    .getCompanyBySiret(group.getCompanySiret());
                 if (ownerCompany != null) {
                     infoLore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");
                 } else {
@@ -167,6 +162,16 @@ public class PlotGroupDetailGUI implements Listener {
             }
         }
 
+        // Afficher les dettes si existantes
+        double companyDebt = group.getCompanyDebtAmount();
+        double particularDebt = group.getParticularDebtAmount();
+        if (companyDebt > 0) {
+            infoLore.add(ChatColor.RED + "Dette entreprise: " + String.format("%.2f€", companyDebt));
+        }
+        if (particularDebt > 0) {
+            infoLore.add(ChatColor.RED + "Dette particulier: " + String.format("%.2f€", particularDebt));
+        }
+
         infoLore.add(ChatColor.GRAY + "─────────────────");
         if (group.isForSale()) {
             infoLore.add(ChatColor.GREEN + "✓ En vente: " + String.format("%.2f€", group.getSalePrice()));
@@ -175,11 +180,11 @@ public class PlotGroupDetailGUI implements Listener {
             infoLore.add(ChatColor.AQUA + "✓ En location: " + String.format("%.2f€/jour", group.getRentPricePerDay()));
         }
         if (group.getRenterUuid() != null) {
-            // Afficher locataire ou entreprise locataire selon le type
-            if (firstPlot != null && firstPlot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && firstPlot.getRenterCompanySiret() != null) {
+            // Afficher locataire ou entreprise locataire depuis le groupe
+            if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && group.getRenterCompanySiret() != null) {
                 // Entreprise locataire
                 com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
-                    .getCompanyBySiret(firstPlot.getRenterCompanySiret());
+                    .getCompanyBySiret(group.getRenterCompanySiret());
                 if (renterCompany != null) {
                     infoLore.add(ChatColor.LIGHT_PURPLE + "Loué à: " + renterCompany.getNom() + ChatColor.GRAY + " (" + renterCompany.getType() + ") " + ChatColor.WHITE + "(" + group.getRentDaysRemaining() + "j)");
                 } else {
@@ -215,7 +220,7 @@ public class PlotGroupDetailGUI implements Listener {
         ItemMeta plotsMeta = plotsItem.getItemMeta();
         plotsMeta.setDisplayName(ChatColor.GREEN + "Voir les Parcelles");
         List<String> plotsLore = new ArrayList<>();
-        plotsLore.add(ChatColor.GRAY + "Liste des " + group.getPlotCount() + " parcelles");
+        plotsLore.add(ChatColor.GRAY + "Liste des " + group.getChunkKeys().size() + " parcelles");
         plotsLore.add("");
         plotsLore.add(ChatColor.YELLOW + "Cliquez pour voir le détail");
         plotsMeta.setLore(plotsLore);
@@ -326,7 +331,7 @@ public class PlotGroupDetailGUI implements Listener {
     }
 
     /**
-     * Ouvre le menu de liste des parcelles du groupe
+     * ⚠️ NOUVEAU SYSTÈME : Affiche les chunks du groupe autonome
      */
     public void openPlotListMenu(Player player, String townName, String groupId) {
         Town town = townManager.getTown(townName);
@@ -335,25 +340,16 @@ public class PlotGroupDetailGUI implements Listener {
         PlotGroup group = town.getPlotGroup(groupId);
         if (group == null) return;
 
-        // Récupérer les parcelles du groupe via les plotKeys
-        List<Plot> plots = new ArrayList<>();
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                if (plot != null) {
-                    plots.add(plot);
-                }
-            }
-        }
-        int rows = Math.min(6, Math.max(2, (plots.size() + 9) / 9));
-        Inventory inv = Bukkit.createInventory(null, rows * 9, ChatColor.GREEN + "Parcelles: " + group.getGroupName());
+        // ⚠️ NOUVEAU SYSTÈME : Récupérer les chunks du groupe directement
+        Set<String> chunkKeys = group.getChunkKeys();
+        int rows = Math.min(6, Math.max(2, (chunkKeys.size() + 9) / 9));
+        Inventory inv = Bukkit.createInventory(null, rows * 9, ChatColor.GREEN + "Chunks: " + group.getGroupName());
 
         int slot = 0;
-        for (Plot plot : plots) {
+        for (String chunkKey : chunkKeys) {
             if (slot >= (rows - 1) * 9) break;
 
-            ItemStack item = createPlotDisplayItem(plot);
+            ItemStack item = createChunkDisplayItem(chunkKey, group);
             inv.setItem(slot, item);
             slot++;
         }
@@ -369,8 +365,41 @@ public class PlotGroupDetailGUI implements Listener {
     }
 
     /**
-     * Crée un item représentant une parcelle
+     * ⚠️ NOUVEAU SYSTÈME : Crée un item représentant un chunk du groupe
      */
+    private ItemStack createChunkDisplayItem(String chunkKey, PlotGroup group) {
+        Material material = getMaterialForPlotType(group.getType() != null ? group.getType() : PlotType.PARTICULIER);
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+
+        String[] parts = chunkKey.split(":");
+        if (parts.length == 3) {
+            int chunkX = Integer.parseInt(parts[1]);
+            int chunkZ = Integer.parseInt(parts[2]);
+
+            meta.setDisplayName(ChatColor.GREEN + (group.getType() != null ? group.getType().getDisplayName() : "Chunk"));
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "─────────────────");
+            lore.add(ChatColor.YELLOW + "Chunk: " + ChatColor.WHITE + "X:" + chunkX + " Z:" + chunkZ);
+            lore.add(ChatColor.YELLOW + "Position: " + ChatColor.WHITE + "X:" + (chunkX * 16) + " Z:" + (chunkZ * 16));
+            lore.add(ChatColor.YELLOW + "Monde: " + ChatColor.WHITE + parts[0]);
+
+            if (group.getCompanyName() != null) {
+                lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + group.getCompanyName());
+            }
+
+            meta.setLore(lore);
+        }
+
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /**
+     * @deprecated Ne plus utiliser - plots individuels n'existent plus dans les groupes
+     */
+    @Deprecated
     private ItemStack createPlotDisplayItem(Plot plot) {
         Material material = getMaterialForPlotType(plot.getType());
         ItemStack item = new ItemStack(material);
@@ -557,33 +586,17 @@ public class PlotGroupDetailGUI implements Listener {
 
         // Retirer le propriétaire du GROUPE (le groupe reste intact)
         // C'est le maire qui décide du groupement/dégroupement, pas le propriétaire
+        // ⚠️ NOUVEAU SYSTÈME : Nettoyer uniquement les propriétés du groupe autonome
         group.setOwner(null, null);
+        group.setCompanyName(null);
+        group.setCompanySiret(null);
+        group.resetDebt();
+        group.resetParticularDebt();
 
-        // Retirer aussi le propriétaire de toutes les parcelles individuelles
-        List<String> plotKeys = new ArrayList<>(group.getPlotKeys());
-        for (String plotKey : plotKeys) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String world = parts[0];
-                int x = Integer.parseInt(parts[1]);
-                int z = Integer.parseInt(parts[2]);
-
-                Plot plot = town.getPlot(world, x, z);
-                if (plot != null) {
-                    // FIX CRITIQUE: Nettoyer TOUTES les données du terrain (propriétaire, entreprise, dettes)
-                    townManager.clearPlotOwnership(plot);
-                    // Ne pas mettre les parcelles individuelles en vente
-                    // C'est le groupe qui sera en vente
-                    plot.setForSale(false);
-                    plot.setForRent(false);
-                    plot.clearRenter();
-                }
-            }
-        }
-
-        // Mettre le GROUPE en vente (pas les parcelles individuelles)
+        // Mettre le GROUPE en vente
         group.setForSale(true);
-        double defaultPrice = plotKeys.size() * 1000.0; // 1000€ par parcelle
+        int chunkCount = group.getChunkKeys().size();
+        double defaultPrice = chunkCount * 1000.0; // 1000€ par chunk
         group.setSalePrice(defaultPrice);
 
         // Nettoyer les paramètres de location du groupe
@@ -596,7 +609,7 @@ public class PlotGroupDetailGUI implements Listener {
         NavigationManager.sendStyledMessage(player, "GROUPE RETOURNE A LA VILLE", Arrays.asList(
             "+Le groupe '" + group.getGroupName() + "' a été retourné à la ville",
             "",
-            "Parcelles: " + plotKeys.size(),
+            "Parcelles: " + group.getChunkKeys().size(),
             "*Le groupe reste groupé (seul le maire peut dégrouper)",
             "*Le groupe est maintenant en vente",
             "*Prix: " + String.format("%.2f€", defaultPrice)
@@ -696,7 +709,7 @@ public class PlotGroupDetailGUI implements Listener {
             "!Cette action est IRRÉVERSIBLE !",
             "",
             "Groupe: " + group.getGroupName(),
-            "Parcelles: " + group.getPlotCount(),
+            "Parcelles: " + group.getChunkKeys().size(),
             "",
             "*Les parcelles redeviendront indépendantes",
             "*Tous les paramètres du groupe seront perdus",
@@ -853,10 +866,11 @@ public class PlotGroupDetailGUI implements Listener {
             }
 
             // Dégrouper
-            int plotCount = group.getPlotCount();
+            int plotCount = group.getChunkKeys().size();
             String groupName = group.getGroupName();
 
-            town.removePlotGroup(context.groupId);
+            // ⚠️ CORRECTION : Utiliser dissolveGroup() qui recrée les plots individuels
+            List<Plot> createdPlots = town.dissolveGroup(context.groupId);
             townManager.saveTownsNow();
 
             NavigationManager.sendStyledMessage(player, "✓ GROUPE DÉGROUPÉ AVEC SUCCÈS", Arrays.asList(

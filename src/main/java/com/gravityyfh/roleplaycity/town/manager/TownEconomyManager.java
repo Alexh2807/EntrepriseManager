@@ -48,8 +48,9 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
-        if (town.isPlotInAnyGroup(plot)) {
+        // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle fait partie d'un groupe
+        TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+        if (territory instanceof PlotGroup) {
             seller.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             seller.sendMessage(ChatColor.YELLOW + "Vous devez vendre le groupe entier depuis 'Mes Propriétés'.");
             return false;
@@ -90,8 +91,9 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
-        if (town.isPlotInAnyGroup(plot)) {
+        // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle fait partie d'un groupe
+        TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+        if (territory instanceof PlotGroup) {
             buyer.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             buyer.sendMessage(ChatColor.YELLOW + "Vous devez acheter le groupe entier.");
             return false;
@@ -262,8 +264,9 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
-        if (town.isPlotInAnyGroup(plot)) {
+        // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle fait partie d'un groupe
+        TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+        if (territory instanceof PlotGroup) {
             owner.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             owner.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier depuis 'Mes Propriétés'.");
             return false;
@@ -310,8 +313,9 @@ public class TownEconomyManager {
             return false;
         }
 
-        // SYNCHRONISATION : Vérifier si la parcelle fait partie d'un groupe
-        if (town.isPlotInAnyGroup(plot)) {
+        // ⚠️ NOUVEAU SYSTÈME : Vérifier si la parcelle fait partie d'un groupe
+        TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+        if (territory instanceof PlotGroup) {
             renter.sendMessage(ChatColor.RED + "Cette parcelle fait partie d'un groupe !");
             renter.sendMessage(ChatColor.YELLOW + "Vous devez louer le groupe entier.");
             return false;
@@ -626,20 +630,11 @@ public class TownEconomyManager {
 
         Set<String> plotsInGroupsProcessed = new HashSet<>();
         for (PlotGroup group : town.getPlotGroups().values()) {
-            plotsInGroupsProcessed.addAll(group.getPlotKeys());
+            // ⚠️ NOUVEAU SYSTÈME : Track chunks in groups to avoid double-taxation
+            plotsInGroupsProcessed.addAll(group.getChunkKeys());
 
-            double groupTax = 0;
-            List<Plot> groupPlots = new ArrayList<>();
-            for (String plotKey : group.getPlotKeys()) {
-                String[] parts = plotKey.split(":");
-                if (parts.length == 3) {
-                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                    if (plot != null) {
-                        groupPlots.add(plot);
-                        groupTax += plot.getDailyTax();
-                    }
-                }
-            }
+            // ⚠️ NOUVEAU SYSTÈME : Get tax directly from autonomous group
+            double groupTax = group.getDailyTax();
 
             if (groupTax <= 0) {
                 continue;
@@ -654,18 +649,15 @@ public class TownEconomyManager {
             String payerName = payer.getName() != null ? payer.getName() :
                     (group.getOwnerName() != null ? group.getOwnerName() : payerUuid.toString());
 
-            boolean isProfessionalGroup = false;
-            String companySiret = null;
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier le type du groupe autonome
+            boolean isProfessionalGroup = group.getType() == PlotType.PROFESSIONNEL;
+            String companySiret = group.getCompanySiret();
             EntrepriseManagerLogic.Entreprise company = null;
 
-            for (Plot plot : groupPlots) {
-                if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                    isProfessionalGroup = true;
-                    companySiret = plot.getCompanySiret();
-                    company = plugin.getCompanyPlotManager().getCompanyBySiret(companySiret);
-                    break;
-                }
+            if (isProfessionalGroup && companySiret != null) {
+                company = plugin.getCompanyPlotManager().getCompanyBySiret(companySiret);
             }
+
             debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
             if (isProfessionalGroup && company != null && company.getGerantUUID() != null) {
                 try {
@@ -692,17 +684,16 @@ public class TownEconomyManager {
             if (paymentSuccess) {
                 town.deposit(groupTax);
                 totalCollected += groupTax;
-                parcelsWithTax += groupPlots.size();
+                parcelsWithTax += group.getChunkCount();
 
-                for (Plot plot : groupPlots) {
-                    if (isProfessionalGroup) {
-                        if (plot.getCompanyDebtAmount() > 0) {
-                            plot.resetDebt();
-                        }
-                    } else {
-                        if (plot.getParticularDebtAmount() > 0) {
-                            plot.resetParticularDebt();
-                        }
+                // ⚠️ NOUVEAU SYSTÈME : Réinitialiser les dettes du groupe autonome
+                if (isProfessionalGroup) {
+                    if (group.getCompanyDebtAmount() > 0) {
+                        group.resetDebt();
+                    }
+                } else {
+                    if (group.getParticularDebtAmount() > 0) {
+                        group.resetParticularDebt();
                     }
                 }
 
@@ -710,11 +701,11 @@ public class TownEconomyManager {
                     if (isProfessionalGroup && company != null) {
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "€ Taxe entreprise (groupe): " + ChatColor.GOLD +
                                 String.format("%.2f€", groupTax) + ChatColor.GRAY + " prélevée pour " +
-                                group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                                group.getGroupName() + ChatColor.GRAY + " (" + group.getChunkCount() + " parcelles)");
                     } else {
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Taxe groupe: " + ChatColor.GOLD +
                                 String.format("%.2f€", groupTax) + ChatColor.GRAY + " prélevée pour " +
-                                group.getGroupName() + ChatColor.GRAY + " (" + groupPlots.size() + " parcelles)");
+                                group.getGroupName() + ChatColor.GRAY + " (" + group.getChunkCount() + " parcelles)");
                     }
                 }
 
@@ -731,77 +722,76 @@ public class TownEconomyManager {
             } else {
                 unpaidPlayers.add(payerName);
 
-                Plot firstPlot = groupPlots.isEmpty() ? null : groupPlots.get(0);
-                if (firstPlot != null) {
-                    if (isProfessionalGroup && company != null) {
-                        double newDebt = firstPlot.getCompanyDebtAmount() + groupTax;
-                        firstPlot.setCompanyDebtAmount(newDebt);
+                // ⚠️ NOUVEAU SYSTÈME : Gérer dettes directement au niveau du groupe autonome
+                if (isProfessionalGroup && company != null) {
+                    double newDebt = group.getCompanyDebtAmount() + groupTax;
+                    group.setCompanyDebtAmount(newDebt);
 
-                        if (firstPlot.getDebtWarningCount() == 0) {
-                            firstPlot.setLastDebtWarningDate(LocalDateTime.now());
-                            firstPlot.setDebtWarningCount(1);
+                    if (group.getDebtWarningCount() == 0) {
+                        group.setLastDebtWarningDate(LocalDateTime.now());
+                        group.setDebtWarningCount(1);
 
-                            String gerantUuidStr = company.getGerantUUID();
-                            if (gerantUuidStr != null) {
-                                try {
-                                    UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                                    debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-                                } catch (IllegalArgumentException ex) {
-                                    plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
-                                }
-                            }
-                            if (gerantUuidStr != null) {
+                        String gerantUuidStr = company.getGerantUUID();
+                        if (gerantUuidStr != null) {
+                            try {
                                 UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException ex) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
                             }
-
-                            plugin.getLogger().warning(String.format(
-                                    "[TownEconomyManager] Entreprise %s (SIRET %s) - Dette de %.2f€ sur groupe %s (%s)",
-                                    company.getNom(), company.getSiret(), newDebt, group.getGroupName(), townName
-                            ));
-                        } else {
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                         }
 
-                        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                        if (companyManager.checkCompanyDebtStatus(firstPlot)) {
-                            companyManager.seizePlotForDebt(firstPlot, townName);
-                            town.removePlotGroup(group.getGroupId());
-                        }
+                        plugin.getLogger().warning(String.format(
+                                "[TownEconomyManager] Entreprise %s (SIRET %s) - Dette de %.2f€ sur groupe %s (%s)",
+                                company.getNom(), company.getSiret(), newDebt, group.getGroupName(), townName
+                        ));
                     } else {
-                        double newDebt = firstPlot.getParticularDebtAmount() + groupTax;
-                        firstPlot.setParticularDebtAmount(newDebt);
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    }
 
-                        if (firstPlot.getParticularDebtWarningCount() == 0) {
-                            firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
-                            firstPlot.setParticularDebtWarningCount(1);
-
-
-
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-                        } else {
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    // Vérifier saisie après 7 jours
+                    if (group.getLastDebtWarningDate() != null) {
+                        long daysSinceWarning = Duration.between(group.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                        if (daysSinceWarning >= 7) {
+                            plugin.getLogger().warning(String.format(
+                                    "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette entreprise (Dette: %.2f€)",
+                                    group.getGroupName(), group.getCompanyDebtAmount()
+                            ));
+                            // Transférer le groupe entier à la ville
+                            group.setOwner(null, null);
+                            group.setCompanyName(null);
+                            group.setCompanySiret(null);
+                            group.resetDebt();
+                            group.setForSale(true);
+                            group.setSalePrice(group.getChunkKeys().size() * 1000.0);
                         }
+                    }
+                } else {
+                    // Dette particulier
+                    double newDebt = group.getParticularDebtAmount() + groupTax;
+                    group.setParticularDebtAmount(newDebt);
 
-                        if (firstPlot.getParticularLastDebtWarningDate() != null) {
-                            long daysSinceWarning = Duration.between(firstPlot.getParticularLastDebtWarningDate(), LocalDateTime.now()).toDays();
-                            if (daysSinceWarning >= 7) {
-                                plugin.getLogger().warning(String.format(
-                                        "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
-                                        group.getGroupName(), payerName, firstPlot.getParticularDebtAmount()
-                                ));
+                    if (group.getParticularDebtWarningCount() == 0) {
+                        group.setParticularLastDebtWarningDate(LocalDateTime.now());
+                        group.setParticularDebtWarningCount(1);
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    } else {
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    }
 
-
-
-                                for (Plot plot : groupPlots) {
-                                    townManager.transferPlotToTown(plot, "Dette impayée groupe: " + String.format("%.2f€", plot.getParticularDebtAmount()));
-                                    plot.setForSale(true);
-                                    plot.setSalePrice(1000.0);
-                                }
-
-                                town.removePlotGroup(group.getGroupId());
-                            }
+                    // Vérifier saisie après 7 jours
+                    if (group.getParticularLastDebtWarningDate() != null) {
+                        long daysSinceWarning = Duration.between(group.getParticularLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                        if (daysSinceWarning >= 7) {
+                            plugin.getLogger().warning(String.format(
+                                    "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
+                                    group.getGroupName(), payerName, group.getParticularDebtAmount()
+                            ));
+                            // Transférer le groupe entier à la ville
+                            group.setOwner(null, null);
+                            group.resetParticularDebt();
+                            group.setForSale(true);
+                            group.setSalePrice(group.getChunkKeys().size() * 1000.0);
                         }
                     }
                 }
@@ -961,24 +951,13 @@ public class TownEconomyManager {
         List<String> unpaidPlayers = new ArrayList<>();
         Map<UUID, Double> playerTaxes = new HashMap<>(); // Pour les rapports individuels
 
-        // SYSTêME AUTOMATIQUE : Collecter d'abord les taxes des groupes
+        // ⚠️ NOUVEAU SYSTÈME : Collecter taxes directement depuis les groupes autonomes
         Set<String> plotsInGroupsProcessed = new HashSet<>();
         for (PlotGroup group : town.getPlotGroups().values()) {
-            plotsInGroupsProcessed.addAll(group.getPlotKeys());
+            plotsInGroupsProcessed.addAll(group.getChunkKeys());
 
-            // Calculer la taxe horaire totale du groupe
-            double groupDailyTax = 0;
-            List<Plot> groupPlots = new ArrayList<>();
-            for (String plotKey : group.getPlotKeys()) {
-                String[] parts = plotKey.split(":");
-                if (parts.length == 3) {
-                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                    if (plot != null) {
-                        groupPlots.add(plot);
-                        groupDailyTax += plot.getDailyTax();
-                    }
-                }
-            }
+            // ⚠️ NOUVEAU SYSTÈME : Obtenir taxe directement du groupe
+            double groupDailyTax = group.getDailyTax();
 
             if (groupDailyTax <= 0) continue;
 
@@ -994,19 +973,14 @@ public class TownEconomyManager {
             String payerName = payer.getName() != null ? payer.getName() : payerUuid.toString();
 
             // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL (entreprise)
-            boolean isProfessionalGroup = false;
-            String companySiret = null;
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier le type du groupe autonome
+            boolean isProfessionalGroup = group.getType() == PlotType.PROFESSIONNEL;
+            String companySiret = group.getCompanySiret();
             EntrepriseManagerLogic.Entreprise company = null;
 
-            // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
-            for (Plot plot : groupPlots) {
-                if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                    isProfessionalGroup = true;
-                    companySiret = plot.getCompanySiret();
-                    CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                    company = companyManager.getCompanyBySiret(companySiret);
-                    break;
-                }
+            if (isProfessionalGroup && companySiret != null) {
+                CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+                company = companyManager.getCompanyBySiret(companySiret);
             }
 
             // Prélever la taxe du groupe
@@ -1029,20 +1003,18 @@ public class TownEconomyManager {
             if (paymentSuccess) {
                 town.deposit(groupHourlyTax);
                 totalCollected += groupHourlyTax;
-                parcelsWithTax += groupPlots.size();
+                parcelsWithTax += group.getChunkCount();
 
-                // Réinitialiser les dettes de toutes les parcelles du groupe si endettées
-                for (Plot plot : groupPlots) {
-                    if (isProfessionalGroup) {
-                        // Réinitialiser dettes entreprise
-                        if (plot.getCompanyDebtAmount() > 0) {
-                            plot.resetDebt();
-                        }
-                    } else {
-                        // Réinitialiser dettes particulier
-                        if (plot.getParticularDebtAmount() > 0) {
-                            plot.resetParticularDebt();
-                        }
+                // ⚠️ NOUVEAU SYSTÈME : Réinitialiser les dettes du groupe autonome
+                if (isProfessionalGroup) {
+                    // Réinitialiser dettes entreprise
+                    if (group.getCompanyDebtAmount() > 0) {
+                        group.resetDebt();
+                    }
+                } else {
+                    // Réinitialiser dettes particulier
+                    if (group.getParticularDebtAmount() > 0) {
+                        group.resetParticularDebt();
                     }
                 }
 
@@ -1064,24 +1036,21 @@ public class TownEconomyManager {
                         "Taxe horaire groupe " + group.getGroupName()
                 ));
             } else {
-                // NOUVEAU : Fonds insuffisants - créer/augmenter la dette sur la première parcelle du groupe
+                // ⚠️ NOUVEAU SYSTÈME : Fonds insuffisants - créer/augmenter la dette directement dans le groupe autonome
                 unpaidPlayers.add(payerName);
 
-                // Utiliser la première parcelle du groupe pour stocker la dette totale
-                Plot firstPlot = groupPlots.isEmpty() ? null : groupPlots.get(0);
-                if (firstPlot != null) {
-                    double newDebt;
+                double newDebt;
 
-                    // Déterminer le type de dette selon le type de groupe
-                    if (isProfessionalGroup && company != null) {
-                        // GROUPE PROFESSIONNEL : Dette d'entreprise
-                        newDebt = firstPlot.getCompanyDebtAmount() + groupHourlyTax;
-                        firstPlot.setCompanyDebtAmount(newDebt);
+                // Déterminer le type de dette selon le type de groupe
+                if (isProfessionalGroup && company != null) {
+                    // GROUPE PROFESSIONNEL : Dette d'entreprise
+                    newDebt = group.getCompanyDebtAmount() + groupHourlyTax;
+                    group.setCompanyDebtAmount(newDebt);
 
-                        // Si c'est le premier avertissement
-                        if (firstPlot.getDebtWarningCount() == 0) {
-                            firstPlot.setLastDebtWarningDate(LocalDateTime.now());
-                            firstPlot.setDebtWarningCount(1);
+                    // Si c'est le premier avertissement
+                    if (group.getDebtWarningCount() == 0) {
+                        group.setLastDebtWarningDate(LocalDateTime.now());
+                        group.setDebtWarningCount(1);
 
                             // Notifier le gérant - FORMAT UNIFIë
                             String gerantUuidStr = company.getGerantUUID();
@@ -1101,104 +1070,106 @@ public class TownEconomyManager {
 
                             }
 
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-                        } else {
-                            // Dette déjà existante
-                            String gerantUuidStr = company.getGerantUUID();
-                            if (gerantUuidStr != null) {
-                                try {
-                                    UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                                    debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-                                } catch (IllegalArgumentException ex) {
-                                    plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
-                                }
-                            } else {
-                                plugin.getLogger().warning("Impossible de notifier le gérant de l'entreprise " + company.getNom() + " (SIRET: " + company.getSiret() + ") car l'UUID du gérant est manquant.");
-                            }
-                            if (gerantUuidStr != null) {
-                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                                OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
-
-                            }
-
-                            firstPlot.setDebtWarningCount(firstPlot.getDebtWarningCount() + 1);
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-                        }
-
-                        plugin.getLogger().warning(String.format(
-                                "[TownEconomyManager] Groupe PRO %s - Fonds insuffisants pour taxe de %.2f€ (Entreprise: %s, Dette: %.2f€)",
-                                group.getGroupName(), groupHourlyTax, company.getNom(), newDebt
-                        ));
-
-                        // Vérifier saisie automatique
-                        CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                        if (companyManager.checkCompanyDebtStatus(firstPlot)) {
-                            companyManager.seizePlotForDebt(firstPlot, townName);
-                            // Supprimer le groupe après saisie
-                            town.removePlotGroup(group.getGroupId());
-                        }
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                     } else {
-                        // GROUPE PARTICULIER : Dette personnelle
-                        newDebt = firstPlot.getParticularDebtAmount() + groupHourlyTax;
-                        firstPlot.setParticularDebtAmount(newDebt);
-
-                        // Si c'est le premier avertissement
-                        if (firstPlot.getParticularDebtWarningCount() == 0) {
-                            firstPlot.setParticularLastDebtWarningDate(LocalDateTime.now());
-                            firstPlot.setParticularDebtWarningCount(1);
-
-                            // Avertissement au joueur - FORMAT UNIFIë
-
-
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                        // Dette déjà existante
+                        String gerantUuidStr = company.getGerantUUID();
+                        if (gerantUuidStr != null) {
+                            try {
+                                UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                            } catch (IllegalArgumentException ex) {
+                                plugin.getLogger().warning("UUID invalide pour le gérant de l'entreprise " + company.getNom() + ": " + gerantUuidStr);
+                            }
                         } else {
-                            // Dette déjà existante
-                            debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
-
+                            plugin.getLogger().warning("Impossible de notifier le gérant de l'entreprise " + company.getNom() + " (SIRET: " + company.getSiret() + ") car l'UUID du gérant est manquant.");
+                        }
+                        if (gerantUuidStr != null) {
+                            UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                            OfflinePlayer gerant = Bukkit.getOfflinePlayer(gerantUuid);
 
                         }
 
-                        plugin.getLogger().warning(String.format(
-                                "[TownEconomyManager] Groupe %s - Fonds insuffisants pour taxe de %.2f€ (Propriétaire: %s, Dette: %.2f€)",
-                                group.getGroupName(), groupHourlyTax, payerName, newDebt
-                        ));
+                        group.setDebtWarningCount(group.getDebtWarningCount() + 1);
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    }
 
-                        // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours)
-                        if (firstPlot.getParticularLastDebtWarningDate() != null) {
-                            LocalDateTime warningDate = firstPlot.getParticularLastDebtWarningDate();
-                            long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
+                    plugin.getLogger().warning(String.format(
+                            "[TownEconomyManager] Groupe PRO %s - Fonds insuffisants pour taxe de %.2f€ (Entreprise: %s, Dette: %.2f€)",
+                            group.getGroupName(), groupHourlyTax, company.getNom(), newDebt
+                    ));
 
-                            if (daysSinceWarning >= 7) {
-                                // SAISIE AUTOMATIQUE de tous les terrains du groupe
-                                plugin.getLogger().warning(String.format(
-                                        "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
-                                        group.getGroupName(), payerName, firstPlot.getParticularDebtAmount()
-                                ));
+                    // ⚠️ NOUVEAU SYSTÈME : Vérifier saisie automatique après 7 jours
+                    if (group.getLastDebtWarningDate() != null) {
+                        long daysSinceWarning = java.time.Duration.between(group.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
 
-                                // Notifier le joueur
+                        if (daysSinceWarning >= 7) {
+                            // SAISIE AUTOMATIQUE : Transférer le groupe entier à la ville
+                            plugin.getLogger().warning(String.format(
+                                    "[TownEconomyManager] SAISIE AUTO - Groupe PRO %s saisi pour dette (Entreprise: %s, Dette: %.2f€)",
+                                    group.getGroupName(), company.getNom(), group.getCompanyDebtAmount()
+                            ));
 
-
-                                // FIX CRITIQUE: Retour de tous les terrains à la ville avec nettoyage complet
-                                for (Plot plot : groupPlots) {
-                                    // Utiliser transferPlotToTown pour un nettoyage complet
-                                    townManager.transferPlotToTown(plot, "Dette impayée groupe: " +
-                                            String.format("%.2f€", plot.getParticularDebtAmount()));
-
-                                    // Remettre en vente
-                                    plot.setForSale(true);
-                                    plot.setSalePrice(1000.0); // Prix par défaut
-                                }
-
-                                // Supprimer le groupe
-                                town.removePlotGroup(group.getGroupId());
-                            }
-                        }  // <- Fermeture du if (firstPlot.getParticularLastDebtWarningDate() != null)
+                            // Retour à la ville avec nettoyage complet
+                            group.setOwner(null, null);
+                            group.setCompanyName(null);
+                            group.setCompanySiret(null);
+                            group.resetDebt();
+                            group.setForSale(true);
+                            group.setSalePrice(group.getChunkKeys().size() * 1000.0);
+                        }
                     }
                 } else {
-                    // Pas de parcelle dans le groupe - juste notifier
-                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    // GROUPE PARTICULIER : Dette personnelle
+                    newDebt = group.getParticularDebtAmount() + groupHourlyTax;
+                    group.setParticularDebtAmount(newDebt);
+
+                    // Si c'est le premier avertissement
+                    if (group.getParticularDebtWarningCount() == 0) {
+                        group.setParticularLastDebtWarningDate(LocalDateTime.now());
+                        group.setParticularDebtWarningCount(1);
+
+                        // Avertissement au joueur - FORMAT UNIFIë
 
 
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    } else {
+                        // Dette déjà existante
+                        group.setParticularDebtWarningCount(group.getParticularDebtWarningCount() + 1);
+                        debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+
+
+                    }
+
+                    plugin.getLogger().warning(String.format(
+                            "[TownEconomyManager] Groupe %s - Fonds insuffisants pour taxe de %.2f€ (Propriétaire: %s, Dette: %.2f€)",
+                            group.getGroupName(), groupHourlyTax, payerName, newDebt
+                    ));
+
+                    // ⚠️ NOUVEAU SYSTÈME : Vérifier si le délai de grâce est dépassé (7 jours)
+                    if (group.getParticularLastDebtWarningDate() != null) {
+                        LocalDateTime warningDate = group.getParticularLastDebtWarningDate();
+                        long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
+
+                        if (daysSinceWarning >= 7) {
+                            // SAISIE AUTOMATIQUE : Transférer le groupe entier à la ville
+                            plugin.getLogger().warning(String.format(
+                                    "[TownEconomyManager] SAISIE AUTO - Groupe %s saisi pour dette (Propriétaire: %s, Dette: %.2f€)",
+                                    group.getGroupName(), payerName, group.getParticularDebtAmount()
+                            ));
+
+                            // Notifier le joueur
+
+
+                            // Retour à la ville avec nettoyage complet
+                            group.setOwner(null, null);
+                            group.setCompanyName(null);
+                            group.setCompanySiret(null);
+                            group.resetDebt();
+                            group.setForSale(true);
+                            group.setSalePrice(group.getChunkKeys().size() * 1000.0);
+                        }
+                    }
                 }
             }
         }
@@ -1557,20 +1528,8 @@ public class TownEconomyManager {
         group.setSalePrice(price);
         group.setForSale(true);
 
-        // Mettre aussi toutes les parcelles individuelles en vente
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null) {
-                    plot.setForSale(false); // Empêcher vente individuelle
-                }
-            }
-        }
+        // ⚠️ NOUVEAU SYSTÈME : PlotGroup autonome, pas besoin de modifier les plots individuels
+        // Le groupe est l'entité complète, la vente se fait via le groupe uniquement
 
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
@@ -1598,28 +1557,15 @@ public class TownEconomyManager {
             return false;
         }
 
-        // === NOUVEAU : Détecter si le groupe contient des terrains PROFESSIONNEL ===
-        boolean hasProfessionalPlot = false;
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
-                    hasProfessionalPlot = true;
-                    break;
-                }
-            }
-        }
+        // ⚠️ NOUVEAU SYSTÈME : Utiliser le type du groupe directement (plus de recherche de plots)
+        boolean hasProfessionalPlot = (group.getType() == PlotType.PROFESSIONNEL);
 
         double price = group.getSalePrice();
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise buyerCompany = null;
-        String oldCompanySiret = null; // Déclaré ici pour être accessible dans le bloc d'annulation
+        String oldCompanySiret = group.getCompanySiret(); // Utiliser directement le SIRET du groupe
 
-        // Si le groupe contient des terrains PRO, valider l'entreprise et utiliser les fonds d'entreprise
+        // Si le groupe est PROFESSIONNEL, valider l'entreprise et utiliser les fonds d'entreprise
         if (hasProfessionalPlot) {
             buyerCompany = companyManager.getPlayerCompany(buyer);
             if (buyerCompany == null) {
@@ -1649,17 +1595,7 @@ public class TownEconomyManager {
 
         // Donner l'argent au propriétaire ou à la banque
         if (group.getOwnerUuid() != null) {
-            // Vérifier si l'ancien propriétaire avait une entreprise
-            for (String plotKey : group.getPlotKeys()) {
-                String[] parts = plotKey.split(":");
-                if (parts.length == 3) {
-                    Plot plot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                    if (plot != null && plot.getCompanySiret() != null) {
-                        oldCompanySiret = plot.getCompanySiret();
-                        break;
-                    }
-                }
-            }
+            // ⚠️ NOUVEAU SYSTÈME : oldCompanySiret déjà récupéré directement du groupe
 
             if (oldCompanySiret != null) {
                 // Ancien terrain PRO - argent va à l'ancienne entreprise
@@ -1703,83 +1639,37 @@ public class TownEconomyManager {
             town.deposit(price);
         }
 
-        // FIX CRITIQUE: Vérifier d'abord que TOUTES les parcelles existent
-        List<Plot> existingPlots = new ArrayList<>();
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot == null) {
-                    buyer.sendMessage(ChatColor.RED + "ÔØî ERREUR: Le groupe contient des parcelles manquantes !");
-                    buyer.sendMessage(ChatColor.YELLOW + "Parcelle introuvable: " + worldName + ":" + chunkX + "," + chunkZ);
-                    buyer.sendMessage(ChatColor.GRAY + "Contactez un administrateur pour nettoyer ce groupe.");
-
-                    // Rembourser l'acheteur
-                    if (hasProfessionalPlot && buyerCompany != null) {
-                        buyerCompany.setSolde(buyerCompany.getSolde() + price);
-                    } else {
-                        RoleplayCity.getEconomy().depositPlayer(buyer, price);
-                    }
-
-                    // Annuler la transaction avec le vendeur
-                    if (group.getOwnerUuid() != null) {
-                        OfflinePlayer previousOwner = Bukkit.getOfflinePlayer(group.getOwnerUuid());
-                        if (oldCompanySiret != null) {
-                            EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(oldCompanySiret);
-                            if (previousCompany != null) {
-                                previousCompany.setSolde(previousCompany.getSolde() - price);
-                            }
-                        } else {
-                            RoleplayCity.getEconomy().withdrawPlayer(previousOwner, price);
-                        }
-                    } else {
-                        town.withdraw(price);
-                    }
-
-                    return false;
-                }
-                existingPlots.add(plot);
-            }
-        }
+        // ⚠️ NOUVEAU SYSTÈME : PlotGroup autonome - plus besoin de chercher les plots individuels
+        // Le groupe est l'entité complète, on met à jour directement ses propriétés
 
         // Transférer la propriété du groupe
         group.setOwner(buyer.getUniqueId(), buyer.getName());
         group.setForSale(false);
 
-        // Transférer toutes les parcelles individuelles + companySiret si nécessaire
-        for (Plot plot : existingPlots) {
-            plot.setOwner(buyer.getUniqueId(), buyer.getName());
-            plot.setForSale(false);
+        // Réinitialiser TOUTES les dettes (entreprise ET particulier)
+        group.resetDebt();
+        group.resetParticularDebt();
 
-            // FIX CRITIQUE: Réinitialiser TOUTES les dettes (entreprise ET particulier)
-            plot.resetDebt();
-            plot.resetParticularDebt();
-
-            // Si terrain PROFESSIONNEL, enregistrer l'entreprise
-            if (plot.getType() == PlotType.PROFESSIONNEL && buyerCompany != null) {
-                plot.setCompany(buyerCompany.getNom());
-                plot.setCompanySiret(buyerCompany.getSiret());
-            } else {
-                plot.setCompany(null);
-                plot.setCompanySiret(null);
-            }
+        // Si terrain PROFESSIONNEL, enregistrer l'entreprise
+        if (group.getType() == PlotType.PROFESSIONNEL && buyerCompany != null) {
+            group.setCompanyName(buyerCompany.getNom());
+            group.setCompanySiret(buyerCompany.getSiret());
+        } else {
+            group.setCompanyName(null);
+            group.setCompanySiret(null);
         }
 
         // Messages personnalisés selon le type
         if (hasProfessionalPlot && buyerCompany != null) {
             buyer.sendMessage(ChatColor.GREEN + "Ô£ô Groupe de parcelles PROFESSIONNEL acheté avec succès !");
             buyer.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + buyerCompany.getNom());
-            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
+            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getChunkKeys().size());
             buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + String.format("%.2f€", price));
             buyer.sendMessage(ChatColor.YELLOW + "Solde entreprise restant: " + ChatColor.GOLD + String.format("%.2f€", buyerCompany.getSolde()));
             buyer.sendMessage(ChatColor.GRAY + "Les taxes seront prélevées du solde de l'entreprise.");
         } else {
             buyer.sendMessage(ChatColor.GREEN + "Groupe de parcelles acheté avec succès !");
-            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getPlotCount());
+            buyer.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.GOLD + group.getChunkKeys().size());
             buyer.sendMessage(ChatColor.YELLOW + "Prix payé: " + ChatColor.GOLD + price + "€");
         }
 
@@ -1799,7 +1689,7 @@ public class TownEconomyManager {
         // Notification d'achat de groupe
         notificationManager.notifyPurchaseSuccess(
                 buyer.getUniqueId(),
-                "Groupe '" + group.getGroupName() + "' (" + group.getPlotCount() + " terrains)",
+                "Groupe '" + group.getGroupName() + "' (" + group.getChunkKeys().size() + " terrains)",
                 price
         );
 
@@ -1832,22 +1722,19 @@ public class TownEconomyManager {
         group.setRentPricePerDay(pricePerDay);
         group.setForRent(true);
 
-        // Scanner et protéger tous les blocs de toutes les parcelles du groupe
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
+        // ⚠️ NOUVEAU SYSTÈME : Scanner et protéger tous les blocs directement via le groupe
+        // Le PlotGroup a son propre RenterBlockTracker
+        for (String chunkKey : group.getChunkKeys()) {
+            String[] parts = chunkKey.split(":");
             if (parts.length == 3) {
                 String worldName = parts[0];
                 int chunkX = Integer.parseInt(parts[1]);
                 int chunkZ = Integer.parseInt(parts[2]);
 
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null) {
-                    // FIX CRITIQUE: Utiliser le monde de la parcelle, pas celui du propriétaire
-                    org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
-                    if (world != null) {
-                        Chunk chunk = world.getChunkAt(chunkX, chunkZ);
-                        plot.scanAndProtectExistingBlocks(chunk);
-                    }
+                org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
+                if (world != null) {
+                    Chunk chunk = world.getChunkAt(chunkX, chunkZ);
+                    group.scanAndProtectExistingBlocks(chunk);
                 }
             }
         }
@@ -1881,30 +1768,12 @@ public class TownEconomyManager {
         int actualDays = Math.min(days, 30);
         double totalCost = group.getRentPricePerDay() * actualDays;
 
-        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL (entreprise)
-        boolean isProfessionalGroup = false;
+        // ⚠️ NOUVEAU SYSTÈME : Détecter si c'est un groupe PROFESSIONNEL directement
+        boolean isProfessionalGroup = (group.getType() == PlotType.PROFESSIONNEL);
         String renterCompanySiret = null;
-        String ownerCompanySiret = null;
+        String ownerCompanySiret = group.getCompanySiret();  // Direct from autonomous group
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise renterCompany = null;
-
-        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
-                    isProfessionalGroup = true;
-                    if (plot.getCompanySiret() != null) {
-                        ownerCompanySiret = plot.getCompanySiret();
-                    }
-                    break;
-                }
-            }
-        }
 
         // Si groupe PRO, valider l'entreprise du locataire
         if (isProfessionalGroup) {
@@ -1969,27 +1838,13 @@ public class TownEconomyManager {
             town.deposit(totalCost);
         }
 
-        // Configurer la location sur le groupe
+        // ⚠️ NOUVEAU SYSTÈME : Configurer la location directement sur le groupe autonome
         group.setRenter(renter.getUniqueId(), actualDays);
         group.setForRent(false);
 
-        // Appliquer la location sur toutes les parcelles individuelles aussi
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null) {
-                    plot.setRenter(renter.getUniqueId(), actualDays);
-                    // Si groupe PRO, stocker le SIRET de l'entreprise du locataire
-                    if (isProfessionalGroup && renterCompanySiret != null) {
-                        plot.setRenterCompanySiret(renterCompanySiret);
-                    }
-                }
-            }
+        // Si groupe PRO, stocker le SIRET de l'entreprise du locataire
+        if (isProfessionalGroup && renterCompanySiret != null) {
+            group.setRenterCompanySiret(renterCompanySiret);
         }
 
         renter.sendMessage(ChatColor.GREEN + "Groupe loué avec succès !");
@@ -2008,7 +1863,7 @@ public class TownEconomyManager {
         // Notification de location de groupe
         notificationManager.notifyRentalSuccess(
                 renter.getUniqueId(),
-                "Groupe '" + group.getGroupName() + "' (" + group.getPlotCount() + " terrains)",
+                "Groupe '" + group.getGroupName() + "' (" + group.getChunkKeys().size() + " terrains)",
                 actualDays,
                 totalCost
         );
@@ -2041,33 +1896,12 @@ public class TownEconomyManager {
         int actualDaysToAdd = Math.min(daysToAdd, maxCanAdd);
         double totalCost = group.getRentPricePerDay() * actualDaysToAdd;
 
-        // NOUVEAU : Détecter si c'est un groupe PROFESSIONNEL
-        boolean isProfessionalGroup = false;
-        String renterCompanySiret = null;
-        String ownerCompanySiret = null;
+        // ⚠️ NOUVEAU SYSTÈME : Détecter groupe PROFESSIONNEL directement
+        boolean isProfessionalGroup = (group.getType() == PlotType.PROFESSIONNEL);
+        String renterCompanySiret = group.getRenterCompanySiret();
+        String ownerCompanySiret = group.getCompanySiret();
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         EntrepriseManagerLogic.Entreprise renterCompany = null;
-
-        // Vérifier si au moins une parcelle du groupe est PROFESSIONNEL
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null && plot.getType() == PlotType.PROFESSIONNEL) {
-                    isProfessionalGroup = true;
-                    if (plot.getCompanySiret() != null) {
-                        ownerCompanySiret = plot.getCompanySiret();
-                    }
-                    if (plot.getRenterCompanySiret() != null) {
-                        renterCompanySiret = plot.getRenterCompanySiret();
-                    }
-                    break;
-                }
-            }
-        }
 
         // Si groupe PRO, utiliser l'entreprise du locataire
         if (isProfessionalGroup) {
@@ -2136,23 +1970,8 @@ public class TownEconomyManager {
             town.deposit(totalCost);
         }
 
-        // Recharger le solde du groupe
+        // ⚠️ NOUVEAU SYSTÈME : Recharger directement le groupe autonome
         int actualAdded = group.rechargeDays(actualDaysToAdd);
-
-        // Synchroniser avec toutes les parcelles du groupe
-        for (String plotKey : group.getPlotKeys()) {
-            String[] parts = plotKey.split(":");
-            if (parts.length == 3) {
-                String worldName = parts[0];
-                int chunkX = Integer.parseInt(parts[1]);
-                int chunkZ = Integer.parseInt(parts[2]);
-
-                Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                if (plot != null && plot.getRenterUuid() != null) {
-                    plot.rechargeDays(actualAdded);
-                }
-            }
-        }
 
         renter.sendMessage(ChatColor.GREEN + "Solde rechargé : +" + actualAdded + " jours");
         renter.sendMessage(ChatColor.YELLOW + "Jours restants : " + ChatColor.GOLD + group.getRentDaysRemaining() + "/30");
@@ -2194,23 +2013,8 @@ public class TownEconomyManager {
                             townName
                     );
 
-                    // Retirer la location du groupe
+                    // ⚠️ NOUVEAU SYSTÈME : Retirer location directement du groupe autonome
                     group.clearRenter();
-
-                    // Retirer aussi de toutes les parcelles
-                    for (String plotKey : group.getPlotKeys()) {
-                        String[] parts = plotKey.split(":");
-                        if (parts.length == 3) {
-                            String worldName = parts[0];
-                            int chunkX = Integer.parseInt(parts[1]);
-                            int chunkZ = Integer.parseInt(parts[2]);
-
-                            Plot plot = town.getPlot(worldName, chunkX, chunkZ);
-                            if (plot != null) {
-                                plot.clearRenter();
-                            }
-                        }
-                    }
 
                     plugin.getLogger().info("Location de groupe expirée: " + group.getGroupName() + " dans " + townName);
                 }

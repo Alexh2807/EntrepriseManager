@@ -49,56 +49,39 @@ public class TownProtectionListener implements Listener {
             return;
         }
 
-        // NOUVEAU SYSTÈME : Vérifier si c'est un locataire
-        Plot plot = claimManager.getPlotAt(location);
-        if (plot != null) {
-            UUID playerUuid = player.getUniqueId();
+        // ⚠️ NOUVEAU SYSTÈME : Gestion RenterBlockTracker avec PlotGroup autonome
+        String townName = claimManager.getClaimOwner(location);
+        if (townName != null) {
+            Town town = townManager.getTown(townName);
+            if (town != null) {
+                TerritoryEntity territory = town.getTerritoryAt(location);
+                if (territory != null) {
+                    UUID playerUuid = player.getUniqueId();
+                    UUID renterUuid = territory.getRenterUuid();
 
-            // Chercher si ce plot fait partie d'un groupe
-            PlotGroup group = findPlotGroup(plot);
+                    // CAS 1 : Joueur est locataire - peut seulement casser SES blocs
+                    if (territory.isRentedBy(playerUuid)) {
+                        if (!territory.getRenterBlockTracker().canRenterBreak(playerUuid, location)) {
+                            event.setCancelled(true);
+                            player.sendMessage(ChatColor.RED + "Vous ne pouvez pas casser les blocs existants de cette location.");
+                            player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement casser les blocs que vous avez placés.");
+                            return;
+                        }
+                        // Retirer le bloc du tracker après cassage
+                        territory.getRenterBlockTracker().removeBlock(playerUuid, location);
+                        townManager.saveTownsNow();
+                        return;
+                    }
 
-            if (group != null && group.isRentedBy(playerUuid)) {
-                // Locataire d'un groupe : peut seulement casser SES blocs
-                if (!group.getRenterBlockTracker().canRenterBreak(playerUuid, location)) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Vous ne pouvez pas casser les blocs existants de cette location.");
-                    player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement casser les blocs que vous avez placés.");
-                    return;
-                }
-                // Retirer le bloc du tracker après cassage
-                group.getRenterBlockTracker().removeBlock(playerUuid, location);
-                // Sauvegarder immédiatement après modification
-                townManager.saveTownsNow();
-
-            } else if (plot.isRentedBy(playerUuid)) {
-                // Locataire d'un plot individuel : peut seulement casser SES blocs
-                if (!plot.getRenterBlockTracker().canRenterBreak(playerUuid, location)) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Vous ne pouvez pas casser les blocs existants de cette location.");
-                    player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement casser les blocs que vous avez placés.");
-                    return;
-                }
-                // Retirer le bloc du tracker après cassage
-                plot.getRenterBlockTracker().removeBlock(playerUuid, location);
-                // Sauvegarder immédiatement après modification
-                townManager.saveTownsNow();
-
-            } else if (group != null && group.getRenterUuid() != null && !group.isRentedBy(playerUuid)) {
-                // PROTECTION PROPRIÉTAIRE : Propriétaire essaie de casser les blocs du locataire du groupe
-                if (group.getRenterBlockTracker().canRenterBreak(group.getRenterUuid(), location)) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
-                    player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
-                    return;
-                }
-
-            } else if (plot.getRenterUuid() != null && !plot.isRentedBy(playerUuid)) {
-                // PROTECTION PROPRIÉTAIRE : Propriétaire essaie de casser les blocs du locataire du plot
-                if (plot.getRenterBlockTracker().canRenterBreak(plot.getRenterUuid(), location)) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
-                    player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
-                    return;
+                    // CAS 2 : Terrain loué à quelqu'un d'autre - propriétaire ne peut pas casser blocs locataire
+                    if (renterUuid != null && !territory.isRentedBy(playerUuid)) {
+                        if (territory.getRenterBlockTracker().canRenterBreak(renterUuid, location)) {
+                            event.setCancelled(true);
+                            player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
+                            player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -117,25 +100,21 @@ public class TownProtectionListener implements Listener {
             return;
         }
 
-        // NOUVEAU SYSTÈME : Tracker les blocs placés par les locataires
-        Plot plot = claimManager.getPlotAt(location);
-        if (plot != null) {
-            UUID playerUuid = player.getUniqueId();
+        // ⚠️ NOUVEAU SYSTÈME : Tracker les blocs placés par les locataires
+        String townName = claimManager.getClaimOwner(location);
+        if (townName != null) {
+            Town town = townManager.getTown(townName);
+            if (town != null) {
+                TerritoryEntity territory = town.getTerritoryAt(location);
+                if (territory != null) {
+                    UUID playerUuid = player.getUniqueId();
 
-            // Chercher si ce plot fait partie d'un groupe
-            PlotGroup group = findPlotGroup(plot);
-
-            if (group != null && group.isRentedBy(playerUuid)) {
-                // Locataire d'un groupe : enregistrer le bloc placé
-                group.getRenterBlockTracker().addBlock(playerUuid, location);
-                // Sauvegarder immédiatement après modification
-                townManager.saveTownsNow();
-
-            } else if (plot.isRentedBy(playerUuid)) {
-                // Locataire d'un plot individuel : enregistrer le bloc placé
-                plot.getRenterBlockTracker().addBlock(playerUuid, location);
-                // Sauvegarder immédiatement après modification
-                townManager.saveTownsNow();
+                    // Si le joueur est locataire, enregistrer le bloc placé
+                    if (territory.isRentedBy(playerUuid)) {
+                        territory.getRenterBlockTracker().addBlock(playerUuid, location);
+                        townManager.saveTownsNow();
+                    }
+                }
             }
         }
     }
@@ -180,7 +159,7 @@ public class TownProtectionListener implements Listener {
 
     /**
      * Vérifie si un joueur peut construire à cet emplacement
-     * AUTOMATIQUE : Détecte si le plot fait partie d'un groupe et utilise les permissions du groupe
+     * NOUVEAU SYSTÈME : Utilise getTerritoryAt() pour gérer Plot ET PlotGroup autonomes
      */
     private boolean canBuild(Player player, Location location) {
         // Admins bypass
@@ -188,29 +167,29 @@ public class TownProtectionListener implements Listener {
             return true;
         }
 
-        Plot plot = claimManager.getPlotAt(location);
-        if (plot == null) {
+        // Récupérer la ville
+        String townName = claimManager.getClaimOwner(location);
+        if (townName == null) {
             // Chunk non claimé, autorisé
             return true;
         }
 
-        UUID playerUuid = player.getUniqueId();
-        String townName = claimManager.getClaimOwner(location);
         Town town = townManager.getTown(townName);
-
         if (town == null) {
             return true; // Sécurité si données corrompues
         }
 
-        // SYSTÈME AUTOMATIQUE : Vérifier si le plot fait partie d'un groupe
-        PlotGroup group = town.findPlotGroupByPlot(plot);
-        if (group != null) {
-            // Le plot est dans un groupe : utiliser les permissions du GROUPE
-            return canBuildInGroup(playerUuid, group, town);
+        // ⚠️ NOUVEAU : Utiliser getTerritoryAt() qui retourne Plot OU PlotGroup
+        TerritoryEntity territory = town.getTerritoryAt(location);
+        if (territory == null) {
+            // Pas de terrain trouvé (ne devrait pas arriver si townName existe)
+            return true;
         }
 
-        // Plot individuel : vérifier les permissions normales
-        return plot.canBuild(playerUuid, town);
+        UUID playerUuid = player.getUniqueId();
+
+        // Utiliser l'interface unifiée TerritoryEntity
+        return territory.canBuild(playerUuid, town);
     }
 
     /**
@@ -238,7 +217,7 @@ public class TownProtectionListener implements Listener {
 
     /**
      * Vérifie si un joueur peut interagir à cet emplacement
-     * AUTOMATIQUE : Détecte si le plot fait partie d'un groupe et utilise les permissions du groupe
+     * NOUVEAU SYSTÈME : Utilise getTerritoryAt() pour gérer Plot ET PlotGroup autonomes
      */
     private boolean canInteract(Player player, Location location) {
         // Admins bypass
@@ -246,29 +225,30 @@ public class TownProtectionListener implements Listener {
             return true;
         }
 
-        Plot plot = claimManager.getPlotAt(location);
-        if (plot == null) {
+        // Récupérer la ville
+        String townName = claimManager.getClaimOwner(location);
+        if (townName == null) {
             // Chunk non claimé, autorisé
             return true;
         }
 
-        UUID playerUuid = player.getUniqueId();
-        String townName = claimManager.getClaimOwner(location);
         Town town = townManager.getTown(townName);
 
         if (town == null) {
+            return true; // Sécurité si données corrompues
+        }
+
+        // ⚠️ NOUVEAU : Utiliser getTerritoryAt() qui retourne Plot OU PlotGroup
+        TerritoryEntity territory = town.getTerritoryAt(location);
+        if (territory == null) {
+            // Pas de terrain trouvé
             return true;
         }
 
-        // SYSTÈME AUTOMATIQUE : Vérifier si le plot fait partie d'un groupe
-        PlotGroup group = town.findPlotGroupByPlot(plot);
-        if (group != null) {
-            // Le plot est dans un groupe : utiliser les permissions du GROUPE
-            return canInteractInGroup(playerUuid, group, town);
-        }
+        UUID playerUuid = player.getUniqueId();
 
-        // Plot individuel : vérifier les permissions normales
-        return plot.canInteract(playerUuid, town);
+        // Utiliser l'interface unifiée TerritoryEntity
+        return territory.canInteract(playerUuid, town);
     }
 
     /**

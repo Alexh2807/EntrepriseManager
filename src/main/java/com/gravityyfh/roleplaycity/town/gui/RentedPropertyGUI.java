@@ -71,7 +71,7 @@ public class RentedPropertyGUI implements Listener {
                 return;
             }
             propertyName = group.getGroupName();
-            surface = group.getPlotCount() * 256;
+            surface = group.getChunkKeys().size() * 256;
             rentPrice = group.getRentPricePerDay();
             daysRemaining = group.getRentDaysRemaining();
             forSale = group.isForSale();

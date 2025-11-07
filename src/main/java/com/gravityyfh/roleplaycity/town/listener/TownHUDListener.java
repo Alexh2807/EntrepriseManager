@@ -2,6 +2,8 @@ package com.gravityyfh.roleplaycity.town.listener;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotGroup;
+import com.gravityyfh.roleplaycity.town.data.TerritoryEntity;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -114,35 +116,50 @@ public class TownHUDListener implements Listener {
                 return;
             }
 
+            // ⚠️ NOUVEAU SYSTÈME : Chercher d'abord un plot individuel, puis un PlotGroup
             Plot plot = town.getPlot(toChunk.getWorld().getName(), toChunk.getX(), toChunk.getZ());
+            PlotGroup plotGroup = null;
+
             if (plot == null) {
-                return;
+                // Pas de plot individuel, chercher un PlotGroup
+                plotGroup = town.getPlotGroupAt(toChunk.getWorld().getName(), toChunk.getX(), toChunk.getZ());
+                if (plotGroup == null) {
+                    return; // Ni plot ni groupe trouvé
+                }
             }
 
-            // Construire l'info de la parcelle pour comparaison
+            // ⚠️ NOUVEAU SYSTÈME : Utiliser TerritoryEntity (Plot OU PlotGroup)
+            TerritoryEntity territory = (plot != null) ? plot : plotGroup;
+            boolean isInGroup = (plot == null); // Si pas de plot individuel, c'est un groupe
+
+            // Construire l'info du territoire pour comparaison
             StringBuilder plotInfo = new StringBuilder();
-            plotInfo.append(plot.getType().name());
-            if (plot.getOwnerUuid() != null) {
-                plotInfo.append(":").append(plot.getOwnerName());
+            plotInfo.append(territory.getType().name());
+            if (territory.getOwnerUuid() != null) {
+                plotInfo.append(":").append(territory.getOwnerName());
             }
-            if (plot.isMunicipal() && plot.getMunicipalSubType() != null) {
-                plotInfo.append(":").append(plot.getMunicipalSubType().name());
+            if (territory.isMunicipal() && territory.getMunicipalSubType() != null) {
+                plotInfo.append(":").append(territory.getMunicipalSubType().name());
             }
-            if (plot.isForSale()) {
-                plotInfo.append(":VENTE:").append(plot.getSalePrice());
+            if (territory.isForSale()) {
+                plotInfo.append(":VENTE:").append(territory.getSalePrice());
             }
-            if (plot.isForRent()) {
-                plotInfo.append(":LOCATION:").append(plot.getRentPricePerDay());
+            if (territory.isForRent()) {
+                plotInfo.append(":LOCATION:").append(territory.getRentPricePerDay());
             }
-            if (plot.getRenterUuid() != null) {
-                plotInfo.append(":LOUE:").append(plot.getRentDaysRemaining());
+            if (territory.getRenterUuid() != null) {
+                plotInfo.append(":LOUE:").append(territory.getRentDaysRemaining());
             }
 
             newState = new TerritoryState(claimingTown, plotInfo.toString());
 
-            // Vérifier si la parcelle fait partie d'un groupe
-            com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
-            boolean isInGroup = (plotGroup != null);
+            // Si plot individuel, vérifier s'il fait partie d'un groupe
+            if (plot != null && plotGroup == null) {
+                plotGroup = town.findPlotGroupByPlot(plot);
+                if (plotGroup != null) {
+                    isInGroup = true;
+                }
+            }
 
             // Construire le message HUD (ActionBar)
             StringBuilder hud = new StringBuilder();
@@ -151,14 +168,14 @@ public class TownHUDListener implements Listener {
             hud.append(ChatColor.GRAY).append(" | ");
 
             // Afficher la surface (sauf pour MUNICIPAL et PUBLIC)
-            com.gravityyfh.roleplaycity.town.data.PlotType plotType = plot.getType();
+            com.gravityyfh.roleplaycity.town.data.PlotType plotType = territory.getType();
             boolean shouldShowSurface = (plotType != com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL &&
                                         plotType != com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC);
 
             if (shouldShowSurface) {
                 if (isInGroup) {
                     // Afficher la surface totale du groupe
-                    int totalSurface = plotGroup.getPlotCount() * 256;
+                    int totalSurface = plotGroup.getChunkKeys().size() * 256;
                     hud.append(ChatColor.WHITE).append(totalSurface).append("m²");
                 } else {
                     // Afficher la surface de la parcelle individuelle
@@ -173,20 +190,20 @@ public class TownHUDListener implements Listener {
                 hud.append(ChatColor.GRAY).append(" | ");
             }
 
-            hud.append(plot.getType().getDisplayName());
+            hud.append(territory.getType().getDisplayName());
 
             // Ajouter le propriétaire si c'est une parcelle privée
-            if (plot.getOwnerUuid() != null) {
+            if (territory.getOwnerUuid() != null) {
                 String displayName;
 
                 // Si terrain PROFESSIONNEL avec entreprise : afficher le nom de l'entreprise
-                if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
+                if (territory.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && territory.getCompanySiret() != null) {
                     com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
-                        .getCompanyBySiret(plot.getCompanySiret());
-                    displayName = (ownerCompany != null) ? ownerCompany.getNom() : (plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu");
+                        .getCompanyBySiret(territory.getCompanySiret());
+                    displayName = (ownerCompany != null) ? ownerCompany.getNom() : (territory.getOwnerName() != null ? territory.getOwnerName() : "Inconnu");
                 } else {
                     // Terrain PARTICULIER : afficher le nom du joueur
-                    displayName = plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu";
+                    displayName = territory.getOwnerName() != null ? territory.getOwnerName() : "Inconnu";
                 }
 
                 hud.append(ChatColor.GRAY).append(" - ");
@@ -194,19 +211,19 @@ public class TownHUDListener implements Listener {
             }
 
             // Ajouter le sous-type si municipal
-            if (plot.isMunicipal() && plot.getMunicipalSubType() != null) {
+            if (territory.isMunicipal() && territory.getMunicipalSubType() != null) {
                 hud.append(ChatColor.GRAY).append(" (");
-                hud.append(plot.getMunicipalSubType().getDisplayName());
+                hud.append(territory.getMunicipalSubType().getDisplayName());
                 hud.append(ChatColor.GRAY).append(")");
             }
 
-            // Ajouter statut vente/location (vérifier groupe ou parcelle)
-            boolean hudForSale = isInGroup ? plotGroup.isForSale() : plot.isForSale();
-            boolean hudForRent = isInGroup ? plotGroup.isForRent() : plot.isForRent();
-            double hudSalePrice = isInGroup ? plotGroup.getSalePrice() : plot.getSalePrice();
-            double hudRentPrice = isInGroup ? plotGroup.getRentPricePerDay() : plot.getRentPricePerDay();
-            java.util.UUID hudRenterUuid = isInGroup ? plotGroup.getRenterUuid() : plot.getRenterUuid();
-            int hudRentDays = isInGroup ? plotGroup.getRentDaysRemaining() : plot.getRentDaysRemaining();
+            // Ajouter statut vente/location (utiliser territory directement)
+            boolean hudForSale = territory.isForSale();
+            boolean hudForRent = territory.isForRent();
+            double hudSalePrice = territory.getSalePrice();
+            double hudRentPrice = territory.getRentPricePerDay();
+            java.util.UUID hudRenterUuid = territory.getRenterUuid();
+            int hudRentDays = territory.getRentDaysRemaining();
 
             if (hudForSale) {
                 hud.append(ChatColor.GREEN).append(" [À VENDRE: ").append(String.format("%.0f€", hudSalePrice)).append("]");
@@ -221,15 +238,15 @@ public class TownHUDListener implements Listener {
             displayMessage = hud.toString();
 
             // Envoyer message détaillé dans le chat si en vente ou location
-            // Vérifier à la fois la parcelle ET le groupe si applicable
-            boolean isForSale = isInGroup ? plotGroup.isForSale() : plot.isForSale();
-            boolean isForRent = isInGroup ? plotGroup.isForRent() : plot.isForRent();
+            boolean isForSale = territory.isForSale();
+            boolean isForRent = territory.isForRent();
 
             if (isForSale || isForRent) {
-                sendDetailedPlotInfo(player, plot, claimingTown);
+                // ⚠️ NOUVEAU SYSTÈME : Passer territory au lieu de plot
+                sendDetailedPlotInfo(player, territory, claimingTown);
 
                 // Démarrer l'affichage automatique du contour
-                startAutoDisplay(player, plot, town, isForSale, isForRent);
+                startAutoDisplay(player, territory, town, isForSale, isForRent);
             }
         } else {
             // Chunk non claim (zone sauvage)
@@ -276,28 +293,51 @@ public class TownHUDListener implements Listener {
             if (isInTown) {
                 Town town = townManager.getTown(claimingTown);
                 if (town != null) {
+                    // ⚠️ NOUVEAU SYSTÈME : Chercher Plot OU PlotGroup
                     Plot plotForScoreboard = town.getPlot(toChunk.getWorld().getName(), toChunk.getX(), toChunk.getZ());
+                    PlotGroup groupForScoreboard = null;
+                    TerritoryEntity territoryForScoreboard = null;
+
                     if (plotForScoreboard != null) {
-                        updateScoreboard(player, town, plotForScoreboard);
+                        territoryForScoreboard = plotForScoreboard;
+                    } else {
+                        // Pas de plot individuel, chercher un PlotGroup
+                        groupForScoreboard = town.getPlotGroupAt(toChunk.getWorld().getName(), toChunk.getX(), toChunk.getZ());
+                        if (groupForScoreboard != null) {
+                            territoryForScoreboard = groupForScoreboard;
+                        }
+                    }
+
+                    if (territoryForScoreboard != null) {
+                        // Créer le scoreboard (fonctionne avec Plot ET PlotGroup)
+                        updateScoreboard(player, town, territoryForScoreboard);
 
                         // Envoyer message détaillé dans le chat si en vente ou location
-                        // Vérifier à la fois la parcelle ET le groupe si applicable
-                        com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plotForScoreboard);
-                        boolean inGroup = (group != null);
-                        boolean forSale = inGroup ? group.isForSale() : plotForScoreboard.isForSale();
-                        boolean forRent = inGroup ? group.isForRent() : plotForScoreboard.isForRent();
+                        boolean forSale = territoryForScoreboard.isForSale();
+                        boolean forRent = territoryForScoreboard.isForRent();
 
                         if (forSale || forRent) {
-                            sendDetailedPlotInfo(player, plotForScoreboard, claimingTown);
+                            sendDetailedPlotInfo(player, territoryForScoreboard, claimingTown);
 
                             // Démarrer l'affichage automatique du contour
-                            startAutoDisplay(player, plotForScoreboard, town, forSale, forRent);
+                            startAutoDisplay(player, territoryForScoreboard, town, forSale, forRent);
                         }
                     }
                 }
             }
 
             lastTerritoryState.put(player.getUniqueId(), newState);
+        }
+    }
+
+    /**
+     * Surcharge pour TerritoryEntity (Plot OU PlotGroup)
+     */
+    private void sendDetailedPlotInfo(Player player, TerritoryEntity territory, String townName) {
+        if (territory instanceof Plot) {
+            sendDetailedPlotInfo(player, (Plot) territory, townName);
+        } else if (territory instanceof PlotGroup) {
+            sendDetailedPlotGroupInfo(player, (PlotGroup) territory, townName);
         }
     }
 
@@ -309,9 +349,9 @@ public class TownHUDListener implements Listener {
         if (town == null) return;
 
         // Vérifier si la parcelle fait partie d'un groupe
-        com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
+        PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
         boolean isInGroup = (plotGroup != null);
-        int totalSurface = isInGroup ? (plotGroup.getPlotCount() * 256) : 256;
+        int totalSurface = isInGroup ? (plotGroup.getChunkKeys().size() * 256) : 256;
 
         player.sendMessage("");
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
@@ -340,7 +380,7 @@ public class TownHUDListener implements Listener {
         if (shouldShowSurface) {
             if (isInGroup) {
                 player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + totalSurface + " m² " +
-                    ChatColor.GRAY + "(" + plotGroup.getPlotCount() + " parcelles groupées)");
+                    ChatColor.GRAY + "(" + plotGroup.getChunkKeys().size() + " parcelles groupées)");
                 player.sendMessage(ChatColor.LIGHT_PURPLE + "Groupe: " + ChatColor.WHITE + plotGroup.getGroupName());
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + "256 m² " + ChatColor.GRAY + "(16x16)");
@@ -446,6 +486,17 @@ public class TownHUDListener implements Listener {
     /**
      * Crée ou met à jour le scoreboard d'un joueur avec les infos du terrain actuel
      */
+    /**
+     * Surcharge pour TerritoryEntity (Plot OU PlotGroup)
+     */
+    private void updateScoreboard(Player player, Town town, TerritoryEntity territory) {
+        if (territory instanceof Plot) {
+            updateScoreboard(player, town, (Plot) territory);
+        } else if (territory instanceof PlotGroup) {
+            updateScoreboardForGroup(player, town, (PlotGroup) territory);
+        }
+    }
+
     private void updateScoreboard(Player player, Town town, Plot plot) {
         // Créer un nouveau scoreboard ou réutiliser l'existant
         Scoreboard scoreboard = playerScoreboards.get(player.getUniqueId());
@@ -468,7 +519,7 @@ public class TownHUDListener implements Listener {
         // Vérifier si la parcelle fait partie d'un groupe
         com.gravityyfh.roleplaycity.town.data.PlotGroup plotGroup = town.findPlotGroupByPlot(plot);
         boolean isInGroup = (plotGroup != null);
-        int totalSurface = isInGroup ? (plotGroup.getPlotCount() * 256) : 256;
+        int totalSurface = isInGroup ? (plotGroup.getChunkKeys().size() * 256) : 256;
 
         int line = 15; // Commencer du haut
 
@@ -679,12 +730,114 @@ public class TownHUDListener implements Listener {
     }
 
     /**
+     * ⚠️ NOUVEAU SYSTÈME : Créé un scoreboard pour un PlotGroup
+     */
+    private void updateScoreboardForGroup(Player player, Town town, PlotGroup group) {
+        // Créer un nouveau scoreboard ou réutiliser l'existant
+        Scoreboard scoreboard = playerScoreboards.get(player.getUniqueId());
+        if (scoreboard == null) {
+            scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+            playerScoreboards.put(player.getUniqueId(), scoreboard);
+        }
+
+        // Supprimer l'ancien objectif s'il existe
+        Objective objective = scoreboard.getObjective("townInfo");
+        if (objective != null) {
+            objective.unregister();
+        }
+
+        // Créer un nouvel objectif
+        objective = scoreboard.registerNewObjective("townInfo", "dummy",
+            ChatColor.GOLD + "" + ChatColor.BOLD + town.getName());
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+
+        int line = 15; // Commencer du haut
+
+        // Ligne vide pour l'espacement
+        objective.getScore(ChatColor.DARK_GRAY + " ").setScore(line--);
+
+        // SECTION TERRAIN
+        objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
+
+        // Type de terrain
+        objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + group.getType().getDisplayName()).setScore(line--);
+
+        // Nom du groupe
+        objective.getScore(" " + ChatColor.LIGHT_PURPLE + group.getGroupName()).setScore(line--);
+
+        // Surface (sauf pour MUNICIPAL et PUBLIC)
+        boolean shouldShowSurface = (group.getType() != com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL &&
+                                    group.getType() != com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC);
+
+        if (shouldShowSurface) {
+            int totalSurface = group.getChunkCount() * 256;
+            objective.getScore(" " + ChatColor.GRAY + "Surface: " + ChatColor.WHITE + totalSurface + "m²").setScore(line--);
+        }
+
+        // Propriétaire
+        if (group.getOwnerUuid() != null) {
+            String ownerName = group.getOwnerName() != null ? group.getOwnerName() : "Inconnu";
+            if (ownerName.length() > 14) {
+                ownerName = ownerName.substring(0, 14) + "...";
+            }
+
+            // Si PROFESSIONNEL, afficher l'entreprise
+            if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && group.getCompanySiret() != null) {
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    .getCompanyBySiret(group.getCompanySiret());
+
+                if (ownerCompany != null) {
+                    String companyName = ownerCompany.getNom();
+                    if (companyName.length() > 14) {
+                        companyName = companyName.substring(0, 14) + "...";
+                    }
+                    objective.getScore(" " + ChatColor.GRAY + "Entreprise: " + ChatColor.YELLOW + companyName).setScore(line--);
+                } else {
+                    objective.getScore(" " + ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + ownerName).setScore(line--);
+                }
+            } else {
+                objective.getScore(" " + ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + ownerName).setScore(line--);
+            }
+        }
+
+        // Ligne vide
+        objective.getScore(ChatColor.DARK_GRAY + "  ").setScore(line--);
+
+        // SECTION VILLE
+        objective.getScore(ChatColor.AQUA + "" + ChatColor.BOLD + "Ville").setScore(line--);
+
+        // Obtenir le nom du maire
+        String mayorName = org.bukkit.Bukkit.getOfflinePlayer(town.getMayorUuid()).getName();
+        if (mayorName == null) {
+            mayorName = "Inconnu";
+        } else if (mayorName.length() > 14) {
+            mayorName = mayorName.substring(0, 14) + "...";
+        }
+        objective.getScore(" " + ChatColor.GRAY + "Maire: " + ChatColor.WHITE + mayorName).setScore(line--);
+        objective.getScore(" " + ChatColor.GRAY + "Citoyens: " + ChatColor.WHITE + town.getMembers().size()).setScore(line--);
+
+        // Appliquer le scoreboard au joueur
+        player.setScoreboard(scoreboard);
+    }
+
+    /**
      * Supprime le scoreboard d'un joueur (quand il quitte une ville)
      */
     private void removeScoreboard(Player player) {
         playerScoreboards.remove(player.getUniqueId());
         // Réinitialiser au scoreboard par défaut
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+    }
+
+    /**
+     * Surcharge pour TerritoryEntity (Plot OU PlotGroup)
+     */
+    private void startAutoDisplay(Player player, TerritoryEntity territory, Town town, boolean isForSale, boolean isForRent) {
+        if (territory instanceof Plot) {
+            startAutoDisplay(player, (Plot) territory, town, isForSale, isForRent);
+        } else if (territory instanceof PlotGroup) {
+            startAutoDisplayGroup(player, (PlotGroup) territory, town, isForSale, isForRent);
+        }
     }
 
     /**
@@ -705,8 +858,8 @@ public class TownHUDListener implements Listener {
         java.util.Set<String> plotKeys = new java.util.HashSet<>();
 
         if (plotGroup != null) {
-            // Afficher tout le groupe
-            plotKeys.addAll(plotGroup.getPlotKeys());
+            // ⚠️ NOUVEAU SYSTÈME : Utiliser getChunkKeys() au lieu de getPlotKeys()
+            plotKeys.addAll(plotGroup.getChunkKeys());
         } else {
             // Afficher seulement la parcelle
             plotKeys.add(plot.getWorldName() + ":" + plot.getChunkX() + ":" + plot.getChunkZ());
@@ -821,5 +974,44 @@ public class TownHUDListener implements Listener {
                 );
             }
         }
+    }
+
+    /**
+     * ⚠️ NOUVEAU SYSTÈME : Affiche les informations détaillées d'un PlotGroup
+     * TODO: Implémenter une vraie version avec toutes les infos du groupe
+     */
+    private void sendDetailedPlotGroupInfo(Player player, PlotGroup group, String townName) {
+        // Pour l'instant, juste un placeholder basique
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        if (group.isForSale()) {
+            player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "GROUPE À VENDRE");
+        } else if (group.isForRent()) {
+            player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "GROUPE EN LOCATION");
+        }
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
+        player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + group.getType().getDisplayName());
+        player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.LIGHT_PURPLE + group.getGroupName());
+        player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + (group.getChunkCount() * 256) + " m² " +
+                ChatColor.GRAY + "(" + group.getChunkCount() + " parcelles)");
+
+        if (group.isForSale()) {
+            player.sendMessage(ChatColor.GREEN + "Prix de vente: " + ChatColor.WHITE + String.format("%.0f€", group.getSalePrice()));
+        }
+        if (group.isForRent()) {
+            player.sendMessage(ChatColor.AQUA + "Location: " + ChatColor.WHITE + String.format("%.0f€/jour", group.getRentPricePerDay()));
+        }
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage("");
+    }
+
+    /**
+     * ⚠️ NOUVEAU SYSTÈME : Affiche le contour d'un PlotGroup
+     * TODO: Implémenter l'affichage des particules pour tous les chunks du groupe
+     */
+    private void startAutoDisplayGroup(Player player, PlotGroup group, Town town, boolean isForSale, boolean isForRent) {
+        // Pour l'instant, ne rien faire (évite les particules sur tous les chunks ce qui lag)
+        // On peut implémenter ça plus tard si besoin
     }
 }

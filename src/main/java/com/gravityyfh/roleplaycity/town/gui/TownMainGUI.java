@@ -4,6 +4,7 @@ import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -92,14 +93,25 @@ public class TownMainGUI implements Listener {
 
     /**
      * Vérifie si le joueur possède ou loue des terrains dans la ville
+     * ⚠️ NOUVEAU SYSTÈME : Vérifie plots individuels ET PlotGroups
      */
     private boolean hasOwnedOrRentedPlots(Player player, Town town) {
         UUID playerUuid = player.getUniqueId();
+
+        // Vérifier plots individuels
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getOwnerUuid()) || playerUuid.equals(plot.getRenterUuid())) {
                 return true;
             }
         }
+
+        // ⚠️ NOUVEAU : Vérifier PlotGroups
+        for (PlotGroup group : town.getPlotGroups().values()) {
+            if (playerUuid.equals(group.getOwnerUuid()) || playerUuid.equals(group.getRenterUuid())) {
+                return true;
+            }
+        }
+
         return false;
     }
 

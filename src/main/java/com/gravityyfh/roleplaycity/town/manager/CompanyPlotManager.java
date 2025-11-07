@@ -133,51 +133,70 @@ public class CompanyPlotManager {
             }
         }
 
-        List<Plot> companyPlots = townManager.getPlotsByCompanySiret(siret, townName);
         Town town = townManager.getTown(townName);
+        if (town == null) {
+            return;
+        }
 
-        if (town == null || companyPlots.isEmpty()) {
+        // ⚠️ NOUVEAU SYSTÈME : Gérer les PlotGroups autonomes de cette entreprise
+        List<PlotGroup> companyGroups = town.getCompanyOwnedGroups(siret);
+        List<Plot> companyPlots = townManager.getPlotsByCompanySiret(siret, townName);
+
+        int totalEntities = companyGroups.size() + companyPlots.size();
+        if (totalEntities == 0) {
             return;
         }
 
         plugin.getLogger().info(String.format(
-            "[CompanyPlotManager] Entreprise SIRET %s supprimée - Vente de %d terrain(s) dans %s",
-            siret, companyPlots.size(), townName
+            "[CompanyPlotManager] Entreprise SIRET %s supprimée - Transfert de %d groupe(s) et %d plot(s) dans %s",
+            siret, companyGroups.size(), companyPlots.size(), townName
         ));
 
+        UUID gerantUuid = null;
+
+        // 1. Traiter les PlotGroups de l'entreprise
+        for (PlotGroup group : companyGroups) {
+            if (gerantUuid == null) {
+                gerantUuid = group.getOwnerUuid();
+            }
+
+            // ⚠️ NOUVEAU SYSTÈME : Transférer le groupe à la ville avec réinitialisation complète
+            group.setOwner(null, null);
+            group.setCompanyName(null);
+            group.setCompanySiret(null);
+            group.resetDebt();  // Réinitialise dette entreprise
+            group.resetParticularDebt();  // ✅ AJOUTÉ : Réinitialise dette particulière
+            group.setForSale(false);
+            group.setForRent(false);
+
+            plugin.getLogger().info(String.format(
+                "[CompanyPlotManager] Groupe '%s' transféré à la ville (dissolution entreprise)",
+                group.getGroupName()
+            ));
+        }
+
+        // 2. Traiter les plots individuels (non groupés) de l'entreprise
         for (Plot plot : companyPlots) {
-            // Retirer du groupe si nécessaire
-            PlotGroup group = town.findPlotGroupByPlot(plot);
-            if (group != null) {
-                group.removePlot(plot);
-                if (group.getPlotCount() < 2) {
-                    // Groupe invalide, le supprimer
-                    town.removePlotGroup(group.getGroupId());
-                    plugin.getLogger().info(String.format(
-                        "[CompanyPlotManager] Groupe %s dissous (moins de 2 parcelles)",
-                        group.getGroupName()
-                    ));
-                }
+            if (gerantUuid == null) {
+                gerantUuid = plot.getOwnerUuid();
             }
 
             // Transférer le terrain à la ville
             townManager.transferPlotToTown(plot, "Suppression de l'entreprise");
+        }
 
-            // Notifier l'ancien gérant s'il est en ligne
-            UUID gerantUuid = plot.getOwnerUuid();
-            if (gerantUuid != null) {
-                Player gerant = Bukkit.getPlayer(gerantUuid);
-                if (gerant != null && gerant.isOnline()) {
-                    gerant.sendMessage(ChatColor.YELLOW + "⚠ Votre terrain professionnel " +
-                        ChatColor.WHITE + "(" + plot.getChunkX() + "," + plot.getChunkZ() + ")" +
-                        ChatColor.YELLOW + " a été vendu suite à la dissolution de votre entreprise.");
-                }
+        // 3. Notifier l'ancien gérant s'il est en ligne
+        if (gerantUuid != null) {
+            Player gerant = Bukkit.getPlayer(gerantUuid);
+            if (gerant != null && gerant.isOnline()) {
+                gerant.sendMessage(ChatColor.YELLOW + "⚠ Vos terrains professionnels (" + totalEntities + ") ont été transférés");
+                gerant.sendMessage(ChatColor.YELLOW + "   à la ville suite à la dissolution de votre entreprise.");
             }
         }
 
         plugin.getLogger().info(String.format(
-            "[CompanyPlotManager] %d terrain(s) vendus et retournés à la ville %s",
-            companyPlots.size(), townName
+            "[CompanyPlotManager] %d entité(s) territoriale(s) transférées à la ville %s",
+            totalEntities, townName
         ));
 
         // Sauvegarder immédiatement

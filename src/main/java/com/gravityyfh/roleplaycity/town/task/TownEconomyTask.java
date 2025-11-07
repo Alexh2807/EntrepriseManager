@@ -75,25 +75,12 @@ public class TownEconomyTask extends BukkitRunnable {
         townManager.getTownNames().forEach(townName -> {
             var town = townManager.getTown(townName);
             if (town != null) {
+                // ⚠️ NOUVEAU SYSTÈME : PlotGroup autonome - pas de synchronisation avec plots individuels
                 town.getPlotGroups().values().forEach(group -> {
                     if (group.getRenterUuid() != null) {
                         group.updateRentDays();
-
-                        // Synchroniser avec les parcelles individuelles
-                        for (String plotKey : group.getPlotKeys()) {
-                            String[] parts = plotKey.split(":");
-                            if (parts.length == 3) {
-                                String worldName = parts[0];
-                                int chunkX = Integer.parseInt(parts[1]);
-                                int chunkZ = Integer.parseInt(parts[2]);
-
-                                var plot = town.getPlot(worldName, chunkX, chunkZ);
-                                if (plot != null && plot.getRenterUuid() != null) {
-                                    // Synchroniser le solde
-                                    plot.setRentDaysRemaining(group.getRentDaysRemaining());
-                                }
-                            }
-                        }
+                        // Le groupe gère ses propres données de location de manière autonome
+                        // Les plots individuels n'existent plus dans ce contexte
                     }
                 });
             }

@@ -2,8 +2,11 @@ package com.gravityyfh.roleplaycity.town.listener;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotFlag;
 import com.gravityyfh.roleplaycity.town.data.PlotGroup;
+import com.gravityyfh.roleplaycity.town.data.PlotPermission;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
+import com.gravityyfh.roleplaycity.town.data.TerritoryEntity;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
@@ -400,25 +403,55 @@ public class PlotGroupingListener implements Listener {
         // Créer le groupe avec le townName correct
         PlotGroup group = new PlotGroup(UUID.randomUUID().toString(), session.townName);
 
-        // Déterminer qui sera affiché comme propriétaire du groupe
-        UUID ownerUuid = null;
-        String ownerName = null;
-
-        // Récupérer le propriétaire des parcelles (s'il y en a un)
+        // ⚠️ NOUVEAU SYSTÈME : Copier TOUTES les propriétés du premier plot vers le groupe autonome
         String firstPlotKey = session.selectedPlotKeys.iterator().next();
         String[] parts = firstPlotKey.split(":");
         Plot firstPlot = town.getPlot(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-        if (firstPlot != null && firstPlot.getOwnerUuid() != null) {
-            ownerUuid = firstPlot.getOwnerUuid();
-            ownerName = firstPlot.getOwnerName();
-        }
 
-        // Si pas de propriétaire individuel, le groupe appartient à la ville
-        if (ownerUuid == null) {
-            ownerName = town.getName() + " (Municipal)";
-        }
+        if (firstPlot != null) {
+            // Copier propriétaire
+            group.setOwner(firstPlot.getOwnerUuid(), firstPlot.getOwnerName());
 
-        group.setOwner(ownerUuid, ownerName);
+            // Copier type (PARTICULIER ou PROFESSIONNEL)
+            if (firstPlot.getType() != null) {
+                group.setType(firstPlot.getType());
+            }
+
+            // Copier informations entreprise si applicable
+            if (firstPlot.getCompanyName() != null) {
+                group.setCompanyName(firstPlot.getCompanyName());
+            }
+            if (firstPlot.getCompanySiret() != null) {
+                group.setCompanySiret(firstPlot.getCompanySiret());
+            }
+
+            // Copier permissions individuelles
+            Map<UUID, Set<PlotPermission>> plotPermissions = firstPlot.getAllPlayerPermissions();
+            if (plotPermissions != null && !plotPermissions.isEmpty()) {
+                for (Map.Entry<UUID, Set<PlotPermission>> entry : plotPermissions.entrySet()) {
+                    group.setPlayerPermissions(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // Copier trusted players
+            Set<UUID> trustedPlayers = firstPlot.getTrustedPlayers();
+            if (trustedPlayers != null && !trustedPlayers.isEmpty()) {
+                for (UUID trusted : trustedPlayers) {
+                    group.addTrustedPlayer(trusted);
+                }
+            }
+
+            // Copier flags
+            Map<PlotFlag, Boolean> plotFlags = firstPlot.getAllFlags();
+            if (plotFlags != null && !plotFlags.isEmpty()) {
+                for (Map.Entry<PlotFlag, Boolean> flagEntry : plotFlags.entrySet()) {
+                    group.setFlag(flagEntry.getKey(), flagEntry.getValue());
+                }
+            }
+        } else {
+            // Si pas de firstPlot, le groupe appartient à la ville
+            group.setOwner(null, town.getName() + " (Municipal)");
+        }
 
         // FIX: Vérifier qu'aucune parcelle n'a de dette avant de grouper
         for (String plotKey : session.selectedPlotKeys) {
@@ -444,18 +477,30 @@ public class PlotGroupingListener implements Listener {
             }
         }
 
-        // Ajouter les parcelles au groupe
+        // ⚠️ NOUVEAU SYSTÈME : Ajouter les chunks au groupe et SUPPRIMER les plots individuels
         for (String plotKey : session.selectedPlotKeys) {
             String[] keyParts = plotKey.split(":");
             if (keyParts.length == 3) {
                 Plot plot = town.getPlot(keyParts[0], Integer.parseInt(keyParts[1]), Integer.parseInt(keyParts[2]));
                 if (plot != null) {
-                    group.addPlot(plot);
+                    // Ajouter le chunk au groupe autonome
+                    group.addChunk(plotKey);
+
+                    // CRITIQUE : Supprimer le plot individuel de town.plots
+                    // Dans le système autonome, un chunk est SOIT un Plot SOIT dans un PlotGroup
+                    town.removePlot(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
                 }
             }
         }
 
         town.addPlotGroup(group);
+
+        plugin.getLogger().info(String.format(
+            "[PlotGrouping] Groupe créé: %s (%d chunks, %d plots supprimés)",
+            group.getGroupId(),
+            group.getChunkKeys().size(),
+            session.selectedPlotKeys.size()
+        ));
 
         // Sauvegarder immédiatement le nouveau groupe
         townManager.saveTownsNow();
@@ -605,8 +650,9 @@ public class PlotGroupingListener implements Listener {
                 continue;
             }
 
-            // Vérifier si déjà dans un groupe
-            if (town.isPlotInAnyGroup(plot)) {
+            // ⚠️ NOUVEAU SYSTÈME : Vérifier si déjà dans un groupe
+            TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+            if (territory instanceof PlotGroup) {
                 continue;
             }
 

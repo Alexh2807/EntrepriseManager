@@ -3,6 +3,7 @@ package com.gravityyfh.roleplaycity.town.manager;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.ChunkCoordinate;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -29,10 +30,15 @@ public class ClaimManager {
 
     /**
      * Initialise le cache à partir des villes existantes
+     * ⚠️ NOUVEAU SYSTÈME : Inclut les plots individuels ET les chunks des PlotGroups
      */
     public void rebuildCache() {
         chunkOwners.clear();
+        int plotCount = 0;
+        int groupChunkCount = 0;
+
         for (Town town : townManager.getAllTowns()) {
+            // 1. Ajouter les plots individuels
             for (Plot plot : town.getPlots().values()) {
                 ChunkCoordinate coord = new ChunkCoordinate(
                     plot.getWorldName(),
@@ -40,9 +46,28 @@ public class ClaimManager {
                     plot.getChunkZ()
                 );
                 chunkOwners.put(coord, town.getName());
+                plotCount++;
+            }
+
+            // 2. ⚠️ NOUVEAU : Ajouter les chunks des PlotGroups
+            for (PlotGroup group : town.getPlotGroups().values()) {
+                for (String chunkKey : group.getChunkKeys()) {
+                    String[] parts = chunkKey.split(":");
+                    if (parts.length == 3) {
+                        ChunkCoordinate coord = new ChunkCoordinate(
+                            parts[0],  // world
+                            Integer.parseInt(parts[1]),  // chunkX
+                            Integer.parseInt(parts[2])   // chunkZ
+                        );
+                        chunkOwners.put(coord, town.getName());
+                        groupChunkCount++;
+                    }
+                }
             }
         }
-        plugin.getLogger().info("Cache de claims reconstruit: " + chunkOwners.size() + " chunks.");
+
+        plugin.getLogger().info("Cache de claims reconstruit: " + chunkOwners.size() + " chunks total " +
+                               "(" + plotCount + " plots individuels + " + groupChunkCount + " chunks groupés).");
     }
 
     /**
@@ -197,6 +222,16 @@ public class ClaimManager {
         Town town = townManager.getTown(townName);
         if (town == null) {
             return 0.0;
+        }
+
+        // ⚠️ NOUVEAU SYSTÈME : Empêcher unclaim si chunk fait partie d'un PlotGroup
+        PlotGroup group = town.getPlotGroupAt(coord.getWorldName(), coord.getX(), coord.getZ());
+        if (group != null) {
+            plugin.getLogger().warning(String.format(
+                "Tentative d'unclaim d'un chunk faisant partie du groupe '%s' (ville: %s)",
+                group.getGroupName(), townName
+            ));
+            return -1.0; // Code d'erreur spécial pour indiquer "chunk dans un groupe"
         }
 
         // Récupérer la parcelle

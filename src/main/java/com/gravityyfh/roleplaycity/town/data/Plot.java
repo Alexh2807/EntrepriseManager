@@ -7,7 +7,7 @@ import org.bukkit.Material;
 import java.time.LocalDateTime;
 import java.util.*;
 
-public class Plot {
+public class Plot implements TerritoryEntity {
     private final String townName;
     private final int chunkX;
     private final int chunkZ;
@@ -86,28 +86,66 @@ public class Plot {
         }
     }
 
-    // Getters
+    // ========== IMPLÉMENTATION TerritoryEntity ==========
+
+    @Override
+    public String getIdentifier() {
+        return worldName + ":" + chunkX + ":" + chunkZ;
+    }
+
+    // ========== Getters (implémentation interface + spécifiques) ==========
+
+    @Override
     public String getTownName() { return townName; }
+
     public int getChunkX() { return chunkX; }
     public int getChunkZ() { return chunkZ; }
     public String getWorldName() { return worldName; }
+
+    @Override
     public PlotType getType() { return type; }
+
+    @Override
     public MunicipalSubType getMunicipalSubType() { return municipalSubType; }
+
+    @Override
     public UUID getOwnerUuid() { return ownerUuid; }
+
+    @Override
     public String getOwnerName() { return ownerName; }
+
+    @Override
     public String getCompanyName() { return companyName; }
+
+    @Override
     public String getCompanySiret() { return companySiret; }
+
+    @Override
     public double getCompanyDebtAmount() { return companyDebtAmount; }
+
+    @Override
     public LocalDateTime getLastDebtWarningDate() { return lastDebtWarningDate; }
+
+    @Override
     public int getDebtWarningCount() { return debtWarningCount; }
 
     // NOUVEAU : Getters pour dettes particuliers
+    @Override
     public double getParticularDebtAmount() { return particularDebtAmount; }
+
+    @Override
     public LocalDateTime getParticularLastDebtWarningDate() { return particularLastDebtWarningDate; }
+
+    @Override
     public int getParticularDebtWarningCount() { return particularDebtWarningCount; }
 
+    @Override
     public double getSalePrice() { return salePrice; }
+
+    @Override
     public boolean isForSale() { return forSale; }
+
+    @Override
     public double getRentPricePerDay() { return rentPricePerDay; }
 
     /**
@@ -122,14 +160,29 @@ public class Plot {
     @Deprecated
     public int getRentDurationDays() { return rentDaysRemaining; }
 
+    @Override
     public boolean isForRent() { return forRent; }
+
+    @Override
     public UUID getRenterUuid() { return renterUuid; }
+
+    @Override
     public String getRenterCompanySiret() { return renterCompanySiret; }
+
+    @Override
     public LocalDateTime getRentStartDate() { return rentStartDate; }
+
     public LocalDateTime getLastRentUpdate() { return lastRentUpdate; }
+
+    @Override
     public int getRentDaysRemaining() { return rentDaysRemaining; }
+
+    @Override
     public LocalDateTime getClaimDate() { return claimDate; }
+
     public Set<String> getProtectedBlocks() { return new HashSet<>(protectedBlocks); }
+
+    @Override
     public RenterBlockTracker getRenterBlockTracker() { return renterBlockTracker; }
 
     // Setters
@@ -349,11 +402,14 @@ public class Plot {
         clearRenter();
     }
 
-    // Utility methods
+    // ========== Utility methods (implémentation interface) ==========
+
+    @Override
     public boolean isOwnedBy(UUID playerUuid) {
         return ownerUuid != null && ownerUuid.equals(playerUuid);
     }
 
+    @Override
     public boolean isRentedBy(UUID playerUuid) {
         return renterUuid != null && renterUuid.equals(playerUuid);
     }
@@ -378,8 +434,9 @@ public class Plot {
         return type.requiresCompany();
     }
 
+    @Override
     public double getDailyTax() {
-        return type.getDailyTax();
+        return type != null ? type.getDailyTax() : 0.0;
     }
 
     public boolean canPlayerBuild(UUID playerUuid, TownRole role) {
@@ -400,6 +457,7 @@ public class Plot {
     /**
      * Vérifie si un joueur peut construire sur cette parcelle (avec contexte de ville)
      */
+    @Override
     public boolean canBuild(UUID playerUuid, Town town) {
         // Public : tout le monde peut construire
         if (isPublic()) {
@@ -418,6 +476,7 @@ public class Plot {
     /**
      * Vérifie si un joueur peut interagir avec les blocs de cette parcelle
      */
+    @Override
     public boolean canInteract(UUID playerUuid, Town town) {
         // Public : tout le monde peut interagir
         if (isPublic()) {
@@ -475,6 +534,7 @@ public class Plot {
     /**
      * Vérifier si un joueur a une permission spécifique
      */
+    @Override
     public boolean hasPermission(UUID playerUuid, PlotPermission permission) {
         // Propriétaire et locataire ont toutes les permissions
         if (isOwnedBy(playerUuid) || isRentedBy(playerUuid)) {
@@ -494,6 +554,7 @@ public class Plot {
     /**
      * Obtenir toutes les permissions d'un joueur
      */
+    @Override
     public Set<PlotPermission> getPlayerPermissions(UUID playerUuid) {
         if (isOwnedBy(playerUuid) || isRentedBy(playerUuid) || trustedPlayers.contains(playerUuid)) {
             return EnumSet.allOf(PlotPermission.class);
@@ -522,6 +583,7 @@ public class Plot {
     /**
      * Obtenir tous les joueurs avec des permissions
      */
+    @Override
     public Map<UUID, Set<PlotPermission>> getAllPlayerPermissions() {
         return new HashMap<>(playerPermissions);
     }
@@ -545,6 +607,7 @@ public class Plot {
     /**
      * Vérifier si un joueur est de confiance
      */
+    @Override
     public boolean isTrusted(UUID playerUuid) {
         return trustedPlayers.contains(playerUuid);
     }
@@ -552,6 +615,7 @@ public class Plot {
     /**
      * Obtenir tous les joueurs de confiance
      */
+    @Override
     public Set<UUID> getTrustedPlayers() {
         return new HashSet<>(trustedPlayers);
     }
@@ -568,6 +632,7 @@ public class Plot {
     /**
      * Obtenir la valeur d'un flag
      */
+    @Override
     public boolean getFlag(PlotFlag flag) {
         return flags.getOrDefault(flag, flag.getDefaultValue());
     }
@@ -575,6 +640,7 @@ public class Plot {
     /**
      * Obtenir tous les flags
      */
+    @Override
     public Map<PlotFlag, Boolean> getAllFlags() {
         return new EnumMap<>(flags);
     }

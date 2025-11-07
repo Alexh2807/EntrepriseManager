@@ -116,7 +116,7 @@ public class DebtManagementGUI implements Listener {
 
             if (isGroup && debt.getGroup() != null) {
                 lore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + debt.getGroup().getGroupName());
-                lore.add(ChatColor.GRAY + "  " + debt.getGroup().getPlotCount() + " parcelles");
+                lore.add(ChatColor.GRAY + "  " + debt.getGroup().getChunkKeys().size() + " parcelles");
             } else {
                 lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
             }

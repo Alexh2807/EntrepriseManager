@@ -97,9 +97,12 @@ public class PlotGroupManagementGUI implements Listener {
             return;
         }
 
-        // Filtrer les parcelles déjà dans un groupe
+        // ⚠️ NOUVEAU SYSTÈME : Filtrer les parcelles déjà dans un groupe
         List<Plot> availablePlots = playerPlots.stream()
-                .filter(plot -> !town.isPlotInAnyGroup(plot))
+                .filter(plot -> {
+                    TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+                    return !(territory instanceof PlotGroup);
+                })
                 .toList();
 
         if (availablePlots.size() < 2) {
@@ -125,8 +128,12 @@ public class PlotGroupManagementGUI implements Listener {
         GroupCreationSession session = groupSessions.get(player.getUniqueId());
         if (session == null) return;
 
+        // ⚠️ NOUVEAU SYSTÈME : Filtrer les parcelles déjà dans un groupe
         List<Plot> playerPlots = town.getPlotsByOwner(player.getUniqueId()).stream()
-                .filter(plot -> !town.isPlotInAnyGroup(plot))
+                .filter(plot -> {
+                    TerritoryEntity territory = town.getTerritoryAt(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
+                    return !(territory instanceof PlotGroup);
+                })
                 .toList();
 
         int maxPage = (playerPlots.size() - 1) / 21;
@@ -232,7 +239,7 @@ public class PlotGroupManagementGUI implements Listener {
             ItemMeta meta = item.getItemMeta();
             meta.setDisplayName(ChatColor.GOLD + group.getGroupName());
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            lore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getChunkKeys().size());
             if (group.getOwnerName() != null) {
                 lore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + group.getOwnerName());
             }
@@ -289,7 +296,7 @@ public class PlotGroupManagementGUI implements Listener {
             sellMeta.setDisplayName(ChatColor.GREEN + "Mettre en Vente");
             List<String> sellLore = new ArrayList<>();
             sellLore.add(ChatColor.GRAY + "Vendre tout le groupe");
-            sellLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            sellLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getChunkKeys().size());
             sellLore.add("");
             if (group.isForSale()) {
                 sellLore.add(ChatColor.GREEN + "Prix actuel: " + String.format("%.2f€", group.getSalePrice()));
@@ -307,7 +314,7 @@ public class PlotGroupManagementGUI implements Listener {
             rentMeta.setDisplayName(ChatColor.AQUA + "Mettre en Location");
             List<String> rentLore = new ArrayList<>();
             rentLore.add(ChatColor.GRAY + "Louer tout le groupe");
-            rentLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
+            rentLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getChunkKeys().size());
             rentLore.add("");
             if (group.isForRent()) {
                 rentLore.add(ChatColor.AQUA + "Prix actuel: " + String.format("%.2f€/jour", group.getRentPricePerDay()));
@@ -327,8 +334,8 @@ public class PlotGroupManagementGUI implements Listener {
             buyMeta.setDisplayName(ChatColor.GREEN + "Acheter ce Groupe");
             List<String> buyLore = new ArrayList<>();
             buyLore.add(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + group.getOwnerName());
-            buyLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getPlotCount());
-            buyLore.add(ChatColor.GRAY + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+            buyLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.AQUA + group.getChunkKeys().size());
+            buyLore.add(ChatColor.GRAY + "Surface totale: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
             buyLore.add("");
             buyLore.add(ChatColor.GREEN + "Prix: " + ChatColor.GOLD + String.format("%.2f€", group.getSalePrice()));
             buyLore.add("");
@@ -494,7 +501,7 @@ public class PlotGroupManagementGUI implements Listener {
         if (displayName.contains("Mettre en Vente")) {
             player.closeInventory();
             player.sendMessage(ChatColor.GREEN + "Entrez le prix de vente du groupe dans le chat:");
-            player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getPlotCount() * 256) + "m²");
+            player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (group.getChunkKeys().size() * 256) + "m²");
 
             SalePriceInputContext context = new SalePriceInputContext();
             context.townName = townName;
@@ -511,7 +518,8 @@ public class PlotGroupManagementGUI implements Listener {
             }
 
         } else if (displayName.contains("Désassembler le Groupe")) {
-            town.removePlotGroup(group.getGroupId());
+            // ⚠️ CORRECTION : Utiliser dissolveGroup() qui recrée les plots individuels
+            town.dissolveGroup(group.getGroupId());
 
             // Sauvegarder immédiatement
             townManager.saveTownsNow();
@@ -537,12 +545,99 @@ public class PlotGroupManagementGUI implements Listener {
                 Town town = townManager.getTown(context.townName);
                 if (town == null) return;
 
+                // Vérifications préalables (adjacence et dettes)
+                if (context.selectedPlots == null || context.selectedPlots.size() < 2) {
+                    player.sendMessage(ChatColor.RED + "Vous devez sélectionner au moins 2 parcelles.");
+                    return;
+                }
+
+                // Vérification d'adjacence: l'ensemble doit être connexe (4-voisins)
+                java.util.Set<String> __keys = new java.util.HashSet<>();
+                for (Plot __p : context.selectedPlots) {
+                    __keys.add(__p.getWorldName() + ":" + __p.getChunkX() + ":" + __p.getChunkZ());
+                }
+                String __startKey = __keys.iterator().next();
+                java.util.Queue<String> __queue = new java.util.ArrayDeque<>();
+                java.util.Set<String> __visited = new java.util.HashSet<>();
+                __queue.add(__startKey);
+                __visited.add(__startKey);
+                while (!__queue.isEmpty()) {
+                    String __key = __queue.poll();
+                    String[] __parts = __key.split(":");
+                    if (__parts.length != 3) continue;
+                    String __world = __parts[0];
+                    int __cx = Integer.parseInt(__parts[1]);
+                    int __cz = Integer.parseInt(__parts[2]);
+                    String[] __neighbors = new String[] {
+                        __world + ":" + (__cx + 1) + ":" + __cz,
+                        __world + ":" + (__cx - 1) + ":" + __cz,
+                        __world + ":" + __cx + ":" + (__cz + 1),
+                        __world + ":" + __cx + ":" + (__cz - 1)
+                    };
+                    for (String __n : __neighbors) {
+                        if (__keys.contains(__n) && !__visited.contains(__n)) {
+                            __visited.add(__n);
+                            __queue.add(__n);
+                        }
+                    }
+                }
+                if (__visited.size() != __keys.size()) {
+                    player.sendMessage(ChatColor.RED + "Les parcelles sélectionnées doivent être adjacentes et former un terrain continu.");
+                    return;
+                }
+
+                // Vérifier l'absence de dettes
+                for (Plot __p : context.selectedPlots) {
+                    if (__p.getCompanyDebtAmount() > 0 || __p.getParticularDebtAmount() > 0) {
+                        player.sendMessage("");
+                        player.sendMessage(ChatColor.RED + "GROUPEMENT IMPOSSIBLE");
+                        player.sendMessage(ChatColor.YELLOW + "Au moins une parcelle a une dette impayée !");
+                        player.sendMessage("");
+                        return;
+                    }
+                }
+
                 // Créer le groupe
                 PlotGroup group = town.createPlotGroup(input);
-                group.setOwner(player.getUniqueId(), player.getName());
+                // Copier les propriétés depuis la première parcelle sélectionnée
+                if (context.selectedPlots != null && !context.selectedPlots.isEmpty()) {
+                    Plot __first = context.selectedPlots.get(0);
+                    group.setType(__first.getType());
+                    group.setMunicipalSubType(__first.getMunicipalSubType());
+                    group.setOwner(__first.getOwnerUuid(), __first.getOwnerName());
+                    if (__first.getCompanyName() != null) {
+                        group.setCompanyName(__first.getCompanyName());
+                    }
+                    if (__first.getCompanySiret() != null) {
+                        group.setCompanySiret(__first.getCompanySiret());
+                    }
+                    java.util.Map<PlotFlag, Boolean> __flags = __first.getAllFlags();
+                    if (__flags != null && !__flags.isEmpty()) {
+                        for (java.util.Map.Entry<PlotFlag, Boolean> e : __flags.entrySet()) {
+                            group.setFlag(e.getKey(), e.getValue());
+                        }
+                    }
+                    java.util.Map<java.util.UUID, java.util.Set<PlotPermission>> __perms = __first.getAllPlayerPermissions();
+                    if (__perms != null && !__perms.isEmpty()) {
+                        for (java.util.Map.Entry<java.util.UUID, java.util.Set<PlotPermission>> e : __perms.entrySet()) {
+                            group.setPlayerPermissions(e.getKey(), e.getValue());
+                        }
+                    }
+                    java.util.Set<java.util.UUID> __trusted = __first.getTrustedPlayers();
+                    if (__trusted != null && !__trusted.isEmpty()) {
+                        for (java.util.UUID t : __trusted) {
+                            group.addTrustedPlayer(t);
+                        }
+                    }
+                }
 
                 for (Plot plot : context.selectedPlots) {
                     group.addPlot(plot);
+                }
+
+                // Supprimer les parcelles sources de la ville (évite les doublons)
+                for (Plot plot : context.selectedPlots) {
+                    town.removePlot(plot.getWorldName(), plot.getChunkX(), plot.getChunkZ());
                 }
 
                 player.sendMessage(ChatColor.GREEN + "Groupe créé avec succès !");
@@ -584,7 +679,7 @@ public class PlotGroupManagementGUI implements Listener {
                             salePriceContext.townName, group, price, player)) {
                         player.sendMessage(ChatColor.GREEN + "✓ Groupe mis en vente !");
                         player.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€", price));
-                        player.sendMessage(ChatColor.GRAY + "Surface: " + (group.getPlotCount() * 256) + "m²");
+                        player.sendMessage(ChatColor.GRAY + "Surface: " + (group.getChunkKeys().size() * 256) + "m²");
                     } else {
                         player.sendMessage(ChatColor.RED + "Impossible de mettre le groupe en vente.");
                     }
