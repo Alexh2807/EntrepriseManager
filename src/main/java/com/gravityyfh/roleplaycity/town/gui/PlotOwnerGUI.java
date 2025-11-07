@@ -4,7 +4,6 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
-import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -48,33 +47,14 @@ public class PlotOwnerGUI implements Listener {
      */
     /**
      * Ouvre le menu Permissions pour le chunk actuel du joueur
-     * ⚠️ NOUVEAU SYSTÈME : Supporte Plot ET PlotGroup
      */
     public void openOwnerMenu(Player player) {
         Chunk currentChunk = player.getLocation().getChunk();
-        String worldName = currentChunk.getWorld().getName();
-        int chunkX = currentChunk.getX();
-        int chunkZ = currentChunk.getZ();
-
-        // Chercher d'abord un Plot individuel
         Plot plot = claimManager.getPlotAt(currentChunk);
 
         if (plot != null) {
             openOwnerMenu(player, plot);
             return;
-        }
-
-        // Si pas de plot, chercher un PlotGroup
-        String townName = claimManager.getClaimOwner(currentChunk);
-        if (townName != null) {
-            Town town = townManager.getTown(townName);
-            if (town != null) {
-                PlotGroup group = town.getPlotGroupAt(worldName, chunkX, chunkZ);
-                if (group != null) {
-                    openOwnerMenuForGroup(player, group);
-                    return;
-                }
-            }
         }
 
         player.sendMessage(ChatColor.RED + "Vous n'êtes pas sur un terrain.");
@@ -161,98 +141,10 @@ public class PlotOwnerGUI implements Listener {
     }
 
     /**
-     * ⚠️ NOUVEAU : Ouvre le menu Permissions pour un PlotGroup spécifique
-     */
-    public void openOwnerMenuForGroup(Player player, PlotGroup group) {
-        // Vérifier si le joueur est propriétaire ou locataire
-        if (!group.getOwnerUuid().equals(player.getUniqueId()) &&
-            (group.getRenterUuid() == null || !group.getRenterUuid().equals(player.getUniqueId()))) {
-            player.sendMessage(ChatColor.RED + "Vous n'êtes pas propriétaire ou locataire de ce groupe.");
-            return;
-        }
-
-        Inventory inv = Bukkit.createInventory(null, 27, OWNER_MENU_TITLE);
-
-        // Informations
-        ItemStack infoItem = new ItemStack(Material.BOOK);
-        ItemMeta infoMeta = infoItem.getItemMeta();
-        infoMeta.setDisplayName(ChatColor.GOLD + "Informations du Groupe");
-        List<String> infoLore = new ArrayList<>();
-        infoLore.add(ChatColor.GRAY + "Nom: " + ChatColor.WHITE + group.getGroupName());
-        infoLore.add(ChatColor.GRAY + "Type: " + ChatColor.AQUA + group.getType().getDisplayName());
-        infoLore.add(ChatColor.GRAY + "Chunks: " + ChatColor.WHITE + group.getChunkCount());
-        if (group.getOwnerUuid().equals(player.getUniqueId())) {
-            infoLore.add(ChatColor.GREEN + "Vous êtes propriétaire");
-        } else {
-            infoLore.add(ChatColor.YELLOW + "Vous êtes locataire");
-        }
-        infoMeta.setLore(infoLore);
-        infoItem.setItemMeta(infoMeta);
-        inv.setItem(4, infoItem);
-
-        // Gérer les permissions
-        ItemStack permsItem = new ItemStack(Material.PAPER);
-        ItemMeta permsMeta = permsItem.getItemMeta();
-        permsMeta.setDisplayName(ChatColor.BLUE + "Gérer les Permissions");
-        List<String> permsLore = new ArrayList<>();
-        permsLore.add(ChatColor.GRAY + "Donner accès à d'autres joueurs");
-        permsLore.add(ChatColor.GRAY + "Gérer qui peut construire, interagir...");
-        permsLore.add("");
-        permsLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-        permsMeta.setLore(permsLore);
-        permsItem.setItemMeta(permsMeta);
-        inv.setItem(11, permsItem);
-
-        // Flags de protection
-        ItemStack flagsItem = new ItemStack(Material.SHIELD);
-        ItemMeta flagsMeta = flagsItem.getItemMeta();
-        flagsMeta.setDisplayName(ChatColor.DARK_PURPLE + "Flags de Protection");
-        List<String> flagsLore = new ArrayList<>();
-        flagsLore.add(ChatColor.GRAY + "Configurer PVP, explosions...");
-        flagsLore.add(ChatColor.GRAY + "Protections avancées");
-        flagsLore.add("");
-        flagsLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-        flagsMeta.setLore(flagsLore);
-        flagsItem.setItemMeta(flagsMeta);
-        inv.setItem(13, flagsItem);
-
-        // Joueurs de confiance
-        ItemStack trustItem = new ItemStack(Material.PLAYER_HEAD);
-        ItemMeta trustMeta = trustItem.getItemMeta();
-        trustMeta.setDisplayName(ChatColor.GREEN + "Joueurs de Confiance");
-        List<String> trustLore = new ArrayList<>();
-        trustLore.add(ChatColor.GRAY + "Donner accès complet");
-        trustLore.add(ChatColor.GRAY + "Total: " + ChatColor.WHITE + group.getTrustedPlayers().size());
-        trustLore.add("");
-        trustLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
-        trustMeta.setLore(trustLore);
-        trustItem.setItemMeta(trustMeta);
-        inv.setItem(15, trustItem);
-
-        // Retour à Mes Propriétés
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
-        List<String> backLore = new ArrayList<>();
-        backLore.add(ChatColor.GRAY + "Voir tous vos terrains");
-        backMeta.setLore(backLore);
-        backItem.setItemMeta(backMeta);
-        inv.setItem(22, backItem);
-
-        player.openInventory(inv);
-    }
-
-    /**
      * Menu de gestion des permissions
-     * ⚠️ NOUVEAU SYSTÈME : Supporte Plot ET PlotGroup
      */
     public void openPermissionsMenu(Player player) {
         Chunk currentChunk = player.getLocation().getChunk();
-        String worldName = currentChunk.getWorld().getName();
-        int chunkX = currentChunk.getX();
-        int chunkZ = currentChunk.getZ();
-
-        // Chercher d'abord un Plot individuel
         Plot plot = claimManager.getPlotAt(currentChunk);
 
         if (plot != null) {
@@ -262,24 +154,6 @@ public class PlotOwnerGUI implements Listener {
             }
             openPermissionsMenuForPlot(player, plot);
             return;
-        }
-
-        // Si pas de plot, chercher un PlotGroup
-        String townName = claimManager.getClaimOwner(currentChunk);
-        if (townName != null) {
-            Town town = townManager.getTown(townName);
-            if (town != null) {
-                PlotGroup group = town.getPlotGroupAt(worldName, chunkX, chunkZ);
-                if (group != null) {
-                    if (!group.getOwnerUuid().equals(player.getUniqueId()) &&
-                        (group.getRenterUuid() == null || !group.getRenterUuid().equals(player.getUniqueId()))) {
-                        player.closeInventory();
-                        return;
-                    }
-                    openPermissionsMenuForGroup(player, group);
-                    return;
-                }
-            }
         }
 
         player.closeInventory();
@@ -342,73 +216,10 @@ public class PlotOwnerGUI implements Listener {
     }
 
     /**
-     * ⚠️ NOUVEAU : Menu de gestion des permissions pour un PlotGroup
-     */
-    private void openPermissionsMenuForGroup(Player player, PlotGroup group) {
-        Inventory inv = Bukkit.createInventory(null, 54, PERMISSIONS_TITLE);
-
-        // Ajouter un joueur
-        ItemStack addItem = new ItemStack(Material.EMERALD);
-        ItemMeta addMeta = addItem.getItemMeta();
-        addMeta.setDisplayName(ChatColor.GREEN + "Ajouter un Joueur");
-        List<String> addLore = new ArrayList<>();
-        addLore.add(ChatColor.GRAY + "Donner des permissions");
-        addLore.add(ChatColor.GRAY + "à un joueur spécifique");
-        addLore.add(ChatColor.GRAY + "sur le groupe entier");
-        addLore.add("");
-        addLore.add(ChatColor.YELLOW + "Cliquez pour ajouter");
-        addMeta.setLore(addLore);
-        addItem.setItemMeta(addMeta);
-        inv.setItem(4, addItem);
-
-        // Liste des joueurs avec permissions
-        Map<UUID, Set<PlotPermission>> allPerms = group.getAllPlayerPermissions();
-        int slot = 9;
-        for (Map.Entry<UUID, Set<PlotPermission>> entry : allPerms.entrySet()) {
-            if (slot >= 45) break;
-
-            UUID playerUuid = entry.getKey();
-            Set<PlotPermission> perms = entry.getValue();
-            Player target = Bukkit.getPlayer(playerUuid);
-            String playerName = target != null ? target.getName() : playerUuid.toString().substring(0, 8);
-
-            ItemStack playerItem = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta playerMeta = playerItem.getItemMeta();
-            playerMeta.setDisplayName(ChatColor.YELLOW + playerName);
-            List<String> playerLore = new ArrayList<>();
-            playerLore.add(ChatColor.GRAY + "Permissions: " + ChatColor.WHITE + perms.size());
-            for (PlotPermission perm : perms) {
-                playerLore.add(ChatColor.GRAY + "  • " + ChatColor.GREEN + perm.getDisplayName());
-            }
-            playerLore.add("");
-            playerLore.add(ChatColor.YELLOW + "Clic gauche: Modifier");
-            playerLore.add(ChatColor.RED + "Clic droit: Retirer");
-            playerMeta.setLore(playerLore);
-            playerItem.setItemMeta(playerMeta);
-            inv.setItem(slot++, playerItem);
-        }
-
-        // Retour
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
-        backItem.setItemMeta(backMeta);
-        inv.setItem(49, backItem);
-
-        player.openInventory(inv);
-    }
-
-    /**
      * Menu de gestion des flags
-     * ⚠️ NOUVEAU SYSTÈME : Supporte Plot ET PlotGroup
      */
     public void openFlagsMenu(Player player) {
         Chunk currentChunk = player.getLocation().getChunk();
-        String worldName = currentChunk.getWorld().getName();
-        int chunkX = currentChunk.getX();
-        int chunkZ = currentChunk.getZ();
-
-        // Chercher d'abord un Plot individuel
         Plot plot = claimManager.getPlotAt(currentChunk);
 
         if (plot != null) {
@@ -418,24 +229,6 @@ public class PlotOwnerGUI implements Listener {
             }
             openFlagsMenuForPlot(player, plot);
             return;
-        }
-
-        // Si pas de plot, chercher un PlotGroup
-        String townName = claimManager.getClaimOwner(currentChunk);
-        if (townName != null) {
-            Town town = townManager.getTown(townName);
-            if (town != null) {
-                PlotGroup group = town.getPlotGroupAt(worldName, chunkX, chunkZ);
-                if (group != null) {
-                    if (!group.getOwnerUuid().equals(player.getUniqueId()) &&
-                        (group.getRenterUuid() == null || !group.getRenterUuid().equals(player.getUniqueId()))) {
-                        player.closeInventory();
-                        return;
-                    }
-                    openFlagsMenuForGroup(player, group);
-                    return;
-                }
-            }
         }
 
         player.closeInventory();
@@ -472,55 +265,6 @@ public class PlotOwnerGUI implements Listener {
         resetMeta.setDisplayName(ChatColor.RED + "Réinitialiser Tous les Flags");
         List<String> resetLore = new ArrayList<>();
         resetLore.add(ChatColor.GRAY + "Restaurer les valeurs par défaut");
-        resetLore.add("");
-        resetLore.add(ChatColor.YELLOW + "Cliquez pour réinitialiser");
-        resetMeta.setLore(resetLore);
-        resetItem.setItemMeta(resetMeta);
-        inv.setItem(45, resetItem);
-
-        // Retour
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
-        backItem.setItemMeta(backMeta);
-        inv.setItem(49, backItem);
-
-        player.openInventory(inv);
-    }
-
-    /**
-     * ⚠️ NOUVEAU : Menu de gestion des flags pour un PlotGroup
-     */
-    private void openFlagsMenuForGroup(Player player, PlotGroup group) {
-        Inventory inv = Bukkit.createInventory(null, 54, FLAGS_TITLE);
-
-        int slot = 9;
-        for (PlotFlag flag : PlotFlag.values()) {
-            boolean enabled = group.getFlag(flag);
-
-            Material mat = enabled ? Material.LIME_DYE : Material.GRAY_DYE;
-            ItemStack flagItem = new ItemStack(mat);
-            ItemMeta flagMeta = flagItem.getItemMeta();
-            flagMeta.setDisplayName((enabled ? ChatColor.GREEN : ChatColor.RED) + flag.getDisplayName());
-            List<String> flagLore = new ArrayList<>();
-            flagLore.add(ChatColor.GRAY + flag.getDescription());
-            flagLore.add("");
-            flagLore.add(ChatColor.GRAY + "Statut: " + (enabled ? ChatColor.GREEN + "Activé" : ChatColor.RED + "Désactivé"));
-            flagLore.add(ChatColor.GRAY + "Appliqué à " + ChatColor.WHITE + group.getChunkCount() + " chunks");
-            flagLore.add("");
-            flagLore.add(ChatColor.YELLOW + "Cliquez pour basculer");
-            flagMeta.setLore(flagLore);
-            flagItem.setItemMeta(flagMeta);
-            inv.setItem(slot++, flagItem);
-        }
-
-        // Réinitialiser tous les flags
-        ItemStack resetItem = new ItemStack(Material.BARRIER);
-        ItemMeta resetMeta = resetItem.getItemMeta();
-        resetMeta.setDisplayName(ChatColor.RED + "Réinitialiser Tous les Flags");
-        List<String> resetLore = new ArrayList<>();
-        resetLore.add(ChatColor.GRAY + "Restaurer les valeurs par défaut");
-        resetLore.add(ChatColor.GRAY + "pour le groupe entier");
         resetLore.add("");
         resetLore.add(ChatColor.YELLOW + "Cliquez pour réinitialiser");
         resetMeta.setLore(resetLore);
@@ -603,9 +347,6 @@ public class PlotOwnerGUI implements Listener {
         }
     }
 
-    /**
-     * ⚠️ NOUVEAU SYSTÈME : Gère les clics dans le menu flags pour Plot ET PlotGroup
-     */
     private void handleFlagsMenuClick(InventoryClickEvent event) {
         event.setCancelled(true);
 
@@ -619,26 +360,9 @@ public class PlotOwnerGUI implements Listener {
         }
 
         Chunk currentChunk = player.getLocation().getChunk();
-        String worldName = currentChunk.getWorld().getName();
-        int chunkX = currentChunk.getX();
-        int chunkZ = currentChunk.getZ();
-
-        // Chercher Plot OU PlotGroup
         Plot plot = claimManager.getPlotAt(currentChunk);
-        PlotGroup group = null;
 
         if (plot == null) {
-            // Chercher un PlotGroup
-            String townName = claimManager.getClaimOwner(currentChunk);
-            if (townName != null) {
-                Town town = townManager.getTown(townName);
-                if (town != null) {
-                    group = town.getPlotGroupAt(worldName, chunkX, chunkZ);
-                }
-            }
-        }
-
-        if (plot == null && group == null) {
             player.closeInventory();
             return;
         }
@@ -646,16 +370,9 @@ public class PlotOwnerGUI implements Listener {
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Réinitialiser Tous les Flags")) {
-            if (plot != null) {
-                plot.resetAllFlags();
-            } else {
-                group.resetAllFlags();
-            }
+            plot.resetAllFlags();
             player.sendMessage(ChatColor.GREEN + "Tous les flags ont été réinitialisés.");
-
-            // Sauvegarder immédiatement
             plugin.getTownManager().saveTownsNow();
-
             openFlagsMenu(player);
         } else if (displayName.contains("Retour")) {
             player.closeInventory();
@@ -664,20 +381,11 @@ public class PlotOwnerGUI implements Listener {
             // Basculer un flag spécifique
             for (PlotFlag flag : PlotFlag.values()) {
                 if (displayName.contains(flag.getDisplayName())) {
-                    boolean newValue;
-                    if (plot != null) {
-                        newValue = !plot.getFlag(flag);
-                        plot.setFlag(flag, newValue);
-                    } else {
-                        newValue = !group.getFlag(flag);
-                        group.setFlag(flag, newValue);
-                    }
+                    boolean newValue = !plot.getFlag(flag);
+                    plot.setFlag(flag, newValue);
                     player.sendMessage(ChatColor.GREEN + "Flag '" + flag.getDisplayName() + "' " +
                         (newValue ? "activé" : "désactivé"));
-
-                    // Sauvegarder immédiatement
                     plugin.getTownManager().saveTownsNow();
-
                     openFlagsMenu(player);
                     break;
                 }

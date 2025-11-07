@@ -138,44 +138,32 @@ public class CompanyPlotManager {
             return;
         }
 
-        // ⚠️ NOUVEAU SYSTÈME : Gérer les PlotGroups autonomes de cette entreprise
-        List<PlotGroup> companyGroups = town.getCompanyOwnedGroups(siret);
+        // SYSTÈME UNIFIÉ : Récupérer tous les terrains de l'entreprise (individuels et groupés)
         List<Plot> companyPlots = townManager.getPlotsByCompanySiret(siret, townName);
 
-        int totalEntities = companyGroups.size() + companyPlots.size();
-        if (totalEntities == 0) {
+        if (companyPlots.isEmpty()) {
             return;
         }
 
+        // Compter plots individuels et groupés
+        int individualCount = 0;
+        int groupedCount = 0;
+        for (Plot plot : companyPlots) {
+            if (plot.isGrouped()) {
+                groupedCount++;
+            } else {
+                individualCount++;
+            }
+        }
+
         plugin.getLogger().info(String.format(
-            "[CompanyPlotManager] Entreprise SIRET %s supprimée - Transfert de %d groupe(s) et %d plot(s) dans %s",
-            siret, companyGroups.size(), companyPlots.size(), townName
+            "[CompanyPlotManager] Entreprise SIRET %s supprimée - Transfert de %d terrain(s) (%d individuels + %d groupés) dans %s",
+            siret, companyPlots.size(), individualCount, groupedCount, townName
         ));
 
         UUID gerantUuid = null;
 
-        // 1. Traiter les PlotGroups de l'entreprise
-        for (PlotGroup group : companyGroups) {
-            if (gerantUuid == null) {
-                gerantUuid = group.getOwnerUuid();
-            }
-
-            // ⚠️ NOUVEAU SYSTÈME : Transférer le groupe à la ville avec réinitialisation complète
-            group.setOwner(null, null);
-            group.setCompanyName(null);
-            group.setCompanySiret(null);
-            group.resetDebt();  // Réinitialise dette entreprise
-            group.resetParticularDebt();  // ✅ AJOUTÉ : Réinitialise dette particulière
-            group.setForSale(false);
-            group.setForRent(false);
-
-            plugin.getLogger().info(String.format(
-                "[CompanyPlotManager] Groupe '%s' transféré à la ville (dissolution entreprise)",
-                group.getGroupName()
-            ));
-        }
-
-        // 2. Traiter les plots individuels (non groupés) de l'entreprise
+        // Traiter tous les terrains de l'entreprise
         for (Plot plot : companyPlots) {
             if (gerantUuid == null) {
                 gerantUuid = plot.getOwnerUuid();
@@ -185,18 +173,18 @@ public class CompanyPlotManager {
             townManager.transferPlotToTown(plot, "Suppression de l'entreprise");
         }
 
-        // 3. Notifier l'ancien gérant s'il est en ligne
+        // Notifier l'ancien gérant s'il est en ligne
         if (gerantUuid != null) {
             Player gerant = Bukkit.getPlayer(gerantUuid);
             if (gerant != null && gerant.isOnline()) {
-                gerant.sendMessage(ChatColor.YELLOW + "⚠ Vos terrains professionnels (" + totalEntities + ") ont été transférés");
+                gerant.sendMessage(ChatColor.YELLOW + "⚠ Vos terrains professionnels (" + companyPlots.size() + ") ont été transférés");
                 gerant.sendMessage(ChatColor.YELLOW + "   à la ville suite à la dissolution de votre entreprise.");
             }
         }
 
         plugin.getLogger().info(String.format(
-            "[CompanyPlotManager] %d entité(s) territoriale(s) transférées à la ville %s",
-            totalEntities, townName
+            "[CompanyPlotManager] %d terrain(s) transféré(s) à la ville %s",
+            companyPlots.size(), townName
         ));
 
         // Sauvegarder immédiatement

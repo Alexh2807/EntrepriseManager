@@ -25,13 +25,9 @@ public class TownDataManager {
     // FIX CRITIQUE P1.2: Lock pour éviter corruption lors de sauvegardes parallèles
     private final ReentrantLock saveLock = new ReentrantLock();
 
-    // Système de migration pour PlotGroups autonomes
-    private final TownDataMigration migration;
-
     public TownDataManager(RoleplayCity plugin) {
         this.plugin = plugin;
         this.townsFile = new File(plugin.getDataFolder(), "towns.yml");
-        this.migration = new TownDataMigration(plugin, this);
         loadConfig();
     }
 
@@ -100,13 +96,19 @@ public class TownDataManager {
                 }
             }
 
-            // Parcelles
+            // Parcelles (système unifié : 1 ou plusieurs chunks)
             int plotIndex = 0;
             for (Plot plot : town.getPlots().values()) {
                 String plotPath = path + ".plots." + plotIndex;
                 townsConfig.set(plotPath + ".world", plot.getWorldName());
-                townsConfig.set(plotPath + ".chunk-x", plot.getChunkX());
-                townsConfig.set(plotPath + ".chunk-z", plot.getChunkZ());
+
+                // NOUVEAU SYSTÈME UNIFIÉ : Sauvegarder la liste de chunks
+                townsConfig.set(plotPath + ".chunks", plot.getChunks());
+                townsConfig.set(plotPath + ".grouped", plot.isGrouped());
+                if (plot.getGroupName() != null) {
+                    townsConfig.set(plotPath + ".group-name", plot.getGroupName());
+                }
+
                 townsConfig.set(plotPath + ".type", plot.getType().name());
                 townsConfig.set(plotPath + ".municipal-subtype", plot.getMunicipalSubType().name());
                 townsConfig.set(plotPath + ".claim-date", plot.getClaimDate().format(DATE_FORMAT));
@@ -224,151 +226,6 @@ public class TownDataManager {
 
                 plotIndex++;
             }
-
-            // Groupes de parcelles (ENTITÉS AUTONOMES COMPLÈTES)
-            int groupIndex = 0;
-            for (PlotGroup group : town.getPlotGroups().values()) {
-                String groupPath = path + ".plotGroups." + groupIndex; // Renommé de "groups" à "plotGroups"
-
-                // ========== IDENTIFICATION ==========
-                townsConfig.set(groupPath + ".id", group.getGroupId());
-                townsConfig.set(groupPath + ".name", group.getGroupName());
-                townsConfig.set(groupPath + ".creation-date", group.getCreationDate().format(DATE_FORMAT));
-                if (group.getClaimDate() != null) {
-                    townsConfig.set(groupPath + ".claim-date", group.getClaimDate().format(DATE_FORMAT));
-                }
-
-                // Chunks (renommé de "plots" à "chunks" pour plus de clarté)
-                townsConfig.set(groupPath + ".chunks", new ArrayList<>(group.getChunkKeys()));
-
-                // ========== PROPRIÉTÉ ==========
-                if (group.getType() != null) {
-                    townsConfig.set(groupPath + ".type", group.getType().name());
-                }
-                if (group.getMunicipalSubType() != null && group.getMunicipalSubType() != MunicipalSubType.NONE) {
-                    townsConfig.set(groupPath + ".municipal-subtype", group.getMunicipalSubType().name());
-                }
-
-                if (group.getOwnerUuid() != null) {
-                    townsConfig.set(groupPath + ".owner-uuid", group.getOwnerUuid().toString());
-                    townsConfig.set(groupPath + ".owner-name", group.getOwnerName());
-                }
-
-                if (group.getCompanyName() != null) {
-                    townsConfig.set(groupPath + ".company", group.getCompanyName());
-                }
-                if (group.getCompanySiret() != null) {
-                    townsConfig.set(groupPath + ".company-siret", group.getCompanySiret());
-                }
-
-                // ========== DETTES ==========
-                // Dettes entreprises
-                if (group.getCompanyDebtAmount() > 0) {
-                    townsConfig.set(groupPath + ".debt-amount", group.getCompanyDebtAmount());
-                }
-                if (group.getDebtWarningCount() > 0) {
-                    townsConfig.set(groupPath + ".debt-warning-count", group.getDebtWarningCount());
-                }
-                if (group.getLastDebtWarningDate() != null) {
-                    townsConfig.set(groupPath + ".last-debt-warning", group.getLastDebtWarningDate().format(DATE_FORMAT));
-                }
-
-                // Dettes particuliers
-                if (group.getParticularDebtAmount() > 0) {
-                    townsConfig.set(groupPath + ".particular-debt-amount", group.getParticularDebtAmount());
-                }
-                if (group.getParticularDebtWarningCount() > 0) {
-                    townsConfig.set(groupPath + ".particular-debt-warning-count", group.getParticularDebtWarningCount());
-                }
-                if (group.getParticularLastDebtWarningDate() != null) {
-                    townsConfig.set(groupPath + ".particular-last-debt-warning", group.getParticularLastDebtWarningDate().format(DATE_FORMAT));
-                }
-
-                // ========== VENTE/LOCATION ==========
-                if (group.isForRent()) {
-                    townsConfig.set(groupPath + ".for-rent", true);
-                    townsConfig.set(groupPath + ".rent-price-per-day", group.getRentPricePerDay());
-                }
-
-                if (group.isForSale()) {
-                    townsConfig.set(groupPath + ".for-sale", true);
-                    townsConfig.set(groupPath + ".sale-price", group.getSalePrice());
-                }
-
-                if (group.getRenterUuid() != null) {
-                    townsConfig.set(groupPath + ".renter-uuid", group.getRenterUuid().toString());
-                    townsConfig.set(groupPath + ".rent-start", group.getRentStartDate().format(DATE_FORMAT));
-                    townsConfig.set(groupPath + ".last-rent-update", group.getLastRentUpdate().format(DATE_FORMAT));
-                    townsConfig.set(groupPath + ".rent-days-remaining", group.getRentDaysRemaining());
-                }
-
-                if (group.getRenterCompanySiret() != null) {
-                    townsConfig.set(groupPath + ".renter-company-siret", group.getRenterCompanySiret());
-                }
-
-                // ========== PERMISSIONS ==========
-                Map<UUID, Set<PlotPermission>> permissions = group.getAllPlayerPermissions();
-                if (!permissions.isEmpty()) {
-                    int permIndex = 0;
-                    for (Map.Entry<UUID, Set<PlotPermission>> permEntry : permissions.entrySet()) {
-                        String permPath = groupPath + ".permissions." + permIndex;
-                        townsConfig.set(permPath + ".player", permEntry.getKey().toString());
-
-                        List<String> permNames = new ArrayList<>();
-                        for (PlotPermission perm : permEntry.getValue()) {
-                            permNames.add(perm.name());
-                        }
-                        townsConfig.set(permPath + ".perms", permNames);
-                        permIndex++;
-                    }
-                }
-
-                // Trusted players
-                Set<UUID> trustedPlayers = group.getTrustedPlayers();
-                if (!trustedPlayers.isEmpty()) {
-                    List<String> trustedList = new ArrayList<>();
-                    for (UUID uuid : trustedPlayers) {
-                        trustedList.add(uuid.toString());
-                    }
-                    townsConfig.set(groupPath + ".trusted-players", trustedList);
-                }
-
-                // ========== FLAGS ==========
-                Map<PlotFlag, Boolean> flags = group.getAllFlags();
-                if (!flags.isEmpty()) {
-                    for (Map.Entry<PlotFlag, Boolean> flagEntry : flags.entrySet()) {
-                        townsConfig.set(groupPath + ".flags." + flagEntry.getKey().name(), flagEntry.getValue());
-                    }
-                }
-
-                // ========== PROTECTION BLOCS ==========
-                Set<String> protectedBlocks = group.getProtectedBlocks();
-                if (!protectedBlocks.isEmpty()) {
-                    townsConfig.set(groupPath + ".protected-blocks", new ArrayList<>(protectedBlocks));
-                }
-
-                // RenterBlockTracker
-                if (group.getRenterBlockTracker() != null) {
-                    Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks =
-                        group.getRenterBlockTracker().getAllBlocks();
-                    if (!renterBlocks.isEmpty()) {
-                        int renterBlockIndex = 0;
-                        for (Map.Entry<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterEntry : renterBlocks.entrySet()) {
-                            String renterBlockPath = groupPath + ".renter-blocks." + renterBlockIndex;
-                            townsConfig.set(renterBlockPath + ".renter-uuid", renterEntry.getKey().toString());
-
-                            List<String> blockPositions = new ArrayList<>();
-                            for (com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos : renterEntry.getValue()) {
-                                blockPositions.add(blockPos.serialize());
-                            }
-                            townsConfig.set(renterBlockPath + ".blocks", blockPositions);
-                            renterBlockIndex++;
-                        }
-                    }
-                }
-
-                groupIndex++;
-            }
         }
 
         // FIX CRITIQUE P1.2: Sauvegardes atomiques avec lock
@@ -413,14 +270,6 @@ public class TownDataManager {
         }
 
         plugin.getLogger().info("Chargé " + towns.size() + " villes depuis towns.yml");
-
-        // ⚠️ MIGRATION AUTOMATIQUE : Transformer les groupes en entités autonomes
-        plugin.getLogger().info("Vérification de la nécessité d'une migration...");
-        int migratedCount = migration.detectAndMigrate(towns);
-        if (migratedCount > 0) {
-            plugin.getLogger().info("✓ Migration terminée avec succès pour " + migratedCount + " ville(s)");
-        }
-
         return towns;
     }
 
@@ -525,36 +374,13 @@ public class TownDataManager {
             }
         }
 
-        // Charger les parcelles
+        // Charger les parcelles (système unifié)
         ConfigurationSection plotsSection = section.getConfigurationSection("plots");
         if (plotsSection != null) {
             for (String key : plotsSection.getKeys(false)) {
                 Plot plot = loadPlot(townName, plotsSection.getConfigurationSection(key));
                 if (plot != null) {
                     town.addPlot(plot);
-                }
-            }
-        }
-
-        // Charger les groupes de parcelles (NOUVEAU FORMAT + ANCIEN FORMAT pour rétrocompatibilité)
-        // Essayer d'abord le nouveau format "plotGroups"
-        ConfigurationSection plotGroupsSection = section.getConfigurationSection("plotGroups");
-        if (plotGroupsSection != null) {
-            for (String key : plotGroupsSection.getKeys(false)) {
-                PlotGroup group = loadPlotGroup(townName, plotGroupsSection.getConfigurationSection(key), town);
-                if (group != null && group.isValid()) {
-                    town.addPlotGroup(group);
-                }
-            }
-        }
-
-        // Sinon charger l'ancien format "groups" (rétrocompatibilité)
-        ConfigurationSection groupsSection = section.getConfigurationSection("groups");
-        if (groupsSection != null) {
-            for (String key : groupsSection.getKeys(false)) {
-                PlotGroup group = loadPlotGroup(townName, groupsSection.getConfigurationSection(key), town);
-                if (group != null && group.isValid()) {
-                    town.addPlotGroup(group);
                 }
             }
         }
@@ -566,10 +392,13 @@ public class TownDataManager {
         if (section == null) return null;
 
         String worldName = section.getString("world");
-        int chunkX = section.getInt("chunk-x");
-        int chunkZ = section.getInt("chunk-z");
 
-        // Créer un pseudo-chunk pour le constructeur
+        // NOUVEAU SYSTÈME UNIFIÉ : Charger la liste de chunks
+        List<String> chunkKeys = section.getStringList("chunks");
+        boolean grouped = section.getBoolean("grouped", false);
+        String groupName = section.getString("group-name");
+
+        // Date de claim
         LocalDateTime claimDate = null;
         if (section.contains("claim-date")) {
             try {
@@ -581,8 +410,37 @@ public class TownDataManager {
 
         org.bukkit.World world = plugin.getServer().getWorld(worldName);
         Plot plot;
+
         if (world != null) {
-            plot = new Plot(townName, world.getChunkAt(chunkX, chunkZ));
+            // Cas 1: Nouveau format avec liste de chunks
+            if (!chunkKeys.isEmpty()) {
+                if (grouped) {
+                    // Terrain groupé (multi-chunks)
+                    plot = new Plot(townName, worldName, chunkKeys, groupName);
+                } else {
+                    // Terrain simple (1 chunk) mais au nouveau format
+                    String firstChunk = chunkKeys.get(0);
+                    String[] parts = firstChunk.split(":");
+                    if (parts.length >= 3) {
+                        int chunkX = Integer.parseInt(parts[1]);
+                        int chunkZ = Integer.parseInt(parts[2]);
+                        plot = new Plot(townName, world.getChunkAt(chunkX, chunkZ));
+                    } else {
+                        plugin.getLogger().warning("Format de chunk invalide: " + firstChunk);
+                        return null;
+                    }
+                }
+            }
+            // Cas 2: Ancien format avec chunk-x et chunk-z (rétrocompatibilité)
+            else if (section.contains("chunk-x") && section.contains("chunk-z")) {
+                int chunkX = section.getInt("chunk-x");
+                int chunkZ = section.getInt("chunk-z");
+                plot = new Plot(townName, world.getChunkAt(chunkX, chunkZ));
+            } else {
+                plugin.getLogger().warning("Aucune donnée de chunk trouvée pour une parcelle de " + townName);
+                return null;
+            }
+
             if (claimDate != null) {
                 plot.setClaimDate(claimDate);
             }
@@ -788,237 +646,6 @@ public class TownDataManager {
         }
 
         return plot;
-    }
-
-    private PlotGroup loadPlotGroup(String townName, ConfigurationSection section, Town town) {
-        if (section == null) return null;
-
-        String groupId = section.getString("id");
-        PlotGroup group = new PlotGroup(groupId, townName);
-
-        // ========== IDENTIFICATION ==========
-        group.setGroupName(section.getString("name", "Groupe sans nom"));
-
-        if (section.contains("claim-date")) {
-            try {
-                LocalDateTime claimDate = LocalDateTime.parse(section.getString("claim-date"), DATE_FORMAT);
-                group.setClaimDate(claimDate);
-            } catch (Exception e) {
-                // Utiliser creation-date si claim-date n'existe pas
-                if (section.contains("creation-date")) {
-                    try {
-                        LocalDateTime creationDate = LocalDateTime.parse(section.getString("creation-date"), DATE_FORMAT);
-                        group.setClaimDate(creationDate);
-                    } catch (Exception ex) {
-                        plugin.getLogger().warning("Erreur lors du chargement de la date du groupe: " + ex.getMessage());
-                    }
-                }
-            }
-        }
-
-        // ========== PROPRIÉTÉ ==========
-        if (section.contains("owner-uuid")) {
-            UUID ownerUuid = UUID.fromString(section.getString("owner-uuid"));
-            String ownerName = section.getString("owner-name");
-            group.setOwner(ownerUuid, ownerName);
-        }
-
-        // Type de terrain
-        if (section.contains("type")) {
-            try {
-                PlotType type = PlotType.valueOf(section.getString("type"));
-                group.setType(type);
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Type de groupe invalide: " + section.getString("type"));
-            }
-        }
-
-        // Sous-type municipal
-        if (section.contains("municipal-subtype")) {
-            try {
-                MunicipalSubType subType = MunicipalSubType.valueOf(section.getString("municipal-subtype"));
-                group.setMunicipalSubType(subType);
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Sous-type municipal invalide: " + section.getString("municipal-subtype"));
-            }
-        }
-
-        // Entreprise
-        if (section.contains("company")) {
-            group.setCompanyName(section.getString("company"));
-        }
-        if (section.contains("company-siret")) {
-            group.setCompanySiret(section.getString("company-siret"));
-        }
-
-        // ========== CHUNKS ==========
-        // Nouveau format : "chunks"
-        List<String> chunkKeys = section.getStringList("chunks");
-        // Ancien format : "plots" (rétrocompatibilité)
-        if (chunkKeys.isEmpty()) {
-            chunkKeys = section.getStringList("plots");
-        }
-
-        for (String chunkKey : chunkKeys) {
-            group.addChunk(chunkKey);
-        }
-
-        // ========== DETTES ==========
-        // Dettes entreprises
-        if (section.contains("debt-amount")) {
-            group.setCompanyDebtAmount(section.getDouble("debt-amount"));
-        }
-        if (section.contains("debt-warning-count")) {
-            group.setDebtWarningCount(section.getInt("debt-warning-count"));
-        }
-        if (section.contains("last-debt-warning")) {
-            try {
-                LocalDateTime lastWarning = LocalDateTime.parse(section.getString("last-debt-warning"), DATE_FORMAT);
-                group.setLastDebtWarningDate(lastWarning);
-            } catch (Exception e) {
-                plugin.getLogger().warning("Erreur lors du chargement de last-debt-warning du groupe");
-            }
-        }
-
-        // Dettes particuliers
-        if (section.contains("particular-debt-amount")) {
-            group.setParticularDebtAmount(section.getDouble("particular-debt-amount"));
-        }
-        if (section.contains("particular-debt-warning-count")) {
-            group.setParticularDebtWarningCount(section.getInt("particular-debt-warning-count"));
-        }
-        if (section.contains("particular-last-debt-warning")) {
-            try {
-                LocalDateTime lastWarning = LocalDateTime.parse(section.getString("particular-last-debt-warning"), DATE_FORMAT);
-                group.setParticularLastDebtWarningDate(lastWarning);
-            } catch (Exception e) {
-                plugin.getLogger().warning("Erreur lors du chargement de particular-last-debt-warning du groupe");
-            }
-        }
-
-        // ========== VENTE/LOCATION ==========
-        if (section.getBoolean("for-sale", false)) {
-            group.setSalePrice(section.getDouble("sale-price"));
-            group.setForSale(true);
-        }
-
-        if (section.getBoolean("for-rent", false)) {
-            group.setRentPricePerDay(section.getDouble("rent-price-per-day"));
-            group.setForRent(true);
-        }
-
-        if (section.contains("renter-uuid")) {
-            UUID renterUuid = UUID.fromString(section.getString("renter-uuid"));
-            int daysRemaining = section.getInt("rent-days-remaining", 1);
-            group.setRenter(renterUuid, daysRemaining);
-
-            if (section.contains("last-rent-update")) {
-                try {
-                    LocalDateTime lastUpdate = LocalDateTime.parse(
-                        section.getString("last-rent-update"), DATE_FORMAT);
-                    group.setLastRentUpdate(lastUpdate);
-                } catch (Exception e) {
-                    plugin.getLogger().warning("Erreur lors du chargement de last-rent-update du groupe");
-                }
-            }
-        }
-
-        if (section.contains("renter-company-siret")) {
-            group.setRenterCompanySiret(section.getString("renter-company-siret"));
-        }
-
-        // ========== PERMISSIONS ==========
-        ConfigurationSection permissionsSection = section.getConfigurationSection("permissions");
-        if (permissionsSection != null) {
-            for (String key : permissionsSection.getKeys(false)) {
-                ConfigurationSection permSection = permissionsSection.getConfigurationSection(key);
-                if (permSection != null) {
-                    try {
-                        UUID playerUuid = UUID.fromString(permSection.getString("player"));
-                        List<String> permNames = permSection.getStringList("perms");
-
-                        Set<PlotPermission> permissions = EnumSet.noneOf(PlotPermission.class);
-                        for (String permName : permNames) {
-                            try {
-                                permissions.add(PlotPermission.valueOf(permName));
-                            } catch (IllegalArgumentException e) {
-                                plugin.getLogger().warning("Permission invalide: " + permName);
-                            }
-                        }
-
-                        group.setPlayerPermissions(playerUuid, permissions);
-                    } catch (Exception e) {
-                        plugin.getLogger().warning("Erreur lors du chargement des permissions du groupe: " + e.getMessage());
-                    }
-                }
-            }
-        }
-
-        // Trusted players
-        List<String> trustedList = section.getStringList("trusted-players");
-        for (String uuidStr : trustedList) {
-            try {
-                UUID uuid = UUID.fromString(uuidStr);
-                group.addTrustedPlayer(uuid);
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("UUID de trusted player invalide: " + uuidStr);
-            }
-        }
-
-        // ========== FLAGS ==========
-        ConfigurationSection flagsSection = section.getConfigurationSection("flags");
-        if (flagsSection != null) {
-            for (String flagName : flagsSection.getKeys(false)) {
-                try {
-                    PlotFlag flag = PlotFlag.valueOf(flagName);
-                    boolean value = flagsSection.getBoolean(flagName);
-                    group.setFlag(flag, value);
-                } catch (IllegalArgumentException e) {
-                    plugin.getLogger().warning("Flag invalide: " + flagName);
-                }
-            }
-        }
-
-        // ========== PROTECTION BLOCS ==========
-        // Protected blocks list (n'est généralement pas sauvegardé, mais supportons-le)
-        List<String> protectedBlocksList = section.getStringList("protected-blocks");
-        // Note: Les blocs protégés ne sont pas explicitement rechargés dans le groupe
-        // car ils sont généralement scannés à la mise en location
-
-        // RenterBlockTracker
-        ConfigurationSection renterBlocksSection = section.getConfigurationSection("renter-blocks");
-        if (renterBlocksSection != null) {
-            Map<UUID, Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition>> renterBlocks = new HashMap<>();
-            for (String key : renterBlocksSection.getKeys(false)) {
-                ConfigurationSection renterBlockSection = renterBlocksSection.getConfigurationSection(key);
-                if (renterBlockSection != null) {
-                    try {
-                        UUID renterUuid = UUID.fromString(renterBlockSection.getString("renter-uuid"));
-                        List<String> blocksList = renterBlockSection.getStringList("blocks");
-
-                        Set<com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition> blocks = new HashSet<>();
-                        for (String blockStr : blocksList) {
-                            com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition blockPos =
-                                com.gravityyfh.roleplaycity.town.data.RenterBlockTracker.BlockPosition.deserialize(blockStr);
-                            if (blockPos != null) {
-                                blocks.add(blockPos);
-                            }
-                        }
-
-                        if (!blocks.isEmpty()) {
-                            renterBlocks.put(renterUuid, blocks);
-                        }
-                    } catch (Exception e) {
-                        plugin.getLogger().warning("Erreur lors du chargement des blocs locataire du groupe: " + e.getMessage());
-                    }
-                }
-            }
-            if (!renterBlocks.isEmpty()) {
-                group.getRenterBlockTracker().loadBlocks(renterBlocks);
-            }
-        }
-
-        return group;
     }
 }
 

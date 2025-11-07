@@ -645,11 +645,8 @@ public class TownManager {
         // Effacer le locataire
         plot.clearRenter();
 
-        // FIX CRITIQUE: Retirer FORCÉMENT du groupe (pas seulement si incompatible)
-        Town town = getTown(plot.getTownName());
-        if (town != null) {
-            town.removePlotFromGroup(plot);
-        }
+        // Note: Avec le système unifié, plus besoin de retirer du groupe
+        // Les terrains groupés sont gérés directement via Plot.isGrouped()
 
         plugin.getLogger().info(String.format(
             "[TownManager] Terrain %s:%d,%d retourné à la ville. Raison: %s. Ancien propriétaire: %s, Entreprise: %s",

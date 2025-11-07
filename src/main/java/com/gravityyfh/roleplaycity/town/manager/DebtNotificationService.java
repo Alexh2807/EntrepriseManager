@@ -2,7 +2,6 @@ package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
-import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -360,10 +359,10 @@ public class DebtNotificationService {
     }
 
     private String buildDebtLabel(Town town, Town.PlayerDebt debt, Plot plot) {
-        if (debt.isGroup()) {
-            PlotGroup group = debt.getGroup();
-            if (group != null && group.getGroupName() != null) {
-                return town.getName() + " • " + group.getGroupName();
+        if (plot.isGrouped()) {
+            String groupName = plot.getGroupName();
+            if (groupName != null) {
+                return town.getName() + " • " + groupName;
             }
             return town.getName() + " • Groupe";
         }

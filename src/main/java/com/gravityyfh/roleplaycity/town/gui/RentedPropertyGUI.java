@@ -2,7 +2,6 @@ package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
-import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.TownEconomyManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -38,14 +37,13 @@ public class RentedPropertyGUI implements Listener {
     }
 
     /**
-     * Ouvre le menu de gestion d'une propriété louée (groupe ou parcelle)
+     * Ouvre le menu de gestion d'une propriété louée
      *
      * @param player    Le joueur
      * @param townName  Le nom de la ville
-     * @param identifier L'identifiant (groupId ou "chunkX:chunkZ:worldName" pour une parcelle)
-     * @param isGroup   true si c'est un groupe, false si c'est une parcelle
+     * @param chunkKey  La clé du chunk "chunkX:chunkZ:worldName"
      */
-    public void openRentedManagementMenu(Player player, String townName, String identifier, boolean isGroup) {
+    public void openRentedManagementMenu(Player player, String townName, String chunkKey) {
         Town town = townManager.getTown(townName);
         if (town == null) {
             player.sendMessage(ChatColor.RED + "Ville introuvable.");
@@ -54,43 +52,31 @@ public class RentedPropertyGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 27, ChatColor.AQUA + "📦 Gestion de Location");
 
+        // Récupérer le plot - Format: "chunkX:chunkZ:worldName"
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+
+        if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
+            player.sendMessage(ChatColor.RED + "Terrain loué introuvable.");
+            return;
+        }
+
         // Récupérer les données
-        PlotGroup group = null;
-        Plot plot = null;
         String propertyName;
         int surface;
-        double rentPrice;
-        int daysRemaining;
-        boolean forSale;
-        double salePrice = 0;
 
-        if (isGroup) {
-            group = town.getPlotGroup(identifier);
-            if (group == null || !player.getUniqueId().equals(group.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Groupe loué introuvable.");
-                return;
-            }
-            propertyName = group.getGroupName();
-            surface = group.getChunkKeys().size() * 256;
-            rentPrice = group.getRentPricePerDay();
-            daysRemaining = group.getRentDaysRemaining();
-            forSale = group.isForSale();
-            salePrice = group.getSalePrice();
+        if (plot.isGrouped()) {
+            propertyName = plot.getGroupName();
+            surface = plot.getChunks().size() * 256;
         } else {
-            // Format: "chunkX:chunkZ:worldName"
-            String[] parts = identifier.split(":");
-            plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
-            if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Parcelle louée introuvable.");
-                return;
-            }
             propertyName = "Parcelle " + plot.getChunkX() + ", " + plot.getChunkZ();
             surface = 256;
-            rentPrice = plot.getRentPricePerDay();
-            daysRemaining = plot.getRentDaysRemaining();
-            forSale = plot.isForSale();
-            salePrice = plot.getSalePrice();
         }
+
+        double rentPrice = plot.getRentPricePerDay();
+        int daysRemaining = plot.getRentDaysRemaining();
+        boolean forSale = plot.isForSale();
+        double salePrice = plot.getSalePrice();
 
         // BOUTON: Informations
         ItemStack infoItem = new ItemStack(Material.BOOK);
@@ -171,8 +157,7 @@ public class RentedPropertyGUI implements Listener {
 
         // Sauvegarder les données dans la session pour les actions
         player.setMetadata("rentedProperty_townName", new org.bukkit.metadata.FixedMetadataValue(plugin, townName));
-        player.setMetadata("rentedProperty_identifier", new org.bukkit.metadata.FixedMetadataValue(plugin, identifier));
-        player.setMetadata("rentedProperty_isGroup", new org.bukkit.metadata.FixedMetadataValue(plugin, isGroup));
+        player.setMetadata("rentedProperty_chunkKey", new org.bukkit.metadata.FixedMetadataValue(plugin, chunkKey));
 
         player.openInventory(inv);
     }
@@ -190,8 +175,7 @@ public class RentedPropertyGUI implements Listener {
         // Récupérer les données de session
         if (!player.hasMetadata("rentedProperty_townName")) return;
         String townName = player.getMetadata("rentedProperty_townName").get(0).asString();
-        String identifier = player.getMetadata("rentedProperty_identifier").get(0).asString();
-        boolean isGroup = player.getMetadata("rentedProperty_isGroup").get(0).asBoolean();
+        String chunkKey = player.getMetadata("rentedProperty_chunkKey").get(0).asString();
 
         Town town = townManager.getTown(townName);
         if (town == null) return;
@@ -200,8 +184,7 @@ public class RentedPropertyGUI implements Listener {
         if (clicked.getType() == Material.ARROW) {
             player.closeInventory();
             player.removeMetadata("rentedProperty_townName", plugin);
-            player.removeMetadata("rentedProperty_identifier", plugin);
-            player.removeMetadata("rentedProperty_isGroup", plugin);
+            player.removeMetadata("rentedProperty_chunkKey", plugin);
             myPropertyGUI.openPropertyMenu(player, townName);
             return;
         }
@@ -209,162 +192,114 @@ public class RentedPropertyGUI implements Listener {
         // BOUTON: Recharger
         if (clicked.getType() == Material.EMERALD) {
             player.closeInventory();
-            handleRecharge(player, town, identifier, isGroup);
+            handleRecharge(player, town, chunkKey);
             return;
         }
 
         // BOUTON: Résilier
         if (clicked.getType() == Material.RED_CONCRETE) {
             player.closeInventory();
-            handleCancel(player, town, identifier, isGroup);
+            handleCancel(player, town, chunkKey);
             return;
         }
 
         // BOUTON: Acheter
         if (clicked.getType() == Material.DIAMOND) {
             player.closeInventory();
-            handleBuy(player, town, identifier, isGroup);
+            handleBuy(player, town, chunkKey);
             return;
         }
     }
 
-    private void handleRecharge(Player player, Town town, String identifier, boolean isGroup) {
-        if (isGroup) {
-            PlotGroup group = town.getPlotGroup(identifier);
-            if (group == null || !player.getUniqueId().equals(group.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Erreur: Groupe introuvable.");
-                return;
-            }
+    private void handleRecharge(Player player, Town town, String chunkKey) {
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
 
-            // Vérifier le maximum
-            if (group.getRentDaysRemaining() >= 30) {
-                player.sendMessage(ChatColor.RED + "Vous avez déjà le maximum de 30 jours !");
-                return;
-            }
+        if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
+            player.sendMessage(ChatColor.RED + "Erreur: Terrain loué introuvable.");
+            return;
+        }
 
-            double cost = group.getRentPricePerDay();
-            if (!RoleplayCity.getEconomy().has(player, cost)) {
-                player.sendMessage(ChatColor.RED + "Fonds insuffisants ! Prix: " + String.format("%.2f€", cost));
-                return;
-            }
+        if (plot.getRentDaysRemaining() >= 30) {
+            player.sendMessage(ChatColor.RED + "Vous avez déjà le maximum de 30 jours !");
+            return;
+        }
 
-            // Recharger
-            RoleplayCity.getEconomy().withdrawPlayer(player, cost);
-            int actualDays = group.rechargeDays(1);
+        double cost = plot.getRentPricePerDay();
+        if (!RoleplayCity.getEconomy().has(player, cost)) {
+            player.sendMessage(ChatColor.RED + "Fonds insuffisants ! Prix: " + String.format("%.2f€", cost));
+            return;
+        }
 
-            player.sendMessage("");
-            player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
-            player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + group.getGroupName());
-            player.sendMessage(ChatColor.YELLOW + "Jours ajoutés: " + ChatColor.WHITE + actualDays);
-            player.sendMessage(ChatColor.YELLOW + "Total: " + ChatColor.WHITE + group.getRentDaysRemaining() + "/30 jours");
-            player.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GOLD + String.format("%.2f€", cost));
-            player.sendMessage("");
+        RoleplayCity.getEconomy().withdrawPlayer(player, cost);
+        int actualDays = plot.rechargeDays(1);
 
-            townManager.saveTownsNow();
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
+
+        if (plot.isGrouped()) {
+            player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
         } else {
-            String[] parts = identifier.split(":");
-            Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
-            if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Erreur: Parcelle introuvable.");
-                return;
-            }
-
-            if (plot.getRentDaysRemaining() >= 30) {
-                player.sendMessage(ChatColor.RED + "Vous avez déjà le maximum de 30 jours !");
-                return;
-            }
-
-            double cost = plot.getRentPricePerDay();
-            if (!RoleplayCity.getEconomy().has(player, cost)) {
-                player.sendMessage(ChatColor.RED + "Fonds insuffisants ! Prix: " + String.format("%.2f€", cost));
-                return;
-            }
-
-            RoleplayCity.getEconomy().withdrawPlayer(player, cost);
-            int actualDays = plot.rechargeDays(1);
-
-            player.sendMessage("");
-            player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
             player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
-            player.sendMessage(ChatColor.YELLOW + "Jours ajoutés: " + ChatColor.WHITE + actualDays);
-            player.sendMessage(ChatColor.YELLOW + "Total: " + ChatColor.WHITE + plot.getRentDaysRemaining() + "/30 jours");
-            player.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GOLD + String.format("%.2f€", cost));
-            player.sendMessage("");
-
-            townManager.saveTownsNow();
         }
+
+        player.sendMessage(ChatColor.YELLOW + "Jours ajoutés: " + ChatColor.WHITE + actualDays);
+        player.sendMessage(ChatColor.YELLOW + "Total: " + ChatColor.WHITE + plot.getRentDaysRemaining() + "/30 jours");
+        player.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GOLD + String.format("%.2f€", cost));
+        player.sendMessage("");
+
+        townManager.saveTownsNow();
     }
 
-    private void handleCancel(Player player, Town town, String identifier, boolean isGroup) {
-        if (isGroup) {
-            PlotGroup group = town.getPlotGroup(identifier);
-            if (group == null || !player.getUniqueId().equals(group.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Erreur: Groupe introuvable.");
-                return;
-            }
+    private void handleCancel(Player player, Town town, String chunkKey) {
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
 
-            String groupName = group.getGroupName();
-            group.clearRenter();
+        if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
+            player.sendMessage(ChatColor.RED + "Erreur: Terrain loué introuvable.");
+            return;
+        }
 
-            player.sendMessage("");
-            player.sendMessage(ChatColor.YELLOW + "Location résiliée pour: " + ChatColor.WHITE + groupName);
-            player.sendMessage(ChatColor.GRAY + "Vous n'êtes plus locataire de ce groupe.");
-            player.sendMessage("");
-
-            townManager.saveTownsNow();
+        String propertyName;
+        if (plot.isGrouped()) {
+            propertyName = plot.getGroupName();
         } else {
-            String[] parts = identifier.split(":");
-            Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
-            if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
-                player.sendMessage(ChatColor.RED + "Erreur: Parcelle introuvable.");
-                return;
-            }
-
-            plot.clearRenter();
-
-            player.sendMessage("");
-            player.sendMessage(ChatColor.YELLOW + "Location résiliée pour la parcelle: " + ChatColor.WHITE +
-                plot.getChunkX() + ", " + plot.getChunkZ());
-            player.sendMessage(ChatColor.GRAY + "Vous n'êtes plus locataire de ce terrain.");
-            player.sendMessage("");
-
-            townManager.saveTownsNow();
+            propertyName = "Parcelle " + plot.getChunkX() + ", " + plot.getChunkZ();
         }
+
+        plot.clearRenter();
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.YELLOW + "Location résiliée pour: " + ChatColor.WHITE + propertyName);
+        player.sendMessage(ChatColor.GRAY + "Vous n'êtes plus locataire de ce terrain.");
+        player.sendMessage("");
+
+        townManager.saveTownsNow();
     }
 
-    private void handleBuy(Player player, Town town, String identifier, boolean isGroup) {
-        if (isGroup) {
-            PlotGroup group = town.getPlotGroup(identifier);
-            if (group == null || !group.isForSale()) {
-                player.sendMessage(ChatColor.RED + "Ce groupe n'est pas en vente.");
-                return;
-            }
+    private void handleBuy(Player player, Town town, String chunkKey) {
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
 
-            if (economyManager.buyPlotGroup(town.getName(), group, player)) {
-                player.sendMessage("");
-                player.sendMessage(ChatColor.GREEN + "✓ Achat réussi !");
-                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de: " + ChatColor.WHITE + group.getGroupName());
-                player.sendMessage("");
+        if (plot == null || !plot.isForSale()) {
+            player.sendMessage(ChatColor.RED + "Ce terrain n'est pas en vente.");
+            return;
+        }
+
+        if (economyManager.buyPlot(town.getName(), plot, player)) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "✓ Achat réussi !");
+
+            if (plot.isGrouped()) {
+                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de: " + ChatColor.WHITE + plot.getGroupName());
             } else {
-                player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
-            }
-        } else {
-            String[] parts = identifier.split(":");
-            Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
-            if (plot == null || !plot.isForSale()) {
-                player.sendMessage(ChatColor.RED + "Cette parcelle n'est pas en vente.");
-                return;
-            }
-
-            if (economyManager.buyPlot(town.getName(), plot, player)) {
-                player.sendMessage("");
-                player.sendMessage(ChatColor.GREEN + "✓ Achat réussi !");
                 player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de la parcelle: " +
                     ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
-                player.sendMessage("");
-            } else {
-                player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
             }
+
+            player.sendMessage("");
+        } else {
+            player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
         }
     }
 }

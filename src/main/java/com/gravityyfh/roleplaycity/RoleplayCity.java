@@ -52,13 +52,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI townJusticeGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI townCitizenFinesGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownMembersGUI townMembersGUI;
-    private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
-    private com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI plotGroupDetailGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI myPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI rentedPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI companySelectionGUI;
     private com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI debtManagementGUI;
+    private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
@@ -133,13 +132,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townPoliceGUI = new com.gravityyfh.roleplaycity.town.gui.TownPoliceGUI(this, townManager, townPoliceManager);
         townJusticeGUI = new com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI(this, townManager, townPoliceManager, townJusticeManager);
         townCitizenFinesGUI = new com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI(this, townPoliceManager);
-        plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this, townManager, claimManager);
-        plotGroupDetailGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI(this, townManager, claimManager);
         myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager, townMainGUI);
         rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, myPropertyGUI);
         myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
         companySelectionGUI = new com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI(this);
         debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI, debtNotificationService);
+        plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this, townManager, claimManager);
 
         // Listeners
         townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
@@ -236,9 +234,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             myPropertyGUI, rentedPropertyGUI, myCompaniesGUI, debtManagementGUI, // GUI Mes Propriétés, Mes Entreprises, et Dettes
             companySelectionGUI, // GUI Sélection Entreprise
             townPoliceGUI, townJusticeGUI, townCitizenFinesGUI, // GUI Police et Justice
-            plotGroupManagementGUI, plotGroupDetailGUI, // GUI Regroupement de parcelles
+            plotGroupManagementGUI, plotGroupingListener, // GUI et Listener pour groupement de terrains
             townProtectionListener, // Protection des territoires de ville
-            plotGroupingListener, // Système interactif de groupement de parcelles
             new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
             townEventListener, // Événements de ville (suppression, départ membres)
             new EventListener(this, entrepriseLogic),
@@ -327,17 +324,17 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() { return townFinesDataManager; }
-    public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
-    public com.gravityyfh.roleplaycity.town.gui.PlotGroupDetailGUI getPlotGroupDetailGUI() { return plotGroupDetailGUI; }
     public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() { return townPlotManagementGUI; }
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }
     public com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI getMyPropertyGUI() { return myPropertyGUI; }
     public com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI getRentedPropertyGUI() { return rentedPropertyGUI; }
     public com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI getCompanySelectionGUI() { return companySelectionGUI; }
-    public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
     public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() { return notificationManager; }
     public com.gravityyfh.roleplaycity.town.manager.DebtNotificationService getDebtNotificationService() { return debtNotificationService; }
+    public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() { return plotGroupManagementGUI; }
+    public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
     public TownCommandHandler getTownCommandHandler() {
         return (TownCommandHandler) getCommand("ville").getExecutor();
     }
+    public com.gravityyfh.roleplaycity.town.gui.TownMainGUI getTownMainGUI() { return townMainGUI; }
 }

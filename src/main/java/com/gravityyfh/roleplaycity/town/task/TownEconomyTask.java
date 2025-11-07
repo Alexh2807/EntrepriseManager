@@ -36,9 +36,7 @@ public class TownEconomyTask extends BukkitRunnable {
         // Toutes les 5 minutes (6000 ticks) : Vérifier et mettre à jour les soldes de location
         if (tickCounter % 6000 == 0) {
             updateAllRentDays();
-            updateAllGroupRentDays();
             economyManager.checkExpiredRents();
-            economyManager.checkExpiredGroupRents();
         }
 
         // Toutes les 30 minutes (36000 ticks) : Nettoyer les invitations expirées
@@ -53,7 +51,7 @@ public class TownEconomyTask extends BukkitRunnable {
     }
 
     /**
-     * Met à jour les soldes de location de toutes les parcelles
+     * Met à jour les soldes de location de toutes les parcelles (individuelles et groupées)
      */
     private void updateAllRentDays() {
         townManager.getTownNames().forEach(townName -> {
@@ -62,25 +60,6 @@ public class TownEconomyTask extends BukkitRunnable {
                 town.getPlots().values().forEach(plot -> {
                     if (plot.getRenterUuid() != null) {
                         plot.updateRentDays();
-                    }
-                });
-            }
-        });
-    }
-
-    /**
-     * Met à jour les soldes de location de tous les groupes de parcelles
-     */
-    private void updateAllGroupRentDays() {
-        townManager.getTownNames().forEach(townName -> {
-            var town = townManager.getTown(townName);
-            if (town != null) {
-                // ⚠️ NOUVEAU SYSTÈME : PlotGroup autonome - pas de synchronisation avec plots individuels
-                town.getPlotGroups().values().forEach(group -> {
-                    if (group.getRenterUuid() != null) {
-                        group.updateRentDays();
-                        // Le groupe gère ses propres données de location de manière autonome
-                        // Les plots individuels n'existent plus dans ce contexte
                     }
                 });
             }

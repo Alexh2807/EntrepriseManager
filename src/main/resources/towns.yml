@@ -1,22 +1,67 @@
-# ===================================
-# Fichier de données des villes
-# RoleplayCity - Système de Ville
-# ===================================
-# Ce fichier est généré automatiquement par le plugin.
-# Il contient toutes les informations des villes créées par les joueurs.
-#
-# Structure:
-#   towns:
-#     NomDeLaVille:
-#       mayor-uuid: UUID du maire
-#       description: Description de la ville
-#       bank-balance: Solde de la banque de la ville
-#       members: Liste des membres avec leurs rôles
-#       plots: Parcelles de terrain claimées
-#       taxes: Configuration des taxes
-#       invitations: Invitations en attente
-#
-# ATTENTION: Ne modifiez pas manuellement ce fichier sauf si vous savez ce que vous faites.
-# ===================================
+towns:
+  Veloria:
+    description: Bienvenue à Veloria
+    mayor-uuid: 2e917c0b-9b2b-4559-b802-32d218570127
+    foundation-date: '2025-11-07T03:17:53.037826732'
+    bank-balance: 14573.0
+    citizen-tax: 0.0
+    company-tax: 0.0
+    last-tax-collection: '2025-11-05T18:08:43.71911835'
+    members:
+      '0':
+        uuid: 2e917c0b-9b2b-4559-b802-32d218570127
+        name: GraviTyyFH
+        roles:
+          - MAIRE
+        role: MAIRE
+        join-date: '2025-11-07T03:17:53.037828782'
+        last-online: '2025-11-07T03:17:53.037829252'
+      '1':
+        uuid: 8effd90f-17b2-4567-a86a-4c0dea4fd547
+        name: GraviTyyOFF
+        roles:
+          - CITOYEN
+        role: CITOYEN
+        join-date: '2025-11-07T03:17:53.038442935'
+        last-online: '2025-11-07T03:17:53.038445215'
+    plots:
+      '0':
+        grouped: false
+        world: world
+        chunks:
+          - world:-70:41
+        type: PARTICULIER
+        municipal-subtype: NONE
+        claim-date: '2025-11-05T21:53:08.94792047'
+        flags:
+          PVP: true
+          EXPLOSION: false
+          FIRE_SPREAD: false
+          MOB_SPAWNING: true
+          LEAF_DECAY: true
+          CROP_TRAMPLING: false
+          ENTITY_GRIEFING: false
+          LIQUID_FLOW: true
+          REDSTONE: true
+          WEATHER_CHANGE: true
+      '1':
+        grouped: true
+        world: world
+        chunks:
+          - world:-70:42
+          - world:-71:42
+        type: PARTICULIER
+        municipal-subtype: NONE
+        claim-date: '2025-11-05T21:53:08.94792047'
+        flags:
+          PVP: true
+          EXPLOSION: false
+          FIRE_SPREAD: false
+          MOB_SPAWNING: true
+          LEAF_DECAY: true
+          CROP_TRAMPLING: false
+          ENTITY_GRIEFING: false
+          LIQUID_FLOW: true
+          REDSTONE: true
+          WEATHER_CHANGE: true
 
-towns: {}

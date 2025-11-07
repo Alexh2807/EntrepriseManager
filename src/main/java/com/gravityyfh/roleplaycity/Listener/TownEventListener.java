@@ -163,47 +163,5 @@ public class TownEventListener implements Listener {
                 ));
             }
         }
-        // Traiter aussi les PlotGroups appartenant au joueur (cohérence)
-        {
-            com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getTown(townName);
-            if (town != null) {
-                java.util.List<com.gravityyfh.roleplaycity.town.data.PlotGroup> ownedGroups = town.getPlayerOwnedGroups(playerUuid);
-                if (!ownedGroups.isEmpty()) {
-                    int groupsTransferred = 0;
-                    for (com.gravityyfh.roleplaycity.town.data.PlotGroup group : ownedGroups) {
-                        boolean keepOwnership = false;
-                        if (group.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
-                            String siret = group.getCompanySiret();
-                            if (siret != null) {
-                                EntrepriseManagerLogic.Entreprise company = plugin.getCompanyPlotManager().getCompanyBySiret(siret);
-                                if (company != null) {
-                                    keepOwnership = true; // L'entreprise existe, on conserve
-                                }
-                            }
-                        }
-                        if (!keepOwnership) {
-                            group.clearRenter();
-                            group.setOwner(null, null);
-                            group.setCompanyName(null);
-                            group.setCompanySiret(null);
-                            group.resetDebt();
-                            group.resetParticularDebt();
-                            group.setForRent(false);
-                            group.setForSale(true);
-                            group.setSalePrice(group.getChunkCount() * 1000.0);
-                            groupsTransferred++;
-                            plugin.getLogger().info(String.format(
-                                "[TownEventListener] PlotGroup '%s' transféré à la ville (propriétaire %s a quitté)",
-                                group.getGroupName(), playerName
-                            ));
-                        }
-                    }
-                    if (groupsTransferred > 0) {
-                        plugin.getTownManager().saveTownsNow();
-                    }
-                }
-            }
-        }
-        // === FIN DU NOUVEAU CODE ===
     }
 }

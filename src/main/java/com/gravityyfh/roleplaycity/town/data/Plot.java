@@ -7,11 +7,14 @@ import org.bukkit.Material;
 import java.time.LocalDateTime;
 import java.util.*;
 
-public class Plot implements TerritoryEntity {
+public class Plot {
     private final String townName;
-    private final int chunkX;
-    private final int chunkZ;
+
+    // ⚠️ NOUVEAU SYSTÈME UNIFIÉ : Support multi-chunks
     private final String worldName;
+    private final List<String> chunks; // Format: "world:chunkX:chunkZ"
+    private boolean grouped; // true si 2+ chunks
+    private String groupName; // Nom du groupe si grouped = true
 
     private PlotType type;
     private MunicipalSubType municipalSubType;
@@ -59,11 +62,17 @@ public class Plot implements TerritoryEntity {
     // Flags de protection
     private final Map<PlotFlag, Boolean> flags;
 
+    /**
+     * Constructeur pour un nouveau terrain (1 chunk initial)
+     */
     public Plot(String townName, Chunk chunk) {
         this.townName = townName;
-        this.chunkX = chunk.getX();
-        this.chunkZ = chunk.getZ();
         this.worldName = chunk.getWorld().getName();
+        this.chunks = new ArrayList<>();
+        this.chunks.add(worldName + ":" + chunk.getX() + ":" + chunk.getZ());
+        this.grouped = false;
+        this.groupName = null;
+
         this.type = PlotType.MUNICIPAL; // Type par défaut
         this.municipalSubType = MunicipalSubType.NONE;
         this.claimDate = LocalDateTime.now();
@@ -86,66 +95,137 @@ public class Plot implements TerritoryEntity {
         }
     }
 
+    /**
+     * ⚠️ NOUVEAU : Constructeur pour un terrain multi-chunks (groupe)
+     */
+    public Plot(String townName, String worldName, List<String> chunkKeys, String groupName) {
+        this.townName = townName;
+        this.worldName = worldName;
+        this.chunks = new ArrayList<>(chunkKeys);
+        this.grouped = (chunkKeys.size() > 1);
+        this.groupName = groupName;
+
+        this.type = PlotType.MUNICIPAL;
+        this.municipalSubType = MunicipalSubType.NONE;
+        this.claimDate = LocalDateTime.now();
+        this.forSale = false;
+        this.forRent = false;
+        this.rentDaysRemaining = 0;
+        this.companyDebtAmount = 0.0;
+        this.debtWarningCount = 0;
+        this.particularDebtAmount = 0.0;
+        this.particularDebtWarningCount = 0;
+        this.protectedBlocks = new HashSet<>();
+        this.renterBlockTracker = new RenterBlockTracker();
+        this.playerPermissions = new HashMap<>();
+        this.trustedPlayers = new HashSet<>();
+        this.flags = new EnumMap<>(PlotFlag.class);
+
+        for (PlotFlag flag : PlotFlag.values()) {
+            flags.put(flag, flag.getDefaultValue());
+        }
+    }
+
     // ========== IMPLÉMENTATION TerritoryEntity ==========
 
-    @Override
     public String getIdentifier() {
-        return worldName + ":" + chunkX + ":" + chunkZ;
+        // Pour les terrains groupés, retourner le nom du groupe
+        // Pour les terrains simples, retourner les coordonnées du premier chunk
+        if (grouped && groupName != null) {
+            return groupName;
+        }
+        return chunks.isEmpty() ? "unknown" : chunks.get(0);
+    }
+
+    // ========== NOUVEAU : Getters/Setters pour multi-chunks ==========
+
+    public List<String> getChunks() { return new ArrayList<>(chunks); }
+    public int getChunkCount() { return chunks.size(); }
+    public boolean isGrouped() { return grouped; }
+    public String getGroupName() { return groupName; }
+
+    public void setGrouped(boolean grouped) {
+        this.grouped = grouped;
+        if (!grouped) {
+            groupName = null;
+        }
+    }
+
+    public void setGroupName(String name) {
+        this.groupName = name;
+        this.grouped = (chunks.size() > 1);
+    }
+
+    public void addChunk(String chunkKey) {
+        if (!chunks.contains(chunkKey)) {
+            chunks.add(chunkKey);
+            grouped = (chunks.size() > 1);
+        }
+    }
+
+    public void removeChunk(String chunkKey) {
+        chunks.remove(chunkKey);
+        grouped = (chunks.size() > 1);
+        if (!grouped) {
+            groupName = null;
+        }
+    }
+
+    public boolean containsChunk(String world, int chunkX, int chunkZ) {
+        String key = world + ":" + chunkX + ":" + chunkZ;
+        return chunks.contains(key);
+    }
+
+    /**
+     * Retourne les coordonnées du premier chunk (pour compatibilité)
+     */
+    public int getChunkX() {
+        if (chunks.isEmpty()) return 0;
+        String[] parts = chunks.get(0).split(":");
+        return parts.length >= 2 ? Integer.parseInt(parts[1]) : 0;
+    }
+
+    public int getChunkZ() {
+        if (chunks.isEmpty()) return 0;
+        String[] parts = chunks.get(0).split(":");
+        return parts.length >= 3 ? Integer.parseInt(parts[2]) : 0;
     }
 
     // ========== Getters (implémentation interface + spécifiques) ==========
 
-    @Override
     public String getTownName() { return townName; }
 
-    public int getChunkX() { return chunkX; }
-    public int getChunkZ() { return chunkZ; }
     public String getWorldName() { return worldName; }
 
-    @Override
     public PlotType getType() { return type; }
 
-    @Override
     public MunicipalSubType getMunicipalSubType() { return municipalSubType; }
 
-    @Override
     public UUID getOwnerUuid() { return ownerUuid; }
 
-    @Override
     public String getOwnerName() { return ownerName; }
 
-    @Override
     public String getCompanyName() { return companyName; }
 
-    @Override
     public String getCompanySiret() { return companySiret; }
 
-    @Override
     public double getCompanyDebtAmount() { return companyDebtAmount; }
 
-    @Override
     public LocalDateTime getLastDebtWarningDate() { return lastDebtWarningDate; }
 
-    @Override
     public int getDebtWarningCount() { return debtWarningCount; }
 
     // NOUVEAU : Getters pour dettes particuliers
-    @Override
     public double getParticularDebtAmount() { return particularDebtAmount; }
 
-    @Override
     public LocalDateTime getParticularLastDebtWarningDate() { return particularLastDebtWarningDate; }
 
-    @Override
     public int getParticularDebtWarningCount() { return particularDebtWarningCount; }
 
-    @Override
     public double getSalePrice() { return salePrice; }
 
-    @Override
     public boolean isForSale() { return forSale; }
 
-    @Override
     public double getRentPricePerDay() { return rentPricePerDay; }
 
     /**
@@ -160,29 +240,22 @@ public class Plot implements TerritoryEntity {
     @Deprecated
     public int getRentDurationDays() { return rentDaysRemaining; }
 
-    @Override
     public boolean isForRent() { return forRent; }
 
-    @Override
     public UUID getRenterUuid() { return renterUuid; }
 
-    @Override
     public String getRenterCompanySiret() { return renterCompanySiret; }
 
-    @Override
     public LocalDateTime getRentStartDate() { return rentStartDate; }
 
     public LocalDateTime getLastRentUpdate() { return lastRentUpdate; }
 
-    @Override
     public int getRentDaysRemaining() { return rentDaysRemaining; }
 
-    @Override
     public LocalDateTime getClaimDate() { return claimDate; }
 
     public Set<String> getProtectedBlocks() { return new HashSet<>(protectedBlocks); }
 
-    @Override
     public RenterBlockTracker getRenterBlockTracker() { return renterBlockTracker; }
 
     // Setters
@@ -404,12 +477,10 @@ public class Plot implements TerritoryEntity {
 
     // ========== Utility methods (implémentation interface) ==========
 
-    @Override
     public boolean isOwnedBy(UUID playerUuid) {
         return ownerUuid != null && ownerUuid.equals(playerUuid);
     }
 
-    @Override
     public boolean isRentedBy(UUID playerUuid) {
         return renterUuid != null && renterUuid.equals(playerUuid);
     }
@@ -434,7 +505,6 @@ public class Plot implements TerritoryEntity {
         return type.requiresCompany();
     }
 
-    @Override
     public double getDailyTax() {
         return type != null ? type.getDailyTax() : 0.0;
     }
@@ -457,7 +527,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Vérifie si un joueur peut construire sur cette parcelle (avec contexte de ville)
      */
-    @Override
     public boolean canBuild(UUID playerUuid, Town town) {
         // Public : tout le monde peut construire
         if (isPublic()) {
@@ -476,7 +545,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Vérifie si un joueur peut interagir avec les blocs de cette parcelle
      */
-    @Override
     public boolean canInteract(UUID playerUuid, Town town) {
         // Public : tout le monde peut interagir
         if (isPublic()) {
@@ -499,13 +567,14 @@ public class Plot implements TerritoryEntity {
     }
 
     public String getCoordinates() {
-        return String.format("(%d, %d)", chunkX, chunkZ);
+        if (grouped && chunks.size() > 1) {
+            return String.format("%s (%d chunks)", groupName != null ? groupName : "Groupe", chunks.size());
+        }
+        return String.format("(%d, %d)", getChunkX(), getChunkZ());
     }
 
     public boolean matchesChunk(Chunk chunk) {
-        return chunk.getX() == chunkX &&
-               chunk.getZ() == chunkZ &&
-               chunk.getWorld().getName().equals(worldName);
+        return containsChunk(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
     }
 
     // ========== Gestion des permissions ==========
@@ -534,7 +603,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Vérifier si un joueur a une permission spécifique
      */
-    @Override
     public boolean hasPermission(UUID playerUuid, PlotPermission permission) {
         // Propriétaire et locataire ont toutes les permissions
         if (isOwnedBy(playerUuid) || isRentedBy(playerUuid)) {
@@ -554,7 +622,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Obtenir toutes les permissions d'un joueur
      */
-    @Override
     public Set<PlotPermission> getPlayerPermissions(UUID playerUuid) {
         if (isOwnedBy(playerUuid) || isRentedBy(playerUuid) || trustedPlayers.contains(playerUuid)) {
             return EnumSet.allOf(PlotPermission.class);
@@ -583,7 +650,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Obtenir tous les joueurs avec des permissions
      */
-    @Override
     public Map<UUID, Set<PlotPermission>> getAllPlayerPermissions() {
         return new HashMap<>(playerPermissions);
     }
@@ -607,7 +673,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Vérifier si un joueur est de confiance
      */
-    @Override
     public boolean isTrusted(UUID playerUuid) {
         return trustedPlayers.contains(playerUuid);
     }
@@ -615,7 +680,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Obtenir tous les joueurs de confiance
      */
-    @Override
     public Set<UUID> getTrustedPlayers() {
         return new HashSet<>(trustedPlayers);
     }
@@ -632,7 +696,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Obtenir la valeur d'un flag
      */
-    @Override
     public boolean getFlag(PlotFlag flag) {
         return flags.getOrDefault(flag, flag.getDefaultValue());
     }
@@ -640,7 +703,6 @@ public class Plot implements TerritoryEntity {
     /**
      * Obtenir tous les flags
      */
-    @Override
     public Map<PlotFlag, Boolean> getAllFlags() {
         return new EnumMap<>(flags);
     }

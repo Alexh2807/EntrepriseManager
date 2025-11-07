@@ -3,7 +3,6 @@ package com.gravityyfh.roleplaycity.town.gui;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
-import com.gravityyfh.roleplaycity.town.data.PlotGroup;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -94,7 +93,7 @@ public class MyCompaniesGUI implements Listener {
         lore.add(ChatColor.YELLOW + "Solde: " + ChatColor.GOLD + String.format("%.2f€", company.getSolde()));
         lore.add(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + company.getEmployes().size());
 
-        // ⚠️ NOUVEAU SYSTÈME : Compter terrains PROFESSIONNEL (Plots individuels ET PlotGroups)
+        // SYSTÈME UNIFIÉ : Compter terrains PROFESSIONNEL (tous dans town.getPlots())
         String townName = townManager.getPlayerTown(player.getUniqueId());
         int companyPlots = 0;
         int companyGroups = 0;
@@ -104,13 +103,20 @@ public class MyCompaniesGUI implements Listener {
         int minDaysUntilSeizure = Integer.MAX_VALUE;
 
         if (townName != null) {
-            // Compter les plots individuels
             List<Plot> plots = townManager.getPlotsByCompanySiret(company.getSiret(), townName);
-            companyPlots = plots.size();
-            totalChunks = plots.size();
 
-            // Analyser les dettes des plots individuels
             for (Plot plot : plots) {
+                if (plot.isGrouped()) {
+                    // Terrain groupé - compter une seule fois par groupe
+                    companyGroups++;
+                    totalChunks += plot.getChunks().size();
+                } else {
+                    // Terrain individuel
+                    companyPlots++;
+                    totalChunks++;
+                }
+
+                // Analyser les dettes
                 if (plot.getCompanyDebtAmount() > 0) {
                     totalDebt += plot.getCompanyDebtAmount();
                     plotsWithDebt++;
@@ -122,32 +128,6 @@ public class MyCompaniesGUI implements Listener {
                         int daysRemaining = (int) (7 - daysPassed);
                         if (daysRemaining < minDaysUntilSeizure) {
                             minDaysUntilSeizure = daysRemaining;
-                        }
-                    }
-                }
-            }
-
-            // ⚠️ NOUVEAU : Compter les PlotGroups de l'entreprise
-            Town town = townManager.getTown(townName);
-            if (town != null) {
-                for (PlotGroup group : town.getPlotGroups().values()) {
-                    if (company.getSiret().equals(group.getCompanySiret())) {
-                        companyGroups++;
-                        totalChunks += group.getChunkCount();
-
-                        // Analyser les dettes du groupe
-                        if (group.getCompanyDebtAmount() > 0) {
-                            totalDebt += group.getCompanyDebtAmount();
-                            plotsWithDebt++;
-
-                            if (group.getLastDebtWarningDate() != null) {
-                                LocalDateTime warningDate = group.getLastDebtWarningDate();
-                                long daysPassed = Duration.between(warningDate, LocalDateTime.now()).toDays();
-                                int daysRemaining = (int) (7 - daysPassed);
-                                if (daysRemaining < minDaysUntilSeizure) {
-                                    minDaysUntilSeizure = daysRemaining;
-                                }
-                            }
                         }
                     }
                 }
@@ -254,7 +234,7 @@ public class MyCompaniesGUI implements Listener {
     }
 
     /**
-     * ⚠️ NOUVEAU SYSTÈME : Affiche les terrains PROFESSIONNEL de l'entreprise (Plots ET PlotGroups)
+     * SYSTÈME UNIFIÉ : Affiche les terrains PROFESSIONNEL de l'entreprise
      */
     private void showCompanyPlots(Player player, EntrepriseManagerLogic.Entreprise company) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
@@ -264,15 +244,16 @@ public class MyCompaniesGUI implements Listener {
         }
 
         List<Plot> plots = townManager.getPlotsByCompanySiret(company.getSiret(), townName);
-        List<PlotGroup> groups = new ArrayList<>();
 
-        // Récupérer les PlotGroups de l'entreprise
-        Town town = townManager.getTown(townName);
-        if (town != null) {
-            for (PlotGroup group : town.getPlotGroups().values()) {
-                if (company.getSiret().equals(group.getCompanySiret())) {
-                    groups.add(group);
-                }
+        // Séparer plots individuels et groupés
+        List<Plot> individualPlots = new ArrayList<>();
+        List<Plot> groupedPlots = new ArrayList<>();
+
+        for (Plot plot : plots) {
+            if (plot.isGrouped()) {
+                groupedPlots.add(plot);
+            } else {
+                individualPlots.add(plot);
             }
         }
 
@@ -282,14 +263,14 @@ public class MyCompaniesGUI implements Listener {
         player.sendMessage(ChatColor.GOLD + "  Terrains de " + ChatColor.WHITE + company.getNom());
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
 
-        if (plots.isEmpty() && groups.isEmpty()) {
+        if (individualPlots.isEmpty() && groupedPlots.isEmpty()) {
             player.sendMessage(ChatColor.GRAY + "Cette entreprise ne possède aucun terrain PRO.");
         } else {
             // Afficher les plots individuels
-            if (!plots.isEmpty()) {
+            if (!individualPlots.isEmpty()) {
                 player.sendMessage("");
-                player.sendMessage(ChatColor.YELLOW + "▼ Terrains individuels (" + plots.size() + "):");
-                for (Plot plot : plots) {
+                player.sendMessage(ChatColor.YELLOW + "▼ Terrains individuels (" + individualPlots.size() + "):");
+                for (Plot plot : individualPlots) {
                     String status = plot.isForSale() ? ChatColor.GREEN + "[EN VENTE]" :
                                    plot.isForRent() ? ChatColor.AQUA + "[EN LOCATION]" :
                                    ChatColor.WHITE + "[LIBRE]";
@@ -312,26 +293,26 @@ public class MyCompaniesGUI implements Listener {
                 }
             }
 
-            // ⚠️ NOUVEAU : Afficher les PlotGroups
-            if (!groups.isEmpty()) {
+            // Afficher les terrains groupés
+            if (!groupedPlots.isEmpty()) {
                 player.sendMessage("");
-                player.sendMessage(ChatColor.AQUA + "▼ Groupes de terrains (" + groups.size() + "):");
-                for (PlotGroup group : groups) {
-                    String status = group.isForSale() ? ChatColor.GREEN + "[EN VENTE]" :
-                                   group.isForRent() ? ChatColor.AQUA + "[EN LOCATION]" :
+                player.sendMessage(ChatColor.AQUA + "▼ Groupes de terrains (" + groupedPlots.size() + "):");
+                for (Plot plot : groupedPlots) {
+                    String status = plot.isForSale() ? ChatColor.GREEN + "[EN VENTE]" :
+                                   plot.isForRent() ? ChatColor.AQUA + "[EN LOCATION]" :
                                    ChatColor.WHITE + "[LIBRE]";
 
                     player.sendMessage("");
-                    player.sendMessage(status + ChatColor.AQUA + " Groupe: " + ChatColor.WHITE + group.getGroupName());
-                    player.sendMessage(ChatColor.GRAY + "  • Chunks: " + ChatColor.WHITE + group.getChunkCount());
-                    player.sendMessage(ChatColor.GRAY + "  • Surface: " + ChatColor.WHITE + (group.getChunkCount() * 256) + "m²");
+                    player.sendMessage(status + ChatColor.AQUA + " Groupe: " + ChatColor.WHITE + plot.getGroupName());
+                    player.sendMessage(ChatColor.GRAY + "  • Chunks: " + ChatColor.WHITE + plot.getChunks().size());
+                    player.sendMessage(ChatColor.GRAY + "  • Surface: " + ChatColor.WHITE + (plot.getChunks().size() * 256) + "m²");
                     player.sendMessage(ChatColor.GRAY + "  • Type: " + ChatColor.WHITE + "PROFESSIONNEL");
 
-                    if (group.getCompanyDebtAmount() > 0) {
+                    if (plot.getCompanyDebtAmount() > 0) {
                         player.sendMessage(ChatColor.GRAY + "  • Dette: " + ChatColor.RED +
-                            String.format("%.2f€", group.getCompanyDebtAmount()));
-                        if (group.getLastDebtWarningDate() != null) {
-                            long daysPassed = Duration.between(group.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                            String.format("%.2f€", plot.getCompanyDebtAmount()));
+                        if (plot.getLastDebtWarningDate() != null) {
+                            long daysPassed = Duration.between(plot.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
                             int daysRemaining = (int) (7 - daysPassed);
                             player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + daysRemaining + " jours");
                         }
@@ -347,7 +328,7 @@ public class MyCompaniesGUI implements Listener {
     }
 
     /**
-     * ⚠️ NOUVEAU SYSTÈME : Paye les dettes de l'entreprise (Plots ET PlotGroups)
+     * SYSTÈME UNIFIÉ : Paye les dettes de l'entreprise
      */
     private void payCompanyDebts(Player player, EntrepriseManagerLogic.Entreprise company) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
@@ -357,35 +338,20 @@ public class MyCompaniesGUI implements Listener {
         }
 
         List<Plot> plots = townManager.getPlotsByCompanySiret(company.getSiret(), townName);
-        List<PlotGroup> groups = new ArrayList<>();
-
-        // Récupérer les PlotGroups de l'entreprise
-        Town town = townManager.getTown(townName);
-        if (town != null) {
-            for (PlotGroup group : town.getPlotGroups().values()) {
-                if (company.getSiret().equals(group.getCompanySiret())) {
-                    groups.add(group);
-                }
-            }
-        }
 
         double totalDebt = 0.0;
         int plotsWithDebt = 0;
         int groupsWithDebt = 0;
 
-        // Calculer dette totale des plots individuels
+        // Calculer dette totale
         for (Plot plot : plots) {
             if (plot.getCompanyDebtAmount() > 0) {
                 totalDebt += plot.getCompanyDebtAmount();
-                plotsWithDebt++;
-            }
-        }
-
-        // ⚠️ NOUVEAU : Calculer dette totale des PlotGroups
-        for (PlotGroup group : groups) {
-            if (group.getCompanyDebtAmount() > 0) {
-                totalDebt += group.getCompanyDebtAmount();
-                groupsWithDebt++;
+                if (plot.isGrouped()) {
+                    groupsWithDebt++;
+                } else {
+                    plotsWithDebt++;
+                }
             }
         }
 
@@ -402,17 +368,10 @@ public class MyCompaniesGUI implements Listener {
             return;
         }
 
-        // Payer toutes les dettes des plots individuels
+        // Payer toutes les dettes
         for (Plot plot : plots) {
             if (plot.getCompanyDebtAmount() > 0) {
                 plot.resetDebt();
-            }
-        }
-
-        // ⚠️ NOUVEAU : Payer toutes les dettes des PlotGroups
-        for (PlotGroup group : groups) {
-            if (group.getCompanyDebtAmount() > 0) {
-                group.resetDebt();
             }
         }
 

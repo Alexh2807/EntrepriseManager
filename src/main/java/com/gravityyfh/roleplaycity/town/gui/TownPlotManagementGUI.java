@@ -77,15 +77,6 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
-        // CORRECTION : Si la parcelle fait partie d'un groupe, ouvrir le GUI de groupe au lieu de celui-ci
-        com.gravityyfh.roleplaycity.town.data.PlotGroup group = town.findPlotGroupByPlot(plot);
-        if (group != null) {
-            player.sendMessage(ChatColor.YELLOW + "Cette parcelle fait partie d'un groupe de terrains.");
-            player.sendMessage(ChatColor.YELLOW + "Ouverture du menu de gestion du groupe...");
-            plugin.getPlotGroupDetailGUI().openGroupDetailMenu(player, townName, group.getGroupId());
-            return;
-        }
-
         Inventory inv = Bukkit.createInventory(null, 27, PLOT_MENU_TITLE);
 
         // Informations de la parcelle
@@ -247,6 +238,24 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(16, typeItem);
         }
 
+        // DÉGROUPER - Séparer un groupe de terrains (slot 18)
+        if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) && plot.isGrouped()) {
+            ItemStack ungroupItem = new ItemStack(Material.SHEARS);
+            ItemMeta ungroupMeta = ungroupItem.getItemMeta();
+            ungroupMeta.setDisplayName(ChatColor.RED + "✂ Dégrouper ce Terrain");
+            List<String> ungroupLore = new ArrayList<>();
+            ungroupLore.add(ChatColor.GRAY + "Séparer ce groupe en");
+            ungroupLore.add(ChatColor.GRAY + "parcelles individuelles");
+            ungroupLore.add("");
+            ungroupLore.add(ChatColor.LIGHT_PURPLE + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
+            ungroupLore.add(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + plot.getChunks().size());
+            ungroupLore.add("");
+            ungroupLore.add(ChatColor.RED + "Cliquez pour dégrouper");
+            ungroupMeta.setLore(ungroupLore);
+            ungroupItem.setItemMeta(ungroupMeta);
+            inv.setItem(18, ungroupItem);
+        }
+
         // UNCLAIM - Retourner la parcelle à la ville (slot 22)
         // Conditions : propriétaire, pas loué, type PARTICULIER ou PROFESSIONNEL
         if (plot.getOwnerUuid() != null &&
@@ -333,6 +342,7 @@ public class TownPlotManagementGUI implements Listener {
                         PlotType oldType = plot.getType();
 
                         // VALIDATION : Un terrain avec propriétaire ne peut pas devenir MUNICIPAL ou PUBLIC
+                        // VÉRIFICATION 1 : Parcelle avec propriétaire ne peut pas devenir MUNICIPAL/PUBLIC
                         if (plot.getOwnerUuid() != null &&
                             (selectedType == PlotType.MUNICIPAL || selectedType == PlotType.PUBLIC)) {
                             player.sendMessage(ChatColor.RED + "✗ Impossible de changer ce terrain en " + selectedType.getDisplayName() + " !");
@@ -342,24 +352,18 @@ public class TownPlotManagementGUI implements Listener {
                             return;
                         }
 
-                        plot.setType(selectedType);
-
-                        // Vérifier si la parcelle faisait partie d'un groupe
-                        Town town = townManager.getTown(townName);
-                        if (town != null) {
-                            boolean wasRemoved = town.removePlotFromGroupIfIncompatible(plot);
-
-                            if (wasRemoved) {
-                                player.sendMessage(ChatColor.YELLOW + "⚠ Cette parcelle a été retirée de son groupe de terrain !");
-                                player.sendMessage(ChatColor.GRAY + "Raison : Le type " + selectedType.getDisplayName() +
-                                    " n'est pas compatible avec les groupements.");
-                                player.sendMessage(ChatColor.GRAY + "Seuls les types Particulier et Professionnel peuvent être groupés.");
-
-                                // Si la parcelle était en vente/location via le groupe, annuler
-                                plot.setForSale(false);
-                                plot.setForRent(false);
-                            }
+                        // VÉRIFICATION 2 : Parcelle groupée ne peut pas changer vers MUNICIPAL/PUBLIC
+                        if (plot.isGrouped() &&
+                            (selectedType == PlotType.MUNICIPAL || selectedType == PlotType.PUBLIC)) {
+                            player.sendMessage(ChatColor.RED + "✗ Impossible de changer ce terrain en " + selectedType.getDisplayName() + " !");
+                            player.sendMessage(ChatColor.YELLOW + "Raison : Cette parcelle fait partie du groupe \"" + plot.getGroupName() + "\"");
+                            player.sendMessage(ChatColor.GRAY + "Seuls les terrains PARTICULIER et PROFESSIONNEL peuvent être groupés.");
+                            player.sendMessage(ChatColor.AQUA + "→ Vous devez d'abord dégrouper ce terrain avant de changer son type.");
+                            player.closeInventory();
+                            return;
                         }
+
+                        plot.setType(selectedType);
 
                         player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
 
@@ -402,6 +406,8 @@ public class TownPlotManagementGUI implements Listener {
             handleCancelRent(player, plot);
         } else if (displayName.contains("Changer le Type")) {
             handleChangePlotType(player, plot, townName);
+        } else if (displayName.contains("Dégrouper ce Terrain")) {
+            handleUngroupPlot(player, plot, townName);
         } else if (displayName.contains("Retourner à la Ville")) {
             handleUnclaimPlot(player, plot, townName);
         } else if (displayName.contains("Retour à Mes Propriétés")) {
@@ -509,6 +515,11 @@ public class TownPlotManagementGUI implements Listener {
     private void handleChangePlotType(Player player, Plot plot, String townName) {
         player.closeInventory();
         openPlotTypeSelectionMenu(player, plot, townName);
+    }
+
+    private void handleUngroupPlot(Player player, Plot plot, String townName) {
+        player.closeInventory();
+        plugin.getPlotGroupManagementGUI().ungroupPlot(player, plot, townName);
     }
 
     private void handleUnclaimPlot(Player player, Plot plot, String townName) {
@@ -674,29 +685,11 @@ public class TownPlotManagementGUI implements Listener {
                     return;
                 }
 
-                player.sendMessage(ChatColor.GREEN + "Prix de location: " + pricePerDay + "€/jour");
-                player.sendMessage(ChatColor.GREEN + "Maintenant, entrez la durée en jours:");
-                player.sendMessage(ChatColor.GRAY + "Exemple: 7 pour une semaine");
-
-                pendingActions.put(player.getUniqueId(),
-                    new PlotActionContext(ActionType.SET_RENT_DURATION, context.plot, context.townName, pricePerDay));
-
-            } else if (context.actionType == ActionType.SET_RENT_DURATION) {
-                int days = Integer.parseInt(input);
-                if (days <= 0 || days > 365) {
-                    player.sendMessage(ChatColor.RED + "La durée doit être entre 1 et 365 jours.");
-                    return;
-                }
-
-                // context.tempPrice contient le prix PAR JOUR
-                double pricePerDay = context.tempPrice;
-                double totalPrice = pricePerDay * days;
-
-                if (economyManager.putPlotForRent(context.townName, context.plot,
-                    totalPrice, days, player)) {
+                // Mettre en location directement avec le prix par jour
+                if (economyManager.putPlotForRent(context.townName, context.plot, pricePerDay, player)) {
                     player.sendMessage(ChatColor.GREEN + "Parcelle mise en location !");
-                    player.sendMessage(ChatColor.YELLOW + "Prix: " + String.format("%.2f€/jour", pricePerDay) +
-                        ChatColor.GRAY + " × " + days + " jours = " + ChatColor.GOLD + String.format("%.2f€ total", totalPrice));
+                    player.sendMessage(ChatColor.YELLOW + "Prix: " + ChatColor.GOLD + String.format("%.2f€/jour", pricePerDay));
+                    player.sendMessage(ChatColor.GRAY + "Les locataires pourront louer jusqu'à 30 jours");
                 } else {
                     player.sendMessage(ChatColor.RED + "Impossible de mettre la parcelle en location.");
                 }
@@ -735,7 +728,6 @@ public class TownPlotManagementGUI implements Listener {
     private enum ActionType {
         SET_SALE_PRICE,
         SET_RENT_PRICE,
-        SET_RENT_DURATION,
         RENT_PLOT_DAYS,
         RECHARGE_RENT_DAYS
     }

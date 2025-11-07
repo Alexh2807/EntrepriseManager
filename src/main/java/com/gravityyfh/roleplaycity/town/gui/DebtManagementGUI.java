@@ -87,7 +87,7 @@ public class DebtManagementGUI implements Listener {
     private ItemStack createDebtItem(Town.PlayerDebt debt, Town town) {
         Plot plot = debt.getPlot();
         boolean isCompanyDebt = (plot.getCompanyDebtAmount() > 0);
-        boolean isGroup = debt.isGroup();
+        boolean isGroup = plot.isGrouped();
 
         // Matériau selon le type de dette
         Material material;
@@ -102,7 +102,7 @@ public class DebtManagementGUI implements Listener {
         if (meta != null) {
             // Titre
             if (isGroup) {
-                String groupName = debt.getGroup() != null ? debt.getGroup().getGroupName() : "Groupe";
+                String groupName = plot.getGroupName() != null ? plot.getGroupName() : "Groupe";
                 meta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD +
                     (isCompanyDebt ? "💼 Dette Entreprise - Groupe" : "🏠 Dette Particulier - Groupe"));
             } else {
@@ -114,9 +114,9 @@ public class DebtManagementGUI implements Listener {
             List<String> lore = new ArrayList<>();
             lore.add("");
 
-            if (isGroup && debt.getGroup() != null) {
-                lore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + debt.getGroup().getGroupName());
-                lore.add(ChatColor.GRAY + "  " + debt.getGroup().getChunkKeys().size() + " parcelles");
+            if (isGroup && plot.getGroupName() != null) {
+                lore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
+                lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
             } else {
                 lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
             }
@@ -274,11 +274,10 @@ public class DebtManagementGUI implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Montant payé: " + ChatColor.GOLD + String.format("%.2f€", debtAmount));
             player.sendMessage(ChatColor.YELLOW + "Solde restant: " + ChatColor.GOLD + String.format("%.2f€", company.getSolde()));
 
-            if (debt.isGroup() && debt.getGroup() != null) {
-                player.sendMessage(ChatColor.GRAY + "Groupe: " + debt.getGroup().getGroupName());
-            } else {
-                player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
+            if (plot.isGrouped() && plot.getGroupName() != null) {
+                player.sendMessage(ChatColor.GRAY + "Groupe: " + plot.getGroupName());
             }
+            player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 
             player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
             player.sendMessage("");
@@ -311,11 +310,10 @@ public class DebtManagementGUI implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Argent restant: " + ChatColor.GOLD +
                 String.format("%.2f€", RoleplayCity.getEconomy().getBalance(player)));
 
-            if (debt.isGroup() && debt.getGroup() != null) {
-                player.sendMessage(ChatColor.GRAY + "Groupe: " + debt.getGroup().getGroupName());
-            } else {
-                player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
+            if (plot.isGrouped() && plot.getGroupName() != null) {
+                player.sendMessage(ChatColor.GRAY + "Groupe: " + plot.getGroupName());
             }
+            player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 
             player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
             player.sendMessage("");
