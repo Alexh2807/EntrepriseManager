@@ -5,6 +5,7 @@ public enum TownRole {
     ADJOINT("Adjoint", 5, true),
     POLICIER("Policier", 4, false),
     JUGE("Juge", 3, false),
+    MEDECIN("Médecin", 2, false),
     ARCHITECTE("Architecte", 2, false),
     CITOYEN("Citoyen", 1, false);
 
@@ -39,6 +40,7 @@ public enum TownRole {
             case MANAGE_TAXES -> this == MAIRE || this == ADJOINT;
             case ISSUE_FINE -> this == POLICIER;
             case JUDGE_CASE -> this == JUGE;
+            case MEDICAL_INTERVENTION -> this == MEDECIN;
             case BUILD_MUNICIPAL -> this == ARCHITECTE || this == MAIRE || this == ADJOINT;
             case VIEW_INFO -> true; // Tous les citoyens
             case PAY_TAXES -> true;
@@ -57,6 +59,7 @@ public enum TownRole {
         MANAGE_TAXES,
         ISSUE_FINE,
         JUDGE_CASE,
+        MEDICAL_INTERVENTION,
         BUILD_MUNICIPAL,
         VIEW_INFO,
         PAY_TAXES

@@ -44,6 +44,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.manager.TownPoliceManager townPoliceManager;
     private com.gravityyfh.roleplaycity.town.manager.TownJusticeManager townJusticeManager;
     private com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager townFinesDataManager;
+    private com.gravityyfh.roleplaycity.town.manager.FineExpirationManager fineExpirationManager;
     private com.gravityyfh.roleplaycity.town.gui.TownClaimsGUI townClaimsGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownBankGUI townBankGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI townPlotManagementGUI;
@@ -64,6 +65,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.manager.NotificationDataManager notificationDataManager;
     private com.gravityyfh.roleplaycity.town.manager.NotificationManager notificationManager;
     private com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService;
+
+    // Système Médical
+    private com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager medicalSystemManager;
+    private com.gravityyfh.roleplaycity.medical.listener.MedicalListener medicalListener;
 
     public void onEnable() {
         instance = this;
@@ -121,6 +126,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townFinesDataManager = new com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager(this);
         townPoliceManager = new com.gravityyfh.roleplaycity.town.manager.TownPoliceManager(this, townManager);
         townJusticeManager = new com.gravityyfh.roleplaycity.town.manager.TownJusticeManager(this, townManager, townPoliceManager);
+        fineExpirationManager = new com.gravityyfh.roleplaycity.town.manager.FineExpirationManager(this, townPoliceManager, townManager);
 
         // GUIs
         townMainGUI = new TownMainGUI(this, townManager);
@@ -149,6 +155,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Charger les amendes
         townPoliceManager.loadFines(townFinesDataManager.loadFines());
 
+        // Démarrer la vérification automatique des amendes expirées
+        fineExpirationManager.startAutomaticChecks();
+
         // Reconstruire le cache de claims
         claimManager.rebuildCache();
 
@@ -169,6 +178,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Démarrer la tâche économique récurrente
         townEconomyTask = new com.gravityyfh.roleplaycity.town.task.TownEconomyTask(this, townManager, townEconomyManager);
         townEconomyTask.start();
+
+        // Système Médical
+        medicalSystemManager = new com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager(this);
+        medicalListener = new com.gravityyfh.roleplaycity.medical.listener.MedicalListener(this);
 
         // Shop Listeners
         shopInteractionListener = new ShopInteractionListener(this);
@@ -201,6 +214,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Arrêter la tâche économique
         if (townEconomyTask != null) {
             townEconomyTask.cancel();
+        }
+
+        // Nettoyer le système médical
+        if (medicalSystemManager != null) {
+            medicalSystemManager.cleanup();
         }
 
         if (shopManager != null) {
@@ -238,6 +256,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             townProtectionListener, // Protection des territoires de ville
             new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
             townEventListener, // Événements de ville (suppression, départ membres)
+            medicalListener, // Système médical (Revive intégré)
             new EventListener(this, entrepriseLogic),
             new PlayerConnectionListener(this, entrepriseLogic),
             new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les notifications
@@ -267,6 +286,22 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().info("Gestionnaire de commandes pour /ville enregistré.");
         } else {
             getLogger().severe("ERREUR: La commande 'ville' n'est pas définie dans plugin.yml !");
+        }
+
+        var medicalCmd = getCommand("medical");
+        if (medicalCmd != null) {
+            medicalCmd.setExecutor(new com.gravityyfh.roleplaycity.medical.command.MedicalCommand(this));
+            getLogger().info("Gestionnaire de commandes pour /medical enregistré.");
+        } else {
+            getLogger().severe("ERREUR: La commande 'medical' n'est pas définie dans plugin.yml !");
+        }
+
+        var mourirCmd = getCommand("mourir");
+        if (mourirCmd != null) {
+            mourirCmd.setExecutor(new com.gravityyfh.roleplaycity.medical.command.DieCommand(this));
+            getLogger().info("Gestionnaire de commandes pour /mourir enregistré.");
+        } else {
+            getLogger().severe("ERREUR: La commande 'mourir' n'est pas définie dans plugin.yml !");
         }
     }
 
@@ -324,6 +359,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
     public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() { return townFinesDataManager; }
+    public com.gravityyfh.roleplaycity.town.manager.FineExpirationManager getFineExpirationManager() { return fineExpirationManager; }
     public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() { return townPlotManagementGUI; }
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() { return plotOwnerGUI; }
     public com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI getMyPropertyGUI() { return myPropertyGUI; }
@@ -337,4 +373,5 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return (TownCommandHandler) getCommand("ville").getExecutor();
     }
     public com.gravityyfh.roleplaycity.town.gui.TownMainGUI getTownMainGUI() { return townMainGUI; }
+    public com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager getMedicalSystemManager() { return medicalSystemManager; }
 }

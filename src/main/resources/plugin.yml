@@ -15,6 +15,14 @@ commands:
     description: Système de gestion de ville - Interface GUI pour créer, rejoindre et gérer les villes
     usage: /<command> [info|list|gui]
     aliases: [town, city]
+  medical:
+    description: Système médical - Accepter et gérer les urgences médicales
+    usage: /<command> accept <missionId>
+    aliases: [medecin, medic]
+  mourir:
+    description: Abandonner et mourir lorsque vous êtes blessé
+    usage: /<command>
+    aliases: [die, abandon]
 
 permissions:
   roleplaycity.use:
