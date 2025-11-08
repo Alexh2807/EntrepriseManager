@@ -77,7 +77,7 @@ public class RoleplayCityPlaceholders extends PlaceholderExpansion {
 
     /**
      * Obtient le grade du joueur dans sa ville selon la priorité définie
-     * Priorité : Maire > Juge > Policier > Architecte > Ambulancier > Entrepreneur > rien
+     * Priorité : Maire > Juge > Policier > Médecin > Architecte > Entrepreneur > Adjoint
      */
     private String getPlayerRank(UUID playerUuid, boolean colored) {
         String townName = townManager.getPlayerTown(playerUuid);
@@ -110,23 +110,22 @@ public class RoleplayCityPlaceholders extends PlaceholderExpansion {
             return colored ? ChatColor.BLUE + "Policier" : "Policier";
         }
 
-        // Priorité 4 : Architecte (système viendra plus tard)
+        // Priorité 4 : Médecin
+        if (role == TownRole.MEDECIN) {
+            return colored ? ChatColor.RED + "Médecin" : "Médecin";
+        }
+
+        // Priorité 5 : Architecte
         if (role == TownRole.ARCHITECTE) {
             return colored ? ChatColor.GREEN + "Architecte" : "Architecte";
         }
-
-        // Priorité 5 : Ambulancier (système viendra plus tard)
-        // Note: TownRole.AMBULANCIER n'existe pas encore
-        // if (role == TownRole.AMBULANCIER) {
-        //     return colored ? ChatColor.RED + "Ambulancier" : "Ambulancier";
-        // }
 
         // Priorité 6 : Entrepreneur (si le joueur possède une entreprise)
         if (hasCompany(playerUuid)) {
             return colored ? ChatColor.DARK_GREEN + "Entrepreneur" : "Entrepreneur";
         }
 
-        // Priorité 7 : Adjoint (pas dans la liste mais important)
+        // Priorité 7 : Adjoint
         if (role == TownRole.ADJOINT) {
             return colored ? ChatColor.YELLOW + "Adjoint" : "Adjoint";
         }

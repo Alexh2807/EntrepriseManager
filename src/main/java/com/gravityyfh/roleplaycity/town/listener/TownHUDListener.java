@@ -46,8 +46,8 @@ public class TownHUDListener implements Listener {
     private final Map<UUID, Integer> autoDisplayTasks = new HashMap<>();
 
     // Couleurs pour les particules d'affichage automatique
-    private static final Particle.DustOptions COLOR_FOR_SALE = new Particle.DustOptions(Color.fromRGB(0, 255, 0), 1.5f);  // Vert
-    private static final Particle.DustOptions COLOR_FOR_RENT = new Particle.DustOptions(Color.fromRGB(0, 200, 255), 1.5f); // Bleu
+    private static final Particle.DustOptions COLOR_FOR_SALE = new Particle.DustOptions(Color.fromRGB(40, 40, 40), 0.7f);  // Gris foncé
+    private static final Particle.DustOptions COLOR_FOR_RENT = new Particle.DustOptions(Color.fromRGB(40, 40, 40), 0.7f); // Gris foncé
 
     public TownHUDListener(RoleplayCity plugin, TownManager townManager, ClaimManager claimManager) {
         this.plugin = plugin;
@@ -165,9 +165,9 @@ public class TownHUDListener implements Listener {
                 hud.append(ChatColor.GRAY).append(" | ");
             }
 
-            // Si groupé, afficher le nom du groupe avant le type
-            if (plot.isGrouped() && plot.getGroupName() != null) {
-                hud.append(ChatColor.LIGHT_PURPLE).append(plot.getGroupName());
+            // Si groupé, afficher "Terrain groupé" au lieu du nom technique
+            if (plot.isGrouped()) {
+                hud.append(ChatColor.LIGHT_PURPLE).append("Terrain groupé");
                 hud.append(ChatColor.GRAY).append(" | ");
             }
 
@@ -281,6 +281,15 @@ public class TownHUDListener implements Listener {
             }
 
             lastTerritoryState.put(player.getUniqueId(), newState);
+        } else if (claimingTown != null) {
+            // Même territoire mais mise à jour du scoreboard pour le nouveau chunk
+            Town town = townManager.getTown(claimingTown);
+            if (town != null) {
+                Plot plotForScoreboard = claimManager.getPlotAt(toChunk);
+                if (plotForScoreboard != null) {
+                    updateScoreboard(player, town, plotForScoreboard);
+                }
+            }
         }
     }
 
@@ -318,15 +327,9 @@ public class TownHUDListener implements Listener {
             if (isGrouped) {
                 player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + totalSurface + " m² " +
                     ChatColor.GRAY + "(" + plot.getChunks().size() + " chunks groupés)");
-                if (plot.getGroupName() != null) {
-                    player.sendMessage(ChatColor.LIGHT_PURPLE + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
-                }
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + "256 m² " + ChatColor.GRAY + "(16x16)");
             }
-        } else if (isGrouped && plot.getGroupName() != null) {
-            // Si municipal/public mais dans un groupe, afficher quand même le nom du groupe
-            player.sendMessage(ChatColor.LIGHT_PURPLE + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
         }
 
         player.sendMessage(ChatColor.YELLOW + "Position: " + ChatColor.WHITE + "X: " + (plot.getChunkX() * 16) + " Z: " + (plot.getChunkZ() * 16));
@@ -426,6 +429,12 @@ public class TownHUDListener implements Listener {
      * Crée ou met à jour le scoreboard d'un joueur avec les infos du terrain actuel
      */
     private void updateScoreboard(Player player, Town town, Plot plot) {
+        // Ne pas modifier le scoreboard si le joueur a un scoreboard médical actif
+        if (plugin.getMedicalSystemManager() != null &&
+            plugin.getMedicalSystemManager().hasMedicalScoreboard(player)) {
+            return;
+        }
+
         // Créer un nouveau scoreboard ou réutiliser l'existant
         Scoreboard scoreboard = playerScoreboards.get(player.getUniqueId());
         if (scoreboard == null) {
@@ -466,15 +475,9 @@ public class TownHUDListener implements Listener {
         if (shouldShowSurface) {
             if (isGrouped) {
                 objective.getScore(" " + ChatColor.GRAY + "Surface: " + ChatColor.WHITE + totalSurface + "m²").setScore(line--);
-                if (plot.getGroupName() != null) {
-                    objective.getScore(" " + ChatColor.LIGHT_PURPLE + plot.getGroupName()).setScore(line--);
-                }
             } else {
                 objective.getScore(" " + ChatColor.GRAY + "Surface: " + ChatColor.WHITE + "256m²").setScore(line--);
             }
-        } else if (isGrouped && plot.getGroupName() != null) {
-            // Si municipal/public mais dans un groupe, afficher quand même le nom du groupe
-            objective.getScore(" " + ChatColor.LIGHT_PURPLE + plot.getGroupName()).setScore(line--);
         }
 
         // Propriétaire / Entreprise
@@ -642,6 +645,12 @@ public class TownHUDListener implements Listener {
      * Supprime le scoreboard d'un joueur (quand il quitte une ville)
      */
     private void removeScoreboard(Player player) {
+        // Ne pas supprimer le scoreboard si le joueur a un scoreboard médical actif
+        if (plugin.getMedicalSystemManager() != null &&
+            plugin.getMedicalSystemManager().hasMedicalScoreboard(player)) {
+            return;
+        }
+
         playerScoreboards.remove(player.getUniqueId());
         // Réinitialiser au scoreboard par défaut
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
@@ -663,13 +672,21 @@ public class TownHUDListener implements Listener {
         // Utiliser plot.getChunks() pour récupérer tous les chunks (groupés ou non)
         java.util.Set<String> chunkKeys = new java.util.HashSet<>(plot.getChunks());
 
-        // Créer une tâche répétitive pour afficher les particules
+        // Créer une tâche répétitive pour afficher les particules en continu
         int taskId = new BukkitRunnable() {
-            int ticksRemaining = 300; // 15 secondes * 20 ticks
-
             @Override
             public void run() {
-                if (!player.isOnline() || ticksRemaining <= 0) {
+                // Arrêter si le joueur est déconnecté
+                if (!player.isOnline()) {
+                    this.cancel();
+                    stopAutoDisplay(playerUuid);
+                    return;
+                }
+
+                // Vérifier si le joueur est toujours sur le terrain
+                Plot currentPlot = claimManager.getPlotAt(player.getLocation().getChunk());
+                if (currentPlot == null || !currentPlot.equals(plot)) {
+                    // Le joueur a quitté le terrain, arrêter les particules
                     this.cancel();
                     stopAutoDisplay(playerUuid);
                     return;
@@ -685,10 +702,8 @@ public class TownHUDListener implements Listener {
                         displayPlotBorder(worldName, chunkX, chunkZ, color, chunkKeys);
                     }
                 }
-
-                ticksRemaining -= 10; // Décrémenter de 10 ticks (0.5 seconde)
             }
-        }.runTaskTimer(plugin, 0L, 10L).getTaskId(); // Répéter toutes les 0.5 secondes
+        }.runTaskTimer(plugin, 0L, 4L).getTaskId(); // Répéter toutes les 0.25 secondes
 
         autoDisplayTasks.put(playerUuid, taskId);
     }
@@ -722,45 +737,45 @@ public class TownHUDListener implements Listener {
 
         // Côté Nord
         if (showNorth) {
-            for (int x = startX; x < startX + 16; x++) {
+            for (double x = startX; x < startX + 16; x += 0.25) {
                 spawnParticleColumn(world, x + 0.5, startZ + 0.5, color);
             }
         }
 
         // Côté Est
         if (showEast) {
-            for (int z = startZ; z < startZ + 16; z++) {
+            for (double z = startZ; z < startZ + 16; z += 0.25) {
                 spawnParticleColumn(world, startX + 16.0, z + 0.5, color);
             }
         }
 
         // Côté Sud
         if (showSouth) {
-            for (int x = startX; x < startX + 16; x++) {
+            for (double x = startX; x < startX + 16; x += 0.25) {
                 spawnParticleColumn(world, x + 0.5, startZ + 16.0, color);
             }
         }
 
         // Côté Ouest
         if (showWest) {
-            for (int z = startZ; z < startZ + 16; z++) {
+            for (double z = startZ; z < startZ + 16; z += 0.25) {
                 spawnParticleColumn(world, startX + 0.0, z + 0.5, color);
             }
         }
     }
 
     /**
-     * Spawn une colonne de particules à une position donnée
+     * Spawn une colonne de particules à une position donnée (version réduite en hauteur)
      */
     private void spawnParticleColumn(World world, double x, double z, Particle.DustOptions color) {
         int groundY = world.getHighestBlockYAt((int) x, (int) z);
 
-        // Spawn 5 particules espacées verticalement
-        for (int i = 0; i < 5; i++) {
-            double y = groundY + 0.2 + (i * 0.4);
+        // Spawn 1 niveau de particules (seulement le haut visible)
+        for (int i = 0; i < 1; i++) {
+            double y = groundY + 1.1 + (i * 0.4);
 
-            // Spawn 3 particules pour plus de densité
-            for (int j = 0; j < 3; j++) {
+            // Spawn 2 particules pour la densité (réduit pour moins de lag)
+            for (int j = 0; j < 2; j++) {
                 world.spawnParticle(
                     Particle.REDSTONE,
                     x + (Math.random() * 0.2 - 0.1),

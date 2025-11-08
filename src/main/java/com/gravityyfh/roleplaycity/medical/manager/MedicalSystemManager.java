@@ -106,7 +106,8 @@ public class MedicalSystemManager {
                 ChatColor.GRAY + "En attente de secours..."
         };
 
-        Location textLoc = player.getLocation().clone().add(0, 0.7, 0);
+        // Démarrer plus haut pour éviter la superposition avec le nametag
+        Location textLoc = player.getLocation().clone().add(0, 1.5, 0);
         for (String text : texts) {
             ArmorStand textStand = (ArmorStand) player.getWorld().spawnEntity(
                     textLoc.subtract(0, 0.3, 0),
@@ -416,7 +417,7 @@ public class MedicalSystemManager {
             arrow = "↖"; // Avant-gauche
         }
 
-        return color + "" + ChatColor.BOLD + arrow + " " + color + arrow + " " + arrow;
+        return color + "" + ChatColor.BOLD + arrow;
     }
 
     /**
@@ -737,5 +738,12 @@ public class MedicalSystemManager {
 
     public void setInterventionTimeout(int seconds) {
         this.interventionTimeout = seconds;
+    }
+
+    /**
+     * Vérifie si un joueur a un scoreboard médical actif
+     */
+    public boolean hasMedicalScoreboard(Player player) {
+        return medicScoreboards.containsKey(player.getUniqueId());
     }
 }
