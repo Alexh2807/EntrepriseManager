@@ -184,8 +184,9 @@ public class ClaimManager {
         Plot plot = new Plot(townName, chunk);
         town.addPlot(plot);
 
-        // Mettre à jour le cache
+        // Mettre à jour le cache (les deux maps pour cohérence)
         chunkOwners.put(coord, townName);
+        chunkToPlot.put(coord, plot);
 
         plugin.getLogger().info("Chunk " + coord + " claimé par " + townName);
 
@@ -235,8 +236,9 @@ public class ClaimManager {
         // Supprimer la parcelle
         town.removePlot(coord.getWorldName(), coord.getX(), coord.getZ());
 
-        // Mettre à jour le cache
+        // Mettre à jour le cache (les deux maps pour cohérence)
         chunkOwners.remove(coord);
+        chunkToPlot.remove(coord);
 
         // Rembourser
         town.deposit(refund);
