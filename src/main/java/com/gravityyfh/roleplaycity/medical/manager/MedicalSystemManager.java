@@ -1,8 +1,11 @@
 package com.gravityyfh.roleplaycity.medical.manager;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.medical.data.HealingProcess;
 import com.gravityyfh.roleplaycity.medical.data.InjuredPlayer;
+import com.gravityyfh.roleplaycity.medical.data.InjuredPlayerData;
 import com.gravityyfh.roleplaycity.medical.data.MedicalMission;
+import com.gravityyfh.roleplaycity.medical.gui.HealingMiniGameGUI;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -15,6 +18,9 @@ import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.*;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -33,12 +39,15 @@ public class MedicalSystemManager {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final Economy economy;
+    private final InjuredPlayerData persistentData;
 
     // Stockage des joueurs blessés et missions
     private final Map<UUID, InjuredPlayer> injuredPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, MedicalMission> activeMissions = new ConcurrentHashMap<>();
     private final Map<UUID, Scoreboard> medicScoreboards = new ConcurrentHashMap<>();
     private final Map<UUID, Scoreboard> previousScoreboards = new ConcurrentHashMap<>();
+    private final Map<UUID, HealingProcess> activeHealings = new ConcurrentHashMap<>();
+    private final Map<UUID, HealingMiniGameGUI> activeMiniGames = new ConcurrentHashMap<>();
 
     // Configuration
     private int medicalCost = 250;
@@ -51,6 +60,71 @@ public class MedicalSystemManager {
         this.plugin = plugin;
         this.townManager = plugin.getTownManager();
         this.economy = RoleplayCity.getEconomy();
+        this.persistentData = new InjuredPlayerData(plugin.getDataFolder());
+
+        // Vérifier s'il y a des joueurs à restaurer après redémarrage
+        handleServerRestart();
+    }
+
+    /**
+     * Gère la restauration des joueurs après un redémarrage serveur
+     */
+    private void handleServerRestart() {
+        if (persistentData.wasServerRestart()) {
+            // C'était un redémarrage serveur
+            // On va attendre que les joueurs se reconnectent pour les nettoyer
+            plugin.getLogger().info("Détection d'un redémarrage serveur - Les joueurs blessés seront relevés automatiquement");
+
+            // Nettoyer le flag après 5 secondes (laisser le temps au serveur de charger)
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                persistentData.clearServerRestartFlag();
+            }, 100L); // 5 secondes
+        } else {
+            // C'était un démarrage normal ou crash
+            // Nettoyer toutes les données obsolètes
+            persistentData.clearAll();
+        }
+    }
+
+    /**
+     * Appelé quand un joueur se connecte
+     * Gère uniquement la restauration après redémarrage serveur
+     */
+    public void onPlayerJoin(Player player) {
+        UUID playerUuid = player.getUniqueId();
+
+        // Vérifier si le joueur était blessé lors d'un redémarrage serveur
+        if (persistentData.wasInjured(playerUuid) && persistentData.wasServerRestart()) {
+            // Le serveur a redémarré : relever le joueur proprement
+            restorePlayerAfterRestart(player);
+
+            // Nettoyer la persistance
+            persistentData.removeInjuredPlayer(playerUuid);
+        }
+        // Si déconnexion normale : tout a déjà été nettoyé dans handlePlayerDisconnect()
+        // Le joueur respawn normalement sans intervention
+    }
+
+    /**
+     * Relève un joueur après un redémarrage serveur
+     */
+    private void restorePlayerAfterRestart(Player player) {
+        // Nettoyer tous les effets de potion
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
+
+        // Remettre la vie à 20
+        player.setHealth(20.0);
+
+        // S'assurer que le joueur peut bouger
+        player.setWalkSpeed(0.2f);
+        player.setFlySpeed(0.1f);
+
+        // Message d'information
+        player.sendMessage(ChatColor.GREEN + "✓ Vous avez été automatiquement relevé suite au redémarrage du serveur.");
+
+        plugin.getLogger().info("Joueur " + player.getName() + " relevé automatiquement après redémarrage");
     }
 
     /**
@@ -67,6 +141,9 @@ public class MedicalSystemManager {
         // Créer le joueur blessé
         InjuredPlayer injured = new InjuredPlayer(player, cause, canAfford);
         injuredPlayers.put(player.getUniqueId(), injured);
+
+        // Sauvegarder dans le fichier de persistance
+        persistentData.saveInjuredPlayer(player.getUniqueId(), cause, System.currentTimeMillis());
 
         // Mettre le joueur au sol
         makePlayerDowned(injured);
@@ -452,10 +529,11 @@ public class MedicalSystemManager {
                 patient.spigot().sendMessage(ChatMessageType.ACTION_BAR,
                         TextComponent.fromLegacyText(distanceMsg));
 
-                // Vérifier si le médecin est proche pour soigner
-                if (distance <= 3.0) {
-                    completeMission(mission);
-                    cancel();
+                // Vérifier si le médecin est proche pour afficher l'instruction
+                if (distance <= 3.0 && !activeHealings.containsKey(medic.getUniqueId())) {
+                    medic.sendMessage(ChatColor.GREEN + "✋ Maintenez " + ChatColor.YELLOW + ChatColor.BOLD + "SHIFT" +
+                            ChatColor.GREEN + " et " + ChatColor.YELLOW + ChatColor.BOLD + "CLIC DROIT" +
+                            ChatColor.GREEN + " sur le patient pour commencer les soins !");
                 }
             }
         }.runTaskTimer(plugin, 0L, 20L); // Toutes les secondes
@@ -506,6 +584,248 @@ public class MedicalSystemManager {
         }.runTaskTimer(plugin, 0L, 20L).getTaskId();
 
         injured.setTaskId(taskId);
+    }
+
+    /**
+     * Démarre le processus de soin progressif
+     */
+    public void startHealingProcess(Player medic, Player patient) {
+        // Vérifier que le médecin a une mission active
+        MedicalMission mission = activeMissions.get(patient.getUniqueId());
+        if (mission == null || !mission.getMedic().equals(medic)) {
+            return;
+        }
+
+        // Vérifier la distance
+        if (medic.getLocation().distance(patient.getLocation()) > 3.0) {
+            medic.sendMessage(ChatColor.RED + "❌ Vous êtes trop loin du patient !");
+            return;
+        }
+
+        // Vérifier si un processus n'est pas déjà en cours
+        if (activeHealings.containsKey(medic.getUniqueId())) {
+            return;
+        }
+
+        // Créer la Boss Bar de progression
+        BossBar progressBar = Bukkit.createBossBar(
+                ChatColor.GREEN + "🩺 Soins en cours...",
+                BarColor.GREEN,
+                BarStyle.SOLID
+        );
+        progressBar.addPlayer(medic);
+        progressBar.addPlayer(patient);
+        progressBar.setProgress(0.0);
+
+        // Créer le processus de soin
+        HealingProcess healing = new HealingProcess(medic, patient, progressBar);
+        activeHealings.put(medic.getUniqueId(), healing);
+
+        // Messages de démarrage
+        medic.sendMessage(ChatColor.GREEN + "🏥 Vous commencez les soins...");
+        patient.sendMessage(ChatColor.GREEN + "🏥 Le médecin commence à vous soigner !");
+
+        // Son de début
+        medic.playSound(medic.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
+        patient.playSound(patient.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
+
+        // Démarrer le processus progressif
+        int taskId = new BukkitRunnable() {
+            int particleTick = 0;
+
+            @Override
+            public void run() {
+                // Vérifier si le processus existe toujours
+                if (!activeHealings.containsKey(medic.getUniqueId())) {
+                    cancel();
+                    return;
+                }
+
+                // Vérifier si les joueurs sont toujours en ligne
+                if (!medic.isOnline() || !patient.isOnline()) {
+                    interruptHealing(healing, "Un joueur s'est déconnecté");
+                    cancel();
+                    return;
+                }
+
+                // Vérifier la distance
+                double distance = medic.getLocation().distance(patient.getLocation());
+                if (distance > 3.0) {
+                    interruptHealing(healing, "Le médecin s'est éloigné");
+                    cancel();
+                    return;
+                }
+
+                // Vérifier si les soins sont en pause (mini-jeu en cours)
+                if (healing.isPaused()) {
+                    // Ne pas incrémenter, juste attendre
+                    return;
+                }
+
+                // Incrémenter la progression
+                healing.incrementProgress();
+                double progress = healing.getProgressPercentage();
+                progressBar.setProgress(Math.min(progress, 1.0));
+
+                // Vérifier si un mini-jeu doit être lancé
+                int minigameDifficulty = healing.shouldStartMinigame();
+                if (minigameDifficulty > 0) {
+                    // Mettre en pause les soins
+                    healing.setPaused(true);
+
+                    // Créer et lancer le mini-jeu
+                    HealingMiniGameGUI minigame = new HealingMiniGameGUI(
+                        medic,
+                        minigameDifficulty,
+                        () -> {
+                            // Callback quand le mini-jeu est réussi
+                            healing.setPaused(false);
+                            medic.sendMessage(ChatColor.GREEN + "✓ Les soins reprennent...");
+                        },
+                        () -> {
+                            // Callback si le mini-jeu échoue
+                            interruptHealing(healing, "Mini-jeu échoué");
+                        }
+                    );
+
+                    // Stocker le mini-jeu actif
+                    activeMiniGames.put(medic.getUniqueId(), minigame);
+
+                    // Ouvrir le GUI
+                    minigame.open();
+
+                    // Ne pas continuer cette itération
+                    return;
+                }
+
+                // Message RP
+                String rpMessage = healing.getRPMessage();
+                progressBar.setTitle(ChatColor.GREEN + rpMessage);
+
+                // Messages d'action spécifiques pour le médecin
+                String medicAction = healing.getMedicAction();
+                if (medicAction != null) {
+                    medic.sendMessage(medicAction);
+                    medic.playSound(medic.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.2f);
+                }
+
+                // Messages pour le patient
+                String patientMessage = healing.getPatientMessage();
+                if (patientMessage != null) {
+                    patient.sendMessage(patientMessage);
+                }
+
+                // Action bar pour le médecin
+                int percentage = (int) (progress * 100);
+                medic.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                        TextComponent.fromLegacyText(ChatColor.GREEN + "Soins: " + ChatColor.YELLOW + percentage + "% " +
+                                ChatColor.GRAY + "| Distance: " + ChatColor.WHITE + String.format("%.1fm", distance)));
+
+                // Action bar pour le patient
+                patient.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                        TextComponent.fromLegacyText(ChatColor.GREEN + "Le médecin vous soigne... " +
+                                ChatColor.YELLOW + percentage + "%"));
+
+                // Effets visuels toutes les 5 ticks (0.25s)
+                particleTick++;
+                if (particleTick % 5 == 0) {
+                    // Particules de cœur
+                    patient.getWorld().spawnParticle(
+                            Particle.HEART,
+                            patient.getLocation().add(0, 1.5, 0),
+                            2,
+                            0.3, 0.3, 0.3,
+                            0.05
+                    );
+
+                    // Particules vertes autour du médecin
+                    medic.getWorld().spawnParticle(
+                            Particle.VILLAGER_HAPPY,
+                            medic.getLocation().add(0, 1, 0),
+                            3,
+                            0.3, 0.5, 0.3,
+                            0.05
+                    );
+                }
+
+                // Son de progression (bip)
+                if (healing.getProgressSeconds() % 3 == 0) {
+                    float pitch = 1.0f + (healing.getProgressSeconds() * 0.05f); // Le son s'accélère
+                    medic.playSound(medic.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.5f, pitch);
+                    patient.playSound(patient.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.5f, pitch);
+                }
+
+                // Vérifier si le processus est terminé
+                if (healing.isCompleted()) {
+                    completeHealing(healing, mission);
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 20L).getTaskId(); // Toutes les secondes
+
+        healing.setTaskId(taskId);
+    }
+
+    /**
+     * Interrompt un processus de soin
+     */
+    private void interruptHealing(HealingProcess healing, String reason) {
+        healing.setInterrupted(true);
+
+        // Annuler la tâche
+        if (healing.getTaskId() != -1) {
+            Bukkit.getScheduler().cancelTask(healing.getTaskId());
+        }
+
+        // Retirer la boss bar
+        healing.getProgressBar().removeAll();
+
+        // Messages
+        healing.getMedic().sendMessage(ChatColor.RED + "⚠ Soins interrompus ! " + reason);
+        healing.getPatient().sendMessage(ChatColor.RED + "⚠ Les soins ont été interrompus...");
+
+        // Son d'échec
+        healing.getMedic().playSound(healing.getMedic().getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+
+        // Nettoyer
+        activeHealings.remove(healing.getMedicUuid());
+    }
+
+    /**
+     * Complète le processus de soin
+     */
+    private void completeHealing(HealingProcess healing, MedicalMission mission) {
+        healing.setCompleted(true);
+
+        // Retirer la boss bar
+        healing.getProgressBar().removeAll();
+
+        // Nettoyer le processus de soin
+        activeHealings.remove(healing.getMedicUuid());
+
+        // Son de succès
+        healing.getMedic().playSound(healing.getMedic().getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+        healing.getPatient().playSound(healing.getPatient().getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+
+        // Grosses particules de succès
+        healing.getPatient().getWorld().spawnParticle(
+                Particle.HEART,
+                healing.getPatient().getLocation().add(0, 1, 0),
+                20,
+                0.5, 0.5, 0.5,
+                0.1
+        );
+
+        healing.getPatient().getWorld().spawnParticle(
+                Particle.VILLAGER_HAPPY,
+                healing.getPatient().getLocation().add(0, 1, 0),
+                30,
+                0.5, 0.5, 0.5,
+                0.1
+        );
+
+        // Compléter la mission
+        completeMission(mission);
     }
 
     /**
@@ -651,6 +971,9 @@ public class MedicalSystemManager {
         // Retirer les armor stands
         injured.clearArmorStands();
 
+        // Retirer de la persistance
+        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
+
         // Retirer de la map
         injuredPlayers.remove(injured.getPlayerUuid());
     }
@@ -678,6 +1001,146 @@ public class MedicalSystemManager {
     }
 
     /**
+     * Récupère le mini-jeu actif d'un médecin
+     */
+    public HealingMiniGameGUI getActiveMiniGame(Player medic) {
+        return activeMiniGames.get(medic.getUniqueId());
+    }
+
+    /**
+     * Retire le mini-jeu actif d'un médecin
+     */
+    public void removeActiveMiniGame(Player medic) {
+        activeMiniGames.remove(medic.getUniqueId());
+    }
+
+    /**
+     * Relève un joueur blessé lors d'un kick (arrêt serveur, etc.)
+     * Le joueur est relevé complètement au lieu d'être tué
+     */
+    public void revivePlayerOnKick(Player player) {
+        InjuredPlayer injured = injuredPlayers.get(player.getUniqueId());
+        if (injured == null) {
+            return; // Pas blessé
+        }
+
+        // Nettoyer TOUS les effets de potion
+        player.removePotionEffect(PotionEffectType.BLINDNESS);
+        player.removePotionEffect(PotionEffectType.SLOW);
+        player.removePotionEffect(PotionEffectType.SLOW_DIGGING);
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
+
+        // Restaurer la mobilité
+        player.setWalkSpeed(0.2f);
+        player.setFlySpeed(0.1f);
+
+        // Restaurer la santé complètement
+        player.setHealth(20.0);
+        player.setFoodLevel(20);
+        player.setSaturation(20.0f);
+
+        // Nettoyer les armor stands
+        injured.clearArmorStands();
+
+        // Annuler les missions et processus de soin
+        MedicalMission mission = activeMissions.get(player.getUniqueId());
+        if (mission != null) {
+            if (mission.getAcceptanceTaskId() != -1) {
+                Bukkit.getScheduler().cancelTask(mission.getAcceptanceTaskId());
+            }
+            activeMissions.remove(player.getUniqueId());
+        }
+
+        HealingProcess healing = activeHealings.get(player.getUniqueId());
+        if (healing != null) {
+            if (healing.getTaskId() != -1) {
+                Bukkit.getScheduler().cancelTask(healing.getTaskId());
+            }
+            healing.getProgressBar().removeAll();
+            activeHealings.remove(player.getUniqueId());
+        }
+
+        // Annuler les timers
+        if (injured.getTaskId() != -1) {
+            Bukkit.getScheduler().cancelTask(injured.getTaskId());
+        }
+
+        // Nettoyer la persistance et les maps
+        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
+        injuredPlayers.remove(injured.getPlayerUuid());
+
+        // Message au joueur
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GREEN + "✓ Vous avez été relevé suite à l'arrêt du serveur.");
+        player.sendMessage(ChatColor.GRAY + "Vous pourrez vous reconnecter normalement.");
+        player.sendMessage("");
+
+        plugin.getLogger().info("Joueur " + player.getName() + " relevé lors du kick (arrêt serveur)");
+    }
+
+    /**
+     * Gère la déconnexion d'un joueur blessé
+     * Nettoie tout, restaure la mobilité, puis tue le joueur
+     * Note: Si le serveur s'arrête, cleanup() relève le joueur AVANT que cette méthode soit appelée
+     */
+    public void handlePlayerDisconnect(Player player) {
+        InjuredPlayer injured = injuredPlayers.get(player.getUniqueId());
+        if (injured == null) {
+            return; // Pas blessé, rien à faire (ou déjà relevé par cleanup)
+        }
+
+        // ÉTAPE 1 : Nettoyer les effets de potion pour qu'il puisse bouger
+        player.removePotionEffect(PotionEffectType.BLINDNESS);
+        player.removePotionEffect(PotionEffectType.SLOW);
+        player.removePotionEffect(PotionEffectType.SLOW_DIGGING);
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
+
+        // ÉTAPE 2 : Restaurer la vitesse de marche (le joueur peut maintenant bouger)
+        player.setWalkSpeed(0.2f);
+        player.setFlySpeed(0.1f);
+
+        // ÉTAPE 3 : Nettoyer les armor stands
+        injured.clearArmorStands();
+
+        // ÉTAPE 4 : Nettoyer les missions actives
+        MedicalMission mission = activeMissions.get(player.getUniqueId());
+        if (mission != null) {
+            if (mission.getAcceptanceTaskId() != -1) {
+                Bukkit.getScheduler().cancelTask(mission.getAcceptanceTaskId());
+            }
+            activeMissions.remove(player.getUniqueId());
+        }
+
+        // ÉTAPE 5 : Nettoyer le processus de soin si en cours
+        HealingProcess healing = activeHealings.get(player.getUniqueId());
+        if (healing != null) {
+            if (healing.getTaskId() != -1) {
+                Bukkit.getScheduler().cancelTask(healing.getTaskId());
+            }
+            healing.getProgressBar().removeAll();
+            activeHealings.remove(player.getUniqueId());
+        }
+
+        // ÉTAPE 6 : Annuler les tâches du joueur blessé
+        if (injured.getTaskId() != -1) {
+            Bukkit.getScheduler().cancelTask(injured.getTaskId());
+        }
+
+        // ÉTAPE 7 : Nettoyer de la persistance et des maps
+        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
+        injuredPlayers.remove(injured.getPlayerUuid());
+
+        // ÉTAPE 8 : Maintenant que tout est nettoyé et qu'il peut bouger, le tuer
+        player.setHealth(0.0);
+
+        plugin.getLogger().info("Joueur " + player.getName() + " tué après nettoyage (déconnexion en état blessé)");
+    }
+
+    /**
      * Permet au joueur de choisir de mourir immédiatement
      */
     public void playerChooseDeath(Player player) {
@@ -692,11 +1155,50 @@ public class MedicalSystemManager {
     }
 
     /**
-     * Nettoie toutes les données (pour reload)
+     * Nettoie toutes les données (pour reload ou arrêt serveur)
+     * IMPORTANT: Relève automatiquement tous les joueurs blessés avant de nettoyer
      */
     public void cleanup() {
-        // Nettoyer tous les joueurs blessés
+        // Nettoyer tous les processus de soin en cours
+        for (HealingProcess healing : new ArrayList<>(activeHealings.values())) {
+            if (healing.getTaskId() != -1) {
+                Bukkit.getScheduler().cancelTask(healing.getTaskId());
+            }
+            healing.getProgressBar().removeAll();
+        }
+        activeHealings.clear();
+
+        // RELEVER tous les joueurs blessés AVANT la fermeture du serveur
         for (InjuredPlayer injured : new ArrayList<>(injuredPlayers.values())) {
+            Player player = injured.getPlayer();
+            if (player != null && player.isOnline()) {
+                // Nettoyer les effets
+                player.removePotionEffect(PotionEffectType.BLINDNESS);
+                player.removePotionEffect(PotionEffectType.SLOW);
+                player.removePotionEffect(PotionEffectType.SLOW_DIGGING);
+                for (PotionEffect effect : player.getActivePotionEffects()) {
+                    player.removePotionEffect(effect.getType());
+                }
+
+                // Restaurer la mobilité
+                player.setWalkSpeed(0.2f);
+                player.setFlySpeed(0.1f);
+
+                // Restaurer la santé complètement
+                player.setHealth(20.0);
+                player.setFoodLevel(20);
+                player.setSaturation(20.0f);
+
+                // Message au joueur
+                player.sendMessage("");
+                player.sendMessage(ChatColor.GREEN + "✓ Vous avez été relevé suite à l'arrêt du serveur.");
+                player.sendMessage(ChatColor.GRAY + "Vous pourrez vous reconnecter normalement.");
+                player.sendMessage("");
+
+                plugin.getLogger().info("Joueur " + player.getName() + " relevé avant l'arrêt du serveur");
+            }
+
+            // Nettoyer les données
             cleanup(injured);
         }
 

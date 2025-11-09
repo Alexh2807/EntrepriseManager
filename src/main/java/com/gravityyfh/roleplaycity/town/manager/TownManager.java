@@ -416,6 +416,20 @@ public class TownManager {
         TownRole oldRole = member.getRole();
         String targetName = member.getPlayerName();
 
+        // Vérifier les restrictions de niveau pour les rôles municipaux (Policier, Juge, Médecin)
+        if (newRole == com.gravityyfh.roleplaycity.town.data.TownRole.POLICIER ||
+            newRole == com.gravityyfh.roleplaycity.town.data.TownRole.JUGE ||
+            newRole == com.gravityyfh.roleplaycity.town.data.TownRole.MEDECIN) {
+
+            com.gravityyfh.roleplaycity.town.manager.TownLevelManager.RoleAssignmentResult result =
+                plugin.getTownLevelManager().canAssignRole(town, newRole);
+
+            if (!result.canAssign()) {
+                changer.sendMessage(result.getMessage());
+                return false;
+            }
+        }
+
         // Changer le rôle
         town.setMemberRole(targetUuid, newRole);
 

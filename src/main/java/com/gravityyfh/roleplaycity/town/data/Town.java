@@ -14,6 +14,9 @@ public class Town {
     private double citizenTax;
     private double companyTax;
 
+    // Niveau d'évolution de la ville (Campement, Village, Ville)
+    private TownLevel level;
+
     // Membres : UUID -> TownMember
     private final Map<UUID, TownMember> members;
 
@@ -38,6 +41,9 @@ public class Town {
         this.citizenTax = 0.0;
         this.companyTax = 0.0;
 
+        // Initialiser au niveau CAMPEMENT par défaut
+        this.level = TownLevel.CAMPEMENT;
+
         this.members = new ConcurrentHashMap<>();
         this.plots = new ConcurrentHashMap<>();
         this.pendingInvitations = new ConcurrentHashMap<>();
@@ -57,6 +63,7 @@ public class Town {
     public double getBankBalance() { return bankBalance; }
     public double getCitizenTax() { return citizenTax; }
     public double getCompanyTax() { return companyTax; }
+    public TownLevel getLevel() { return level; }
     public Map<UUID, TownMember> getMembers() { return new HashMap<>(members); }
     public Map<String, Plot> getPlots() { return new HashMap<>(plots); }
     public int getTotalClaims() { return totalClaims; }
@@ -67,6 +74,7 @@ public class Town {
     public void setCitizenTax(double tax) { this.citizenTax = tax; }
     public void setCompanyTax(double tax) { this.companyTax = tax; }
     public void setLastTaxCollection(LocalDateTime time) { this.lastTaxCollection = time; }
+    public void setLevel(TownLevel level) { this.level = level; }
 
     // === GESTION DES MEMBRES ===
 

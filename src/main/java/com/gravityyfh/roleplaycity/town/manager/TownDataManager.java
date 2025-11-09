@@ -62,6 +62,9 @@ public class TownDataManager {
             townsConfig.set(path + ".company-tax", town.getCompanyTax());
             townsConfig.set(path + ".last-tax-collection", town.getLastTaxCollection().format(DATE_FORMAT));
 
+            // Niveau de la ville
+            townsConfig.set(path + ".level", town.getLevel().name());
+
             // Membres
             int memberIndex = 0;
             for (TownMember member : town.getMembers().values()) {
@@ -313,6 +316,21 @@ public class TownDataManager {
         if (section.contains("last-tax-collection")) {
             town.setLastTaxCollection(LocalDateTime.parse(
                 section.getString("last-tax-collection"), DATE_FORMAT));
+        }
+
+        // Charger le niveau de la ville
+        if (section.contains("level")) {
+            String levelName = section.getString("level");
+            TownLevel level = TownLevel.fromName(levelName);
+            if (level != null) {
+                town.setLevel(level);
+            } else {
+                plugin.getLogger().warning("Niveau de ville invalide pour " + townName + ": " + levelName + ". Utilisation du niveau par défaut CAMPEMENT.");
+                town.setLevel(TownLevel.CAMPEMENT);
+            }
+        } else {
+            // Rétrocompatibilité : si le niveau n'est pas défini, on met CAMPEMENT
+            town.setLevel(TownLevel.CAMPEMENT);
         }
 
         // Charger les membres (sauf le maire déjà ajouté)

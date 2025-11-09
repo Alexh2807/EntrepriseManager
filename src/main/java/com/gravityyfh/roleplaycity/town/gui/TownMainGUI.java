@@ -37,6 +37,7 @@ public class TownMainGUI implements Listener {
     private TownJusticeGUI justiceGUI;
     private TownCitizenFinesGUI citizenFinesGUI;
     private TownMembersGUI membersGUI;
+    private TownUpgradeGUI upgradeGUI;
     private MyPropertyGUI myPropertyGUI;
     private MyCompaniesGUI myCompaniesGUI;
     private DebtManagementGUI debtManagementGUI;
@@ -76,6 +77,10 @@ public class TownMainGUI implements Listener {
 
     public void setMembersGUI(TownMembersGUI membersGUI) {
         this.membersGUI = membersGUI;
+    }
+
+    public void setUpgradeGUI(TownUpgradeGUI upgradeGUI) {
+        this.upgradeGUI = upgradeGUI;
     }
 
     public void setMyPropertyGUI(MyPropertyGUI myPropertyGUI) {
@@ -349,6 +354,34 @@ public class TownMainGUI implements Listener {
 
         // === LIGNE 4: Section Administration ===
         int adminSlot = 28;
+
+        // Améliorer la Ville (Maire uniquement)
+        if (role == TownRole.MAIRE) {
+            com.gravityyfh.roleplaycity.town.data.TownLevel currentLevel = town.getLevel();
+            com.gravityyfh.roleplaycity.town.data.TownLevel nextLevel = currentLevel.getNextLevel();
+
+            ItemStack upgradeItem = new ItemStack(nextLevel != null ? Material.NETHER_STAR : Material.BEACON);
+            ItemMeta upgradeMeta = upgradeItem.getItemMeta();
+            upgradeMeta.setDisplayName(ChatColor.GOLD + "⭐ Améliorer la Ville");
+
+            List<String> upgradeLore = new ArrayList<>();
+            upgradeLore.add(ChatColor.GRAY + "Niveau actuel: " + currentLevel.getDisplayName());
+
+            if (nextLevel != null) {
+                upgradeLore.add(ChatColor.GRAY + "Niveau suivant: " + nextLevel.getDisplayName());
+                upgradeLore.add("");
+                upgradeLore.add(ChatColor.YELLOW + "▶ Clic: Voir les conditions");
+            } else {
+                upgradeLore.add(ChatColor.GREEN + "Niveau maximum atteint!");
+                upgradeLore.add("");
+                upgradeLore.add(ChatColor.GRAY + "Votre ville est au plus haut niveau");
+            }
+
+            upgradeMeta.setLore(upgradeLore);
+            upgradeItem.setItemMeta(upgradeMeta);
+            inv.setItem(adminSlot, upgradeItem);
+            adminSlot += 2;
+        }
 
         // Gestion de la Ville (Maire/Adjoint uniquement)
         if (isAdmin) {
@@ -629,6 +662,13 @@ public class TownMainGUI implements Listener {
         } else if (strippedName.contains("Informations de la Ville")) {
             player.closeInventory();
             showTownInfo(player);
+        } else if (strippedName.contains("Améliorer la Ville")) {
+            player.closeInventory();
+            if (upgradeGUI != null) {
+                upgradeGUI.openUpgradeMenu(player);
+            } else {
+                NavigationManager.sendError(player, "Le système d'upgrade n'est pas disponible.");
+            }
         } else if (strippedName.contains("Membres et Rôles")) {
             player.closeInventory();
             if (membersGUI != null) {

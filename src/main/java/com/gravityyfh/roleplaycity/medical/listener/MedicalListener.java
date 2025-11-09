@@ -142,17 +142,38 @@ public class MedicalListener implements Listener {
     }
 
     /**
-     * Nettoie si le joueur se déconnecte
+     * Gère la reconnexion d'un joueur (après redémarrage ou déconnexion)
+     */
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        // Le manager gère automatiquement la restauration ou la mort
+        medicalManager.onPlayerJoin(player);
+    }
+
+    /**
+     * Gère le kick du joueur (souvent causé par l'arrêt serveur)
+     * RELÈVE le joueur au lieu de le tuer
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerKick(PlayerKickEvent event) {
+        Player player = event.getPlayer();
+
+        // Si le joueur est blessé lors du kick, le relever au lieu de le tuer
+        if (medicalManager.isInjured(player)) {
+            medicalManager.revivePlayerOnKick(player);
+        }
+    }
+
+    /**
+     * Nettoie si le joueur se déconnecte volontairement
      */
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        InjuredPlayer injured = medicalManager.getInjuredPlayer(player);
 
-        if (injured != null) {
-            // Le joueur meurt s'il se déconnecte en étant blessé
-            player.setHealth(0.0);
-        }
+        // Déléguer au manager qui gère le nettoyage ET la mort
+        medicalManager.handlePlayerDisconnect(player);
     }
 
     /**
@@ -245,5 +266,32 @@ public class MedicalListener implements Listener {
                 event.setCancelled(true);
             }
         }
+    }
+
+    /**
+     * Détecte le Shift + Clic droit d'un médecin sur un patient
+     */
+    @EventHandler
+    public void onMedicInteractWithPatient(PlayerInteractAtEntityEvent event) {
+        Player medic = event.getPlayer();
+
+        // Vérifier si c'est un joueur qui est cliqué
+        if (!(event.getRightClicked() instanceof Player patient)) {
+            return;
+        }
+
+        // Vérifier si le patient est blessé
+        if (!medicalManager.isInjured(patient)) {
+            return;
+        }
+
+        // Vérifier si le médecin maintient Shift
+        if (!medic.isSneaking()) {
+            return;
+        }
+
+        // Démarrer le processus de soin
+        medicalManager.startHealingProcess(medic, patient);
+        event.setCancelled(true);
     }
 }
