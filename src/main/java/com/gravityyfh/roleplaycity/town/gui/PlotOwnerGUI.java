@@ -70,6 +70,9 @@ public class PlotOwnerGUI implements Listener {
             return;
         }
 
+        // Stocker le plot dans le contexte pour les sous-menus
+        pendingActions.put(player.getUniqueId(), new PermissionContext(plot));
+
         Inventory inv = Bukkit.createInventory(null, 27, OWNER_MENU_TITLE);
 
         // Informations
@@ -144,8 +147,17 @@ public class PlotOwnerGUI implements Listener {
      * Menu de gestion des permissions
      */
     public void openPermissionsMenu(Player player) {
-        Chunk currentChunk = player.getLocation().getChunk();
-        Plot plot = claimManager.getPlotAt(currentChunk);
+        // Essayer de récupérer le plot depuis le contexte (accès distant depuis "Mes Propriétés")
+        PermissionContext context = pendingActions.get(player.getUniqueId());
+        Plot plot = null;
+
+        if (context != null) {
+            plot = context.plot;
+        } else {
+            // Fallback : récupérer depuis la position actuelle du joueur
+            Chunk currentChunk = player.getLocation().getChunk();
+            plot = claimManager.getPlotAt(currentChunk);
+        }
 
         if (plot != null) {
             if (!plot.isOwnedBy(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId())) {
@@ -219,8 +231,17 @@ public class PlotOwnerGUI implements Listener {
      * Menu de gestion des flags
      */
     public void openFlagsMenu(Player player) {
-        Chunk currentChunk = player.getLocation().getChunk();
-        Plot plot = claimManager.getPlotAt(currentChunk);
+        // Essayer de récupérer le plot depuis le contexte (accès distant depuis "Mes Propriétés")
+        PermissionContext context = pendingActions.get(player.getUniqueId());
+        Plot plot = null;
+
+        if (context != null) {
+            plot = context.plot;
+        } else {
+            // Fallback : récupérer depuis la position actuelle du joueur
+            Chunk currentChunk = player.getLocation().getChunk();
+            plot = claimManager.getPlotAt(currentChunk);
+        }
 
         if (plot != null) {
             if (!plot.isOwnedBy(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId())) {
@@ -294,6 +315,20 @@ public class PlotOwnerGUI implements Listener {
         }
     }
 
+    @EventHandler
+    public void onInventoryClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        String title = event.getView().getTitle();
+
+        // Nettoyer le contexte uniquement quand on ferme le menu principal (pas les sous-menus)
+        if (title.equals(OWNER_MENU_TITLE)) {
+            pendingActions.remove(player.getUniqueId());
+        }
+    }
+
     private void handleOwnerMenuClick(InventoryClickEvent event) {
         event.setCancelled(true);
 
@@ -343,7 +378,13 @@ public class PlotOwnerGUI implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Fonctionnalité à venir: Ajouter un joueur");
         } else if (displayName.contains("Retour")) {
             player.closeInventory();
-            openOwnerMenu(player);
+            // Récupérer le plot depuis le contexte
+            PermissionContext context = pendingActions.get(player.getUniqueId());
+            if (context != null && context.plot != null) {
+                openOwnerMenu(player, context.plot);
+            } else {
+                openOwnerMenu(player);
+            }
         }
     }
 
@@ -359,8 +400,16 @@ public class PlotOwnerGUI implements Listener {
             return;
         }
 
-        Chunk currentChunk = player.getLocation().getChunk();
-        Plot plot = claimManager.getPlotAt(currentChunk);
+        // Récupérer le plot depuis le contexte (ou fallback sur position actuelle)
+        PermissionContext context = pendingActions.get(player.getUniqueId());
+        Plot plot = null;
+
+        if (context != null) {
+            plot = context.plot;
+        } else {
+            Chunk currentChunk = player.getLocation().getChunk();
+            plot = claimManager.getPlotAt(currentChunk);
+        }
 
         if (plot == null) {
             player.closeInventory();
@@ -376,7 +425,7 @@ public class PlotOwnerGUI implements Listener {
             openFlagsMenu(player);
         } else if (displayName.contains("Retour")) {
             player.closeInventory();
-            openOwnerMenu(player);
+            openOwnerMenu(player, plot);
         } else {
             // Basculer un flag spécifique
             for (PlotFlag flag : PlotFlag.values()) {

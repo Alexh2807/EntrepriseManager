@@ -50,6 +50,23 @@ public class TownPoliceManager {
             return null;
         }
 
+        // Vérifier qu'il y a au moins un juge ou le maire dans la ville
+        boolean hasJudge = town.getMembers().entrySet().stream()
+            .anyMatch(entry -> {
+                TownRole memberRole = entry.getValue().getRole();
+                return memberRole == TownRole.JUGE || memberRole == TownRole.MAIRE;
+            });
+
+        if (!hasJudge) {
+            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            policier.sendMessage("§c✖ §lÉMISSION IMPOSSIBLE");
+            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            policier.sendMessage("§7Aucun juge disponible dans la ville");
+            policier.sendMessage("§7pour traiter les éventuelles contestations");
+            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            return null;
+        }
+
         // Créer l'amende
         Fine fine = new Fine(
             townName,
@@ -69,9 +86,9 @@ public class TownPoliceManager {
         plugin.getNotificationManager().sendNotification(
             offenderUuid,
             com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
-            "Amende reçue !",
-            String.format("Vous avez reçu une amende de %.2f€ à %s pour: %s. Payez ou contestez dans /ville → Mes Amendes",
-                amount, townName, reason)
+            "⚠ AMENDE REÇUE",
+            String.format("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§c§lAmende émise\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§7Ville: §f%s\n§7Montant: §6%.2f€\n§7Motif: §f%s\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§e⚡ Payez ou contestez via §f/ville §e→ §fMes Amendes",
+                townName, amount, reason)
         );
 
         plugin.getLogger().info("Amende émise dans " + townName + ": " + offenderName +
@@ -88,13 +105,18 @@ public class TownPoliceManager {
      */
     public boolean payFine(Fine fine, Player player) {
         if (!fine.isPending()) {
-            player.sendMessage(ChatColor.RED + "Cette amende ne peut plus être payée.");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ Cette amende ne peut plus être payée");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return false;
         }
 
         // Vérifier que le joueur a assez d'argent
         if (!RoleplayCity.getEconomy().has(player, fine.getAmount())) {
-            player.sendMessage(ChatColor.RED + "Vous n'avez pas assez d'argent. Montant: " + fine.getAmount() + "€");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ §fFonds insuffisants");
+            player.sendMessage("§7Montant requis: §6" + String.format("%.2f€", fine.getAmount()));
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return false;
         }
 
@@ -118,9 +140,9 @@ public class TownPoliceManager {
             plugin.getNotificationManager().sendNotification(
                 fine.getPolicierUuid(),
                 com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
-                "Commission reçue",
-                String.format("Vous avez reçu %.2f€ de commission pour l'amende payée par %s.",
-                    policeCommission, fine.getOffenderName())
+                "💰 COMMISSION POLICIER",
+                String.format("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§a§lCommission reçue\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§7Contrevenant: §e%s\n§7Commission: §6+%.2f€\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§a✔ Amende payée avec succès",
+                    fine.getOffenderName(), policeCommission)
             );
         } else {
             // Si le policier est hors ligne, lui donner quand même l'argent
@@ -136,7 +158,13 @@ public class TownPoliceManager {
         // Marquer comme payée
         fine.markAsPaid();
 
-        player.sendMessage(ChatColor.GREEN + "Amende payée avec succès: " + totalAmount + "€");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§a✔ §lAMENDE PAYÉE");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§7Montant total: §6-" + String.format("%.2f€", totalAmount));
+        player.sendMessage("§7Ville: §f" + fine.getTownName());
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+
         plugin.getLogger().info(String.format("Amende payée: %s - %.2f€ (Policier: %.2f€, Ville: %.2f€)",
             player.getName(), totalAmount, policeCommission, townShare));
 
@@ -144,8 +172,9 @@ public class TownPoliceManager {
         plugin.getNotificationManager().sendNotification(
             player.getUniqueId(),
             com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.ECONOMY,
-            "Amende payée",
-            String.format("Vous avez payé une amende de %.2f€ à %s.", totalAmount, fine.getTownName())
+            "💳 PAIEMENT EFFECTUÉ",
+            String.format(" §8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§a§lAmende payée\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§7Ville: §f%s\n§7Montant: §6-%.2f€\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§a✔ Paiement traité avec succès",
+                fine.getTownName(), totalAmount)
         );
 
         // Sauvegarder immédiatement (amendes + banque ville)
@@ -160,22 +189,29 @@ public class TownPoliceManager {
      */
     public boolean contestFine(Fine fine, Player player, String contestReason) {
         if (!fine.canBeContested()) {
-            player.sendMessage(ChatColor.RED + "Cette amende ne peut plus être contestée.");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ Contestation impossible");
+            player.sendMessage("§7Cette amende ne peut plus être contestée");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return false;
         }
 
-        fine.markAsContested();
+        fine.markAsContested(contestReason);
 
-        player.sendMessage(ChatColor.YELLOW + "Votre contestation a été enregistrée.");
-        player.sendMessage(ChatColor.GRAY + "Elle sera examinée par un juge.");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§e⚖ §lCONTESTATION ENREGISTRÉE");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§7Votre dossier sera examiné par un juge");
+        player.sendMessage("§7Vous serez notifié du verdict");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
 
         // Notification au contestataire
         plugin.getNotificationManager().sendNotification(
             player.getUniqueId(),
             com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-            "Contestation enregistrée",
-            String.format("Votre contestation d'amende de %.2f€ à %s a été enregistrée. Un juge l'examinera.",
-                fine.getAmount(), fine.getTownName())
+            "⚖ CONTESTATION ENREGISTRÉE",
+            String.format("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§e§lContestation d'amende\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§7Ville: §f%s\n§7Montant: §6%.2f€\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§e⚖ En attente de jugement",
+                fine.getTownName(), fine.getAmount())
         );
 
         // Notifier les juges et le maire
@@ -187,8 +223,8 @@ public class TownPoliceManager {
                     plugin.getNotificationManager().sendNotification(
                         memberUuid,
                         com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.IMPORTANT,
-                        "Amende contestée",
-                        String.format("%s a contesté une amende de %.2f€. Motif: %s",
+                        "⚖ NOUVELLE CONTESTATION",
+                        String.format("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§5§lAmende contestée\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§7Contrevenant: §e%s\n§7Montant: §6%.2f€\n§7Motif: §f%s\n§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n§d⚖ Action requise: Jugement",
                             player.getName(), fine.getAmount(), fine.getReason())
                     );
                 }

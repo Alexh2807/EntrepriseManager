@@ -211,20 +211,6 @@ public class NavigationManager {
         );
         inventory.setItem(size - 9, backButton);
 
-        // Fil d'Ariane (slot bottom-center)
-        if (!breadcrumb.isEmpty()) {
-            ItemStack breadcrumbItem = createNavigationButton(
-                Material.PAPER,
-                ACCENT + "Navigation",
-                Arrays.asList(
-                    BG_DARK + SEPARATOR_THIN,
-                    breadcrumb,
-                    BG_DARK + SEPARATOR_THIN
-                )
-            );
-            inventory.setItem(size - 5, breadcrumbItem);
-        }
-
         // Bouton Accueil (slot bottom-right)
         ItemStack homeButton = createNavigationButton(
             Material.COMPASS,

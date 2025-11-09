@@ -4,6 +4,8 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
+import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.manager.TownJusticeManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import com.gravityyfh.roleplaycity.town.manager.TownPoliceManager;
@@ -30,6 +32,7 @@ public class TownJusticeGUI implements Listener {
 
     private static final String JUSTICE_TITLE = ChatColor.DARK_PURPLE + "⚖️ Justice Municipale";
     private static final String CASES_TITLE = ChatColor.DARK_PURPLE + "📋 Affaires en Cours";
+    private static final String VERDICT_TITLE = ChatColor.DARK_PURPLE + "⚖ Rendre le Verdict";
 
     private final Map<UUID, JudgementContext> pendingJudgements;
 
@@ -105,6 +108,69 @@ public class TownJusticeGUI implements Listener {
         player.openInventory(inv);
     }
 
+    public void openVerdictMenu(Player player, Fine fine) {
+        Inventory inv = Bukkit.createInventory(null, 27, VERDICT_TITLE);
+
+        // Informations de l'amende
+        ItemStack infoItem = new ItemStack(Material.PAPER);
+        ItemMeta infoMeta = infoItem.getItemMeta();
+        infoMeta.setDisplayName(ChatColor.GOLD + "Dossier #" + fine.getFineId().toString().substring(0, 8));
+        List<String> infoLore = new ArrayList<>();
+        infoLore.add(ChatColor.GRAY + "Contrevenant: " + ChatColor.WHITE + fine.getOffenderName());
+        infoLore.add(ChatColor.GRAY + "Policier: " + ChatColor.YELLOW + fine.getPolicierName());
+        infoLore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + fine.getAmount() + "€");
+        infoLore.add("");
+        infoLore.add(ChatColor.DARK_RED + "Motif de l'amende:");
+        infoLore.add(ChatColor.WHITE + fine.getReason());
+        infoLore.add("");
+        if (fine.getContestReason() != null && !fine.getContestReason().isEmpty()) {
+            infoLore.add(ChatColor.YELLOW + "Motif de contestation:");
+            infoLore.add(ChatColor.WHITE + fine.getContestReason());
+        }
+        infoMeta.setLore(infoLore);
+        infoItem.setItemMeta(infoMeta);
+        inv.setItem(4, infoItem);
+
+        // Bouton CONFIRMER (vert)
+        ItemStack confirmItem = new ItemStack(Material.LIME_WOOL);
+        ItemMeta confirmMeta = confirmItem.getItemMeta();
+        confirmMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "✔ CONFIRMER L'AMENDE");
+        List<String> confirmLore = new ArrayList<>();
+        confirmLore.add("");
+        confirmLore.add(ChatColor.GRAY + "L'amende sera maintenue");
+        confirmLore.add(ChatColor.GRAY + "Le contrevenant devra payer");
+        confirmLore.add(ChatColor.GRAY + "Le policier recevra sa commission");
+        confirmLore.add("");
+        confirmLore.add(ChatColor.GREEN + "Cliquez pour confirmer");
+        confirmMeta.setLore(confirmLore);
+        confirmItem.setItemMeta(confirmMeta);
+        inv.setItem(11, confirmItem);
+
+        // Bouton ANNULER (rouge)
+        ItemStack cancelItem = new ItemStack(Material.RED_WOOL);
+        ItemMeta cancelMeta = cancelItem.getItemMeta();
+        cancelMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "✖ ANNULER L'AMENDE");
+        List<String> cancelLore = new ArrayList<>();
+        cancelLore.add("");
+        cancelLore.add(ChatColor.GRAY + "L'amende sera annulée");
+        cancelLore.add(ChatColor.GRAY + "Le contrevenant ne paiera rien");
+        cancelLore.add(ChatColor.GRAY + "Le policier paiera votre commission");
+        cancelLore.add("");
+        cancelLore.add(ChatColor.RED + "Cliquez pour annuler");
+        cancelMeta.setLore(cancelLore);
+        cancelItem.setItemMeta(cancelMeta);
+        inv.setItem(15, cancelItem);
+
+        // Bouton Retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(22, backItem);
+
+        player.openInventory(inv);
+    }
+
     public void openCasesMenu(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
@@ -124,12 +190,17 @@ public class TownJusticeGUI implements Listener {
             meta.setDisplayName(ChatColor.YELLOW + fine.getOffenderName());
 
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Motif: " + ChatColor.WHITE + fine.getReason());
+            lore.add(ChatColor.GRAY + "Motif amende: " + ChatColor.WHITE + fine.getReason());
             lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + fine.getAmount() + "€");
             lore.add(ChatColor.GRAY + "Policier: " + ChatColor.YELLOW + fine.getPolicierName());
             lore.add(ChatColor.GRAY + "Date: " + ChatColor.WHITE + fine.getIssueDate().toLocalDate());
             lore.add("");
-            lore.add(ChatColor.YELLOW + "Cliquez pour juger");
+            if (fine.getContestReason() != null && !fine.getContestReason().isEmpty()) {
+                lore.add(ChatColor.YELLOW + "Motif contestation:");
+                lore.add(ChatColor.WHITE + fine.getContestReason());
+                lore.add("");
+            }
+            lore.add(ChatColor.GREEN + "Cliquez pour juger");
 
             meta.setLore(lore);
             item.setItemMeta(meta);
@@ -154,6 +225,8 @@ public class TownJusticeGUI implements Listener {
             handleJusticeMenuClick(event);
         } else if (title.equals(CASES_TITLE)) {
             handleCasesMenuClick(event);
+        } else if (title.equals(VERDICT_TITLE)) {
+            handleVerdictMenuClick(event);
         }
     }
 
@@ -211,22 +284,100 @@ public class TownJusticeGUI implements Listener {
             }
 
             if (selectedFine != null) {
-                handleJudgeFine(player, selectedFine);
+                player.closeInventory();
+                openVerdictMenu(player, selectedFine);
             }
         }
     }
 
-    private void handleJudgeFine(Player player, Fine fine) {
+    private void handleVerdictMenuClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+
+        if (displayName.contains("Retour")) {
+            player.closeInventory();
+            openCasesMenu(player);
+            return;
+        }
+
+        // Récupérer l'ID de l'amende depuis le dossier
+        ItemStack dossierItem = event.getInventory().getItem(4);
+        if (dossierItem == null || dossierItem.getType() != Material.PAPER) {
+            return;
+        }
+
+        String dossierName = ChatColor.stripColor(dossierItem.getItemMeta().getDisplayName());
+        String fineIdPrefix = dossierName.replace("Dossier #", "");
+
+        // Trouver l'amende correspondante
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        List<Fine> contestedFines = policeManager.getContestedFines(townName);
+        Fine selectedFine = null;
+
+        for (Fine fine : contestedFines) {
+            if (fine.getFineId().toString().startsWith(fineIdPrefix)) {
+                selectedFine = fine;
+                break;
+            }
+        }
+
+        if (selectedFine == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Amende introuvable");
+            player.closeInventory();
+            return;
+        }
+
+        // Gestion du choix
+        if (displayName.contains("CONFIRMER")) {
+            handleJudgeFine(player, selectedFine, true);
+        } else if (displayName.contains("ANNULER")) {
+            handleJudgeFine(player, selectedFine, false);
+        }
+    }
+
+    private void handleJudgeFine(Player player, Fine fine, boolean valid) {
         player.closeInventory();
 
-        // Afficher le dossier
-        player.sendMessage(justiceManager.getFineReview(fine));
-        player.sendMessage(ChatColor.GOLD + "=== RENDRE VOTRE JUGEMENT ===");
-        player.sendMessage(ChatColor.YELLOW + "Tapez 'valide' pour confirmer l'amende");
-        player.sendMessage(ChatColor.YELLOW + "Tapez 'invalide' pour annuler l'amende");
-        player.sendMessage(ChatColor.GRAY + "(Tapez 'annuler' pour abandonner)");
+        // Vérifier que le juge est sur un terrain TRIBUNAL
+        Plot currentPlot = plugin.getClaimManager().getPlotAt(player.getLocation().getChunk());
 
-        pendingJudgements.put(player.getUniqueId(), new JudgementContext(fine));
+        if (currentPlot == null ||
+            currentPlot.getMunicipalSubType() != MunicipalSubType.TRIBUNAL) {
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ §lJUGEMENT IMPOSSIBLE");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§7Vous devez être dans un TRIBUNAL");
+            player.sendMessage("§7pour rendre un jugement");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§e⚖ Rendez-vous au tribunal municipal");
+            return;
+        }
+
+        // Afficher la décision
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        if (valid) {
+            player.sendMessage("§a§lDÉCISION: AMENDE CONFIRMÉE");
+        } else {
+            player.sendMessage("§c§lDÉCISION: AMENDE ANNULÉE");
+        }
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§7Maintenant, entrez votre verdict (explication):");
+        player.sendMessage("§7Minimum 10 caractères");
+        player.sendMessage("§7(Tapez 'annuler' pour abandonner)");
+
+        JudgementContext context = new JudgementContext(fine);
+        context.valid = valid;
+        pendingJudgements.put(player.getUniqueId(), context);
     }
 
     @EventHandler
@@ -253,48 +404,33 @@ public class TownJusticeGUI implements Listener {
     }
 
     private void processJudgement(Player player, JudgementContext context, String input) {
-        if (context.step == 0) {
-            // Décision
-            if (input.equalsIgnoreCase("valide")) {
-                context.valid = true;
-                context.step = 1;
-                player.sendMessage(ChatColor.GREEN + "Décision: Amende CONFIRMÉE");
-                player.sendMessage(ChatColor.YELLOW + "Maintenant, entrez votre verdict (explication):");
-            } else if (input.equalsIgnoreCase("invalide")) {
-                context.valid = false;
-                context.step = 1;
-                player.sendMessage(ChatColor.RED + "Décision: Amende ANNULÉE");
-                player.sendMessage(ChatColor.YELLOW + "Maintenant, entrez votre verdict (explication):");
-            } else {
-                player.sendMessage(ChatColor.RED + "Réponse invalide. Tapez 'valide' ou 'invalide'.");
-            }
-        } else if (context.step == 1) {
-            // Verdict
-            if (input.length() < 10) {
-                player.sendMessage(ChatColor.RED + "Le verdict doit contenir au moins 10 caractères.");
-                return;
-            }
-
-            // Enregistrer le jugement
-            boolean success = justiceManager.judgeFine(context.fine, player, context.valid, input);
-
-            if (success) {
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                player.sendMessage(ChatColor.GREEN + "   Jugement enregistré !");
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                player.sendMessage(ChatColor.GRAY + "Décision: " +
-                    (context.valid ? ChatColor.RED + "Amende confirmée" : ChatColor.GREEN + "Amende annulée"));
-                player.sendMessage(ChatColor.GRAY + "Verdict: " + ChatColor.WHITE + input);
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            }
-
-            pendingJudgements.remove(player.getUniqueId());
+        // Verdict texte
+        if (input.length() < 10) {
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ Verdict trop court");
+            player.sendMessage("§7Le verdict doit contenir au moins 10 caractères");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            return;
         }
+
+        // Enregistrer le jugement
+        boolean success = justiceManager.judgeFine(context.fine, player, context.valid, input);
+
+        if (success) {
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§a§l✔ JUGEMENT ENREGISTRÉ");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§7Décision: " +
+                (context.valid ? "§aAmende confirmée" : "§cAmende annulée"));
+            player.sendMessage("§7Verdict: §f" + input);
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        }
+
+        pendingJudgements.remove(player.getUniqueId());
     }
 
     private static class JudgementContext {
         final Fine fine;
-        int step = 0;
         boolean valid;
 
         JudgementContext(Fine fine) {

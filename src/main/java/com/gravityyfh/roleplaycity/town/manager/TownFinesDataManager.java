@@ -67,6 +67,14 @@ public class TownFinesDataManager {
                     finesConfig.set(path + ".paid-date", fine.getPaidDate().format(DATE_FORMAT));
                 }
 
+                if (fine.getContestedDate() != null) {
+                    finesConfig.set(path + ".contested-date", fine.getContestedDate().format(DATE_FORMAT));
+                }
+
+                if (fine.getContestReason() != null) {
+                    finesConfig.set(path + ".contest-reason", fine.getContestReason());
+                }
+
                 if (fine.getJudgeUuid() != null) {
                     finesConfig.set(path + ".judge-uuid", fine.getJudgeUuid().toString());
                     finesConfig.set(path + ".judge-verdict", fine.getJudgeVerdict());
@@ -146,6 +154,14 @@ public class TownFinesDataManager {
         // Charger les données optionnelles
         if (section.contains("paid-date")) {
             fine.setPaidDate(LocalDateTime.parse(section.getString("paid-date"), DATE_FORMAT));
+        }
+
+        if (section.contains("contested-date")) {
+            fine.setContestedDate(LocalDateTime.parse(section.getString("contested-date"), DATE_FORMAT));
+        }
+
+        if (section.contains("contest-reason")) {
+            fine.setContestReason(section.getString("contest-reason"));
         }
 
         if (section.contains("judge-uuid")) {

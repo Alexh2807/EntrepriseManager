@@ -152,9 +152,9 @@ public class NotificationManager {
         // Message dans le chat
         player.sendMessage("");
         player.sendMessage(type.getColor() + "─────────────────────────────");
-        player.sendMessage(type.getColor() + "" + ChatColor.BOLD + "­ƒôó " + notification.getTitle());
+        player.sendMessage(type.getColor() + "" + ChatColor.BOLD + "🔔 " + notification.getTitle());
         player.sendMessage(ChatColor.WHITE + notification.getMessage());
-        player.sendMessage(ChatColor.GRAY + "ÔÅ░ " + timeFormatter.format(notification.getTimestamp()));
+        player.sendMessage(ChatColor.GRAY + "🕐 " + timeFormatter.format(notification.getTimestamp()));
         player.sendMessage(type.getColor() + "─────────────────────────────");
         player.sendMessage("");
 

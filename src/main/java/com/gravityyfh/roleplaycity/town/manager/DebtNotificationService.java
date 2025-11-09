@@ -360,11 +360,7 @@ public class DebtNotificationService {
 
     private String buildDebtLabel(Town town, Town.PlayerDebt debt, Plot plot) {
         if (plot.isGrouped()) {
-            String groupName = plot.getGroupName();
-            if (groupName != null) {
-                return town.getName() + " • " + groupName;
-            }
-            return town.getName() + " • Groupe";
+            return town.getName() + " • Terrain groupé";
         }
         return town.getName() + " • Parcelle " + plot.getCoordinates();
     }

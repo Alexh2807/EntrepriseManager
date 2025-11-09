@@ -506,7 +506,11 @@ public class Plot {
     }
 
     public double getDailyTax() {
-        return type != null ? type.getDailyTax() : 0.0;
+        if (type == null) return 0.0;
+
+        // Multiplier la taxe par le nombre de chunks dans ce plot
+        int chunkCount = chunks != null ? chunks.size() : 1;
+        return type.getDailyTax() * chunkCount;
     }
 
     public boolean canPlayerBuild(UUID playerUuid, TownRole role) {
@@ -575,6 +579,19 @@ public class Plot {
 
     public boolean matchesChunk(Chunk chunk) {
         return containsChunk(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+    }
+
+    /**
+     * Retourne les informations d'affichage pour les joueurs (SANS le nom technique du groupe)
+     * Utilisé dans le scoreboard, GUI, etc. pour masquer les noms auto-générés
+     */
+    public String getDisplayInfo() {
+        if (grouped && chunks.size() > 1) {
+            // Ne pas afficher le nom technique, juste "Terrain groupé (X chunks)"
+            return String.format("Terrain groupé (%d chunks)", chunks.size());
+        }
+        // Terrain simple : afficher les coordonnées
+        return String.format("(%d, %d)", getChunkX(), getChunkZ());
     }
 
     // ========== Gestion des permissions ==========

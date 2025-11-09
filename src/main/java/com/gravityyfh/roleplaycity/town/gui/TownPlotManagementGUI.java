@@ -4,6 +4,7 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
+import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
@@ -32,6 +33,7 @@ public class TownPlotManagementGUI implements Listener {
     private final TownEconomyManager economyManager;
 
     private static final String PLOT_MENU_TITLE = ChatColor.DARK_GREEN + "🏘️ Gestion Parcelle";
+    private static final String SUBTYPE_MENU_TITLE = ChatColor.DARK_PURPLE + "⚙ Sous-Type Municipal";
 
     // Système de saisie de prix
     private final Map<UUID, PlotActionContext> pendingActions;
@@ -235,7 +237,24 @@ public class TownPlotManagementGUI implements Listener {
             typeLore.add(ChatColor.YELLOW + "Cliquez pour changer le type");
             typeMeta.setLore(typeLore);
             typeItem.setItemMeta(typeMeta);
-            inv.setItem(16, typeItem);
+            inv.setItem(14, typeItem);
+        }
+
+        // Changer le sous-type municipal (uniquement si MUNICIPAL)
+        if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) && plot.getType() == PlotType.MUNICIPAL) {
+            ItemStack subtypeItem = new ItemStack(plot.getMunicipalSubType().getIcon());
+            ItemMeta subtypeMeta = subtypeItem.getItemMeta();
+            subtypeMeta.setDisplayName(ChatColor.DARK_PURPLE + "Sous-Type Municipal");
+            List<String> subtypeLore = new ArrayList<>();
+            subtypeLore.add(ChatColor.GRAY + "Actuel: " + ChatColor.WHITE + plot.getMunicipalSubType().getDisplayName());
+            subtypeLore.add("");
+            subtypeLore.add(ChatColor.GRAY + "Définit la fonction de");
+            subtypeLore.add(ChatColor.GRAY + "ce bâtiment municipal");
+            subtypeLore.add("");
+            subtypeLore.add(ChatColor.YELLOW + "Cliquez pour changer");
+            subtypeMeta.setLore(subtypeLore);
+            subtypeItem.setItemMeta(subtypeMeta);
+            inv.setItem(16, subtypeItem);
         }
 
         // DÉGROUPER - Séparer un groupe de terrains (slot 18)
@@ -296,7 +315,7 @@ public class TownPlotManagementGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
-        if (!title.equals(PLOT_MENU_TITLE) && !title.contains("Changer le type")) {
+        if (!title.equals(PLOT_MENU_TITLE) && !title.contains("Changer le type") && !title.equals(SUBTYPE_MENU_TITLE)) {
             return;
         }
 
@@ -379,6 +398,52 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
+        // Gestion du menu de changement de sous-type municipal
+        if (title.equals(SUBTYPE_MENU_TITLE)) {
+            if (displayName.contains("Retour")) {
+                player.closeInventory();
+                Plot plot = currentMenuPlots.get(player.getUniqueId());
+                if (plot != null) {
+                    openPlotMenu(player, plot);
+                }
+            } else if (!displayName.contains("Terrain Municipal")) {
+                // Chercher le sous-type sélectionné
+                MunicipalSubType selectedSubtype = null;
+                for (MunicipalSubType subtype : MunicipalSubType.values()) {
+                    if (displayName.contains(ChatColor.stripColor(subtype.getDisplayName()))) {
+                        selectedSubtype = subtype;
+                        break;
+                    }
+                }
+
+                if (selectedSubtype != null && player.hasMetadata("plot_subtype_change_town")) {
+                    Plot plot = currentMenuPlots.get(player.getUniqueId());
+                    String townName = player.getMetadata("plot_subtype_change_town").get(0).asString();
+                    player.removeMetadata("plot_subtype_change_town", plugin);
+
+                    if (plot != null) {
+                        MunicipalSubType oldSubtype = plot.getMunicipalSubType();
+
+                        // Appliquer le changement
+                        plot.setMunicipalSubType(selectedSubtype);
+
+                        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                        player.sendMessage("§a✔ §lSOUS-TYPE MODIFIÉ");
+                        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                        player.sendMessage("§7Ancien: §f" + oldSubtype.getDisplayName());
+                        player.sendMessage("§7Nouveau: §d" + selectedSubtype.getDisplayName());
+                        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+
+                        plugin.getTownManager().saveTownsNow();
+
+                        player.closeInventory();
+                        openPlotMenu(player, plot);
+                    }
+                }
+            }
+            return;
+        }
+
         // FIX UX P2.7: Utiliser le Plot stocké au lieu de player.getLocation()
         Plot plot = currentMenuPlots.get(player.getUniqueId());
 
@@ -406,6 +471,8 @@ public class TownPlotManagementGUI implements Listener {
             handleCancelRent(player, plot);
         } else if (displayName.contains("Changer le Type")) {
             handleChangePlotType(player, plot, townName);
+        } else if (displayName.contains("Sous-Type Municipal")) {
+            handleChangeMunicipalSubtype(player, plot, townName);
         } else if (displayName.contains("Dégrouper ce Terrain")) {
             handleUngroupPlot(player, plot, townName);
         } else if (displayName.contains("Retourner à la Ville")) {
@@ -625,6 +692,82 @@ public class TownPlotManagementGUI implements Listener {
         player.setMetadata("plot_type_change_town", new org.bukkit.metadata.FixedMetadataValue(plugin, townName));
     }
 
+    private void handleChangeMunicipalSubtype(Player player, Plot plot, String townName) {
+        player.closeInventory();
+        openMunicipalSubtypeSelectionMenu(player, plot, townName);
+    }
+
+    private void openMunicipalSubtypeSelectionMenu(Player player, Plot plot, String townName) {
+        Inventory inv = Bukkit.createInventory(null, 27, SUBTYPE_MENU_TITLE);
+
+        // Informations du terrain
+        ItemStack infoItem = new ItemStack(Material.MAP);
+        ItemMeta infoMeta = infoItem.getItemMeta();
+        infoMeta.setDisplayName(ChatColor.GOLD + "Terrain Municipal");
+        List<String> infoLore = new ArrayList<>();
+        infoLore.add(ChatColor.GRAY + "Position: " + ChatColor.WHITE + plot.getCoordinates());
+        infoLore.add(ChatColor.GRAY + "Actuel: " + ChatColor.AQUA + plot.getMunicipalSubType().getDisplayName());
+        infoMeta.setLore(infoLore);
+        infoItem.setItemMeta(infoMeta);
+        inv.setItem(4, infoItem);
+
+        // Afficher tous les sous-types municipaux
+        int slot = 10;
+        for (MunicipalSubType subtype : MunicipalSubType.values()) {
+            ItemStack subtypeItem = new ItemStack(subtype.getIcon());
+            ItemMeta subtypeMeta = subtypeItem.getItemMeta();
+            subtypeMeta.setDisplayName(ChatColor.LIGHT_PURPLE + subtype.getDisplayName());
+
+            List<String> subtypeLore = new ArrayList<>();
+            subtypeLore.add("");
+
+            // Description selon le type
+            switch (subtype) {
+                case NONE:
+                    subtypeLore.add(ChatColor.GRAY + "Bâtiment sans fonction");
+                    subtypeLore.add(ChatColor.GRAY + "particulière");
+                    break;
+                case MAIRIE:
+                    subtypeLore.add(ChatColor.GRAY + "Bâtiment administratif");
+                    subtypeLore.add(ChatColor.GRAY + "Accès: Maire + Adjoint");
+                    break;
+                case COMMISSARIAT:
+                    subtypeLore.add(ChatColor.GRAY + "Poste de police");
+                    subtypeLore.add(ChatColor.GRAY + "Accès: Policiers");
+                    break;
+                case TRIBUNAL:
+                    subtypeLore.add(ChatColor.GRAY + "Palais de justice");
+                    subtypeLore.add(ChatColor.GRAY + "Accès: Juges");
+                    subtypeLore.add(ChatColor.YELLOW + "Requis pour juger!");
+                    break;
+            }
+
+            subtypeLore.add("");
+            if (plot.getMunicipalSubType() == subtype) {
+                subtypeLore.add(ChatColor.GREEN + "✔ Actuellement sélectionné");
+            } else {
+                subtypeLore.add(ChatColor.YELLOW + "Cliquez pour sélectionner");
+            }
+
+            subtypeMeta.setLore(subtypeLore);
+            subtypeItem.setItemMeta(subtypeMeta);
+            inv.setItem(slot++, subtypeItem);
+        }
+
+        // Bouton retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(22, backItem);
+
+        // Stocker le Plot affiché
+        currentMenuPlots.put(player.getUniqueId(), plot);
+
+        player.openInventory(inv);
+        player.setMetadata("plot_subtype_change_town", new org.bukkit.metadata.FixedMetadataValue(plugin, townName));
+    }
+
     @EventHandler
     public void onInventoryClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) {
@@ -632,7 +775,7 @@ public class TownPlotManagementGUI implements Listener {
         }
 
         String title = event.getView().getTitle();
-        if (title.equals(PLOT_MENU_TITLE) || title.contains("Changer le type")) {
+        if (title.equals(PLOT_MENU_TITLE) || title.contains("Changer le type") || title.equals(SUBTYPE_MENU_TITLE)) {
             // FIX UX P2.7: Nettoyer le Plot stocké quand le menu est fermé
             currentMenuPlots.remove(player.getUniqueId());
         }

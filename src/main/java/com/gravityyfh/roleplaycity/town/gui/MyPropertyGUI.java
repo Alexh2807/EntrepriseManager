@@ -16,9 +16,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * GUI pour afficher et gérer les propriétés d'un joueur
@@ -29,6 +27,10 @@ public class MyPropertyGUI implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final TownMainGUI mainGUI;
+
+    // Map temporaire : UUID joueur → Map<Slot, Plot>
+    // Permet de retrouver directement le Plot quand le joueur clique sur un slot
+    private final Map<UUID, Map<Integer, Plot>> playerPlotSlots = new HashMap<>();
 
     public MyPropertyGUI(RoleplayCity plugin, TownManager townManager, TownMainGUI mainGUI) {
         this.plugin = plugin;
@@ -71,6 +73,8 @@ public class MyPropertyGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, invSize, ChatColor.GREEN + "🏠 Mes Propriétés");
 
+        // Map temporaire pour associer slot → Plot
+        Map<Integer, Plot> slotMap = new HashMap<>();
         int slot = 0;
 
         // Ajouter les terrains possédés
@@ -80,6 +84,7 @@ public class MyPropertyGUI implements Listener {
 
                 ItemStack item = createPlotItem(plot, false, town);
                 inv.setItem(slot, item);
+                slotMap.put(slot, plot); // Stocker l'association
                 slot++;
             }
         }
@@ -91,9 +96,13 @@ public class MyPropertyGUI implements Listener {
 
                 ItemStack item = createPlotItem(plot, true, town);
                 inv.setItem(slot, item);
+                slotMap.put(slot, plot); // Stocker l'association
                 slot++;
             }
         }
+
+        // Sauvegarder la map pour ce joueur
+        playerPlotSlots.put(playerUuid, slotMap);
 
         // Boutons de la dernière ligne
         int lastRow = invSize - 9;
@@ -139,7 +148,7 @@ public class MyPropertyGUI implements Listener {
 
         // Si groupé, afficher les infos du groupe
         if (isGrouped) {
-            lore.add(ChatColor.LIGHT_PURPLE + "🏘️ Groupe: " + ChatColor.WHITE + plot.getGroupName());
+            lore.add(ChatColor.LIGHT_PURPLE + "🏘️ Terrain groupé");
             lore.add(ChatColor.YELLOW + "Chunks: " + ChatColor.WHITE + totalChunks);
             lore.add(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + (totalChunks * 256) + "m²");
             lore.add(ChatColor.GRAY + "─────────────────");
@@ -222,7 +231,15 @@ public class MyPropertyGUI implements Listener {
 
         // Clic sur un terrain
         if (isPlotItem(clicked.getType())) {
-            Plot plot = findPlotFromItem(clicked, town, player.getUniqueId());
+            // Récupérer le Plot directement depuis la map
+            Map<Integer, Plot> slotMap = playerPlotSlots.get(player.getUniqueId());
+            if (slotMap == null) {
+                player.sendMessage(ChatColor.RED + "Erreur: Session expirée, réouvrez le menu.");
+                player.closeInventory();
+                return;
+            }
+
+            Plot plot = slotMap.get(event.getSlot());
             if (plot == null) {
                 player.sendMessage(ChatColor.RED + "Erreur: Terrain introuvable.");
                 return;
@@ -266,45 +283,15 @@ public class MyPropertyGUI implements Listener {
     }
 
     /**
-     * Trouve le terrain correspondant à l'item cliqué
+     * Nettoie la map quand le joueur ferme l'inventaire
      */
-    private Plot findPlotFromItem(ItemStack item, Town town, UUID playerUuid) {
-        String displayName = item.getItemMeta().getDisplayName();
-        List<String> lore = item.getItemMeta().getLore();
-        if (lore == null || lore.size() < 2) return null;
+    @EventHandler
+    public void onInventoryClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!event.getView().getTitle().equals(ChatColor.GREEN + "🏠 Mes Propriétés")) return;
 
-        // Extraire les coordonnées de chunk de la lore (ligne 2: "Chunk: X: 5 Z: 8")
-        String chunkLine = ChatColor.stripColor(lore.get(1));
-        try {
-            // Format: "Chunk: X: 5 Z: 8"
-            // Extraire X et Z directement (ce sont les coordonnées de chunk)
-            String[] parts = chunkLine.split(" ");
-            int chunkX = -1, chunkZ = -1;
-
-            for (int i = 0; i < parts.length - 1; i++) {
-                if (parts[i].equals("X:")) {
-                    chunkX = Integer.parseInt(parts[i + 1]);
-                } else if (parts[i].equals("Z:")) {
-                    chunkZ = Integer.parseInt(parts[i + 1]);
-                }
-            }
-
-            if (chunkX == -1 || chunkZ == -1) return null;
-
-            // Chercher le terrain directement par coordonnées de chunk
-            for (Plot plot : town.getPlots().values()) {
-                if (plot.getChunkX() == chunkX && plot.getChunkZ() == chunkZ) {
-                    // Vérifier que c'est bien un terrain du joueur
-                    if (playerUuid.equals(plot.getOwnerUuid()) || playerUuid.equals(plot.getRenterUuid())) {
-                        return plot;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Erreur lors de la récupération du terrain: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
+        // Nettoyer la map pour libérer la mémoire
+        playerPlotSlots.remove(player.getUniqueId());
     }
 
 }

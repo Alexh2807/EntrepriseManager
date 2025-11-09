@@ -320,7 +320,7 @@ public class TownCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRMATION D'ACHAT");
             player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
             if (plot.isGrouped()) {
-                player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getGroupName() + " (" + totalChunks + " chunks)");
+                player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé (" + totalChunks + " chunks)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + "256m² (" + (chunkX * 16) + ", " + (chunkZ * 16) + ")");
@@ -433,7 +433,7 @@ public class TownCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + (isRecharge ? "RECHARGE DE LOCATION" : "LOCATION"));
             player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
             if (plot.isGrouped()) {
-                player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getGroupName() + " (" + totalChunks + " chunks)");
+                player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé (" + totalChunks + " chunks)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + "256m² (" + (chunkX * 16) + ", " + (chunkZ * 16) + ")");
@@ -539,7 +539,7 @@ public class TownCommandHandler implements CommandExecutor {
                 player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
                 if (plot.isGrouped()) {
                     player.sendMessage(ChatColor.YELLOW + "Félicitations ! Vous êtes maintenant propriétaire de ce terrain.");
-                    player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + plot.getGroupName());
+                    player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
                     player.sendMessage(ChatColor.GRAY + "Chunks: " + ChatColor.WHITE + totalChunks);
                 } else {
                     player.sendMessage(ChatColor.YELLOW + "Félicitations ! Vous êtes maintenant propriétaire de cette parcelle.");
@@ -609,7 +609,7 @@ public class TownCommandHandler implements CommandExecutor {
                 player.sendMessage(ChatColor.AQUA + "═══════════════════════════════════════");
                 if (plot.isGrouped()) {
                     player.sendMessage(ChatColor.YELLOW + "Vous louez maintenant ce terrain pour " + days + " jour(s) !");
-                    player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + plot.getGroupName());
+                    player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
                     player.sendMessage(ChatColor.GRAY + "Chunks: " + ChatColor.WHITE + totalChunks);
                 } else {
                     player.sendMessage(ChatColor.YELLOW + "Vous louez maintenant cette parcelle pour " + days + " jour(s) !");

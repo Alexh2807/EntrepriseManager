@@ -114,12 +114,7 @@ public class DebtManagementGUI implements Listener {
             List<String> lore = new ArrayList<>();
             lore.add("");
 
-            if (isGroup && plot.getGroupName() != null) {
-                lore.add(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
-                lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
-            } else {
-                lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + plot.getCoordinates());
-            }
+            lore.add(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + (isGroup ? "Terrain groupé" : plot.getCoordinates()));
 
             lore.add(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + town.getName());
             lore.add("");
@@ -274,8 +269,8 @@ public class DebtManagementGUI implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Montant payé: " + ChatColor.GOLD + String.format("%.2f€", debtAmount));
             player.sendMessage(ChatColor.YELLOW + "Solde restant: " + ChatColor.GOLD + String.format("%.2f€", company.getSolde()));
 
-            if (plot.isGrouped() && plot.getGroupName() != null) {
-                player.sendMessage(ChatColor.GRAY + "Groupe: " + plot.getGroupName());
+            if (plot.isGrouped()) {
+                player.sendMessage(ChatColor.GRAY + "Terrain groupé");
             }
             player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 
@@ -310,8 +305,8 @@ public class DebtManagementGUI implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Argent restant: " + ChatColor.GOLD +
                 String.format("%.2f€", RoleplayCity.getEconomy().getBalance(player)));
 
-            if (plot.isGrouped() && plot.getGroupName() != null) {
-                player.sendMessage(ChatColor.GRAY + "Groupe: " + plot.getGroupName());
+            if (plot.isGrouped()) {
+                player.sendMessage(ChatColor.GRAY + "Terrain groupé");
             }
             player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 

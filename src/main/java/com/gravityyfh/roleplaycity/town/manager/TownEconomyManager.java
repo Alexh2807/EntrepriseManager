@@ -89,6 +89,12 @@ public class TownEconomyManager {
             return false;
         }
 
+        // Empêcher le propriétaire d'acheter son propre terrain
+        if (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(buyer.getUniqueId())) {
+            buyer.sendMessage(ChatColor.RED + "Vous ne pouvez pas acheter votre propre parcelle !");
+            return false;
+        }
+
         // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
         if (!companyManager.validateCompanyOwnership(buyer, plot)) {
@@ -898,16 +904,16 @@ public class TownEconomyManager {
                     // Notifier le joueur
                     if (false && payer.isOnline() && payer.getPlayer() != null) {
                         payer.getPlayer().sendMessage("");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠――――――――――――――――――――――⚠");
                         payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE TERRAIN");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠――――――――――――――――――――――⚠");
                         payer.getPlayer().sendMessage(ChatColor.RED + "Votre terrain " + plot.getCoordinates());
                         payer.getPlayer().sendMessage(ChatColor.RED + "a été saisi pour dette impayée!");
                         payer.getPlayer().sendMessage("");
                         payer.getPlayer().sendMessage(ChatColor.YELLOW + "Dette: " + ChatColor.GOLD +
                                 String.format("%.2f€", plot.getParticularDebtAmount()));
                         payer.getPlayer().sendMessage(ChatColor.GRAY + "Le terrain retourne à la ville.");
-                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                        payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠――――――――――――――――――――――⚠");
                         payer.getPlayer().sendMessage("");
                     }
 
@@ -945,14 +951,14 @@ public class TownEconomyManager {
             if (player != null && player.isOnline()) {
                 // Envoyer rapport individuel
                 player.sendMessage("");
-                player.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                player.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "    RAPPORT TAXES HORAIRES");
-                player.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                player.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 player.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
                 player.sendMessage(ChatColor.AQUA + "Montant prélevé: " + ChatColor.GOLD + String.format("%.2f€", taxAmount));
                 player.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
                         java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                player.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                player.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 player.sendMessage("");
             }
         }
@@ -963,9 +969,9 @@ public class TownEconomyManager {
             Player mayor = Bukkit.getPlayer(mayorUuid);
             if (mayor != null && mayor.isOnline()) {
                 mayor.sendMessage("");
-                mayor.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                mayor.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "  RAPPORT MAIRE - TAXES HORAIRES");
-                mayor.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                mayor.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 mayor.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + town.getName());
                 mayor.sendMessage(ChatColor.AQUA + "Total collecté: " + ChatColor.GOLD + String.format("%.2f€", totalCollected));
                 mayor.sendMessage(ChatColor.AQUA + "Parcelles taxées: " + ChatColor.WHITE + parcelsWithTax);
@@ -993,7 +999,7 @@ public class TownEconomyManager {
 
                 mayor.sendMessage(ChatColor.GRAY + "Heure: " + ChatColor.WHITE +
                         java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                mayor.sendMessage(ChatColor.GOLD + "⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠");
+                mayor.sendMessage(ChatColor.GOLD + "⚠――――――――――――――――――――――⚠");
                 mayor.sendMessage("");
             }
         }

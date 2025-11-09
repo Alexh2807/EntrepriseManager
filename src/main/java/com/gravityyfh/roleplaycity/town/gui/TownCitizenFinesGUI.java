@@ -171,25 +171,28 @@ public class TownCitizenFinesGUI implements Listener {
 
     private void handlePayFine(Player player, Fine fine) {
         player.closeInventory();
-
-        if (policeManager.payFine(fine, player)) {
-            player.sendMessage(ChatColor.GREEN + "✔ Amende payée avec succès !");
-        }
+        policeManager.payFine(fine, player);
     }
 
     private void handleContestFine(Player player, Fine fine) {
         if (!fine.canBeContested()) {
-            player.sendMessage(ChatColor.RED + "Cette amende ne peut plus être contestée.");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§c✖ Contestation impossible");
+            player.sendMessage("§7Cette amende ne peut plus être contestée");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return;
         }
 
         player.closeInventory();
-        player.sendMessage(ChatColor.YELLOW + "=== CONTESTER UNE AMENDE ===");
-        player.sendMessage(ChatColor.GRAY + "Amende: " + fine.getReason());
-        player.sendMessage(ChatColor.GRAY + "Montant: " + fine.getAmount() + "€");
-        player.sendMessage("");
-        player.sendMessage(ChatColor.YELLOW + "Entrez la raison de votre contestation:");
-        player.sendMessage(ChatColor.GRAY + "(Tapez 'annuler' pour abandonner)");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§e⚖ §lCONTESTER UNE AMENDE");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§7Motif: §f" + fine.getReason());
+        player.sendMessage("§7Montant: §6" + fine.getAmount() + "€");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§eEntrez la raison de votre contestation:");
+        player.sendMessage("§7(Minimum 10 caractères)");
+        player.sendMessage("§7(Tapez 'annuler' pour abandonner)");
 
         pendingContests.put(player.getUniqueId(), new ContestContext(fine));
     }
@@ -208,19 +211,24 @@ public class TownCitizenFinesGUI implements Listener {
 
         if (input.equalsIgnoreCase("annuler")) {
             pendingContests.remove(player.getUniqueId());
-            player.sendMessage(ChatColor.YELLOW + "Contestation annulée.");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§e✖ Contestation annulée");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return;
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (input.length() < 10) {
-                player.sendMessage(ChatColor.RED + "La raison doit contenir au moins 10 caractères.");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage("§c✖ Raison trop courte");
+                player.sendMessage("§7Minimum: §f10 caractères");
+                player.sendMessage("§7Actuel: §f" + input.length() + " caractères");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 return;
             }
 
             if (policeManager.contestFine(context.fine, player, input)) {
-                player.sendMessage(ChatColor.GREEN + "✔ Contestation enregistrée !");
-                player.sendMessage(ChatColor.YELLOW + "Un juge examinera votre dossier.");
+                // Le message est déjà affiché dans contestFine()
             }
 
             pendingContests.remove(player.getUniqueId());

@@ -141,6 +141,11 @@ public class PlotGroupingListener implements Listener {
                 Plot plot = town.getPlot(player.getWorld().getName(), chunkX, chunkZ);
                 if (plot == null) continue;
 
+                // NOUVEAU : Ignorer les terrains MUNICIPAL et PUBLIC (ne pas afficher de particules)
+                if (plot.getType() != PlotType.PARTICULIER && plot.getType() != PlotType.PROFESSIONNEL) {
+                    continue;
+                }
+
                 String chunkKey = player.getWorld().getName() + ":" + chunkX + ":" + chunkZ;
 
                 // Déterminer la couleur
@@ -152,7 +157,7 @@ public class PlotGroupingListener implements Listener {
                     // BLEU = Peut être sélectionné
                     color = new Particle.DustOptions(Color.fromRGB(0, 191, 255), 1.5f);
                 } else {
-                    // ROUGE = Impossible
+                    // ROUGE = Impossible (déjà groupé ou mauvais propriétaire)
                     color = new Particle.DustOptions(Color.fromRGB(255, 0, 0), 1.5f);
                 }
 
@@ -163,46 +168,56 @@ public class PlotGroupingListener implements Listener {
     }
 
     /**
-     * Affiche les particules autour d'un chunk
+     * Affiche les particules autour d'un chunk (style bas et dense comme les terrains à vendre)
      */
     private void displayChunkBorder(Player player, int chunkX, int chunkZ, Particle.DustOptions color) {
         World world = player.getWorld();
         int startX = chunkX * 16;
         int startZ = chunkZ * 16;
-        int endX = startX + 16;
-        int endZ = startZ + 16;
-
-        // Hauteur du joueur ± 10 blocs
-        int playerY = player.getLocation().getBlockY();
-        int minY = Math.max(world.getMinHeight(), playerY - 10);
-        int maxY = Math.min(world.getMaxHeight() - 1, playerY + 10);
 
         // Particules sur les 4 côtés
         // Côté Nord (Z min)
-        for (int x = startX; x <= endX; x += 2) {
-            for (int y = minY; y <= maxY; y += 3) {
-                world.spawnParticle(Particle.REDSTONE, x + 0.5, y, startZ, 1, color);
-            }
-        }
-
-        // Côté Sud (Z max)
-        for (int x = startX; x <= endX; x += 2) {
-            for (int y = minY; y <= maxY; y += 3) {
-                world.spawnParticle(Particle.REDSTONE, x + 0.5, y, endZ, 1, color);
-            }
-        }
-
-        // Côté Ouest (X min)
-        for (int z = startZ; z <= endZ; z += 2) {
-            for (int y = minY; y <= maxY; y += 3) {
-                world.spawnParticle(Particle.REDSTONE, startX, y, z + 0.5, 1, color);
-            }
+        for (int x = startX; x < startX + 16; x++) {
+            spawnParticleColumn(world, x + 0.5, startZ + 0.5, color);
         }
 
         // Côté Est (X max)
-        for (int z = startZ; z <= endZ; z += 2) {
-            for (int y = minY; y <= maxY; y += 3) {
-                world.spawnParticle(Particle.REDSTONE, endX, y, z + 0.5, 1, color);
+        for (int z = startZ; z < startZ + 16; z++) {
+            spawnParticleColumn(world, startX + 16.0, z + 0.5, color);
+        }
+
+        // Côté Sud (Z max)
+        for (int x = startX; x < startX + 16; x++) {
+            spawnParticleColumn(world, x + 0.5, startZ + 16.0, color);
+        }
+
+        // Côté Ouest (X min)
+        for (int z = startZ; z < startZ + 16; z++) {
+            spawnParticleColumn(world, startX + 0.0, z + 0.5, color);
+        }
+    }
+
+    /**
+     * Spawn une colonne de particules dense et basse (comme pour les terrains à vendre)
+     */
+    private void spawnParticleColumn(World world, double x, double z, Particle.DustOptions color) {
+        int groundY = world.getHighestBlockYAt((int) x, (int) z);
+
+        // Spawn 5 particules espacées verticalement (environ 2 blocs de hauteur)
+        for (int i = 0; i < 5; i++) {
+            double y = groundY + 0.2 + (i * 0.4);
+
+            // Spawn 3 particules pour plus de densité
+            for (int j = 0; j < 3; j++) {
+                world.spawnParticle(
+                    Particle.REDSTONE,
+                    x + (Math.random() * 0.2 - 0.1),
+                    y,
+                    z + (Math.random() * 0.2 - 0.1),
+                    1,
+                    0, 0, 0, 0,
+                    color
+                );
             }
         }
     }
@@ -292,15 +307,19 @@ public class PlotGroupingListener implements Listener {
     private void sendActionButtons(Player player) {
         TextComponent message = new TextComponent("  ");
 
-        // Bouton TERMINER
+        // Bouton TERMINER (génère automatiquement un nom)
         TextComponent finishButton = new TextComponent("[✓ TERMINER]");
         finishButton.setColor(net.md_5.bungee.api.ChatColor.GREEN);
         finishButton.setBold(true);
-        finishButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ville:finishgrouping"));
+        finishButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ville:finishgrouping auto"));
         finishButton.setHoverEvent(new HoverEvent(
             HoverEvent.Action.SHOW_TEXT,
             new ComponentBuilder("Cliquez pour terminer le groupement")
                 .color(net.md_5.bungee.api.ChatColor.YELLOW)
+                .append("\n")
+                .color(net.md_5.bungee.api.ChatColor.GRAY)
+                .append("Un nom sera généré automatiquement")
+                .color(net.md_5.bungee.api.ChatColor.GRAY)
                 .create()
         ));
         message.addExtra(finishButton);
@@ -382,6 +401,10 @@ public class PlotGroupingListener implements Listener {
         if (session.selectedChunkKeys.contains(chunkKey)) {
             session.selectedChunkKeys.remove(chunkKey);
             player.sendMessage(ChatColor.YELLOW + "✗ Parcelle retirée (" + session.selectedChunkKeys.size() + " sélectionnées)");
+
+            // Ré-afficher les boutons
+            player.sendMessage("");
+            sendActionButtons(player);
             return;
         }
 
@@ -417,6 +440,10 @@ public class PlotGroupingListener implements Listener {
         if (session.selectedChunkKeys.size() >= 2) {
             player.sendMessage(ChatColor.GRAY + "Surface totale: " + ChatColor.WHITE + (session.selectedChunkKeys.size() * 256) + "m²");
         }
+
+        // Ré-afficher les boutons pour un accès facile
+        player.sendMessage("");
+        sendActionButtons(player);
     }
 
     /**
@@ -440,6 +467,11 @@ public class PlotGroupingListener implements Listener {
             player.sendMessage(ChatColor.RED + "Ville introuvable!");
             cancelSession(player);
             return false;
+        }
+
+        // Générer automatiquement un nom si "auto" est passé
+        if (groupName == null || groupName.equalsIgnoreCase("auto")) {
+            groupName = generateGroupName(town);
         }
 
         // Vérifier l'adjacence
@@ -617,5 +649,30 @@ public class PlotGroupingListener implements Listener {
         if (session != null && session.particleTaskId != -1) {
             Bukkit.getScheduler().cancelTask(session.particleTaskId);
         }
+    }
+
+    /**
+     * Génère automatiquement un nom de groupe unique
+     */
+    private String generateGroupName(Town town) {
+        String baseName = "Groupe";
+        int counter = 1;
+
+        // Chercher tous les noms de groupes existants
+        Set<String> existingNames = new HashSet<>();
+        for (Plot plot : town.getPlots().values()) {
+            if (plot.isGrouped() && plot.getGroupName() != null) {
+                existingNames.add(plot.getGroupName().toLowerCase());
+            }
+        }
+
+        // Trouver un nom disponible
+        String generatedName;
+        do {
+            generatedName = baseName + "-" + counter;
+            counter++;
+        } while (existingNames.contains(generatedName.toLowerCase()));
+
+        return generatedName;
     }
 }

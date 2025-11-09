@@ -38,6 +38,8 @@ public class Fine {
     private final LocalDateTime issueDate;
     private FineStatus status;
     private LocalDateTime paidDate;
+    private LocalDateTime contestedDate;
+    private String contestReason;
     private UUID judgeUuid;
     private String judgeVerdict;
     private LocalDateTime judgeDate;
@@ -77,9 +79,11 @@ public class Fine {
         this.paidDate = LocalDateTime.now();
     }
 
-    public void markAsContested() {
+    public void markAsContested(String reason) {
         if (this.status == FineStatus.PENDING) {
             this.status = FineStatus.CONTESTED;
+            this.contestedDate = LocalDateTime.now();
+            this.contestReason = reason;
         }
     }
 
@@ -118,12 +122,16 @@ public class Fine {
     public LocalDateTime getIssueDate() { return issueDate; }
     public FineStatus getStatus() { return status; }
     public LocalDateTime getPaidDate() { return paidDate; }
+    public LocalDateTime getContestedDate() { return contestedDate; }
+    public String getContestReason() { return contestReason; }
     public UUID getJudgeUuid() { return judgeUuid; }
     public String getJudgeVerdict() { return judgeVerdict; }
     public LocalDateTime getJudgeDate() { return judgeDate; }
 
     public void setStatus(FineStatus status) { this.status = status; }
     public void setPaidDate(LocalDateTime paidDate) { this.paidDate = paidDate; }
+    public void setContestedDate(LocalDateTime contestedDate) { this.contestedDate = contestedDate; }
+    public void setContestReason(String contestReason) { this.contestReason = contestReason; }
     public void setJudgeUuid(UUID judgeUuid) { this.judgeUuid = judgeUuid; }
     public void setJudgeVerdict(String judgeVerdict) { this.judgeVerdict = judgeVerdict; }
     public void setJudgeDate(LocalDateTime judgeDate) { this.judgeDate = judgeDate; }

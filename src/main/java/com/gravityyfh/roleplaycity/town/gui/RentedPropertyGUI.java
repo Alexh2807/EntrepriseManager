@@ -66,7 +66,7 @@ public class RentedPropertyGUI implements Listener {
         int surface;
 
         if (plot.isGrouped()) {
-            propertyName = plot.getGroupName();
+            propertyName = "Terrain groupé";
             surface = plot.getChunks().size() * 256;
         } else {
             propertyName = "Parcelle " + plot.getChunkX() + ", " + plot.getChunkZ();
@@ -238,7 +238,7 @@ public class RentedPropertyGUI implements Listener {
         player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
 
         if (plot.isGrouped()) {
-            player.sendMessage(ChatColor.YELLOW + "Groupe: " + ChatColor.WHITE + plot.getGroupName());
+            player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
         } else {
             player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
         }
@@ -262,7 +262,7 @@ public class RentedPropertyGUI implements Listener {
 
         String propertyName;
         if (plot.isGrouped()) {
-            propertyName = plot.getGroupName();
+            propertyName = "Terrain groupé";
         } else {
             propertyName = "Parcelle " + plot.getChunkX() + ", " + plot.getChunkZ();
         }
@@ -291,7 +291,7 @@ public class RentedPropertyGUI implements Listener {
             player.sendMessage(ChatColor.GREEN + "✓ Achat réussi !");
 
             if (plot.isGrouped()) {
-                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de: " + ChatColor.WHITE + plot.getGroupName());
+                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de: " + ChatColor.WHITE + "Terrain groupé");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de la parcelle: " +
                     ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());

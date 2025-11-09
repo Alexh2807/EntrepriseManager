@@ -300,14 +300,16 @@ public class TownPoliceGUI implements Listener {
 
                     // Passer à la phase 3: demander la description
                     player.closeInventory();
-                    player.sendMessage(ChatColor.GREEN + "=== ÉMETTRE UNE AMENDE ===");
-                    player.sendMessage(ChatColor.GRAY + "Joueur: " + ChatColor.YELLOW + context.targetName);
-                    player.sendMessage(ChatColor.GRAY + "Type: " + ChatColor.RED + fineTitle);
-                    player.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
-                    player.sendMessage("");
-                    player.sendMessage(ChatColor.YELLOW + "Étape 3/3: Entrez une description détaillée");
-                    player.sendMessage(ChatColor.GRAY + "(Minimum 20 caractères)");
-                    player.sendMessage(ChatColor.GRAY + "(Tapez 'annuler' pour abandonner)");
+                    player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                    player.sendMessage("§c🚔 §lÉMETTRE UNE AMENDE");
+                    player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                    player.sendMessage("§7Contrevenant: §e" + context.targetName);
+                    player.sendMessage("§7Type: §c" + fineTitle);
+                    player.sendMessage("§7Montant: §6" + amount + "€");
+                    player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                    player.sendMessage("§eÉtape 3/3: Entrez une description détaillée");
+                    player.sendMessage("§7(Minimum 20 caractères)");
+                    player.sendMessage("§7(Tapez 'annuler' pour abandonner)");
                 }
             } else if (clicked.getType() == Material.ARROW) {
                 openPlayerSelectionMenu(player);
@@ -332,15 +334,20 @@ public class TownPoliceGUI implements Listener {
 
         if (input.equalsIgnoreCase("annuler")) {
             pendingFines.remove(player.getUniqueId());
-            player.sendMessage(ChatColor.YELLOW + "Émission d'amende annulée.");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("§e✖ Émission d'amende annulée");
+            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return;
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             // Vérifier la longueur minimale
             if (input.length() < 20) {
-                player.sendMessage(ChatColor.RED + "La description doit contenir au moins 20 caractères.");
-                player.sendMessage(ChatColor.GRAY + "Caractères actuels: " + input.length() + " / 20");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage("§c✖ Description trop courte");
+                player.sendMessage("§7Minimum: §f20 caractères");
+                player.sendMessage("§7Actuel: §f" + input.length() + " / 20");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 return;
             }
 
@@ -358,16 +365,18 @@ public class TownPoliceGUI implements Listener {
             );
 
             if (fine != null) {
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                player.sendMessage(ChatColor.GREEN + "   Amende émise avec succès !");
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                player.sendMessage(ChatColor.GRAY + "Joueur: " + ChatColor.YELLOW + context.targetName);
-                player.sendMessage(ChatColor.GRAY + "Type: " + ChatColor.RED + context.fineTitle);
-                player.sendMessage(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + context.amount + "€");
-                player.sendMessage(ChatColor.GRAY + "Description: " + ChatColor.WHITE + input);
-                player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage("§a✔ §lAMENDE ÉMISE AVEC SUCCÈS");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage("§7Contrevenant: §e" + context.targetName);
+                player.sendMessage("§7Type: §c" + context.fineTitle);
+                player.sendMessage("§7Montant: §6" + context.amount + "€");
+                player.sendMessage("§7Description: §f" + input);
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             } else {
-                player.sendMessage(ChatColor.RED + "Erreur lors de l'émission de l'amende.");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage("§c✖ Erreur lors de l'émission");
+                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             }
 
             pendingFines.remove(player.getUniqueId());
