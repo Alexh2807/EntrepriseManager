@@ -21,6 +21,7 @@ import org.bukkit.*;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -1247,5 +1248,38 @@ public class MedicalSystemManager {
      */
     public boolean hasMedicalScoreboard(Player player) {
         return medicScoreboards.containsKey(player.getUniqueId());
+    }
+
+    /**
+     * Recharge la configuration du système médical depuis config.yml
+     * Appelé par /roleplaycity reload
+     */
+    public void reloadConfig() {
+        // Recharger les paramètres de configuration
+        FileConfiguration config = plugin.getConfig();
+
+        // Recharger les coûts et délais depuis la config si elle existe
+        if (config.contains("medical.cost")) {
+            this.medicalCost = config.getInt("medical.cost", 500);
+        }
+        if (config.contains("medical.medic-share")) {
+            this.medicShare = config.getDouble("medical.medic-share", 0.60);
+        }
+        if (config.contains("medical.town-share")) {
+            this.townShare = config.getDouble("medical.town-share", 0.20);
+        }
+        if (config.contains("medical.acceptance-timeout")) {
+            this.acceptanceTimeout = config.getInt("medical.acceptance-timeout", 30);
+        }
+        if (config.contains("medical.intervention-timeout")) {
+            this.interventionTimeout = config.getInt("medical.intervention-timeout", 300);
+        }
+
+        plugin.getLogger().info("Configuration du système médical rechargée:");
+        plugin.getLogger().info("  - Coût des soins: " + medicalCost + "€");
+        plugin.getLogger().info("  - Part médecin: " + (medicShare * 100) + "%");
+        plugin.getLogger().info("  - Part ville: " + (townShare * 100) + "%");
+        plugin.getLogger().info("  - Timeout acceptation: " + acceptanceTimeout + "s");
+        plugin.getLogger().info("  - Timeout intervention: " + interventionTimeout + "s");
     }
 }

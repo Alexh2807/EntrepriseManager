@@ -281,6 +281,17 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     }
 
     private void setupCommands() {
+        var roleplaycityCmd = getCommand("roleplaycity");
+        if (roleplaycityCmd != null) {
+            com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler handler =
+                new com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler(this);
+            roleplaycityCmd.setExecutor(handler);
+            roleplaycityCmd.setTabCompleter(handler);
+            getLogger().info("Gestionnaire de commandes pour /roleplaycity enregistré.");
+        } else {
+            getLogger().severe("ERREUR: La commande 'roleplaycity' n'est pas définie dans plugin.yml !");
+        }
+
         var entrepriseCmd = getCommand("entreprise");
         if (entrepriseCmd != null) {
             entrepriseCmd.setExecutor(new EntrepriseCommandHandler(this, entrepriseLogic, entrepriseGUI, cvManager));
@@ -326,15 +337,87 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return econ != null;
     }
 
+    /**
+     * Recharge complètement la configuration et les données du plugin
+     * Utilisé par /roleplaycity reload
+     */
+    public void reloadPluginConfig() {
+        getLogger().info("════════════════════════════════════════════════════");
+        getLogger().info("Début du rechargement de RoleplayCity...");
+        getLogger().info("════════════════════════════════════════════════════");
+
+        try {
+            // 1. Recharger config.yml
+            reloadConfig();
+            getLogger().info("✓ Configuration principale rechargée");
+
+            // 2. Recharger le système de villes
+            if (townManager != null && townDataManager != null) {
+                // Sauvegarder avant de recharger
+                townManager.saveTownsSync();
+                // Recharger depuis le fichier
+                townManager.loadTowns(townDataManager.loadTowns());
+                // Reconstruire le cache de claims
+                if (claimManager != null) {
+                    claimManager.rebuildCache();
+                }
+                getLogger().info("✓ Système de villes rechargé (" + townManager.getAllTowns().size() + " villes)");
+            }
+
+            // 3. Recharger le système de niveau des villes
+            if (townLevelManager != null) {
+                townLevelManager.reload();
+                getLogger().info("✓ Système d'évolution des villes rechargé");
+            }
+
+            // 4. Recharger les entreprises
+            if (entrepriseLogic != null) {
+                entrepriseLogic.reloadPluginData();
+                getLogger().info("✓ Système d'entreprises rechargé");
+            }
+
+            // 5. Recharger les boutiques
+            if (shopManager != null) {
+                shopManager.loadShops();
+                getLogger().info("✓ Système de boutiques rechargé");
+            }
+
+            // 6. Recharger les amendes
+            if (townPoliceManager != null && townFinesDataManager != null) {
+                townPoliceManager.loadFines(townFinesDataManager.loadFines());
+                getLogger().info("✓ Système d'amendes rechargé");
+            }
+
+            // 7. Recharger les notifications
+            if (notificationManager != null && notificationDataManager != null) {
+                notificationManager.loadNotifications();
+                getLogger().info("✓ Système de notifications rechargé");
+            }
+
+            // 8. Recharger le système médical
+            if (medicalSystemManager != null) {
+                medicalSystemManager.reloadConfig();
+                getLogger().info("✓ Système médical rechargé");
+            }
+
+            getLogger().info("════════════════════════════════════════════════════");
+            getLogger().info("RoleplayCity rechargé avec succès !");
+            getLogger().info("════════════════════════════════════════════════════");
+
+        } catch (Exception e) {
+            getLogger().severe("════════════════════════════════════════════════════");
+            getLogger().severe("ERREUR lors du rechargement du plugin:");
+            e.printStackTrace();
+            getLogger().severe("════════════════════════════════════════════════════");
+        }
+    }
+
+    /**
+     * @deprecated Utiliser reloadPluginConfig() à la place
+     */
+    @Deprecated
     public void reloadPluginData() {
-        reloadConfig();
-        if (entrepriseLogic != null) {
-            entrepriseLogic.reloadPluginData();
-        }
-        if (shopManager != null) {
-            shopManager.loadShops();
-        }
-        getLogger().info("Plugin RoleplayCity et ses données ont été rechargés.");
+        reloadPluginConfig();
     }
 
     /**
