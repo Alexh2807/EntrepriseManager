@@ -233,6 +233,11 @@ public class ClaimManager {
         double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
         double refund = claimCost * (refundPercentage / 100.0);
 
+        // NOUVEAU : Supprimer la mailbox de ce terrain avant de l'unclaim
+        if (plugin.getMailboxManager() != null) {
+            plugin.getMailboxManager().removeMailboxByChunk(coord.getWorldName(), coord.getX(), coord.getZ());
+        }
+
         // Supprimer la parcelle
         town.removePlot(coord.getWorldName(), coord.getX(), coord.getZ());
 

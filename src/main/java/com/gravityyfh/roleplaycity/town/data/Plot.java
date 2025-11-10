@@ -16,6 +16,10 @@ public class Plot {
     private boolean grouped; // true si 2+ chunks
     private String groupName; // Nom du groupe si grouped = true
 
+    // Numéro unique de terrain (ex: V-001 pour Veloria)
+    // Seulement pour PARTICULIER, PROFESSIONNEL et MUNICIPAL (pas PUBLIC)
+    private String plotNumber;
+
     private PlotType type;
     private MunicipalSubType municipalSubType;
 
@@ -73,7 +77,7 @@ public class Plot {
         this.grouped = false;
         this.groupName = null;
 
-        this.type = PlotType.MUNICIPAL; // Type par défaut
+        this.type = PlotType.PUBLIC; // Type par défaut (terrain public accessible à tous)
         this.municipalSubType = MunicipalSubType.NONE;
         this.claimDate = LocalDateTime.now();
         this.forSale = false;
@@ -105,7 +109,7 @@ public class Plot {
         this.grouped = (chunkKeys.size() > 1);
         this.groupName = groupName;
 
-        this.type = PlotType.MUNICIPAL;
+        this.type = PlotType.PUBLIC; // Type par défaut (terrain public accessible à tous)
         this.municipalSubType = MunicipalSubType.NONE;
         this.claimDate = LocalDateTime.now();
         this.forSale = false;
@@ -197,6 +201,8 @@ public class Plot {
 
     public String getWorldName() { return worldName; }
 
+    public String getPlotNumber() { return plotNumber; }
+
     public PlotType getType() { return type; }
 
     public MunicipalSubType getMunicipalSubType() { return municipalSubType; }
@@ -261,6 +267,7 @@ public class Plot {
     // Setters
     public void setType(PlotType type) { this.type = type; }
     public void setMunicipalSubType(MunicipalSubType subType) { this.municipalSubType = subType; }
+    public void setPlotNumber(String plotNumber) { this.plotNumber = plotNumber; }
 
     public void setOwner(UUID ownerUuid, String ownerName) {
         this.ownerUuid = ownerUuid;
@@ -560,8 +567,22 @@ public class Plot {
             return town.isMember(playerUuid);
         }
 
-        // Particulier/Professionnel : propriétaire, locataire, ou membres avec permission
-        if (isOwnedBy(playerUuid) || isRentedBy(playerUuid)) {
+        // Particulier/Professionnel
+        // Si locataire, toujours autorisé
+        if (isRentedBy(playerUuid)) {
+            return true;
+        }
+
+        // Si propriétaire mais terrain loué : restrictions sur les blocs d'accès
+        if (isOwnedBy(playerUuid) && renterUuid != null) {
+            // Le propriétaire ne peut pas utiliser les blocs d'accès pendant la location
+            // Mais il peut ouvrir les conteneurs (coffres, fours, etc.)
+            // Note: La vérification du type de bloc se fera dans TownProtectionListener
+            return true;
+        }
+
+        // Si propriétaire et terrain non loué : autorisé
+        if (isOwnedBy(playerUuid)) {
             return true;
         }
 

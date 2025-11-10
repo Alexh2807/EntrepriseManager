@@ -213,7 +213,7 @@ public class TownLevelManager {
      */
     public boolean canClaimMore(Town town) {
         TownLevelConfig config = getConfig(town.getLevel());
-        return town.getTotalClaims() < config.getMaxClaims();
+        return town.getRealChunkCount() < config.getMaxClaims();
     }
 
     /**
@@ -221,7 +221,7 @@ public class TownLevelManager {
      */
     public int getRemainingClaims(Town town) {
         TownLevelConfig config = getConfig(town.getLevel());
-        return Math.max(0, config.getMaxClaims() - town.getTotalClaims());
+        return Math.max(0, config.getMaxClaims() - town.getRealChunkCount());
     }
 
     /**

@@ -306,6 +306,25 @@ public class TownPlotManagementGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(26, backItem);
 
+        // NOUVEAU : Bouton "Placer une boîte aux lettres" (slot 20)
+        // Disponible uniquement pour le propriétaire ou locataire
+        if (plot.getOwnerUuid() != null &&
+            (plot.getOwnerUuid().equals(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId()))) {
+
+            ItemStack mailboxItem = new ItemStack(Material.PLAYER_HEAD);
+            ItemMeta mailboxMeta = mailboxItem.getItemMeta();
+            mailboxMeta.setDisplayName(ChatColor.GOLD + "📮 Placer une Boîte aux Lettres");
+            List<String> mailboxLore = new ArrayList<>();
+            mailboxLore.add(ChatColor.GRAY + "Placez une boîte aux lettres");
+            mailboxLore.add(ChatColor.GRAY + "pour recevoir du courrier");
+            mailboxLore.add("");
+            mailboxLore.add(ChatColor.YELLOW + "Cliquez pour choisir votre");
+            mailboxLore.add(ChatColor.YELLOW + "modèle de boîte aux lettres");
+            mailboxMeta.setLore(mailboxLore);
+            mailboxItem.setItemMeta(mailboxMeta);
+            inv.setItem(20, mailboxItem);
+        }
+
         // FIX UX P2.7: Stocker le Plot affiché pour référence ultérieure
         currentMenuPlots.put(player.getUniqueId(), plot);
 
@@ -382,9 +401,46 @@ public class TownPlotManagementGUI implements Listener {
                             return;
                         }
 
+                        // Gérer le numéro de terrain lors du changement de type
                         plot.setType(selectedType);
 
-                        player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
+                        // Réinitialiser le sous-type municipal si on quitte le type MUNICIPAL
+                        if (selectedType != PlotType.MUNICIPAL && plot.getMunicipalSubType() != MunicipalSubType.NONE) {
+                            plot.setMunicipalSubType(MunicipalSubType.NONE);
+                        }
+
+                        // Si on passe à PARTICULIER, PROFESSIONNEL ou MUNICIPAL depuis PUBLIC, attribuer un numéro
+                        boolean needsNumber = (selectedType == PlotType.PARTICULIER ||
+                                             selectedType == PlotType.PROFESSIONNEL ||
+                                             selectedType == PlotType.MUNICIPAL);
+                        boolean hadNoNumber = (oldType == PlotType.PUBLIC || plot.getPlotNumber() == null);
+
+                        if (needsNumber && hadNoNumber) {
+                            // Récupérer la ville et générer un numéro unique
+                            Town town = plugin.getTownManager().getTown(plot.getTownName());
+                            if (town != null) {
+                                String plotNumber = town.generateUniquePlotNumber();
+                                if (plotNumber != null) {
+                                    plot.setPlotNumber(plotNumber);
+                                    player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
+                                    player.sendMessage(ChatColor.GOLD + "→ Numéro de terrain attribué : " + ChatColor.BOLD + plotNumber);
+                                } else {
+                                    player.sendMessage(ChatColor.RED + "✗ Impossible d'attribuer un numéro de terrain !");
+                                    player.sendMessage(ChatColor.YELLOW + "Tous les numéros (001-999) sont déjà utilisés dans cette ville.");
+                                    // Revenir à l'ancien type
+                                    plot.setType(oldType);
+                                    player.closeInventory();
+                                    return;
+                                }
+                            }
+                        } else if (!needsNumber && plot.getPlotNumber() != null) {
+                            // Si on passe à PUBLIC, retirer le numéro
+                            plot.setPlotNumber(null);
+                            player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
+                            player.sendMessage(ChatColor.GRAY + "Le numéro de terrain a été retiré.");
+                        } else {
+                            player.sendMessage(ChatColor.GREEN + "Type de parcelle changé en " + selectedType.getDisplayName());
+                        }
 
                         // Sauvegarder immédiatement
                         plugin.getTownManager().saveTownsNow();
@@ -481,7 +537,23 @@ public class TownPlotManagementGUI implements Listener {
             player.closeInventory();
             player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
                 ChatColor.YELLOW + " pour accéder à vos propriétés");
+        } else if (displayName.contains("Placer une Boîte aux Lettres")) {
+            handlePlaceMailbox(player, plot);
         }
+    }
+
+    private void handlePlaceMailbox(Player player, Plot plot) {
+        player.closeInventory();
+
+        // Vérifier que le joueur est bien propriétaire ou locataire
+        if (plot.getOwnerUuid() == null ||
+            (!plot.getOwnerUuid().equals(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId()))) {
+            player.sendMessage(ChatColor.RED + "Vous devez être propriétaire ou locataire pour placer une boîte aux lettres.");
+            return;
+        }
+
+        // Ouvrir le GUI de sélection de mailbox
+        plugin.getMailboxPlacementGUI().openMailboxSelectionMenu(player, plot);
     }
 
     private void handlePutForSale(Player player, Plot plot, String townName) {

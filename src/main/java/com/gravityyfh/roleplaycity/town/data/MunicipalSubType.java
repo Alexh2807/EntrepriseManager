@@ -6,7 +6,8 @@ public enum MunicipalSubType {
     NONE("Aucun", Material.BARRIER),
     MAIRIE("🏛️ Mairie", Material.BEACON),
     COMMISSARIAT("🚓 Commissariat", Material.IRON_BARS),
-    TRIBUNAL("⚖️ Tribunal", Material.ANVIL);
+    TRIBUNAL("⚖️ Tribunal", Material.ANVIL),
+    LA_POSTE("📮 La Poste", Material.CHEST);
 
     private final String displayName;
     private final Material icon;
@@ -29,6 +30,7 @@ public enum MunicipalSubType {
             case MAIRIE -> role == TownRole.MAIRE || role == TownRole.ADJOINT;
             case COMMISSARIAT -> role == TownRole.POLICIER;
             case TRIBUNAL -> role == TownRole.JUGE;
+            case LA_POSTE -> true; // Accessible à tous les citoyens
             case NONE -> true;
         };
     }

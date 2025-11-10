@@ -73,6 +73,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.medical.listener.MedicalListener medicalListener;
     private com.gravityyfh.roleplaycity.medical.listener.HealingMiniGameListener healingMiniGameListener;
 
+    // Système Postal (La Poste)
+    private com.gravityyfh.roleplaycity.postal.manager.MailboxManager mailboxManager;
+    private com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI mailboxPlacementGUI;
+    private com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI laPosteGUI;
+    private com.gravityyfh.roleplaycity.postal.listener.MailboxInteractionListener mailboxInteractionListener;
+    private com.gravityyfh.roleplaycity.postal.listener.MailboxNotificationListener mailboxNotificationListener;
+    private com.gravityyfh.roleplaycity.postal.listener.PlotGroupMailboxListener plotGroupMailboxListener;
+
     public void onEnable() {
         instance = this;
         getLogger().info("============================================");
@@ -191,6 +199,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         medicalListener = new com.gravityyfh.roleplaycity.medical.listener.MedicalListener(this);
         healingMiniGameListener = new com.gravityyfh.roleplaycity.medical.listener.HealingMiniGameListener(this);
 
+        // Système Postal (La Poste)
+        mailboxManager = new com.gravityyfh.roleplaycity.postal.manager.MailboxManager(this);
+        mailboxPlacementGUI = new com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI(this, mailboxManager);
+        laPosteGUI = new com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI(this, townManager, mailboxManager, econ);
+        mailboxInteractionListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxInteractionListener(this, mailboxManager, claimManager);
+        mailboxNotificationListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxNotificationListener(this, mailboxManager, claimManager);
+        plotGroupMailboxListener = new com.gravityyfh.roleplaycity.postal.listener.PlotGroupMailboxListener(this, mailboxManager);
+
         // Shop Listeners
         shopInteractionListener = new ShopInteractionListener(this);
         shopDestructionListener = new ShopDestructionListener(this);
@@ -246,6 +262,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (townPoliceManager != null && townFinesDataManager != null) {
             townFinesDataManager.saveFines(townPoliceManager.getFinesForSave());
         }
+        if (mailboxManager != null) {
+            mailboxManager.saveMailboxData();
+        }
         getLogger().info("RoleplayCity désactivé. Données sauvegardées.");
     }
 
@@ -266,6 +285,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             townEventListener, // Événements de ville (suppression, départ membres)
             medicalListener, // Système médical (Revive intégré)
             healingMiniGameListener, // Mini-jeu de suture pour les soins médicaux
+            mailboxPlacementGUI, mailboxInteractionListener, mailboxNotificationListener, // Système Postal (La Poste)
+            laPosteGUI, // GUI La Poste
             new EventListener(this, entrepriseLogic),
             new PlayerConnectionListener(this, entrepriseLogic),
             new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les notifications
@@ -323,6 +344,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         } else {
             getLogger().severe("ERREUR: La commande 'mourir' n'est pas définie dans plugin.yml !");
         }
+
+        var laposteCmd = getCommand("laposte");
+        if (laposteCmd != null) {
+            laposteCmd.setExecutor(new com.gravityyfh.roleplaycity.postal.command.LaPosteCommand(this, claimManager, laPosteGUI));
+            getLogger().info("Gestionnaire de commandes pour /laposte enregistré.");
+        } else {
+            getLogger().severe("ERREUR: La commande 'laposte' n'est pas définie dans plugin.yml !");
+        }
     }
 
     private boolean setupEconomy() {
@@ -353,9 +382,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
             // 2. Recharger le système de villes
             if (townManager != null && townDataManager != null) {
-                // Sauvegarder avant de recharger
-                townManager.saveTownsSync();
-                // Recharger depuis le fichier
+                // Recharger directement depuis le fichier (sans sauvegarder avant!)
+                // Cela permet de récupérer les modifications manuelles du fichier towns.yml
                 townManager.loadTowns(townDataManager.loadTowns());
                 // Reconstruire le cache de claims
                 if (claimManager != null) {
@@ -467,4 +495,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     }
     public com.gravityyfh.roleplaycity.town.gui.TownMainGUI getTownMainGUI() { return townMainGUI; }
     public com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager getMedicalSystemManager() { return medicalSystemManager; }
+
+    // Système Postal (La Poste)
+    public com.gravityyfh.roleplaycity.postal.manager.MailboxManager getMailboxManager() { return mailboxManager; }
+    public com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI getMailboxPlacementGUI() { return mailboxPlacementGUI; }
+    public com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI getLaPosteGUI() { return laPosteGUI; }
 }

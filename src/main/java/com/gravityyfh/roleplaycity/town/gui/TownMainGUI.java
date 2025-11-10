@@ -203,7 +203,7 @@ public class TownMainGUI implements Listener {
         infoLore.add(ChatColor.GRAY + "Nom: " + ChatColor.WHITE + townName);
         infoLore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + town.getDescription());
         infoLore.add(ChatColor.GRAY + "Membres: " + ChatColor.WHITE + town.getMemberCount());
-        infoLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + town.getTotalClaims());
+        infoLore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + town.getRealChunkCount());
         infoLore.add(ChatColor.GRAY + "Banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
 
         // Afficher tous les rôles du joueur
@@ -537,6 +537,12 @@ public class TownMainGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
+
+        // Exclure les GUIs gérés par d'autres classes
+        if (title.contains("Évolution de votre Ville")) {
+            return; // Géré par TownUpgradeGUI
+        }
+
         if (!title.contains("🏙️") && !title.contains("Ville") && !title.contains("Services Municipaux") &&
             !title.equals(ChatColor.stripColor(JOIN_TOWN_TITLE)) && !title.contains("Gestion -")) {
             return;
@@ -734,7 +740,7 @@ public class TownMainGUI implements Listener {
         info.add("Description: " + town.getDescription());
         info.add("Maire: " + mayorName);
         info.add("Membres: " + town.getMemberCount());
-        info.add("Parcelles: " + town.getTotalClaims());
+        info.add("Parcelles: " + town.getRealChunkCount());
         info.add("Banque: " + String.format("%.2f€", town.getBankBalance()));
         info.add("");
 
@@ -875,7 +881,7 @@ public class TownMainGUI implements Listener {
             List<String> lore = new ArrayList<>();
             lore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + town.getDescription());
             lore.add(ChatColor.GRAY + "Membres: " + ChatColor.WHITE + town.getMemberCount());
-            lore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + town.getTotalClaims());
+            lore.add(ChatColor.GRAY + "Parcelles: " + ChatColor.WHITE + town.getRealChunkCount());
             lore.add("");
 
             double joinCost = plugin.getConfig().getDouble("town.join-cost", 100.0);

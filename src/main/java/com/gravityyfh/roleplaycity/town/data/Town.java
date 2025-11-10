@@ -219,6 +219,59 @@ public class Town {
         return world + ":" + x + ":" + z;
     }
 
+    /**
+     * Génère un numéro unique de terrain pour cette ville
+     * Format: [Première lettre de la ville]-[001-999]
+     * Exemple: V-001 pour Veloria
+     * Retourne null si tous les numéros sont utilisés
+     */
+    public String generateUniquePlotNumber() {
+        // Extraire la première lettre du nom de la ville
+        String prefix = name.substring(0, 1).toUpperCase();
+
+        // Collecter tous les numéros actuellement utilisés
+        Set<Integer> usedNumbers = new HashSet<>();
+        for (Plot plot : plots.values()) {
+            String plotNumber = plot.getPlotNumber();
+            if (plotNumber != null && plotNumber.startsWith(prefix + "-")) {
+                try {
+                    int number = Integer.parseInt(plotNumber.substring(prefix.length() + 1));
+                    usedNumbers.add(number);
+                } catch (NumberFormatException ignored) {
+                    // Ignorer les formats invalides
+                }
+            }
+        }
+
+        // Trouver le plus petit numéro disponible de 1 à 999
+        for (int i = 1; i <= 999; i++) {
+            if (!usedNumbers.contains(i)) {
+                return String.format("%s-%03d", prefix, i);
+            }
+        }
+
+        // Tous les numéros sont utilisés
+        return null;
+    }
+
+    /**
+     * Calcule le nombre réel de chunks claimés par la ville
+     * (en additionnant tous les chunks de tous les plots)
+     */
+    public int getRealChunkCount() {
+        int total = 0;
+        // Utiliser un Set pour éviter de compter plusieurs fois le même chunk
+        Set<String> countedChunks = new HashSet<>();
+
+        for (Plot plot : plots.values()) {
+            for (String chunkKey : plot.getChunks()) {
+                countedChunks.add(chunkKey);
+            }
+        }
+
+        return countedChunks.size();
+    }
+
 
     // === GESTION ÉCONOMIQUE ===
 

@@ -127,6 +127,11 @@ public class TownManager {
             playerTowns.remove(memberUuid);
         }
 
+        // NOUVEAU : Supprimer toutes les mailboxes de cette ville
+        if (plugin.getMailboxManager() != null) {
+            plugin.getMailboxManager().removeAllMailboxesFromTown(townName);
+        }
+
         plugin.getLogger().info("Ville supprimée: " + townName);
 
         // Sauvegarder immédiatement
@@ -157,6 +162,11 @@ public class TownManager {
         // Mettre à jour les références des joueurs
         for (UUID memberUuid : town.getMembers().keySet()) {
             playerTowns.put(memberUuid, newName);
+        }
+
+        // NOUVEAU : Mettre à jour le nom de ville dans toutes les mailboxes
+        if (plugin.getMailboxManager() != null) {
+            plugin.getMailboxManager().renameTownInMailboxes(oldName, newName);
         }
 
         plugin.getLogger().info("Ville renommée: " + oldName + " -> " + newName);

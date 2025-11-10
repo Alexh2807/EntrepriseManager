@@ -173,6 +173,12 @@ public class TownHUDListener implements Listener {
 
             hud.append(plot.getType().getDisplayName());
 
+            // Ajouter le sous-type si municipal (plus visible, sans parenthèses)
+            if (plot.isMunicipal() && plot.getMunicipalSubType() != null && plot.getMunicipalSubType() != com.gravityyfh.roleplaycity.town.data.MunicipalSubType.NONE) {
+                hud.append(ChatColor.GRAY).append(" | ");
+                hud.append(ChatColor.AQUA).append(plot.getMunicipalSubType().getDisplayName());
+            }
+
             // Ajouter le propriétaire si c'est une parcelle privée
             if (plot.getOwnerUuid() != null) {
                 String displayName;
@@ -189,13 +195,6 @@ public class TownHUDListener implements Listener {
 
                 hud.append(ChatColor.GRAY).append(" - ");
                 hud.append(ChatColor.YELLOW).append(displayName);
-            }
-
-            // Ajouter le sous-type si municipal
-            if (plot.isMunicipal() && plot.getMunicipalSubType() != null) {
-                hud.append(ChatColor.GRAY).append(" (");
-                hud.append(plot.getMunicipalSubType().getDisplayName());
-                hud.append(ChatColor.GRAY).append(")");
             }
 
             // Ajouter statut vente/location
@@ -318,6 +317,11 @@ public class TownHUDListener implements Listener {
         // Informations de base
         player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
         player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + plot.getType().getDisplayName());
+
+        // Afficher le sous-type municipal si défini
+        if (plot.isMunicipal() && plot.getMunicipalSubType() != null && plot.getMunicipalSubType() != com.gravityyfh.roleplaycity.town.data.MunicipalSubType.NONE) {
+            player.sendMessage(ChatColor.YELLOW + "Fonction: " + ChatColor.AQUA + plot.getMunicipalSubType().getDisplayName());
+        }
 
         // Afficher la surface (sauf pour MUNICIPAL et PUBLIC)
         PlotType plotType = plot.getType();
@@ -462,14 +466,28 @@ public class TownHUDListener implements Listener {
         // Ligne vide pour l'espacement
         objective.getScore(ChatColor.DARK_GRAY + " ").setScore(line--);
 
-        // SECTION TERRAIN
-        objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
+        // SECTION TERRAIN - Afficher le numéro si disponible
+        PlotType plotType = plot.getType();
+        boolean hasPlotNumber = (plotType == PlotType.PARTICULIER || plotType == PlotType.PROFESSIONNEL || plotType == PlotType.MUNICIPAL);
+
+        if (hasPlotNumber && plot.getPlotNumber() != null) {
+            // Afficher "Terrain" puis le numéro sur la ligne suivante
+            objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
+            objective.getScore(" " + ChatColor.GOLD + "" + ChatColor.BOLD + plot.getPlotNumber()).setScore(line--);
+        } else {
+            // Pas de numéro, afficher seulement "Terrain"
+            objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
+        }
 
         // Type de terrain
         objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + plot.getType().getDisplayName()).setScore(line--);
 
+        // Sous-type municipal si défini
+        if (plot.isMunicipal() && plot.getMunicipalSubType() != null && plot.getMunicipalSubType() != com.gravityyfh.roleplaycity.town.data.MunicipalSubType.NONE) {
+            objective.getScore(" " + ChatColor.AQUA + plot.getMunicipalSubType().getDisplayName()).setScore(line--);
+        }
+
         // Surface (sauf pour MUNICIPAL et PUBLIC)
-        PlotType plotType = plot.getType();
         boolean shouldShowSurface = (plotType != PlotType.MUNICIPAL && plotType != PlotType.PUBLIC);
 
         if (shouldShowSurface) {

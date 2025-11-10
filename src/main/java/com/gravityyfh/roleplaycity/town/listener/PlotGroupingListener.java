@@ -493,6 +493,21 @@ public class PlotGroupingListener implements Listener {
 
         // Ajouter tous les chunks au plot principal
         List<String> allChunks = new ArrayList<>(session.selectedChunkKeys);
+
+        // NOUVEAU : Supprimer les mailboxes de tous les terrains qui vont être groupés
+        if (plugin.getMailboxManager() != null) {
+            for (String chunkKey : allChunks) {
+                String[] chunkParts = chunkKey.split(":");
+                if (chunkParts.length == 3) {
+                    Plot plotToGroup = town.getPlot(chunkParts[0], Integer.parseInt(chunkParts[1]), Integer.parseInt(chunkParts[2]));
+                    if (plotToGroup != null) {
+                        plugin.getMailboxManager().removeMailboxByPlot(plotToGroup);
+                    }
+                }
+            }
+        }
+
+        // Ajouter les chunks au plot principal
         for (String chunkKey : allChunks) {
             if (!chunkKey.equals(firstKey)) {
                 String[] chunkParts = chunkKey.split(":");

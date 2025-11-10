@@ -114,7 +114,7 @@ public class TownUpgradeGUI implements Listener {
         lore.add("");
         lore.add(ChatColor.AQUA + "📊 Statistiques actuelles:");
         lore.add(ChatColor.GRAY + "  • Population: " + ChatColor.WHITE + town.getMemberCount() + " joueur(s)");
-        lore.add(ChatColor.GRAY + "  • Claims utilisés: " + ChatColor.WHITE + town.getTotalClaims() + "/" + config.getMaxClaims());
+        lore.add(ChatColor.GRAY + "  • Claims utilisés: " + ChatColor.WHITE + town.getRealChunkCount() + "/" + config.getMaxClaims());
         lore.add(ChatColor.GRAY + "  • Solde banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
         lore.add("");
         lore.add(ChatColor.AQUA + "👮 Personnel municipal:");
@@ -233,43 +233,67 @@ public class TownUpgradeGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (event.getView().getTitle().equals(ChatColor.GOLD + "⭐ Évolution de votre Ville")) {
-            event.setCancelled(true);
 
-            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
-                return;
+        String title = event.getView().getTitle();
+
+        // Vérifier si c'est bien notre GUI (avec ou sans codes couleur)
+        if (!title.contains("Évolution de votre Ville")) {
+            return;
+        }
+
+        event.setCancelled(true);
+
+        if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
+            return;
+        }
+
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Erreur: Vous n'êtes pas dans une ville.");
+            return;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return;
+        }
+
+        Material clickedType = event.getCurrentItem().getType();
+
+        // Bouton d'upgrade (EMERALD_BLOCK)
+        if (clickedType == Material.EMERALD_BLOCK) {
+            player.closeInventory();
+
+            if (levelManager.upgradeTown(town, player)) {
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+            } else {
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             }
 
-            String townName = townManager.getPlayerTown(player.getUniqueId());
-            if (townName == null) return;
+        } else if (clickedType == Material.REDSTONE_BLOCK) {
+            // Bouton rouge "Conditions non remplies" - juste jouer un son d'erreur
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 0.8f);
+            player.sendMessage(ChatColor.RED + "Conditions non remplies pour l'amélioration !");
 
-            Town town = townManager.getTown(townName);
-            if (town == null) return;
-
-            Material clickedType = event.getCurrentItem().getType();
-
-            // Bouton d'upgrade
-            if (clickedType == Material.EMERALD_BLOCK) {
-                player.closeInventory();
-
-                if (levelManager.upgradeTown(town, player)) {
-                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-                    player.sendMessage(ChatColor.GREEN + "✓ Votre ville a été améliorée avec succès !");
-                } else {
-                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                }
-
-            } else if (clickedType == Material.ARROW) {
-                // Retour au menu principal
-                player.closeInventory();
-                if (mainGUI != null) {
-                    mainGUI.openMainMenu(player);
-                }
-
-            } else if (clickedType == Material.BARRIER) {
-                // Fermer
-                player.closeInventory();
+        } else if (clickedType == Material.ARROW) {
+            // Retour au menu principal
+            player.closeInventory();
+            if (mainGUI != null) {
+                mainGUI.openMainMenu(player);
             }
+
+        } else if (clickedType == Material.BARRIER) {
+            // Fermer
+            player.closeInventory();
+
+        } else {
+            // Pour tous les autres items (niveau actuel, niveau suivant, niveau max)
+            // On ne fait rien, juste annuler le clic
+            // Mais on peut jouer un petit son pour feedback
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.0f);
         }
     }
 }

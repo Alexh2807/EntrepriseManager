@@ -134,7 +134,7 @@ public class TownProtectionListener implements Listener {
 
         // Vérifier si c'est un bloc interactif (coffre, four, porte, bouton, etc.)
         if (isInteractiveBlock(block)) {
-            if (!canInteract(player, block.getLocation())) {
+            if (!canInteract(player, block.getLocation(), block)) {
                 event.setCancelled(true);
                 player.sendMessage(ChatColor.RED + "Vous ne pouvez pas interagir avec cela ici.");
                 notifyPlotInfo(player, block.getLocation());
@@ -193,7 +193,7 @@ public class TownProtectionListener implements Listener {
     /**
      * Vérifie si un joueur peut interagir à cet emplacement
      */
-    private boolean canInteract(Player player, Location location) {
+    private boolean canInteract(Player player, Location location, Block block) {
         // Admins bypass
         if (player.hasPermission("roleplaycity.town.admin")) {
             return true;
@@ -220,8 +220,38 @@ public class TownProtectionListener implements Listener {
 
         UUID playerUuid = player.getUniqueId();
 
+        // NOUVEAU : Si le terrain est loué et que le joueur est le propriétaire (pas le locataire)
+        if (plot.getRenterUuid() != null &&
+            plot.isOwnedBy(playerUuid) &&
+            !plot.isRentedBy(playerUuid)) {
+
+            // Le propriétaire peut UNIQUEMENT ouvrir les conteneurs (coffres, fours, etc.)
+            // Tout le reste est interdit pendant la location
+            if (!isContainerBlock(block)) {
+                player.sendMessage(ChatColor.RED + "Vous ne pouvez pas interagir avec cela pendant la location.");
+                player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement ouvrir les conteneurs (coffres, fours, etc.).");
+                return false;
+            }
+
+            // C'est un conteneur, autoriser
+        }
+
         // Utiliser la méthode canInteract du Plot (gère individuels et groupés)
         return plot.canInteract(playerUuid, town);
+    }
+
+    /**
+     * Vérifie si un bloc est un conteneur (coffre, four, etc.)
+     * Le propriétaire PEUT SEULEMENT interagir avec ces blocs pendant la location
+     */
+    private boolean isContainerBlock(Block block) {
+        return switch (block.getType()) {
+            case CHEST, TRAPPED_CHEST, BARREL, SHULKER_BOX, ENDER_CHEST,
+                 FURNACE, BLAST_FURNACE, SMOKER,
+                 DISPENSER, DROPPER, HOPPER,
+                 BREWING_STAND -> true;
+            default -> false;
+        };
     }
 
     /**

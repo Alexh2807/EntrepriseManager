@@ -114,6 +114,12 @@ public class TownDataManager {
 
                 townsConfig.set(plotPath + ".type", plot.getType().name());
                 townsConfig.set(plotPath + ".municipal-subtype", plot.getMunicipalSubType().name());
+
+                // Sauvegarder le numéro de terrain (si existant)
+                if (plot.getPlotNumber() != null) {
+                    townsConfig.set(plotPath + ".plot-number", plot.getPlotNumber());
+                }
+
                 townsConfig.set(plotPath + ".claim-date", plot.getClaimDate().format(DATE_FORMAT));
 
                 if (plot.getOwnerUuid() != null) {
@@ -170,9 +176,10 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".renter-company-siret", plot.getRenterCompanySiret());
                 }
 
-                // Sauvegarder les blocs protégés
+                // Sauvegarder les blocs protégés (format compact: "x:y:z, x:y:z, x:y:z")
                 if (!plot.getProtectedBlocks().isEmpty()) {
-                    townsConfig.set(plotPath + ".protected-blocks", new ArrayList<>(plot.getProtectedBlocks()));
+                    String compactBlocks = String.join(", ", plot.getProtectedBlocks());
+                    townsConfig.set(plotPath + ".protected-blocks", compactBlocks);
                 }
 
                 // NOUVEAU : Sauvegarder le RenterBlockTracker
@@ -336,43 +343,52 @@ public class TownDataManager {
         // Charger les membres (sauf le maire déjà ajouté)
         if (membersSection != null) {
             for (String key : membersSection.getKeys(false)) {
-                UUID uuid = UUID.fromString(membersSection.getString(key + ".uuid"));
-                if (uuid.equals(mayorUuid)) continue; // Maire déjà ajouté
+                try {
+                    UUID uuid = UUID.fromString(membersSection.getString(key + ".uuid"));
+                    if (uuid.equals(mayorUuid)) continue; // Maire déjà ajouté
 
-                String name = membersSection.getString(key + ".name");
+                    String name = membersSection.getString(key + ".name");
 
-                // Charger tous les rôles (nouveau système multi-rôles)
-                List<String> roleNames = membersSection.getStringList(key + ".roles");
-                if (roleNames != null && !roleNames.isEmpty()) {
-                    // Système multi-rôles
-                    Set<TownRole> roles = new HashSet<>();
-                    for (String roleName : roleNames) {
-                        try {
-                            roles.add(TownRole.valueOf(roleName));
-                        } catch (IllegalArgumentException e) {
-                            plugin.getLogger().warning("Rôle invalide: " + roleName);
+                    // Charger tous les rôles (nouveau système multi-rôles)
+                    List<String> roleNames = membersSection.getStringList(key + ".roles");
+                    if (roleNames != null && !roleNames.isEmpty()) {
+                        // Système multi-rôles
+                        Set<TownRole> roles = new HashSet<>();
+                        for (String roleName : roleNames) {
+                            try {
+                                roles.add(TownRole.valueOf(roleName));
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Rôle invalide: " + roleName);
+                            }
                         }
-                    }
-                    if (!roles.isEmpty()) {
-                        // Ajouter le membre avec le rôle principal, puis ajouter les autres rôles
-                        TownRole primaryRole = roles.stream()
-                                .max((r1, r2) -> Integer.compare(r1.getPower(), r2.getPower()))
-                                .orElse(TownRole.CITOYEN);
-                        town.addMember(uuid, name, primaryRole);
+                        if (!roles.isEmpty()) {
+                            // Ajouter le membre avec le rôle principal, puis ajouter les autres rôles
+                            TownRole primaryRole = roles.stream()
+                                    .max((r1, r2) -> Integer.compare(r1.getPower(), r2.getPower()))
+                                    .orElse(TownRole.CITOYEN);
+                            town.addMember(uuid, name, primaryRole);
 
-                        // Ajouter les autres rôles
-                        TownMember member = town.getMember(uuid);
-                        if (member != null) {
-                            member.setRoles(roles);
+                            // Ajouter les autres rôles
+                            TownMember member = town.getMember(uuid);
+                            if (member != null) {
+                                member.setRoles(roles);
+                            }
+                        } else {
+                            // Fallback si aucun rôle valide
+                            town.addMember(uuid, name, TownRole.CITOYEN);
                         }
                     } else {
-                        // Fallback si aucun rôle valide
-                        town.addMember(uuid, name, TownRole.CITOYEN);
+                        // Ancien système (un seul rôle) - pour rétrocompatibilité
+                        TownRole role = TownRole.valueOf(membersSection.getString(key + ".role", "CITOYEN"));
+                        town.addMember(uuid, name, role);
                     }
-                } else {
-                    // Ancien système (un seul rôle) - pour rétrocompatibilité
-                    TownRole role = TownRole.valueOf(membersSection.getString(key + ".role", "CITOYEN"));
-                    town.addMember(uuid, name, role);
+                } catch (IllegalArgumentException e) {
+                    // UUID invalide ou autre erreur
+                    String uuidStr = membersSection.getString(key + ".uuid", "inconnu");
+                    String name = membersSection.getString(key + ".name", "inconnu");
+                    plugin.getLogger().severe("❌ ERREUR: Impossible de charger le membre '" + name + "' de la ville " + townName);
+                    plugin.getLogger().severe("   UUID invalide: " + uuidStr);
+                    plugin.getLogger().severe("   Le membre a été ignoré. Vérifiez le fichier towns.yml !");
                 }
             }
         }
@@ -468,9 +484,14 @@ public class TownDataManager {
         }
 
         // Charger le type et sous-type
-        plot.setType(PlotType.valueOf(section.getString("type", "MUNICIPAL")));
+        plot.setType(PlotType.valueOf(section.getString("type", "PUBLIC")));
         plot.setMunicipalSubType(MunicipalSubType.valueOf(
             section.getString("municipal-subtype", "NONE")));
+
+        // Charger le numéro de terrain (si existant)
+        if (section.contains("plot-number")) {
+            plot.setPlotNumber(section.getString("plot-number"));
+        }
 
         // Charger le propriétaire
         if (section.contains("owner-uuid")) {
@@ -565,7 +586,22 @@ public class TownDataManager {
 
         // Charger les blocs protégés uniquement si le monde est disponible
         if (world != null) {
-            List<String> protectedBlocksList = section.getStringList("protected-blocks");
+            // Support des deux formats: compact (string) et ancien (liste)
+            List<String> protectedBlocksList;
+
+            if (section.isString("protected-blocks")) {
+                // Nouveau format compact: "x:y:z, x:y:z, x:y:z"
+                String compactBlocks = section.getString("protected-blocks", "");
+                if (!compactBlocks.isEmpty()) {
+                    protectedBlocksList = Arrays.asList(compactBlocks.split(", "));
+                } else {
+                    protectedBlocksList = new ArrayList<>();
+                }
+            } else {
+                // Ancien format: liste YAML
+                protectedBlocksList = section.getStringList("protected-blocks");
+            }
+
             if (!protectedBlocksList.isEmpty()) {
                 for (String blockKey : protectedBlocksList) {
                     try {

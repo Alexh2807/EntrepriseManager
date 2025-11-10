@@ -26,6 +26,10 @@ commands:
     description: Abandonner et mourir lorsque vous êtes blessé
     usage: /<command>
     aliases: [die, abandon]
+  laposte:
+    description: Système de livraison - Envoyer des lettres et des colis aux résidents
+    usage: /<command>
+    aliases: [poste, mail]
 
 permissions:
   roleplaycity.use:

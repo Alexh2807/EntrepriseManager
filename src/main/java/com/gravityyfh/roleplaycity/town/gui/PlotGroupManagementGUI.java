@@ -217,6 +217,11 @@ public class PlotGroupManagementGUI implements Listener {
         String groupName = plot.getGroupName();
         int chunkCount = plot.getChunks().size();
 
+        // NOUVEAU : Supprimer la mailbox du terrain groupé AVANT le dégroupement
+        if (plugin.getMailboxManager() != null) {
+            plugin.getMailboxManager().removeMailboxByPlot(plot);
+        }
+
         // Sauvegarder la liste des chunks AVANT modification (getChunks() retourne une copie)
         List<String> chunks = new ArrayList<>(plot.getChunks());
 
@@ -248,6 +253,16 @@ public class PlotGroupManagementGUI implements Listener {
                     // Garder le même propriétaire si existant
                     if (plot.getOwnerUuid() != null) {
                         newPlot.setOwner(plot.getOwnerUuid(), plot.getOwnerName());
+                    }
+                    // Attribuer un numéro unique si le type nécessite un numéro
+                    com.gravityyfh.roleplaycity.town.data.PlotType plotType = newPlot.getType();
+                    if (plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PARTICULIER ||
+                        plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL ||
+                        plotType == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
+                        String plotNumber = town.generateUniquePlotNumber();
+                        if (plotNumber != null) {
+                            newPlot.setPlotNumber(plotNumber);
+                        }
                     }
                     town.addPlot(newPlot);
                 }
