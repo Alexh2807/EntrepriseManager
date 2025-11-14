@@ -5,6 +5,7 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
+import com.gravityyfh.roleplaycity.town.gui.scoreboard.ScoreboardContentProvider;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import net.md_5.bungee.api.ChatMessageType;
@@ -35,6 +36,7 @@ public class TownHUDListener implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final ClaimManager claimManager;
+    private final ScoreboardContentProvider scoreboardProvider;
 
     // Mémoriser le dernier état de territoire de chaque joueur
     private final Map<UUID, TerritoryState> lastTerritoryState = new HashMap<>();
@@ -53,6 +55,7 @@ public class TownHUDListener implements Listener {
         this.plugin = plugin;
         this.townManager = townManager;
         this.claimManager = claimManager;
+        this.scoreboardProvider = new ScoreboardContentProvider(plugin);
     }
 
     /**
@@ -304,7 +307,7 @@ public class TownHUDListener implements Listener {
         int totalSurface = isGrouped ? (plot.getChunks().size() * 256) : 256;
 
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
 
         if (plot.isForSale()) {
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + (isGrouped ? "GROUPE À VENDRE" : "PARCELLE À VENDRE"));
@@ -312,7 +315,7 @@ public class TownHUDListener implements Listener {
             player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + (isGrouped ? "GROUPE EN LOCATION" : "PARCELLE EN LOCATION"));
         }
 
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
 
         // Informations de base
         player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
@@ -374,7 +377,7 @@ public class TownHUDListener implements Listener {
             buyButton.setColor(net.md_5.bungee.api.ChatColor.GREEN);
             buyButton.setBold(true);
             buyButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/ville:buyplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
+                "/ville buyplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
             buyButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder("Cliquez pour acheter\nPrix: " + String.format("%.2f€", salePrice))
@@ -407,7 +410,7 @@ public class TownHUDListener implements Listener {
             rentButton.setColor(net.md_5.bungee.api.ChatColor.AQUA);
             rentButton.setBold(true);
             rentButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/ville:rentplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
+                "/ville rentplot " + plot.getChunkX() + " " + plot.getChunkZ() + " " + plot.getWorldName()));
             rentButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder("Cliquez pour louer\nPrix: " + String.format("%.2f€/jour", rentPrice))
@@ -417,7 +420,7 @@ public class TownHUDListener implements Listener {
             player.spigot().sendMessage(rentButton);
         }
 
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage("");
     }
 
@@ -431,6 +434,7 @@ public class TownHUDListener implements Listener {
 
     /**
      * Crée ou met à jour le scoreboard d'un joueur avec les infos du terrain actuel
+     * NOUVELLE VERSION: Utilise le système modulaire ScoreboardContentProvider
      */
     private void updateScoreboard(Player player, Town town, Plot plot) {
         // Ne pas modifier le scoreboard si le joueur a un scoreboard médical actif
@@ -439,223 +443,11 @@ public class TownHUDListener implements Listener {
             return;
         }
 
-        // Créer un nouveau scoreboard ou réutiliser l'existant
-        Scoreboard scoreboard = playerScoreboards.get(player.getUniqueId());
-        if (scoreboard == null) {
-            scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-            playerScoreboards.put(player.getUniqueId(), scoreboard);
-        }
+        // Créer le nouveau scoreboard avec le système modulaire
+        Scoreboard scoreboard = scoreboardProvider.createPlotScoreboard(player, town, plot);
 
-        // Supprimer l'ancien objectif s'il existe
-        Objective objective = scoreboard.getObjective("townInfo");
-        if (objective != null) {
-            objective.unregister();
-        }
-
-        // Créer un nouvel objectif
-        objective = scoreboard.registerNewObjective("townInfo", "dummy",
-            ChatColor.GOLD + "" + ChatColor.BOLD + town.getName());
-        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-
-        // Utiliser isGrouped() pour détecter si terrain groupé
-        boolean isGrouped = plot.isGrouped();
-        int totalSurface = isGrouped ? (plot.getChunks().size() * 256) : 256;
-
-        int line = 15; // Commencer du haut
-
-        // Ligne vide pour l'espacement
-        objective.getScore(ChatColor.DARK_GRAY + " ").setScore(line--);
-
-        // SECTION TERRAIN - Afficher le numéro si disponible
-        PlotType plotType = plot.getType();
-        boolean hasPlotNumber = (plotType == PlotType.PARTICULIER || plotType == PlotType.PROFESSIONNEL || plotType == PlotType.MUNICIPAL);
-
-        if (hasPlotNumber && plot.getPlotNumber() != null) {
-            // Afficher "Terrain" puis le numéro sur la ligne suivante
-            objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
-            objective.getScore(" " + ChatColor.GOLD + "" + ChatColor.BOLD + plot.getPlotNumber()).setScore(line--);
-        } else {
-            // Pas de numéro, afficher seulement "Terrain"
-            objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Terrain").setScore(line--);
-        }
-
-        // Type de terrain
-        objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + plot.getType().getDisplayName()).setScore(line--);
-
-        // Sous-type municipal si défini
-        if (plot.isMunicipal() && plot.getMunicipalSubType() != null && plot.getMunicipalSubType() != com.gravityyfh.roleplaycity.town.data.MunicipalSubType.NONE) {
-            objective.getScore(" " + ChatColor.AQUA + plot.getMunicipalSubType().getDisplayName()).setScore(line--);
-        }
-
-        // Surface (sauf pour MUNICIPAL et PUBLIC)
-        boolean shouldShowSurface = (plotType != PlotType.MUNICIPAL && plotType != PlotType.PUBLIC);
-
-        if (shouldShowSurface) {
-            if (isGrouped) {
-                objective.getScore(" " + ChatColor.GRAY + "Surface: " + ChatColor.WHITE + totalSurface + "m²").setScore(line--);
-            } else {
-                objective.getScore(" " + ChatColor.GRAY + "Surface: " + ChatColor.WHITE + "256m²").setScore(line--);
-            }
-        }
-
-        // Propriétaire / Entreprise
-        if (plot.getOwnerUuid() != null) {
-            // Terrain a un propriétaire
-            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                // Terrain PROFESSIONNEL → afficher infos entreprise complètes
-                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
-                    .getCompanyBySiret(plot.getCompanySiret());
-
-                if (ownerCompany != null) {
-                    String companyName = ownerCompany.getNom();
-                    if (companyName.length() > 14) {
-                        companyName = companyName.substring(0, 14) + "...";
-                    }
-
-                    String companyType = ownerCompany.getType();
-                    if (companyType.length() > 14) {
-                        companyType = companyType.substring(0, 14) + "...";
-                    }
-
-                    String ownerName = ownerCompany.getGerant();
-                    if (ownerName.length() > 12) {
-                        ownerName = ownerName.substring(0, 12) + "...";
-                    }
-
-                    String siret = ownerCompany.getSiret();
-                    String siretShort = siret.length() > 10 ? siret.substring(0, 10) + "..." : siret;
-
-                    objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
-                    objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + companyType).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + siretShort).setScore(line--);
-                } else {
-                    // Fallback si l'entreprise n'est pas trouvée
-                    String companyName = plot.getCompanyName();
-                    if (companyName != null && companyName.length() > 12) {
-                        companyName = companyName.substring(0, 12) + "...";
-                    }
-                    String ownerName = plot.getOwnerName();
-                    if (ownerName != null && ownerName.length() > 12) {
-                        ownerName = ownerName.substring(0, 12) + "...";
-                    }
-
-                    objective.getScore(" " + ChatColor.GRAY + "Entreprise:").setScore(line--);
-                    objective.getScore(" " + ChatColor.GOLD + companyName).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + ownerName).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + plot.getCompanySiret().substring(0, 8) + "...").setScore(line--);
-                }
-            } else {
-                // Terrain PARTICULIER → afficher nom proprio
-                String ownerName = plot.getOwnerName();
-                if (ownerName.length() > 12) {
-                    ownerName = ownerName.substring(0, 12) + "...";
-                }
-                objective.getScore(" " + ChatColor.GRAY + "Proprio: " + ChatColor.YELLOW + ownerName).setScore(line--);
-            }
-        }
-        // Si ownerUuid == null, le terrain appartient à la ville (pas de ligne affichée)
-
-        // Si terrain loué, afficher info locataire entreprise
-        if (plot.getRenterUuid() != null) {
-            if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && plot.getRenterCompanySiret() != null) {
-                // Locataire avec entreprise
-                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
-                    .getCompanyBySiret(plot.getRenterCompanySiret());
-
-                if (renterCompany != null) {
-                    String renterCompanyName = renterCompany.getNom();
-                    if (renterCompanyName.length() > 14) {
-                        renterCompanyName = renterCompanyName.substring(0, 14) + "...";
-                    }
-
-                    String renterCompanyType = renterCompany.getType();
-                    if (renterCompanyType.length() > 14) {
-                        renterCompanyType = renterCompanyType.substring(0, 14) + "...";
-                    }
-
-                    String renterGerant = renterCompany.getGerant();
-                    if (renterGerant.length() > 12) {
-                        renterGerant = renterGerant.substring(0, 12) + "...";
-                    }
-
-                    String siret = renterCompany.getSiret();
-                    String siretShort = siret.length() > 10 ? siret.substring(0, 10) + "..." : siret;
-
-                    objective.getScore(" " + ChatColor.AQUA + "Loué par:").setScore(line--);
-                    objective.getScore(" " + ChatColor.LIGHT_PURPLE + renterCompanyName).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "Type: " + ChatColor.WHITE + renterCompanyType).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "Gérant: " + ChatColor.YELLOW + renterGerant).setScore(line--);
-                    objective.getScore(" " + ChatColor.GRAY + "SIRET: " + ChatColor.WHITE + siretShort).setScore(line--);
-                }
-            }
-        }
-
-        // Ligne vide
-        objective.getScore(ChatColor.DARK_GRAY + "  ").setScore(line--);
-
-        // SECTION ÉCONOMIE (si applicable)
-        boolean forSale = plot.isForSale();
-        boolean forRent = plot.isForRent();
-        double salePrice = plot.getSalePrice();
-        double rentPrice = plot.getRentPricePerDay();
-        UUID renterUuid = plot.getRenterUuid();
-        int rentDays = plot.getRentDaysRemaining();
-        boolean hasEconomyInfo = forSale || forRent || renterUuid != null;
-
-        if (hasEconomyInfo) {
-            objective.getScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "Economie").setScore(line--);
-
-            if (forSale) {
-                objective.getScore(" " + ChatColor.GREEN + "À vendre: " + ChatColor.GOLD + String.format("%.0f€", salePrice)).setScore(line--);
-            }
-
-            if (forRent) {
-                objective.getScore(" " + ChatColor.AQUA + "Location: " + ChatColor.WHITE + String.format("%.0f€/j", rentPrice)).setScore(line--);
-            }
-
-            if (renterUuid != null) {
-                // Récupérer le SIRET du locataire depuis la parcelle actuelle
-                // (même si dans un groupe, toutes les parcelles partagent le même locataire)
-                String renterCompanySiret = plot.getRenterCompanySiret();
-
-                // Si c'est un terrain PROFESSIONNEL avec une entreprise locataire, afficher les infos de l'entreprise
-                if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL && renterCompanySiret != null) {
-                    com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
-                        .getCompanyBySiret(renterCompanySiret);
-
-                    if (renterCompany != null) {
-                        String companyName = renterCompany.getNom();
-                        if (companyName.length() > 14) {
-                            companyName = companyName.substring(0, 14) + "...";
-                        }
-                        objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué: " + ChatColor.WHITE + companyName).setScore(line--);
-                    } else {
-                        // Fallback si l'entreprise n'est pas trouvée
-                        String renterName = org.bukkit.Bukkit.getOfflinePlayer(renterUuid).getName();
-                        if (renterName != null && renterName.length() > 12) {
-                            renterName = renterName.substring(0, 12) + "...";
-                        }
-                        objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué par: " + ChatColor.WHITE + renterName).setScore(line--);
-                    }
-                } else {
-                    // Terrain PARTICULIER ou pas d'entreprise : afficher le nom du joueur
-                    String renterName = org.bukkit.Bukkit.getOfflinePlayer(renterUuid).getName();
-                    if (renterName != null && renterName.length() > 12) {
-                        renterName = renterName.substring(0, 12) + "...";
-                    }
-                    objective.getScore(" " + ChatColor.LIGHT_PURPLE + "Loué par: " + ChatColor.WHITE + renterName).setScore(line--);
-                }
-
-                objective.getScore(" " + ChatColor.GRAY + "Jours: " + ChatColor.WHITE + rentDays + "j").setScore(line--);
-            }
-
-            // Ligne vide
-            objective.getScore(ChatColor.DARK_GRAY + "   ").setScore(line--);
-        }
-
-        // Appliquer le scoreboard au joueur
+        // Sauvegarder et appliquer
+        playerScoreboards.put(player.getUniqueId(), scoreboard);
         player.setScoreboard(scoreboard);
     }
 

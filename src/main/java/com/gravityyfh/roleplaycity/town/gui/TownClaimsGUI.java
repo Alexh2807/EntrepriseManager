@@ -76,17 +76,18 @@ public class TownClaimsGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 27, CLAIMS_TITLE);
 
-        // Claim le chunk actuel
+        Chunk currentChunk = player.getLocation().getChunk();
+        double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
+
+        // Claim le chunk actuel (slot 10)
         ItemStack claimItem = new ItemStack(Material.GRASS_BLOCK);
         ItemMeta claimMeta = claimItem.getItemMeta();
         claimMeta.setDisplayName(ChatColor.GREEN + "Claim ce Chunk");
         List<String> claimLore = new ArrayList<>();
-        double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
         claimLore.add(ChatColor.GRAY + "Coût: " + ChatColor.GOLD + String.format("%.2f€", claimCost));
         claimLore.add(ChatColor.GRAY + "Solde ville: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
         claimLore.add("");
 
-        Chunk currentChunk = player.getLocation().getChunk();
         if (claimManager.isClaimed(currentChunk)) {
             String owner = claimManager.getClaimOwner(currentChunk);
             if (owner.equals(townName)) {
@@ -100,34 +101,9 @@ public class TownClaimsGUI implements Listener {
 
         claimMeta.setLore(claimLore);
         claimItem.setItemMeta(claimMeta);
-        inv.setItem(11, claimItem);
+        inv.setItem(10, claimItem);
 
-        // Unclaim le chunk actuel
-        ItemStack unclaimItem = new ItemStack(Material.BARRIER);
-        ItemMeta unclaimMeta = unclaimItem.getItemMeta();
-        unclaimMeta.setDisplayName(ChatColor.RED + "Unclaim ce Chunk");
-        List<String> unclaimLore = new ArrayList<>();
-        double refundPercent = plugin.getConfig().getDouble("town.unclaim-refund-percentage", 75.0);
-        double refund = claimCost * (refundPercent / 100.0);
-        unclaimLore.add(ChatColor.GRAY + "Remboursement: " + ChatColor.GOLD + String.format("%.2f€", refund));
-        unclaimLore.add("");
-
-        if (!claimManager.isClaimed(currentChunk)) {
-            unclaimLore.add(ChatColor.RED + "Ce chunk n'est pas claimé");
-        } else {
-            String owner = claimManager.getClaimOwner(currentChunk);
-            if (owner.equals(townName)) {
-                unclaimLore.add(ChatColor.YELLOW + "Cliquez pour unclaim ce chunk");
-            } else {
-                unclaimLore.add(ChatColor.RED + "Ce chunk n'appartient pas à votre ville");
-            }
-        }
-
-        unclaimMeta.setLore(unclaimLore);
-        unclaimItem.setItemMeta(unclaimMeta);
-        inv.setItem(13, unclaimItem);
-
-        // Informations sur le chunk actuel
+        // Informations du chunk actuel (slot 12)
         ItemStack infoItem = new ItemStack(Material.MAP);
         ItemMeta infoMeta = infoItem.getItemMeta();
         infoMeta.setDisplayName(ChatColor.AQUA + "Informations du Chunk");
@@ -157,9 +133,34 @@ public class TownClaimsGUI implements Listener {
 
         infoMeta.setLore(infoLore);
         infoItem.setItemMeta(infoMeta);
-        inv.setItem(15, infoItem);
+        inv.setItem(12, infoItem);
 
-        // Option : Gérer ce terrain
+        // Unclaim le chunk actuel (slot 14)
+        ItemStack unclaimItem = new ItemStack(Material.BARRIER);
+        ItemMeta unclaimMeta = unclaimItem.getItemMeta();
+        unclaimMeta.setDisplayName(ChatColor.RED + "Unclaim ce Chunk");
+        List<String> unclaimLore = new ArrayList<>();
+        double refundPercent = plugin.getConfig().getDouble("town.unclaim-refund-percentage", 75.0);
+        double refund = claimCost * (refundPercent / 100.0);
+        unclaimLore.add(ChatColor.GRAY + "Remboursement: " + ChatColor.GOLD + String.format("%.2f€", refund));
+        unclaimLore.add("");
+
+        if (!claimManager.isClaimed(currentChunk)) {
+            unclaimLore.add(ChatColor.RED + "Ce chunk n'est pas claimé");
+        } else {
+            String owner = claimManager.getClaimOwner(currentChunk);
+            if (owner.equals(townName)) {
+                unclaimLore.add(ChatColor.YELLOW + "Cliquez pour unclaim ce chunk");
+            } else {
+                unclaimLore.add(ChatColor.RED + "Ce chunk n'appartient pas à votre ville");
+            }
+        }
+
+        unclaimMeta.setLore(unclaimLore);
+        unclaimItem.setItemMeta(unclaimMeta);
+        inv.setItem(14, unclaimItem);
+
+        // Gérer ce terrain (slot 19 - si le chunk actuel est un terrain de la ville)
         Plot currentPlot = claimManager.getPlotAt(currentChunk);
         if (currentPlot != null && claimManager.isClaimed(currentChunk) && claimManager.getClaimOwner(currentChunk).equals(townName)) {
             ItemStack managePlotItem = new ItemStack(Material.WRITABLE_BOOK);
@@ -182,10 +183,10 @@ public class TownClaimsGUI implements Listener {
             managePlotMeta.setLore(managePlotLore);
 
             managePlotItem.setItemMeta(managePlotMeta);
-            inv.setItem(20, managePlotItem);
+            inv.setItem(19, managePlotItem);
         }
 
-        // Statistiques de la ville
+        // Statistiques de claims (slot 21)
         ItemStack statsItem = new ItemStack(Material.BOOK);
         ItemMeta statsMeta = statsItem.getItemMeta();
         statsMeta.setDisplayName(ChatColor.GOLD + "Statistiques de Claims");
@@ -196,9 +197,9 @@ public class TownClaimsGUI implements Listener {
         statsLore.add(ChatColor.GRAY + "Coût par claim: " + ChatColor.GOLD + String.format("%.2f€", claimCost));
         statsMeta.setLore(statsLore);
         statsItem.setItemMeta(statsMeta);
-        inv.setItem(22, statsItem);
+        inv.setItem(21, statsItem);
 
-        // Gérer les regroupements de terrains
+        // Gérer les regroupements (slot 23 - Maire/Adjoint uniquement)
         if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
             ItemStack groupItem = new ItemStack(Material.CHEST_MINECART);
             ItemMeta groupMeta = groupItem.getItemMeta();
@@ -213,7 +214,7 @@ public class TownClaimsGUI implements Listener {
             groupLore.add(ChatColor.AQUA + "Cliquez pour gérer les groupes");
             groupMeta.setLore(groupLore);
             groupItem.setItemMeta(groupMeta);
-            inv.setItem(24, groupItem);
+            inv.setItem(23, groupItem);
         }
 
         // Fermer
@@ -241,6 +242,11 @@ public class TownClaimsGUI implements Listener {
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 

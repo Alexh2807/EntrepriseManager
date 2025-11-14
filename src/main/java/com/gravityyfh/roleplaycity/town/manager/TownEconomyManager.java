@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -109,10 +110,46 @@ public class TownEconomyManager {
 
         if (isProfessional) {
             // Terrain PROFESSIONNEL : Acheter avec l'entreprise
-            buyerCompany = companyManager.getPlayerCompany(buyer);
-            if (buyerCompany == null) {
-                buyer.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+            // Récupérer le SIRET via EnterpriseContextManager
+            com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
+                plugin.getEnterpriseContextManager();
+
+            String selectedSiret = null;
+            if (enterpriseContextManager != null) {
+                selectedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
+                    buyer.getUniqueId(),
+                    com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.PURCHASE
+                );
+            } else {
+                // Fallback vers ancien système
+                selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(buyer.getUniqueId());
+            }
+
+            if (selectedSiret == null) {
+                // VALIDATION STRICTE: Pas de fallback silencieux
+                buyer.sendMessage(ChatColor.RED + "✗ Erreur: Aucune entreprise sélectionnée.");
+                buyer.sendMessage(ChatColor.YELLOW + "→ Veuillez recommencer l'achat.");
+                plugin.getLogger().warning("[TownEconomy] buyPlot sans SIRET pour " + buyer.getName());
                 return false;
+            }
+
+            // Valider que l'entreprise existe et que le joueur en est gérant
+            if (enterpriseContextManager != null) {
+                com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.ValidationResult validation =
+                    enterpriseContextManager.validateEnterprise(buyer, selectedSiret);
+
+                if (!validation.isSuccess()) {
+                    buyer.sendMessage(ChatColor.RED + "✗ Erreur: " + validation.getErrorMessage());
+                    return false;
+                }
+                buyerCompany = validation.getEntreprise();
+            } else {
+                // Fallback
+                buyerCompany = companyManager.getCompanyBySiret(selectedSiret);
+                if (buyerCompany == null) {
+                    buyer.sendMessage(ChatColor.RED + "✗ Erreur: Entreprise invalide.");
+                    return false;
+                }
             }
 
             // Vérifier que l'entreprise a assez d'argent
@@ -276,17 +313,11 @@ public class TownEconomyManager {
         plot.setRentPricePerDay(pricePerDay);
         plot.setForRent(true);
 
-        // Scanner et protéger tous les blocs existants pour tous les chunks du plot
-        for (String chunkKey : plot.getChunks()) {
-            String[] parts = chunkKey.split(":");
-            if (parts.length == 3) {
-                org.bukkit.World world = plugin.getServer().getWorld(parts[0]);
-                if (world != null) {
-                    Chunk chunk = world.getChunkAt(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                    plot.scanAndProtectExistingBlocks(chunk);
-                }
-            }
-        }
+        // FIX: Ne plus scanner les blocs existants lors de la mise en location
+        // Le système RenterBlockTracker gère automatiquement les blocs posés par le locataire
+        // Les blocs existants appartiennent au propriétaire et sont protégés par le système de permissions
+        // Nettoyer la liste des blocs protégés (pas besoin de stocker 20000+ blocs dans le YAML)
+        plot.clearProtectedBlocks();
 
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
@@ -316,21 +347,53 @@ public class TownEconomyManager {
 
         // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+        EntrepriseManagerLogic.Entreprise renterCompany = null; // Déclaration ici pour portée plus large
+
         if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
             if (!companyManager.validateCompanyOwnership(renter, plot)) {
                 return false; // Message d'erreur déjà envoyé par validateCompanyOwnership
             }
 
-            // Récupérer le SIRET sélectionné du cache (mis par CompanySelectionGUI)
-            String selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(renter.getUniqueId());
+            // Récupérer le SIRET via EnterpriseContextManager
+            com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
+                plugin.getEnterpriseContextManager();
+
+            String selectedSiret = null;
+            if (enterpriseContextManager != null) {
+                selectedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
+                    renter.getUniqueId(),
+                    com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.RENTAL
+                );
+            } else {
+                // Fallback vers ancien système
+                selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(renter.getUniqueId());
+            }
+
             if (selectedSiret == null) {
-                // Pas de SIRET dans le cache, récupérer l'entreprise du joueur
-                EntrepriseManagerLogic.Entreprise renterCompany = companyManager.getPlayerCompany(renter);
-                if (renterCompany == null) {
-                    renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                // VALIDATION STRICTE: Pas de fallback silencieux
+                renter.sendMessage(ChatColor.RED + "✗ Erreur: Aucune entreprise sélectionnée.");
+                renter.sendMessage(ChatColor.YELLOW + "→ Veuillez recommencer la location.");
+                plugin.getLogger().warning("[TownEconomy] rentPlot sans SIRET pour " + renter.getName());
+                return false;
+            }
+
+            // Valider que l'entreprise existe et que le joueur en est gérant
+            if (enterpriseContextManager != null) {
+                com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.ValidationResult validation =
+                    enterpriseContextManager.validateEnterprise(renter, selectedSiret);
+
+                if (!validation.isSuccess()) {
+                    renter.sendMessage(ChatColor.RED + "✗ Erreur: " + validation.getErrorMessage());
                     return false;
                 }
-                selectedSiret = renterCompany.getSiret();
+                renterCompany = validation.getEntreprise();
+            } else {
+                // Fallback
+                renterCompany = companyManager.getCompanyBySiret(selectedSiret);
+                if (renterCompany == null) {
+                    renter.sendMessage(ChatColor.RED + "✗ Erreur: Entreprise invalide.");
+                    return false;
+                }
             }
 
             // Stocker le SIRET de l'entreprise du locataire
@@ -343,13 +406,15 @@ public class TownEconomyManager {
 
         // NOUVEAU : Gestion différente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
-        EntrepriseManagerLogic.Entreprise renterCompany = null;
+
+        // IMPORTANT: Ne pas redéclarer renterCompany ici, on utilise celle récupérée plus haut (ligne 388)
+        // qui correspond à l'entreprise SÉLECTIONNÉE par le joueur
 
         if (isProfessional) {
-            // Terrain PROFESSIONNEL : Louer avec l'entreprise
-            renterCompany = companyManager.getPlayerCompany(renter);
+            // Terrain PROFESSIONNEL : Utiliser l'entreprise SÉLECTIONNÉE (déjà récupérée ligne 388)
+            // NOTE: renterCompany est déjà définie plus haut avec l'entreprise sélectionnée
             if (renterCompany == null) {
-                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise sélectionnée introuvable.");
                 return false;
             }
 
@@ -361,7 +426,7 @@ public class TownEconomyManager {
                 return false;
             }
 
-            // Prélever de l'entreprise
+            // Prélever de l'entreprise SÉLECTIONNÉE
             renterCompany.setSolde(renterCompany.getSolde() - totalCost);
         } else {
             // Terrain PARTICULIER : Vérifier l'argent personnel
@@ -471,18 +536,23 @@ public class TownEconomyManager {
         EntrepriseManagerLogic.Entreprise renterCompany = null;
 
         if (isProfessional) {
-            // Terrain PROFESSIONNEL : Recharger avec l'entreprise
+            // Terrain PROFESSIONNEL : Recharger avec l'entreprise qui a fait la location initiale
             String renterSiret = plot.getRenterCompanySiret();
             if (renterSiret != null) {
                 renterCompany = companyManager.getCompanyBySiret(renterSiret);
-            }
-            if (renterCompany == null) {
+                if (renterCompany == null) {
+                    renter.sendMessage(ChatColor.RED + "Erreur: L'entreprise qui a loué ce terrain n'existe plus (SIRET: " + renterSiret + ").");
+                    renter.sendMessage(ChatColor.YELLOW + "Contactez un administrateur pour régulariser la situation.");
+                    return false;
+                }
+            } else {
+                // Fallback pour anciennes locations (avant le système de SIRET)
+                plugin.getLogger().warning("[TownEconomy] Recharge sans SIRET stocké pour plot " + plot.getCoordinates() + ", utilisation de getPlayerCompany() (DEPRECATED)");
                 renterCompany = companyManager.getPlayerCompany(renter);
-            }
-
-            if (renterCompany == null) {
-                renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
-                return false;
+                if (renterCompany == null) {
+                    renter.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
+                    return false;
+                }
             }
 
             // Vérifier que l'entreprise a assez d'argent
@@ -567,7 +637,8 @@ public class TownEconomyManager {
     public void checkExpiredRents() {
         for (Town town : townManager.getAllTowns()) {
             for (Plot plot : town.getPlots().values()) {
-                if (plot.getRenterUuid() != null && plot.isRentExpired()) {
+                // FIX BASSE #7: Utiliser getRentDaysRemaining() au lieu de isRentExpired() deprecated
+                if (plot.getRenterUuid() != null && plot.getRentDaysRemaining() <= 0) {
                     // Location expirée
                     UUID renterUuid = plot.getRenterUuid();
                     Player renter = Bukkit.getPlayer(renterUuid);
@@ -725,7 +796,8 @@ public class TownEconomyManager {
                 }
 
                 if (plot.getParticularLastDebtWarningDate() != null) {
-                    long daysSinceWarning = Duration.between(plot.getParticularLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                    // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+                    long daysSinceWarning = ChronoUnit.DAYS.between(plot.getParticularLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
                     if (daysSinceWarning >= 7) {
                         plugin.getLogger().warning(String.format(
                                 "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2f€)",
@@ -892,7 +964,8 @@ public class TownEconomyManager {
             // NOUVEAU : Vérifier si le délai de grâce est dépassé (7 jours) pour les particuliers
             if (plot.getParticularDebtAmount() > 0 && plot.getParticularLastDebtWarningDate() != null) {
                 LocalDateTime warningDate = plot.getParticularLastDebtWarningDate();
-                long daysSinceWarning = java.time.Duration.between(warningDate, LocalDateTime.now()).toDays();
+                // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+                long daysSinceWarning = ChronoUnit.DAYS.between(warningDate.toLocalDate(), LocalDateTime.now().toLocalDate());
 
                 if (daysSinceWarning >= 7) {
                     // SAISIE AUTOMATIQUE du terrain

@@ -1,15 +1,29 @@
-# Configuration pour les entreprises (Productivité & Spécialisation)
-# Mise à jour pour économie RP équilibrée (plafond 100k, améliorations moins chères) : 2025-05-26
-# Ajout de l'entreprise Armurerie
-# Mise à jour messages d'erreur et ajout items principaux : 2025-06-03 (Gemini)
-# Simplification messages de restriction et indication de délai : 2025-06-03 (Gemini)
+# ============================================
+# ROLEPLAYCITY - CONFIGURATION PRINCIPALE
+# ============================================
+# Plugin de gestion d'entreprises et de villes roleplay
+# Dernière mise à jour: 2025-11-13
+# Version: 1.06.25
+
+
+# ============================================
+#          SYSTÈME D'ENTREPRISES
+# ============================================
+# Configuration complète des types d'entreprises,
+# restrictions d'activités, et économie des métiers
 
 #--------------------------------------------------------------------------------------------------
-# TYPES D'ENTREPRISE
+# TYPES D'ENTREPRISES
 #--------------------------------------------------------------------------------------------------
+
 types-entreprise:
+  # ========================================
+  #           SECTEUR PRIMAIRE
+  # ========================================
+
   Minage:
     description: "Extraction de minerais précieux et de matériaux de construction bruts. Items principaux : Diamant, Fer, Or, Charbon."
+    shop-sans-restriction: false  # Les shops ne peuvent vendre que les items listés dans action_restrictions
     action_restrictions:
       BLOCK_BREAK:
         COAL_ORE: {}
@@ -51,7 +65,7 @@ types-entreprise:
         DEEPSLATE_DIAMOND_ORE: 60.00
         NETHER_QUARTZ_ORE: 0.90
         ANCIENT_DEBRIS: 180.00
-    message-erreur-restriction: # Simplifié et avec indication de délai
+    message-erreur-restriction:
       - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
       - "&eLimite non-membre : %limite% unités par heure. Vous pourrez réessayer à la prochaine heure."
     limite-non-membre-par-heure: 3
@@ -59,10 +73,11 @@ types-entreprise:
 
   Agriculture:
     description: "Culture et récolte de produits végétaux essentiels. Items principaux : Blé, Carottes, Pommes de terre, Verrues du Nether."
+    shop-sans-restriction: false
     action_restrictions:
       BLOCK_BREAK:
         WHEAT: {}
-        CARROTS: {}
+        CARROT: {}
         POTATOES: {}
         BEETROOTS: {}
         NETHER_WART: {}
@@ -76,7 +91,7 @@ types-entreprise:
     activites-payantes:
       BLOCK_BREAK:
         WHEAT: 0.45
-        CARROTS: 0.35
+        CARROT: 0.35
         POTATOES: 0.35
         BEETROOTS: 0.35
         NETHER_WART: 0.10
@@ -86,14 +101,14 @@ types-entreprise:
         SUGAR_CANE: 0.30
         BAMBOO: 0.15
         CACTUS: 0.28
-    message-erreur-restriction: # Simplifié et avec indication de délai
+    message-erreur-restriction:
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite non-membre : %limite% récoltes par heure. Réessayez à la prochaine heure pour plus."
     limite-non-membre-par-heure: 6
     cout-creation: 6000.0
     aide-etat-horaire: 150.0
     services:
-      permission-employe: true # Seuls les employés avec la permission ou le gérant peuvent proposer
+      permission-employe: true
       liste:
         - nom: "Moisson_Express"
           description: "Récolte complète d'un champ de 50x50 blocs."
@@ -102,71 +117,9 @@ types-entreprise:
           description: "Fourniture d'un stock de 64 blés, 64 carottes et 64 patates."
           prix: 800.0
 
-  Armurerie:
-    description: "Forge d'outils, armes et armures robustes. Items principaux : Épées en Diamant, Armures en Fer, Outils en Netherite."
-    action_restrictions:
-      CRAFT_ITEM:
-        DIAMOND_SWORD: {}
-        DIAMOND_PICKAXE: {}
-        DIAMOND_AXE: {}
-        DIAMOND_SHOVEL: {}
-        DIAMOND_HOE: {}
-        DIAMOND_HELMET: {}
-        DIAMOND_CHESTPLATE: {}
-        DIAMOND_LEGGINGS: {}
-        DIAMOND_BOOTS: {}
-        NETHERITE_SWORD: {}
-        NETHERITE_PICKAXE: {}
-        NETHERITE_AXE: {}
-        NETHERITE_SHOVEL: {}
-        NETHERITE_HOE: {}
-        NETHERITE_HELMET: {}
-        NETHERITE_CHESTPLATE: {}
-        NETHERITE_LEGGINGS: {}
-        NETHERITE_BOOTS: {}
-        SHIELD: {}
-        BOW: {}
-        CROSSBOW: {}
-    activites-payantes:
-      CRAFT_ITEM:
-        IRON_SWORD: 12.0
-        IRON_PICKAXE: 18.0
-        IRON_AXE: 18.0
-        IRON_SHOVEL: 7.0
-        IRON_HOE: 12.0
-        IRON_HELMET: 28.0
-        IRON_CHESTPLATE: 45.0
-        IRON_LEGGINGS: 38.0
-        IRON_BOOTS: 22.0
-        DIAMOND_SWORD: 160.0
-        DIAMOND_PICKAXE: 240.0
-        DIAMOND_AXE: 240.0
-        DIAMOND_SHOVEL: 80.0
-        DIAMOND_HOE: 150.0
-        DIAMOND_HELMET: 380.0
-        DIAMOND_CHESTPLATE: 600.0
-        DIAMOND_LEGGINGS: 520.0
-        DIAMOND_BOOTS: 300.0
-        NETHERITE_SWORD: 1050.0
-        NETHERITE_PICKAXE: 1150.0
-        NETHERITE_AXE: 1150.0
-        NETHERITE_SHOVEL: 900.0
-        NETHERITE_HOE: 1020.0
-        NETHERITE_HELMET: 1250.0
-        NETHERITE_CHESTPLATE: 1500.0
-        NETHERITE_LEGGINGS: 1400.0
-        NETHERITE_BOOTS: 1180.0
-        SHIELD: 10.0
-        BOW: 15.0
-        CROSSBOW: 30.0
-    message-erreur-restriction: # Simplifié et avec indication de délai
-      - "&cLa forge de cet équipement requiert une expertise d'&5Armurier&c."
-      - "&eLimite non-membre : %limite% fabrications par heure. Réessayez à la prochaine heure."
-    limite-non-membre-par-heure: 0
-    cout-creation: 18000.0
-
   Bucheronnage:
     description: "Abattage et collecte de divers types de bois. Items principaux : Bûches de Chêne, Sapin, Bois exotiques."
+    shop-sans-restriction: false
     action_restrictions:
       BLOCK_BREAK:
         OAK_LOG: {}
@@ -255,14 +208,151 @@ types-entreprise:
         STRIPPED_WARPED_HYPHAE: 0.90
         BAMBOO_BLOCK: 0.65
         STRIPPED_BAMBOO_BLOCK: 0.65
-    message-erreur-restriction: # Simplifié et avec indication de délai
+    message-erreur-restriction:
       - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
       - "&eLimite non-membre : %limite% bûches par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 8
     cout-creation: 7000.0
 
+  Boucherie:
+    description: "Abattage et transformation d'animaux pour la production de viandes, cuirs, et autres sous-produits. Maîtrise des techniques de boucherie et d'élevage pour un rendement optimal."
+    shop-sans-restriction: false
+    action_restrictions:
+      ENTITY_KILL:
+        SHEEP: {}
+        COW: {}
+        PIG: {}
+        CHICKEN: {}
+        RABBIT: {}
+        HORSE: {}
+        DONKEY: {}
+        MULE: {}
+        LLAMA: {}
+        GOAT: {}
+        FOX: {}
+        WOLF: {}
+        BEAR: {}
+        POLAR_BEAR: {}
+        HOGLIN: {}
+        STRIDER: {}
+        MOOSHROOM: {}
+        TURTLE: {}
+    activites-payantes:
+      ENTITY_KILL:
+        SHEEP: 2.20
+        COW: 3.50
+        PIG: 2.80
+        CHICKEN: 1.10
+        RABBIT: 0.90
+        HORSE: 4.50
+        DONKEY: 4.50
+        MULE: 4.50
+        LLAMA: 3.80
+        GOAT: 2.50
+        FOX: 1.50
+        WOLF: 1.80
+        BEAR: 5.00
+        POLAR_BEAR: 5.50
+        HOGLIN: 3.00
+        STRIDER: 1.00
+        MOOSHROOM: 4.00
+        TURTLE: 2.00
+      CRAFT_ITEM:
+        COOKED_BEEF: 0.15
+        COOKED_PORKCHOP: 0.12
+        COOKED_CHICKEN: 0.08
+        COOKED_MUTTON: 0.10
+        COOKED_RABBIT: 0.07
+        LEATHER: 0.05
+        RABBIT_HIDE: 0.03
+        MUSHROOM_STEW: 0.20
+        RABBIT_STEW: 0.25
+        LEATHER_HELMET: 0.50
+        LEATHER_CHESTPLATE: 0.80
+        LEATHER_LEGGINGS: 0.70
+        LEATHER_BOOTS: 0.40
+        SADDLE: 1.00
+        ITEM_FRAME: 0.05
+        LEAD: 0.08
+    message-erreur-restriction:
+      - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
+      - "&eLimite non-membre : %limite% abattages/crafts par heure. Réessayez à la prochaine heure."
+      - "&fRejoignez une Boucherie ou créez-en une pour exceller dans l'élevage et l'abattage."
+    limite-non-membre-par-heure: 2
+    cout-creation: 7500.0
+
+
+  # ========================================
+  #          SECTEUR SECONDAIRE
+  # ========================================
+
+  Armurerie:
+    description: "Forge d'outils, armes et armures robustes. Items principaux : Épées en Diamant, Armures en Fer, Outils en Netherite."
+    shop-sans-restriction: false
+    action_restrictions:
+      CRAFT_ITEM:
+        DIAMOND_SWORD: {}
+        DIAMOND_PICKAXE: {}
+        DIAMOND_AXE: {}
+        DIAMOND_SHOVEL: {}
+        DIAMOND_HOE: {}
+        DIAMOND_HELMET: {}
+        DIAMOND_CHESTPLATE: {}
+        DIAMOND_LEGGINGS: {}
+        DIAMOND_BOOTS: {}
+        NETHERITE_SWORD: {}
+        NETHERITE_PICKAXE: {}
+        NETHERITE_AXE: {}
+        NETHERITE_SHOVEL: {}
+        NETHERITE_HOE: {}
+        NETHERITE_HELMET: {}
+        NETHERITE_CHESTPLATE: {}
+        NETHERITE_LEGGINGS: {}
+        NETHERITE_BOOTS: {}
+        SHIELD: {}
+        BOW: {}
+        CROSSBOW: {}
+    activites-payantes:
+      CRAFT_ITEM:
+        IRON_SWORD: 12.0
+        IRON_PICKAXE: 18.0
+        IRON_AXE: 18.0
+        IRON_SHOVEL: 7.0
+        IRON_HOE: 12.0
+        IRON_HELMET: 28.0
+        IRON_CHESTPLATE: 45.0
+        IRON_LEGGINGS: 38.0
+        IRON_BOOTS: 22.0
+        DIAMOND_SWORD: 160.0
+        DIAMOND_PICKAXE: 240.0
+        DIAMOND_AXE: 240.0
+        DIAMOND_SHOVEL: 80.0
+        DIAMOND_HOE: 150.0
+        DIAMOND_HELMET: 380.0
+        DIAMOND_CHESTPLATE: 600.0
+        DIAMOND_LEGGINGS: 520.0
+        DIAMOND_BOOTS: 300.0
+        NETHERITE_SWORD: 1050.0
+        NETHERITE_PICKAXE: 1150.0
+        NETHERITE_AXE: 1150.0
+        NETHERITE_SHOVEL: 900.0
+        NETHERITE_HOE: 1020.0
+        NETHERITE_HELMET: 1250.0
+        NETHERITE_CHESTPLATE: 1500.0
+        NETHERITE_LEGGINGS: 1400.0
+        NETHERITE_BOOTS: 1180.0
+        SHIELD: 10.0
+        BOW: 15.0
+        CROSSBOW: 30.0
+    message-erreur-restriction:
+      - "&cLa forge de cet équipement requiert une expertise d'&5Armurier&c."
+      - "&eLimite non-membre : %limite% fabrications par heure. Réessayez à la prochaine heure."
+    limite-non-membre-par-heure: 0
+    cout-creation: 18000.0
+
   Boulangerie:
     description: "Confection de pains, gâteaux et autres délices cuits au four. Items principaux : Pain, Gâteaux, Cookies."
+    shop-sans-restriction: false
     action_restrictions:
       CRAFT_ITEM:
         BREAD: {}
@@ -279,22 +369,51 @@ types-entreprise:
         PUMPKIN_PIE: 4.50
         MUSHROOM_STEW: 2.20
         RABBIT_STEW: 7.00
-    message-erreur-restriction: # Simplifié et avec indication de délai
+    message-erreur-restriction:
       - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
       - "&eLimite non-membre : %limite% produits par heure. Réessayez à la prochaine heure."
     limite-non-membre-par-heure: 2
     cout-creation: 8000.0
 
+  Styliste:
+    description: "Artisan spécialisé dans la création de sacs, valises et accessoires de voyage sur mesure. Items principaux : Backpacks (Sacoche, Valisette, Sac à dos, Valise)."
+    shop-sans-restriction: false
+    action_restrictions:
+      # Les backpacks sont des items customs ItemsAdder
+      # Leur craft est restreint aux membres de l'entreprise Styliste
+      CRAFT_BACKPACK:
+        sacoche: {}
+        valisette: {}
+        sac_course: {}
+        sac_sport: {}
+        sacados_moyen: {}
+        sacados_grand: {}
+        valise_voyage: {}
+    activites-payantes:
+      # Gains par backpack crafté
+      CRAFT_BACKPACK:
+        sacoche: 5.00
+        valisette: 8.00
+        sac_course: 10.00
+        sac_sport: 15.00
+        sacados_moyen: 25.00
+        sacados_grand: 35.00
+        valise_voyage: 50.00
+    message-erreur-restriction:
+      - "&cLa confection de sacs et accessoires est réservée aux &dStylistes&c."
+      - "&eSeuls les membres d'un atelier Styliste peuvent créer ces articles de mode."
+      - "&7Créez ou rejoignez un atelier Styliste pour débloquer ces crafts !"
+    limite-non-membre-par-heure: 0
+    cout-creation: 12000.0
 
   Construction:
     description: "Pose experte de blocs pour la réalisation de structures variées. Services : Placement de Pierre taillée, Béton, Verre, Bois, Métaux décoratifs, etc."
+    shop-sans-restriction: false
     action_restrictions:
-      # Restrictions sur le CRAFT d'ITEMS (CRAFT_ITEM)
       CRAFT_ITEM:
-        # Items de construction courants qui peuvent être limités
         STONE_BRICKS: {}
-        BRICKS: {} # Item de briques (à crafter pour faire le bloc de briques)
-        OAK_PLANKS: {} # Toutes les planches (si non déjà une restriction à la pose du bois brut)
+        BRICKS: {}
+        OAK_PLANKS: {}
         SPRUCE_PLANKS: {}
         BIRCH_PLANKS: {}
         JUNGLE_PLANKS: {}
@@ -305,8 +424,8 @@ types-entreprise:
         BAMBOO_PLANKS: {}
         CRIMSON_PLANKS: {}
         WARPED_PLANKS: {}
-        GLASS_PANE: {} # Vitres
-        WHITE_STAINED_GLASS_PANE: {} # Vitres colorées
+        GLASS_PANE: {}
+        WHITE_STAINED_GLASS_PANE: {}
         ORANGE_STAINED_GLASS_PANE: {}
         MAGENTA_STAINED_GLASS_PANE: {}
         LIGHT_BLUE_STAINED_GLASS_PANE: {}
@@ -322,9 +441,8 @@ types-entreprise:
         GREEN_STAINED_GLASS_PANE: {}
         RED_STAINED_GLASS_PANE: {}
         BLACK_STAINED_GLASS_PANE: {}
-        LADDER: {} # Échelles
-        IRON_BARS: {} # Barres de fer
-        FENCE: {} # Clôtures (item)
+        LADDER: {}
+        IRON_BARS: {}
         OAK_FENCE: {}
         SPRUCE_FENCE: {}
         BIRCH_FENCE: {}
@@ -336,13 +454,13 @@ types-entreprise:
         BAMBOO_FENCE: {}
         CRIMSON_FENCE: {}
         WARPED_FENCE: {}
-        COBBLESTONE_WALL: {} # Murs (item)
+        COBBLESTONE_WALL: {}
         MOSSY_COBBLESTONE_WALL: {}
         BRICK_WALL: {}
         PRISMARINE_WALL: {}
         RED_SANDSTONE_WALL: {}
         STONE_BRICK_WALL: {}
-        MUD_BRICK_WALL: {} # Nouveaux murs de briques de boue
+        MUD_BRICK_WALL: {}
         NETHER_BRICK_WALL: {}
         RED_NETHER_BRICK_WALL: {}
         END_STONE_BRICK_WALL: {}
@@ -351,7 +469,7 @@ types-entreprise:
         DEEPSLATE_BRICK_WALL: {}
         DEEPSLATE_TILE_WALL: {}
         PURPUR_WALL: {}
-        OAK_DOOR: {} # Portes (item)
+        OAK_DOOR: {}
         SPRUCE_DOOR: {}
         BIRCH_DOOR: {}
         JUNGLE_DOOR: {}
@@ -363,56 +481,54 @@ types-entreprise:
         CRIMSON_DOOR: {}
         WARPED_DOOR: {}
         IRON_DOOR: {}
-        OAK_TRAPDOOR: {} # Trappes (item)
+        OAK_TRAPDOOR: {}
         IRON_TRAPDOOR: {}
-        CHEST: {} # Coffre
-        CRAFTING_TABLE: {} # Table de craft
-        FURNACE: {} # Four
-        ANVIL: {} # Enclume
-        LANTERN: {} # Lanterne
+        CHEST: {}
+        CRAFTING_TABLE: {}
+        FURNACE: {}
+        ANVIL: {}
+        LANTERN: {}
         SOUL_LANTERN: {}
-        BOOKSHELF: {} # Bibliothèque
-        NOTE_BLOCK: {} # Bloc musical
-        JUKEBOX: {} # Jukebox
-        REDSTONE_LAMP: {} # Lampe de redstone
-        LEVER: {} # Levier
-        BUTTON: {} # Bouton (tous types de bois/pierre)
+        BOOKSHELF: {}
+        NOTE_BLOCK: {}
+        JUKEBOX: {}
+        REDSTONE_LAMP: {}
+        LEVER: {}
         STONE_BUTTON: {}
         OAK_BUTTON: {}
-        WEIGHTED_PRESSURE_PLATE_LIGHT: {} # Plaques de pression (tous types)
+        WEIGHTED_PRESSURE_PLATE_LIGHT: {}
         WEIGHTED_PRESSURE_PLATE_HEAVY: {}
         STONE_PRESSURE_PLATE: {}
         OAK_PRESSURE_PLATE: {}
-        REDSTONE_TORCH: {} # Torche de redstone
-        REPEATER: {} # Répéteur de redstone
-        COMPARATOR: {} # Comparateur de redstone
-        OBSERVER: {} # Observateur
-        PISTON: {} # Piston
-        STICKY_PISTON: {} # Piston collant
-        DISPENSER: {} # Distributeur
-        DROPPER: {} # Dropper
-        HOPPER: {} # Entonnoir
-        RAIL: {} # Rails
+        REDSTONE_TORCH: {}
+        REPEATER: {}
+        COMPARATOR: {}
+        OBSERVER: {}
+        PISTON: {}
+        STICKY_PISTON: {}
+        DISPENSER: {}
+        DROPPER: {}
+        HOPPER: {}
+        RAIL: {}
         POWERED_RAIL: {}
         DETECTOR_RAIL: {}
         ACTIVATOR_RAIL: {}
-        DAYLIGHT_DETECTOR: {} # Détecteur de lumière du jour
-        TRIPWIRE_HOOK: {} # Crochet de fil de détection
-        TARGET: {} # Cible
-        BELL: {} # Cloche
-        BLAST_FURNACE: {} # Haut fourneau
-        SMOKER: {} # Fumeur
-        BARREL: {} # Baril
-        CARTOGRAPHY_TABLE: {} # Table de cartographie
-        FLETCHING_TABLE: {} # Table d'arbalétrier
-        GRINDSTONE: {} # Meule
-        LOOM: {} # Métier à tisser
-        SMITHING_TABLE: {} # Table de forgeron
-        STONECUTTER: {} # Tailleur de pierre
-        COMPOSTER: {} # Composter
-        CAULDRON: {} # Chaudron
-        END_ROD: {} # Bâton de l'End
-        SHULKER_BOX: {} # Shulker Box (toutes couleurs)
+        DAYLIGHT_DETECTOR: {}
+        TRIPWIRE_HOOK: {}
+        TARGET: {}
+        BELL: {}
+        BLAST_FURNACE: {}
+        SMOKER: {}
+        BARREL: {}
+        CARTOGRAPHY_TABLE: {}
+        FLETCHING_TABLE: {}
+        GRINDSTONE: {}
+        LOOM: {}
+        SMITHING_TABLE: {}
+        STONECUTTER: {}
+        COMPOSTER: {}
+        CAULDRON: {}
+        END_ROD: {}
         WHITE_SHULKER_BOX: {}
         ORANGE_SHULKER_BOX: {}
         MAGENTA_SHULKER_BOX: {}
@@ -429,7 +545,6 @@ types-entreprise:
         GREEN_SHULKER_BOX: {}
         RED_SHULKER_BOX: {}
         BLACK_SHULKER_BOX: {}
-        CONCRETE_POWDER: {} # Poudre de béton (toutes couleurs)
         WHITE_CONCRETE_POWDER: {}
         ORANGE_CONCRETE_POWDER: {}
         MAGENTA_CONCRETE_POWDER: {}
@@ -447,9 +562,7 @@ types-entreprise:
         RED_CONCRETE_POWDER: {}
         BLACK_CONCRETE_POWDER: {}
     activites-payantes:
-      # Gains pour la pose de BLOCS (BLOCK_PLACE) - MAINTENUS POUR LES MEMBRES
       BLOCK_PLACE:
-        # Blocs de base, valeurs faibles
         STONE: 0.015
         DIRT: 0.005
         COBBLESTONE: 0.01
@@ -462,7 +575,6 @@ types-entreprise:
         GRASS_BLOCK: 0.015
         FARMLAND: 0.01
         PATH_BLOCK: 0.01
-        # Blocs de bois
         OAK_PLANKS: 0.02
         SPRUCE_PLANKS: 0.02
         BIRCH_PLANKS: 0.02
@@ -497,18 +609,15 @@ types-entreprise:
         STRIPPED_CRIMSON_STEM: 0.02
         STRIPPED_WARPED_STEM: 0.02
         LADDER: 0.03
-        # Blocs de pierre travaillée et briques
         STONE_BRICKS: 0.08
         MOSSY_COBBLESTONE: 0.05
         CRACKED_STONE_BRICKS: 0.08
         CHISELED_STONE_BRICKS: 0.08
-        BRICKS: 0.07 # Bloc de briques
+        BRICKS: 0.07
         SMOOTH_STONE: 0.04
         SMOOTH_SANDSTONE: 0.04
         SMOOTH_RED_SANDSTONE: 0.04
-        # Béton et Terre cuite (valeurs similaires pour toutes les couleurs)
-        CONCRETE: 0.06 # Utilisez une valeur générique si vous payez toutes les couleurs de la même façon
-        WHITE_CONCRETE: 0.06 # Ou spécifiez chaque couleur si les prix varient
+        WHITE_CONCRETE: 0.06
         ORANGE_CONCRETE: 0.06
         MAGENTA_CONCRETE: 0.06
         LIGHT_BLUE_CONCRETE: 0.06
@@ -541,10 +650,9 @@ types-entreprise:
         GREEN_TERRACOTTA: 0.05
         RED_TERRACOTTA: 0.05
         BLACK_TERRACOTTA: 0.05
-        # Blocs de verre
         GLASS: 0.06
-        TINTED_GLASS: 0.07 # Verre teinté
-        WHITE_STAINED_GLASS: 0.06 # Verre teinté (toutes couleurs)
+        TINTED_GLASS: 0.07
+        WHITE_STAINED_GLASS: 0.06
         ORANGE_STAINED_GLASS: 0.06
         MAGENTA_STAINED_GLASS: 0.06
         LIGHT_BLUE_STAINED_GLASS: 0.06
@@ -560,14 +668,12 @@ types-entreprise:
         GREEN_STAINED_GLASS: 0.06
         RED_STAINED_GLASS: 0.06
         BLACK_STAINED_GLASS: 0.06
-        # Blocs de quartz et prismarine
         QUARTZ_BLOCK: 0.15
         QUARTZ_PILLAR: 0.16
         CHISELED_QUARTZ_BLOCK: 0.16
         PRISMARINE: 0.10
         PRISMARINE_BRICKS: 0.11
         DARK_PRISMARINE: 0.12
-        # Blocs de deepslate et dérivés
         DEEPSLATE_TILES: 0.10
         COBBLED_DEEPSLATE: 0.03
         POLISHED_DEEPSLATE: 0.04
@@ -575,14 +681,12 @@ types-entreprise:
         CRACKED_DEEPSLATE_BRICKS: 0.09
         CHISELED_DEEPSLATE: 0.09
         CRACKED_DEEPSLATE_TILES: 0.10
-        # Blocs de blackstone et dérivés
         BLACKSTONE: 0.03
         POLISHED_BLACKSTONE: 0.04
         POLISHED_BLACKSTONE_BRICKS: 0.12
         CRACKED_POLISHED_BLACKSTONE_BRICKS: 0.12
         CHISELED_POLISHED_BLACKSTONE: 0.12
-        ANCIENT_DEBRIS: 5.0 # Valeur très élevée pour un bloc rare et high-end
-        # Blocs de métal (décoratifs)
+        ANCIENT_DEBRIS: 5.0
         IRON_BLOCK: 0.20
         GOLD_BLOCK: 0.30
         DIAMOND_BLOCK: 0.50
@@ -599,8 +703,7 @@ types-entreprise:
         WAXED_OXIDIZED_COPPER: 0.065
         IRON_BARS: 0.04
         CHAIN: 0.05
-        LIGHTNING_ROD: 0.15 # Paratonnerre
-        # Blocs de laine
+        LIGHTNING_ROD: 0.15
         WHITE_WOOL: 0.03
         ORANGE_WOOL: 0.03
         MAGENTA_WOOL: 0.03
@@ -617,19 +720,17 @@ types-entreprise:
         GREEN_WOOL: 0.03
         RED_WOOL: 0.03
         BLACK_WOOL: 0.03
-        # Éclairage et autres blocs spéciaux
         GLOWSTONE: 0.08
         SEA_LANTERN: 0.10
         SHROOMLIGHT: 0.09
         REDSTONE_LAMP: 0.12
         LANTERN: 0.07
         SOUL_LANTERN: 0.08
-        LODESTONE: 1.0 # Pierre de l'aimant
-        RESPAWN_ANCHOR: 0.75 # Ancre de réapparition
+        LODESTONE: 1.0
+        RESPAWN_ANCHOR: 0.75
         LECTERN: 0.05
         BELL: 0.10
-        SCAFFOLDING: 0.02 # Échafaudage
-        # Blocs du Nether et de l'End
+        SCAFFOLDING: 0.02
         END_STONE_BRICKS: 0.10
         PURPUR_BLOCK: 0.09
         PURPUR_PILLAR: 0.10
@@ -643,13 +744,11 @@ types-entreprise:
         SMOOTH_BASALT: 0.03
         SOUL_SAND: 0.01
         SOUL_SOIL: 0.015
-        # Blocs des grottes et de la nature
         TUFF: 0.015
         DRIPSTONE_BLOCK: 0.02
         POINTED_DRIPSTONE: 0.02
         CALCITE: 0.015
         DEEPSLATE: 0.015
-        # Escalier et Dalles (valeurs individuelles)
         OAK_STAIRS: 0.03
         SPRUCE_STAIRS: 0.03
         BIRCH_STAIRS: 0.03
@@ -690,12 +789,10 @@ types-entreprise:
         GRANITE_SLAB: 0.025
         POLISHED_DEEPSLATE_SLAB: 0.03
         POLISHED_BLACKSTONE_BRICK_SLAB: 0.07
-      # Gains pour le CRAFT d'ITEMS (CRAFT_ITEM)
       CRAFT_ITEM:
-        # Items de construction courants, avec des gains qui reflètent le travail et la valeur des matériaux transformés
-        STONE_BRICKS: 0.025 # Transformation de pierre en briques
-        BRICKS: 0.015 # Transformation d'argile en briques (item)
-        OAK_PLANKS: 0.005 # Transformation de bûches en planches (très bas coût)
+        STONE_BRICKS: 0.025
+        BRICKS: 0.015
+        OAK_PLANKS: 0.005
         SPRUCE_PLANKS: 0.005
         BIRCH_PLANKS: 0.005
         JUNGLE_PLANKS: 0.005
@@ -706,8 +803,8 @@ types-entreprise:
         BAMBOO_PLANKS: 0.005
         CRIMSON_PLANKS: 0.006
         WARPED_PLANKS: 0.006
-        GLASS_PANE: 0.008 # Fabrication de vitres
-        WHITE_STAINED_GLASS_PANE: 0.009 # Vitres colorées
+        GLASS_PANE: 0.008
+        WHITE_STAINED_GLASS_PANE: 0.009
         ORANGE_STAINED_GLASS_PANE: 0.009
         MAGENTA_STAINED_GLASS_PANE: 0.009
         LIGHT_BLUE_STAINED_GLASS_PANE: 0.009
@@ -723,9 +820,9 @@ types-entreprise:
         GREEN_STAINED_GLASS_PANE: 0.009
         RED_STAINED_GLASS_PANE: 0.009
         BLACK_STAINED_GLASS_PANE: 0.009
-        LADDER: 0.01 # Échelles
-        IRON_BARS: 0.015 # Barres de fer
-        OAK_FENCE: 0.008 # Clôtures
+        LADDER: 0.01
+        IRON_BARS: 0.015
+        OAK_FENCE: 0.008
         SPRUCE_FENCE: 0.008
         BIRCH_FENCE: 0.008
         JUNGLE_FENCE: 0.008
@@ -736,12 +833,12 @@ types-entreprise:
         BAMBOO_FENCE: 0.008
         CRIMSON_FENCE: 0.009
         WARPED_FENCE: 0.009
-        COBBLESTONE_WALL: 0.01 # Murs de pierre
+        COBBLESTONE_WALL: 0.01
         BRICK_WALL: 0.018
-        QUARTZ_BLOCK: 0.05 # Si le bloc de quartz peut être crafté à partir de minerai brut
+        QUARTZ_BLOCK: 0.05
         QUARTZ_PILLAR: 0.055
         CHISELED_QUARTZ_BLOCK: 0.055
-        ANVIL: 0.5 # Anclume (coût élevé car utilise du fer)
+        ANVIL: 0.5
         CHEST: 0.01
         CRAFTING_TABLE: 0.005
         FURNACE: 0.01
@@ -750,8 +847,7 @@ types-entreprise:
         BLAST_FURNACE: 0.035
         SMOKER: 0.025
         BARREL: 0.015
-        SHULKER_BOX: 1.5 # Shulker box (très précieux)
-        WHITE_SHULKER_BOX: 1.55 # légèrement plus cher pour la couleur
+        WHITE_SHULKER_BOX: 1.55
         ORANGE_SHULKER_BOX: 1.55
         MAGENTA_SHULKER_BOX: 1.55
         LIGHT_BLUE_SHULKER_BOX: 1.55
@@ -767,7 +863,6 @@ types-entreprise:
         GREEN_SHULKER_BOX: 1.55
         RED_SHULKER_BOX: 1.55
         BLACK_SHULKER_BOX: 1.55
-        CONCRETE_POWDER: 0.01 # Poudre de béton (valeur basse, mais préparation)
         WHITE_CONCRETE_POWDER: 0.01
         ORANGE_CONCRETE_POWDER: 0.01
         MAGENTA_CONCRETE_POWDER: 0.01
@@ -788,104 +883,43 @@ types-entreprise:
       - "&cL'utilisation massive de cet item est réservée aux entreprises de &3Construction&c."
       - "&eLimite non-membre : %limite% crafts de ce type par heure. Réessayez à la prochaine heure !"
       - "&fRejoignez une entreprise de Construction ou créez-en une pour débloquer ces restrictions."
-    limite-non-membre-par-heure: 16 # Limite par défaut pour les non-membres pour chaque item crafté restreint
-    cout-creation: 8000.0 # Coût pour créer ce type d'entreprise
+    limite-non-membre-par-heure: 16
+    cout-creation: 8000.0
 
 
+  # ========================================
+  #          SECTEUR TERTIAIRE
+  # ========================================
 
-  Boucherie:
-    description: "Abattage et transformation d'animaux pour la production de viandes, cuirs, et autres sous-produits. Maîtrise des techniques de boucherie et d'élevage pour un rendement optimal."
-    action_restrictions:
-      # Restrictions sur l'abattage d'entités (ENTITY_KILL)
-      ENTITY_KILL:
-        # Animaux de ferme classiques (source principale de viande)
-        SHEEP: {}
-        COW: {}
-        PIG: {}
-        CHICKEN: {}
-        RABBIT: {}
-        # Animaux plus rares ou spécifiques pour des produits variés
-        HORSE: {} # Pour le cuir (avec un impact plus grand)
-        DONKEY: {} # Idem
-        MULE: {} # Idem
-        LLAMA: {} # Pour le cuir et des interactions spécifiques
-        GOAT: {} # Pour la viande et éventuellement des produits futurs
-        FOX: {} # Pour la fourrure / produits rares
-        WOLF: {} # Pour la fourrure / produits rares
-        BEAR: {} # Ours (pour la viande / fourrure) - si vous avez un mod ou une permission spécifique
-        POLAR_BEAR: {} # Ours polaire
-        # Autres animaux qui pourraient être "chassés" pour des produits
-        HOGLIN: {} # Viande du Nether (pour les environnements moddés ou spécifiques)
-        STRIDER: {} # Pour les produits du Nether
-        MOOSHROOM: {} # Pour la viande de bœuf / champignons
-        TURTLE: {} # Pour les écailles (si vous voulez intégrer ça)
-    activites-payantes:
-      # Gains pour l'abattage d'entités (ENTITY_KILL)
-      ENTITY_KILL:
-        # Animaux de ferme
-        SHEEP: 2.20  # Laine + Viande (peut être ajusté si la laine n'est pas votre focus)
-        COW: 3.50   # Bœuf + Cuir
-        PIG: 2.80   # Porc
-        CHICKEN: 1.10 # Poulet + Plumes
-        RABBIT: 0.90 # Lapin + Patte de lapin + Cuir
-        # Animaux avec plus de valeur pour le cuir ou la rareté
-        HORSE: 4.50  # Principalement pour le cuir, plus rare à tuer
-        DONKEY: 4.50
-        MULE: 4.50
-        LLAMA: 3.80  # Pour le cuir / potentiel futur de "produits de lama"
-        GOAT: 2.50   # Similaire à la viande de mouton/porc
-        FOX: 1.50    # Pour la rareté et les produits "exotiques" (fourrure)
-        WOLF: 1.80   # Fourrure, plus "dangereux"
-        BEAR: 5.00   # Gros animal, plus de viande/fourrure
-        POLAR_BEAR: 5.50 # Encore plus rare/dangereux
-        # Animaux du Nether (si pertinents pour votre serveur)
-        HOGLIN: 3.00 # Viande cuite ou crue
-        STRIDER: 1.00 # Produit de base moins cher
-        MOOSHROOM: 4.00 # Comme la vache, mais avec les champignons en plus
-        # Autres
-        TURTLE: 2.00 # Si vous voulez rémunérer la collecte d'écailles via l'abattage direct.
-      # Gains pour le CRAFT d'items (si la boucherie implique aussi la transformation)
-      # Par exemple, transformer la viande crue en viande cuite, ou des peaux en cuir raffiné.
-      CRAFT_ITEM:
-        COOKED_BEEF: 0.15 # Valeur ajoutée par la cuisson
-        COOKED_PORKCHOP: 0.12
-        COOKED_CHICKEN: 0.08
-        COOKED_MUTTON: 0.10
-        COOKED_RABBIT: 0.07
-        LEATHER: 0.05 # Si vous avez un craft pour "tanner" le cuir, ou si c'est le cuir brut lui-même
-        RABBIT_HIDE: 0.03 # Peau de lapin (si vous avez un craft de 4 peaux -> 1 cuir)
-        # Ajout de produits plus "spécialisés" qui pourraient être craftés
-        MUSHROOM_STEW: 0.20 # Si la boucherie intègre aussi la préparation de repas
-        RABBIT_STEW: 0.25
-        LEATHER_HELMET: 0.50 # Fabrication d'équipements en cuir
-        LEATHER_CHESTPLATE: 0.80
-        LEATHER_LEGGINGS: 0.70
-        LEATHER_BOOTS: 0.40
-        SADDLE: 1.00 # Crafting d'une selle (si votre serveur le permet)
-        ITEM_FRAME: 0.05 # Cadres
-        LEAD: 0.08 # Laisses
+  Supermarche:
+    description: "Commerce général permettant la vente de tous types d'items. Idéal pour un magasin diversifié vendant de tout."
+    shop-sans-restriction: true  # Cette entreprise peut vendre N'IMPORTE QUEL item dans ses shops
+    action_restrictions: {}
+    activites-payantes: {}
     message-erreur-restriction:
-      - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
-      - "&eLimite non-membre : %limite% abattages/crafts par heure. Réessayez à la prochaine heure."
-      - "&fRejoignez une Boucherie ou créez-en une pour exceller dans l'élevage et l'abattage."
-    limite-non-membre-par-heure: 2 # Limite par défaut pour les non-membres pour chaque type d'abattage/craft restreint
-    cout-creation: 7500.0 # Coût pour créer ce type d'entreprise
-
+      - "&cCette action n'est pas restreinte pour les Supermarchés."
+    limite-non-membre-par-heure: 0
+    cout-creation: 20000.0
 
 
 #--------------------------------------------------------------------------------------------------
-# FINANCE ET PARAMÈTRES GLOBAUX
+# FINANCE ET PARAMÈTRES GLOBAUX DES ENTREPRISES
 #--------------------------------------------------------------------------------------------------
+
 finance:
+  # Limites de création et d'emploi
   max-entreprises-par-gerant: 3
   max-travail-joueur: 1
 
+  # Taxes et charges
   pourcentage-taxes: 20.0
   charge-salariale-par-employe-horaire: 5.0
   charges-sur-employes-actifs-seulement: false
 
+  # Allocation chômage
   allocation-chomage-horaire: 200.0
 
+  # Évolution de l'entreprise (niveaux)
   max-employer-par-entreprise:
     0: 2
     1: 3
@@ -912,145 +946,101 @@ finance:
     3: 20000.0
     4: 40000.0
 
+
 #--------------------------------------------------------------------------------------------------
-# INVITATIONS
+# INVITATIONS ET SYSTÈME SIRET
 #--------------------------------------------------------------------------------------------------
+
 invitation:
   distance-max: 10
 
-#--------------------------------------------------------------------------------------------------
-# SIRET (Identifiant unique d'entreprise)
-#--------------------------------------------------------------------------------------------------
 siret:
   longueur: 14
 
-#--------------------------------------------------------------------------------------------------
-# DIVERS
-#--------------------------------------------------------------------------------------------------
+# Coût pour renommer une entreprise
 rename-cost: 3000.0
 
 
-# ----------------------------------------------------- #
-#          SUPPRESSION AUTOMATIQUE DES BOUTIQUES          #
-# ----------------------------------------------------- #
-# Permet d'activer ou de désactiver la suppression automatique des boutiques
-# lors de certains événements Towny pour éviter de laisser des shops "fantômes".
 
-shop-deletion-on-events:
-  # Événements liés au statut d'un résident dans une ville
-  resident-leave-town: true       # Supprime les shops si le propriétaire quitte sa ville.
-  resident-kick-from-town: true   # Supprime les shops si le propriétaire est expulsé de sa ville.
 
-  # Événements liés à une parcelle (plot)
-  plot-owner-change: true         # Supprime les shops d'une parcelle si son propriétaire change.
-  plot-clear: true                # Supprime les shops lors d'une commande /plot clear.
-  plot-type-change: true          # Supprime les shops si le type de parcelle n'est plus "Commercial".
-
-  # Événements liés à une ville
-  town-unclaim-plot: true         # Supprime les shops si une ville "unclaim" une parcelle.
-  town-ruin: true                 # Supprime toutes les boutiques d'une ville si elle tombe en ruines.
-
-# ----------------------------------------------------- #
-#              SYSTÈME DE VILLE (TOWN)                  #
-# ----------------------------------------------------- #
-# Configuration du système de gestion de ville intégré
+# ============================================
+#          SYSTÈME DE VILLE (TOWN)
+# ============================================
+# Gestion complète des villes avec système de progression,
+# services municipaux (police, justice, hôpital), et finances
 
 town:
-  # Coût pour créer une ville (prélevé sur le compte du joueur)
-  creation-cost: 10000.0
+  # === COÛTS DE BASE ===
+  creation-cost: 10000.0      # Coût pour créer une ville
+  join-cost: 100.0            # Frais d'entrée versés à la banque de la ville
+  rename-cost: 5000.0         # Coût pour renommer une ville
 
-  # Frais de dossier pour rejoindre une ville (versé dans la banque de la ville)
-  join-cost: 100.0
+  # === GESTION DES PARCELLES ===
+  claim-cost-per-chunk: 500.0         # Coût par chunk pour claim
+  unclaim-refund-percentage: 50.0     # Pourcentage récupéré lors du unclaim
 
-  # Durée de validité d'une invitation (en heures)
-  invitation-expiration-hours: 24
+  # === INVITATIONS ===
+  invitation-expiration-hours: 24     # Durée de validité des invitations
 
-  # Coût pour renommer une ville (prélevé sur la banque de la ville)
-  rename-cost: 5000.0
-
-  # Coût par chunk pour claim une parcelle
-  claim-cost-per-chunk: 500.0
-
-  # Bonus d'argent récupéré lors du unclaim d'une parcelle (pourcentage)
-  unclaim-refund-percentage: 50.0
-
-  # ----------------------------------------------------- #
-  #           SYSTÈME D'ÉVOLUTION DES VILLES              #
-  # ----------------------------------------------------- #
+  # === SYSTÈME D'ÉVOLUTION DES VILLES ===
   # Progression: Campement → Village → Ville
   # Les villes évoluent selon leur population et leurs finances
-  # Chaque niveau débloque de nouveaux services municipaux
-
   levels:
     # NIVEAU 1 : CAMPEMENT (1-4 joueurs)
     # Petite communauté de départ sans services municipaux
     campement:
-      creation-cost: 5000.0       # Coût pour créer une ville (niveau de départ)
-      upgrade-cost: 0             # Pas d'upgrade possible (niveau initial)
-      min-population: 1           # Population minimum
-      max-population: 4           # Population maximum avant de devoir upgrade
-      max-claims: 10              # Nombre maximum de chunks claimables
-
-      # Personnel municipal
-      max-policiers: 0            # Aucun policier autorisé
-      max-juges: 0                # Aucun juge autorisé
-      max-medecins: 0             # Aucun médecin autorisé
-
-      # Services disponibles
-      police-enabled: false       # Police non disponible
-      justice-enabled: false      # Tribunal non disponible
-      hospital-enabled: false     # Hôpital non disponible
+      creation-cost: 5000.0
+      upgrade-cost: 0
+      min-population: 1
+      max-population: 4
+      max-claims: 10
+      max-policiers: 0
+      max-juges: 0
+      max-medecins: 0
+      police-enabled: false
+      justice-enabled: false
+      hospital-enabled: false
 
     # NIVEAU 2 : VILLAGE (5-14 joueurs)
     # Communauté établie avec services de base
     village:
       creation-cost: 13000.0      # Coût total depuis le début (5000 + 8000)
       upgrade-cost: 8000.0        # Coût pour passer de Campement à Village
-      min-population: 5           # Population minimum requise
-      max-population: 14          # Population maximum avant de devoir upgrade
-      max-claims: 130             # Nombre maximum de chunks claimables
-
-      # Personnel municipal (limité)
-      max-policiers: 1            # 1 policier maximum
-      max-juges: 1                # 1 juge maximum
-      max-medecins: 2             # 2 médecins maximum
-
-      # Services disponibles
-      police-enabled: true        # Police disponible
-      justice-enabled: true       # Tribunal disponible
-      hospital-enabled: true      # Hôpital disponible
+      min-population: 5
+      max-population: 14
+      max-claims: 130
+      max-policiers: 1
+      max-juges: 1
+      max-medecins: 2
+      police-enabled: true
+      justice-enabled: true
+      hospital-enabled: true
 
     # NIVEAU 3 : VILLE (15+ joueurs)
     # Grande ville prospère avec tous les services
     ville:
       creation-cost: 28000.0      # Coût total depuis le début (5000 + 8000 + 15000)
       upgrade-cost: 15000.0       # Coût pour passer de Village à Ville
-      min-population: 15          # Population minimum requise
-      max-population: 999999      # Pas de limite pratique
-      max-claims: 250             # Nombre maximum de chunks claimables
+      min-population: 15
+      max-population: 999999
+      max-claims: 250
+      max-policiers: 5
+      max-juges: 5
+      max-medecins: 10
+      police-enabled: true
+      justice-enabled: true
+      hospital-enabled: true
 
-      # Personnel municipal (complet)
-      max-policiers: 5            # 5 policiers maximum
-      max-juges: 5                # 5 juges maximum
-      max-medecins: 10            # 10 médecins maximum
-
-      # Services disponibles
-      police-enabled: true        # Police disponible
-      justice-enabled: true       # Tribunal disponible
-      hospital-enabled: true      # Hôpital disponible
-
-  # Système de commissions pour police et justice
+  # === SYSTÈME DE COMMISSIONS ===
   commissions:
     # Pourcentage de l'amende qui va au policier quand elle est payée
     police-commission-percentage: 50.0
-
     # Pourcentage des frais de justice qui va au juge
     judge-commission-percentage: 50.0
-
-    # Frais de justice en pourcentage de l'amende (ajouté à l'amende en cas de confirmation par le juge)
+    # Frais de justice en pourcentage de l'amende
     court-fees-percentage: 30.0
 
-  # Amendes prédéfinies pour les policiers
+  # === AMENDES PRÉDÉFINIES ===
   predefined-fines:
     - title: "Trouble à l'ordre public"
       amount: 300.0
@@ -1073,3 +1063,232 @@ town:
     - title: "Trouble de voisinage"
       amount: 250.0
       description: "Nuisances sonores ou comportement gênant les voisins"
+
+
+
+
+# ============================================
+#        SYSTÈME DE POLICE (ÉQUIPEMENT)
+# ============================================
+# Configuration des équipements de police (Taser & Menottes)
+
+police-equipment:
+  # === TASER ===
+  taser:
+    enabled: true
+    name: "&6Taser"
+    lore:
+      - "&7Clic droit pour taser un joueur."
+      - "&7Charges: &6&l%charges%"
+    material: STICK
+    custom-model-data: 10021
+    max-charges: 10
+    cooldown: 10
+    duration: 5
+
+    crafting:
+      enabled: true
+      mayor-only: true
+
+    effects:
+      blindness:
+        enabled: true
+        duration: 5
+        amplifier: 1
+      slowness:
+        enabled: true
+        duration: 5
+        amplifier: 1
+
+    particles:
+      enabled: true
+      type: VILLAGER_ANGRY
+
+    sound: ENTITY_PLAYER_HURT
+    sound-volume: 1.0
+    sound-pitch: 1.5
+    sound-range: 10
+
+    title: "&c&lVOUS ÊTES TASÉ!"
+    subtitle: "&7Immobilisé pendant &6%seconds%s"
+
+    allowed-commands:
+      - login
+      - register
+      - help
+
+    kill-if-quit: false
+
+  # === MENOTTES ===
+  handcuffs:
+    enabled: true
+    name: "&eMenottes"
+    lore:
+      - "&7Clic droit sur un joueur pour le menotter."
+      - "&7Maintenez Shift pour affaiblir les menottes."
+    material: LEAD
+    custom-model-data: 5456
+
+    crafting:
+      enabled: true
+      mayor-only: true
+
+    consume-on-use: false
+    can-self-handcuff: false
+
+    breaking:
+      enabled: true
+      sneak-count: 200
+
+    following:
+      enabled: true
+      require-permission: false
+      steps-back: 10
+      max-distance: 15.0
+      pull-distance: 2.0
+
+    boss-bar-title: "&fSanté des Menottes - Shift pour affaiblir"
+
+    sound: BLOCK_IRON_DOOR_CLOSE
+    sound-remove: BLOCK_IRON_DOOR_OPEN
+    sound-break: ENTITY_ITEM_BREAK
+    sound-crack: BLOCK_WOOD_BREAK
+    sound-volume: 1.0
+    sound-pitch: 1.0
+
+    allowed-commands:
+      - login
+      - register
+      - help
+
+    kill-if-quit: false
+
+    messages:
+      handcuffed: "&aVous avez menotté &6%target%&a!"
+      you-are-handcuffed: "&cVous avez été menotté par &6%player%&c!"
+      removed-handcuffs: "&aVous avez libéré &6%target%&a!"
+      you-are-freed: "&aVous avez été libéré par &6%player%&a!"
+      broken: "&a&lVous avez cassé les menottes !"
+      already-following: "&cCe joueur est déjà suivi par quelqu'un d'autre!"
+      start-following: "&a%target% vous suit maintenant!"
+      you-follow: "&cVous suivez maintenant &6%player%&c!"
+      stop-following: "&a%target% ne vous suit plus."
+      you-stop-follow: "&aVous ne suivez plus &6%player%&a."
+
+  # Messages généraux
+  messages:
+    mayor-only-craft: "&cSeul le Maire de la ville peut fabriquer des %item%!"
+    craft-success: "&aVous avez fabriqué un(e) %item% !"
+
+
+
+
+# ============================================
+#          SYSTÈME DE PRISON
+# ============================================
+# Configuration du système d'emprisonnement dans les COMMISSARIAT municipaux
+
+prison-system:
+  enabled: true
+
+  # === DURÉE ===
+  max-duration-minutes: 60
+
+  # === RESTRICTIONS ===
+  # Commandes autorisées pendant l'emprisonnement
+  allowed-commands:
+    - prisoninfo
+    - appeal
+    - help
+    - msg
+    - r
+
+  # === NOTIFICATIONS ===
+  notification-broadcast: true        # Diffuser à tous les joueurs
+  teleport-on-release: true          # Téléporter au spawn lors de la libération
+
+  # === MESSAGES PERSONNALISÉS ===
+  messages:
+    imprisoned: "&c&l⛓️ VOUS ÊTES EN PRISON\n&7Durée: &c%duration% minutes\n&7Raison: &f%reason%"
+    released: "&a&l✔ VOUS ÊTES LIBRE\n&7Votre peine de prison est terminée"
+    extended: "&c&l⏱ PROLONGATION DE PEINE\n&7Temps ajouté: &c+%minutes% minutes\n&7Nouveau temps restant: &c%remaining%"
+    spawn-set: "&a&l✔ SPAWN DÉFINI\n&7Le spawn de prison a été défini\n&7à votre position actuelle"
+    spawn-required: "&c&l✖ SPAWN NON DÉFINI\n&7Aucun spawn de prison n'a été\n&7défini pour ce COMMISSARIAT"
+    boundary-warning: "&c&l⛓️ LIMITE DE PRISON\n&7Vous ne pouvez pas sortir du\n&7COMMISSARIAT pendant votre peine"
+    broadcast: "&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n&c&l🚨 EMPRISONNEMENT\n&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n&7Prisonnier: &e%prisoner%\n&7Durée: &c%duration% minutes\n&7Raison: &f%reason%\n&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+
+
+
+
+# ============================================
+#        SYSTÈME DE BOUTIQUES (SHOPS)
+# ============================================
+# Configuration du système de boutiques physiques avec validation d'intégrité
+
+shop-system:
+  # === LIMITES ===
+  max-shops-per-entreprise: 10
+  max-distance-chest-sign: 1
+
+  # === ÉCONOMIE ===
+  creation-cost: 0.0
+
+  # === VALIDATION ET INTÉGRITÉ ===
+  integrity-check-interval: 300    # 5 minutes
+  auto-repair-enabled: true        # Réparer automatiquement les composants manquants
+  auto-delete-broken-shops: true   # Supprimer les boutiques cassées
+
+  # === SAUVEGARDE ===
+  auto-save-interval: 600          # 10 minutes
+  backup-keep-count: 10
+
+  # === AFFICHAGE VISUEL ===
+  hologram-enabled: true
+
+# ========================================
+# SUPPRESSION AUTOMATIQUE DES SHOPS
+# ========================================
+# Configuration de la suppression automatique des boutiques
+# lors d'événements liés aux villes et terrains
+shop-deletion-on-events:
+  # Supprimer les shops quand un membre quitte une ville volontairement
+  resident-leave-town: true
+
+  # Supprimer les shops quand un membre est expulsé d'une ville
+  resident-kick-from-town: true
+
+  # Supprimer les shops de l'ancien propriétaire quand un terrain change de propriétaire
+  plot-owner-change: true
+
+  # Supprimer tous les shops quand un terrain est nettoyé (clearOwner)
+  plot-clear: true
+
+  # Supprimer tous les shops quand un terrain change de type (ex: PROFESSIONNEL → MUNICIPAL)
+  plot-type-change: true
+
+  # Supprimer tous les shops quand un terrain est unclaimed par la ville
+  town-unclaim-plot: true
+
+  # Supprimer tous les shops quand une ville est supprimée
+  town-ruin: true
+
+# Configuration des hologrammes de shops
+shop-holograms:
+  base-height: 0.05           # Hauteur de base au-dessus du coffre
+  line-spacing: 0.15          # Espacement entre les lignes
+  item-display:
+    scale: 0.6                # Taille de l'item affiché
+    offset-below: 0.3         # Distance item/texte
+
+
+
+
+# ============================================
+#        OPTIMISATIONS TECHNIQUES
+# ============================================
+# Cache et optimisations de performance
+
+# Cache de blocs placés (optimisation CoreProtect)
+# Gain de performance: 500x plus rapide (50-200ms → <1ms)
+block-place-cache:
+  expiration-hours: 48        # Durée de conservation dans le cache

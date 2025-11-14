@@ -113,9 +113,14 @@ public class TownPlotManagementGUI implements Listener {
         }
 
         if (plot.isForRent()) {
-            double dailyPrice = plot.getRentPrice() / plot.getRentDurationDays();
+            // FIX BASSE #7: Utiliser getRentPricePerDay() au lieu de getRentPrice() deprecated
+            // 📅 Afficher le temps restant détaillé
+            Plot.RentTimeRemaining timeRemaining = plot.getRentTimeRemaining();
+            String timeDisplay = timeRemaining != null
+                ? timeRemaining.formatDetailed()
+                : plot.getRentDaysRemaining() + " jours";
             infoLore.add(ChatColor.YELLOW + "En location: " + ChatColor.GOLD +
-                String.format("%.2f€/jour", dailyPrice) + ChatColor.GRAY + " (" + plot.getRentDurationDays() + "j total)");
+                String.format("%.2f€/jour", plot.getRentPricePerDay()) + ChatColor.GRAY + " (" + timeDisplay + " restants)");
         }
 
         infoMeta.setLore(infoLore);
@@ -126,7 +131,8 @@ public class TownPlotManagementGUI implements Listener {
         boolean canManage = role == TownRole.MAIRE || role == TownRole.ADJOINT ||
             (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(player.getUniqueId()));
 
-        // Mettre en vente (seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
+        // === LIGNE 2: Actions de Commerce ===
+        // Mettre en vente (slot 10 - seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
         if (canManage && !plot.isForSale() &&
             (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
             ItemStack saleItem = new ItemStack(Material.GOLD_INGOT);
@@ -142,7 +148,16 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(10, saleItem);
         }
 
-        // Acheter
+        // Annuler la vente (slot 10 - prioritaire si en vente)
+        if (canManage && plot.isForSale()) {
+            ItemStack cancelSaleItem = new ItemStack(Material.BARRIER);
+            ItemMeta cancelMeta = cancelSaleItem.getItemMeta();
+            cancelMeta.setDisplayName(ChatColor.RED + "Annuler la Vente");
+            cancelSaleItem.setItemMeta(cancelMeta);
+            inv.setItem(10, cancelSaleItem);
+        }
+
+        // Acheter (slot 11)
         if (plot.isForSale() && !canManage) {
             ItemStack buyItem = new ItemStack(Material.EMERALD);
             ItemMeta buyMeta = buyItem.getItemMeta();
@@ -156,16 +171,7 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(11, buyItem);
         }
 
-        // Annuler la vente
-        if (canManage && plot.isForSale()) {
-            ItemStack cancelSaleItem = new ItemStack(Material.BARRIER);
-            ItemMeta cancelMeta = cancelSaleItem.getItemMeta();
-            cancelMeta.setDisplayName(ChatColor.RED + "Annuler la Vente");
-            cancelSaleItem.setItemMeta(cancelMeta);
-            inv.setItem(10, cancelSaleItem);
-        }
-
-        // Mettre en location (seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
+        // Mettre en location (slot 12 - seulement pour parcelles PARTICULIER ou PROFESSIONNEL)
         if (canManage && !plot.isForRent() && plot.getRenterUuid() == null &&
             (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
             ItemStack rentItem = new ItemStack(Material.PAPER);
@@ -181,7 +187,16 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(12, rentItem);
         }
 
-        // Louer (première fois)
+        // Annuler la location (slot 12 - prioritaire si en location)
+        if (canManage && plot.isForRent()) {
+            ItemStack cancelRentItem = new ItemStack(Material.BARRIER);
+            ItemMeta cancelMeta = cancelRentItem.getItemMeta();
+            cancelMeta.setDisplayName(ChatColor.RED + "Annuler la Location");
+            cancelRentItem.setItemMeta(cancelMeta);
+            inv.setItem(12, cancelRentItem);
+        }
+
+        // Louer / Recharger location (slot 13)
         if (plot.isForRent() && !canManage) {
             ItemStack rentBuyItem = new ItemStack(Material.GOLD_BLOCK);
             ItemMeta rentBuyMeta = rentBuyItem.getItemMeta();
@@ -196,13 +211,17 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(13, rentBuyItem);
         }
 
-        // Recharger la location (si locataire actuel)
         if (plot.isRentedBy(player.getUniqueId())) {
             ItemStack rechargeItem = new ItemStack(Material.EMERALD);
             ItemMeta rechargeMeta = rechargeItem.getItemMeta();
             rechargeMeta.setDisplayName(ChatColor.GREEN + "Recharger la Location");
             List<String> rechargeLore = new ArrayList<>();
-            rechargeLore.add(ChatColor.GRAY + "Solde actuel: " + ChatColor.YELLOW + plot.getRentDaysRemaining() + "/30 jours");
+            // 📅 Afficher le temps restant détaillé
+            Plot.RentTimeRemaining timeRemaining = plot.getRentTimeRemaining();
+            String timeDisplay = timeRemaining != null
+                ? timeRemaining.formatDetailed()
+                : plot.getRentDaysRemaining() + " jours";
+            rechargeLore.add(ChatColor.GRAY + "Solde actuel: " + ChatColor.YELLOW + timeDisplay + " / 30 jours");
             rechargeLore.add(ChatColor.GRAY + "Prix: " + ChatColor.GOLD + String.format("%.2f€/jour", plot.getRentPricePerDay()));
             rechargeLore.add("");
             int canAdd = 30 - plot.getRentDaysRemaining();
@@ -217,16 +236,40 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(13, rechargeItem);
         }
 
-        // Annuler la location
-        if (canManage && plot.isForRent()) {
-            ItemStack cancelRentItem = new ItemStack(Material.BARRIER);
-            ItemMeta cancelMeta = cancelRentItem.getItemMeta();
-            cancelMeta.setDisplayName(ChatColor.RED + "Annuler la Location");
-            cancelRentItem.setItemMeta(cancelMeta);
-            inv.setItem(12, cancelRentItem);
+        // === LIGNE 2: Configuration ===
+        // Boîte aux lettres (slot 15 - Maire/Adjoint OU Propriétaire/Locataire, terrains PARTICULIER et PROFESSIONNEL)
+        boolean canManageMailbox = ((role == TownRole.MAIRE || role == TownRole.ADJOINT) ||
+            (plot.getOwnerUuid() != null &&
+             (plot.getOwnerUuid().equals(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId())))) &&
+            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL);
+
+        if (canManageMailbox) {
+            boolean hasMailbox = plot.hasMailbox();
+            ItemStack mailboxItem = new ItemStack(hasMailbox ? Material.LIME_CONCRETE : Material.RED_CONCRETE);
+            ItemMeta mailboxMeta = mailboxItem.getItemMeta();
+            mailboxMeta.setDisplayName(ChatColor.AQUA + "📬 Gestion Boîte aux Lettres");
+            List<String> mailboxLore = new ArrayList<>();
+            mailboxLore.add(ChatColor.GRAY + "Gérer la boîte aux lettres");
+            mailboxLore.add(ChatColor.GRAY + "de ce terrain");
+            mailboxLore.add("");
+
+            if (hasMailbox) {
+                mailboxLore.add(ChatColor.GREEN + "✔ Mailbox installée");
+                mailboxLore.add("");
+                mailboxLore.add(ChatColor.YELLOW + "Clic gauche: Supprimer");
+                mailboxLore.add(ChatColor.YELLOW + "Clic droit: Déplacer");
+            } else {
+                mailboxLore.add(ChatColor.RED + "✖ Aucune mailbox");
+                mailboxLore.add("");
+                mailboxLore.add(ChatColor.YELLOW + "Cliquez pour placer");
+            }
+
+            mailboxMeta.setLore(mailboxLore);
+            mailboxItem.setItemMeta(mailboxMeta);
+            inv.setItem(15, mailboxItem);
         }
 
-        // Changer le type de parcelle
+        // Changer le type de parcelle (slot 16 - Admin uniquement)
         if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
             ItemStack typeItem = new ItemStack(Material.WRITABLE_BOOK);
             ItemMeta typeMeta = typeItem.getItemMeta();
@@ -237,10 +280,11 @@ public class TownPlotManagementGUI implements Listener {
             typeLore.add(ChatColor.YELLOW + "Cliquez pour changer le type");
             typeMeta.setLore(typeLore);
             typeItem.setItemMeta(typeMeta);
-            inv.setItem(14, typeItem);
+            inv.setItem(16, typeItem);
         }
 
-        // Changer le sous-type municipal (uniquement si MUNICIPAL)
+        // === LIGNE 3: Fonctions Spéciales ===
+        // Sous-type municipal (slot 19 - Admin uniquement, si MUNICIPAL)
         if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) && plot.getType() == PlotType.MUNICIPAL) {
             ItemStack subtypeItem = new ItemStack(plot.getMunicipalSubType().getIcon());
             ItemMeta subtypeMeta = subtypeItem.getItemMeta();
@@ -254,10 +298,39 @@ public class TownPlotManagementGUI implements Listener {
             subtypeLore.add(ChatColor.YELLOW + "Cliquez pour changer");
             subtypeMeta.setLore(subtypeLore);
             subtypeItem.setItemMeta(subtypeMeta);
-            inv.setItem(16, subtypeItem);
+            inv.setItem(19, subtypeItem);
         }
 
-        // DÉGROUPER - Séparer un groupe de terrains (slot 18)
+        // Spawn prison (slot 20 - Admin uniquement, si COMMISSARIAT)
+        if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) &&
+            plot.getType() == PlotType.MUNICIPAL &&
+            plot.getMunicipalSubType() == com.gravityyfh.roleplaycity.town.data.MunicipalSubType.COMMISSARIAT) {
+
+            ItemStack prisonSpawnItem = new ItemStack(plot.hasPrisonSpawn() ? Material.LIME_DYE : Material.RED_DYE);
+            ItemMeta prisonMeta = prisonSpawnItem.getItemMeta();
+            prisonMeta.setDisplayName(ChatColor.DARK_RED + "🔒 Spawn Prison");
+
+            List<String> prisonLore = new ArrayList<>();
+            prisonLore.add(ChatColor.GRAY + "Point d'apparition des");
+            prisonLore.add(ChatColor.GRAY + "joueurs emprisonnés");
+            prisonLore.add("");
+
+            if (plot.hasPrisonSpawn()) {
+                prisonLore.add(ChatColor.GREEN + "✔ Spawn défini");
+                prisonLore.add("");
+                prisonLore.add(ChatColor.YELLOW + "Cliquez pour redéfinir");
+            } else {
+                prisonLore.add(ChatColor.RED + "✖ Spawn non défini");
+                prisonLore.add("");
+                prisonLore.add(ChatColor.YELLOW + "Cliquez pour définir");
+            }
+
+            prisonMeta.setLore(prisonLore);
+            prisonSpawnItem.setItemMeta(prisonMeta);
+            inv.setItem(20, prisonSpawnItem);
+        }
+
+        // Dégrouper ce terrain (slot 21 - Admin uniquement, si groupé)
         if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) && plot.isGrouped()) {
             ItemStack ungroupItem = new ItemStack(Material.SHEARS);
             ItemMeta ungroupMeta = ungroupItem.getItemMeta();
@@ -272,11 +345,45 @@ public class TownPlotManagementGUI implements Listener {
             ungroupLore.add(ChatColor.RED + "Cliquez pour dégrouper");
             ungroupMeta.setLore(ungroupLore);
             ungroupItem.setItemMeta(ungroupMeta);
-            inv.setItem(18, ungroupItem);
+            inv.setItem(21, ungroupItem);
         }
 
-        // UNCLAIM - Retourner la parcelle à la ville (slot 22)
-        // Conditions : propriétaire, pas loué, type PARTICULIER ou PROFESSIONNEL
+        // === LIGNE 3: Actions Admin ===
+        // Expulser Propriétaire/Locataire (slot 23 - Admin uniquement)
+        if ((role == TownRole.MAIRE || role == TownRole.ADJOINT) &&
+            (plot.getOwnerUuid() != null || plot.getRenterUuid() != null) &&
+            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
+
+            ItemStack evictItem = new ItemStack(Material.IRON_DOOR);
+            ItemMeta evictMeta = evictItem.getItemMeta();
+            evictMeta.setDisplayName(ChatColor.RED + "⚠️ Expulser Propriétaire/Locataire");
+            List<String> evictLore = new ArrayList<>();
+            evictLore.add(ChatColor.GRAY + "Révoquer la propriété ou");
+            evictLore.add(ChatColor.GRAY + "résilier la location");
+            evictLore.add("");
+
+            if (plot.getRenterUuid() != null) {
+                org.bukkit.OfflinePlayer renterPlayer = Bukkit.getOfflinePlayer(plot.getRenterUuid());
+                String renterDisplay = renterPlayer.getName() != null ? renterPlayer.getName() : "Locataire";
+                evictLore.add(ChatColor.YELLOW + "Locataire actuel: " + ChatColor.WHITE + renterDisplay);
+                evictLore.add(ChatColor.GRAY + "Jours restants: " + ChatColor.WHITE + plot.getRentDaysRemaining());
+                evictLore.add("");
+                evictLore.add(ChatColor.RED + "Cliquez pour RÉSILIER la location");
+            } else if (plot.getOwnerUuid() != null) {
+                String ownerDisplay = plot.getOwnerName() != null ? plot.getOwnerName() : "Propriétaire";
+                evictLore.add(ChatColor.YELLOW + "Propriétaire: " + ChatColor.WHITE + ownerDisplay);
+                evictLore.add("");
+                evictLore.add(ChatColor.RED + "Cliquez pour EXPULSER le propriétaire");
+            }
+
+            evictLore.add(ChatColor.DARK_RED + "⚠️ Action irréversible !");
+
+            evictMeta.setLore(evictLore);
+            evictItem.setItemMeta(evictMeta);
+            inv.setItem(23, evictItem);
+        }
+
+        // Retourner à la ville / Unclaim (slot 25 - Propriétaire uniquement, pas loué)
         if (plot.getOwnerUuid() != null &&
             plot.getOwnerUuid().equals(player.getUniqueId()) &&
             plot.getRenterUuid() == null &&
@@ -293,10 +400,10 @@ public class TownPlotManagementGUI implements Listener {
             unclaimLore.add(ChatColor.YELLOW + "Cliquez pour UNCLAIM");
             unclaimMeta.setLore(unclaimLore);
             unclaimItem.setItemMeta(unclaimMeta);
-            inv.setItem(22, unclaimItem);
+            inv.setItem(25, unclaimItem);
         }
 
-        // Retour à Mes Propriétés
+        // Retour à Mes Propriétés (slot 26)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
         backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
@@ -305,25 +412,6 @@ public class TownPlotManagementGUI implements Listener {
         backMeta.setLore(backLore);
         backItem.setItemMeta(backMeta);
         inv.setItem(26, backItem);
-
-        // NOUVEAU : Bouton "Placer une boîte aux lettres" (slot 20)
-        // Disponible uniquement pour le propriétaire ou locataire
-        if (plot.getOwnerUuid() != null &&
-            (plot.getOwnerUuid().equals(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId()))) {
-
-            ItemStack mailboxItem = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta mailboxMeta = mailboxItem.getItemMeta();
-            mailboxMeta.setDisplayName(ChatColor.GOLD + "📮 Placer une Boîte aux Lettres");
-            List<String> mailboxLore = new ArrayList<>();
-            mailboxLore.add(ChatColor.GRAY + "Placez une boîte aux lettres");
-            mailboxLore.add(ChatColor.GRAY + "pour recevoir du courrier");
-            mailboxLore.add("");
-            mailboxLore.add(ChatColor.YELLOW + "Cliquez pour choisir votre");
-            mailboxLore.add(ChatColor.YELLOW + "modèle de boîte aux lettres");
-            mailboxMeta.setLore(mailboxLore);
-            mailboxItem.setItemMeta(mailboxMeta);
-            inv.setItem(20, mailboxItem);
-        }
 
         // FIX UX P2.7: Stocker le Plot affiché pour référence ultérieure
         currentMenuPlots.put(player.getUniqueId(), plot);
@@ -346,6 +434,11 @@ public class TownPlotManagementGUI implements Listener {
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 
@@ -401,12 +494,55 @@ public class TownPlotManagementGUI implements Listener {
                             return;
                         }
 
+                        // VÉRIFICATION 3 : Terrain loué ne peut pas changer de type
+                        if (plot.getRenterUuid() != null) {
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.RED + "✗ Ce terrain possède déjà un locataire !");
+                            player.sendMessage(ChatColor.YELLOW + "Il est impossible de changer le type de terrain pour le moment.");
+                            player.sendMessage("");
+                            player.closeInventory();
+                            return;
+                        }
+
+                        // VÉRIFICATION 4 : PARTICULIER → PROFESSIONNEL nécessite une entreprise propriétaire
+                        if (oldType == PlotType.PARTICULIER &&
+                            selectedType == PlotType.PROFESSIONNEL &&
+                            plot.getOwnerUuid() != null &&
+                            plot.getCompanySiret() == null) {
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.RED + "✗ Ce terrain possède déjà un propriétaire particulier !");
+                            player.sendMessage(ChatColor.YELLOW + "Il est impossible de changer le type de terrain pour le moment.");
+                            player.sendMessage(ChatColor.GRAY + "Un terrain PROFESSIONNEL doit appartenir à une entreprise.");
+                            player.sendMessage("");
+                            player.closeInventory();
+                            return;
+                        }
+
+                        // VÉRIFICATION 5 : PROFESSIONNEL → PARTICULIER nécessite que ce ne soit pas une entreprise
+                        if (oldType == PlotType.PROFESSIONNEL &&
+                            selectedType == PlotType.PARTICULIER &&
+                            plot.getCompanySiret() != null) {
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.RED + "✗ Ce terrain possède déjà un propriétaire entreprise !");
+                            player.sendMessage(ChatColor.YELLOW + "Il est impossible de changer le type de terrain pour le moment.");
+                            player.sendMessage(ChatColor.GRAY + "Un terrain PARTICULIER ne peut pas appartenir à une entreprise.");
+                            player.sendMessage("");
+                            player.closeInventory();
+                            return;
+                        }
+
                         // Gérer le numéro de terrain lors du changement de type
                         plot.setType(selectedType);
 
                         // Réinitialiser le sous-type municipal si on quitte le type MUNICIPAL
                         if (selectedType != PlotType.MUNICIPAL && plot.getMunicipalSubType() != MunicipalSubType.NONE) {
                             plot.setMunicipalSubType(MunicipalSubType.NONE);
+                        }
+
+                        // 📬 Supprimer la boîte aux lettres si on passe en PUBLIC ou MUNICIPAL
+                        if ((selectedType == PlotType.PUBLIC || selectedType == PlotType.MUNICIPAL) && plot.hasMailbox()) {
+                            plugin.getMailboxManager().removeMailbox(plot);
+                            player.sendMessage(ChatColor.YELLOW + "→ La boîte aux lettres a été supprimée (incompatible avec le type " + selectedType.getDisplayName() + ")");
                         }
 
                         // Si on passe à PARTICULIER, PROFESSIONNEL ou MUNICIPAL depuis PUBLIC, attribuer un numéro
@@ -529,31 +665,24 @@ public class TownPlotManagementGUI implements Listener {
             handleChangePlotType(player, plot, townName);
         } else if (displayName.contains("Sous-Type Municipal")) {
             handleChangeMunicipalSubtype(player, plot, townName);
+        } else if (displayName.contains("Spawn Prison")) {
+            handleSetPrisonSpawn(player, plot);
+        } else if (displayName.contains("Gestion Boîte aux Lettres")) {
+            handleMailboxManagement(player, plot, event.getClick());
         } else if (displayName.contains("Dégrouper ce Terrain")) {
             handleUngroupPlot(player, plot, townName);
         } else if (displayName.contains("Retourner à la Ville")) {
             handleUnclaimPlot(player, plot, townName);
+        } else if (displayName.contains("Expulser Propriétaire/Locataire")) {
+            handleEvictOwnerOrRenter(player, plot, townName);
         } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
             player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
                 ChatColor.YELLOW + " pour accéder à vos propriétés");
-        } else if (displayName.contains("Placer une Boîte aux Lettres")) {
-            handlePlaceMailbox(player, plot);
+        } else if (displayName.contains("Gestion Boîte aux Lettres")) {
+            // Vérifier si c'est le bouton du propriétaire/locataire (slot 20) ou du maire (slot 15)
+            handleMailboxManagement(player, plot, event.getClick());
         }
-    }
-
-    private void handlePlaceMailbox(Player player, Plot plot) {
-        player.closeInventory();
-
-        // Vérifier que le joueur est bien propriétaire ou locataire
-        if (plot.getOwnerUuid() == null ||
-            (!plot.getOwnerUuid().equals(player.getUniqueId()) && !plot.isRentedBy(player.getUniqueId()))) {
-            player.sendMessage(ChatColor.RED + "Vous devez être propriétaire ou locataire pour placer une boîte aux lettres.");
-            return;
-        }
-
-        // Ouvrir le GUI de sélection de mailbox
-        plugin.getMailboxPlacementGUI().openMailboxSelectionMenu(player, plot);
     }
 
     private void handlePutForSale(Player player, Plot plot, String townName) {
@@ -631,8 +760,14 @@ public class TownPlotManagementGUI implements Listener {
             return;
         }
 
+        // 📅 Afficher le temps restant détaillé
+        Plot.RentTimeRemaining timeRemaining = plot.getRentTimeRemaining();
+        String timeDisplay = timeRemaining != null
+            ? timeRemaining.formatDetailed()
+            : currentDays + " jours";
+
         player.sendMessage(ChatColor.GREEN + "Combien de jours souhaitez-vous ajouter ?");
-        player.sendMessage(ChatColor.GRAY + "Solde actuel: " + ChatColor.YELLOW + currentDays + "/30 jours");
+        player.sendMessage(ChatColor.GRAY + "Solde actuel: " + ChatColor.YELLOW + timeDisplay + " / 30 jours");
         player.sendMessage(ChatColor.GRAY + "Prix: " + String.format("%.2f€/jour", plot.getRentPricePerDay()));
         player.sendMessage(ChatColor.GRAY + "Maximum: " + maxCanAdd + " jours");
         player.sendMessage(ChatColor.YELLOW + "Entrez le nombre de jours (ou 'annuler'):");
@@ -644,7 +779,9 @@ public class TownPlotManagementGUI implements Listener {
     private void handleCancelRent(Player player, Plot plot) {
         player.closeInventory();
         plot.setForRent(false);
-        plot.setRent(0, 0);
+        // FIX BASSE #7: Utiliser setRentPricePerDay/setRentDaysRemaining au lieu de setRent() deprecated
+        plot.setRentPricePerDay(0);
+        plot.setRentDaysRemaining(0);
         player.sendMessage(ChatColor.YELLOW + "La location de la parcelle a été annulée.");
 
         // Sauvegarder immédiatement
@@ -706,6 +843,102 @@ public class TownPlotManagementGUI implements Listener {
             "*La parcelle appartient maintenant à la ville",
             "*Elle n'est pas mise en vente automatiquement"
         ));
+    }
+
+    /**
+     * Expulse le propriétaire ou résilie la location (Maire/Adjoint uniquement)
+     */
+    private void handleEvictOwnerOrRenter(Player player, Plot plot, String townName) {
+        player.closeInventory();
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            NavigationManager.sendError(player, "Ville introuvable !");
+            return;
+        }
+
+        // SÉCURITÉ : Vérifier que le joueur est Maire ou Adjoint
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+            NavigationManager.sendError(player, "Seuls le Maire et les Adjoints peuvent expulser un propriétaire/locataire !");
+            return;
+        }
+
+        // CAS 1 : Résilier la location
+        if (plot.getRenterUuid() != null) {
+            UUID renterId = plot.getRenterUuid(); // Sauvegarder l'UUID avant de nettoyer
+            org.bukkit.OfflinePlayer renterPlayer = Bukkit.getOfflinePlayer(renterId);
+            String renterName = renterPlayer.getName() != null ? renterPlayer.getName() : "Locataire";
+            int daysRemaining = plot.getRentDaysRemaining();
+
+            // Nettoyer la location
+            plot.clearRenter();
+            plot.setForRent(false);
+
+            townManager.saveTownsNow();
+
+            NavigationManager.sendStyledMessage(player, "LOCATION RÉSILIÉE", Arrays.asList(
+                "+La location a été résiliée par le Maire/Adjoint",
+                "",
+                "Locataire: " + renterName,
+                "Jours restants: " + daysRemaining,
+                "Position: " + plot.getCoordinates(),
+                "",
+                "*Le terrain est maintenant disponible"
+            ));
+
+            // Notifier le locataire s'il est en ligne
+            org.bukkit.OfflinePlayer renter = Bukkit.getOfflinePlayer(renterId);
+            if (renter != null && renter.isOnline() && renter.getPlayer() != null) {
+                renter.getPlayer().sendMessage("");
+                renter.getPlayer().sendMessage(ChatColor.RED + "⚠️ LOCATION RÉSILIÉE");
+                renter.getPlayer().sendMessage(ChatColor.GRAY + "Votre location du terrain " + plot.getCoordinates() + " a été résiliée");
+                renter.getPlayer().sendMessage(ChatColor.GRAY + "par le Maire/Adjoint de la ville " + townName);
+                renter.getPlayer().sendMessage("");
+            }
+
+            return;
+        }
+
+        // CAS 2 : Expulser le propriétaire
+        if (plot.getOwnerUuid() != null) {
+            String ownerName = plot.getOwnerName() != null ? plot.getOwnerName() : "Propriétaire";
+            UUID ownerId = plot.getOwnerUuid();
+
+            // Nettoyer TOUTES les données du propriétaire
+            townManager.clearPlotOwnership(plot);
+
+            // Nettoyer les paramètres de vente/location
+            plot.setForRent(false);
+            plot.setForSale(false);
+            plot.setSalePrice(0.0);
+
+            townManager.saveTownsNow();
+
+            NavigationManager.sendStyledMessage(player, "PROPRIÉTAIRE EXPULSÉ", Arrays.asList(
+                "+Le propriétaire a été expulsé par le Maire/Adjoint",
+                "",
+                "Propriétaire: " + ownerName,
+                "Type: " + plot.getType().getDisplayName(),
+                "Position: " + plot.getCoordinates(),
+                "",
+                "*Le terrain appartient maintenant à la ville"
+            ));
+
+            // Notifier le propriétaire s'il est en ligne
+            org.bukkit.OfflinePlayer owner = Bukkit.getOfflinePlayer(ownerId);
+            if (owner != null && owner.isOnline() && owner.getPlayer() != null) {
+                owner.getPlayer().sendMessage("");
+                owner.getPlayer().sendMessage(ChatColor.RED + "⚠️ EXPULSION");
+                owner.getPlayer().sendMessage(ChatColor.GRAY + "Vous avez été expulsé du terrain " + plot.getCoordinates());
+                owner.getPlayer().sendMessage(ChatColor.GRAY + "par le Maire/Adjoint de la ville " + townName);
+                owner.getPlayer().sendMessage("");
+            }
+
+            return;
+        }
+
+        NavigationManager.sendError(player, "Ce terrain n'a ni propriétaire ni locataire !");
     }
 
     private void openPlotTypeSelectionMenu(Player player, Plot plot, String townName) {
@@ -936,6 +1169,76 @@ public class TownPlotManagementGUI implements Listener {
             }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Veuillez entrer un nombre valide.");
+        }
+    }
+
+    /**
+     * Gère la définition du spawn prison pour un COMMISSARIAT
+     */
+    private void handleSetPrisonSpawn(Player player, Plot plot) {
+        String townName = plot.getTownName();
+        Town town = townManager.getTown(townName);
+
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return;
+        }
+
+        // Vérifier que c'est bien un COMMISSARIAT
+        if (plot.getMunicipalSubType() != MunicipalSubType.COMMISSARIAT) {
+            player.sendMessage(ChatColor.RED + "Ce plot n'est pas un COMMISSARIAT.");
+            return;
+        }
+
+        // Définir le spawn de prison
+        plot.setPrisonSpawn(player.getLocation());
+
+        // Sauvegarder les données
+        plugin.getTownDataManager().markDirty();
+
+        // Message de confirmation
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§a✔ §lSPAWN DÉFINI");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        player.sendMessage("§7Le spawn de prison a été défini");
+        player.sendMessage("§7à votre position actuelle");
+        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+
+        // Fermer le menu et le rouvrir pour afficher la mise à jour
+        player.closeInventory();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            openPlotMenu(player, plot);
+        }, 2L);
+    }
+
+    /**
+     * Gère la gestion de mailbox pour le maire/adjoint
+     * Clic gauche: Supprimer mailbox
+     * Clic droit: Déplacer mailbox
+     * Clic normal: Placer mailbox
+     */
+    private void handleMailboxManagement(Player player, Plot plot, org.bukkit.event.inventory.ClickType clickType) {
+        player.closeInventory();
+
+        boolean hasMailbox = plot.hasMailbox();
+
+        if (hasMailbox) {
+            // Mailbox existe déjà
+            if (clickType.isLeftClick()) {
+                // Supprimer la mailbox
+                plugin.getMailboxManager().removeMailbox(plot);
+                player.sendMessage("");
+                player.sendMessage(ChatColor.GREEN + "✓ Boîte aux lettres supprimée");
+                player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getIdentifier());
+                player.sendMessage("");
+            } else if (clickType.isRightClick()) {
+                // Déplacer la mailbox
+                plugin.getMailboxVisualPlacement().startVisualPlacement(player, plot);
+                player.sendMessage(ChatColor.YELLOW + "Mode déplacement de boîte aux lettres activé.");
+            }
+        } else {
+            // Pas de mailbox, placer une nouvelle
+            plugin.getMailboxVisualPlacement().startVisualPlacement(player, plot);
         }
     }
 

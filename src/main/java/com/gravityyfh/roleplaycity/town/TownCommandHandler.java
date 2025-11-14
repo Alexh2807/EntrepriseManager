@@ -31,7 +31,6 @@ public class TownCommandHandler implements CommandExecutor {
 
     private final RoleplayCity plugin;
     private final TownManager townManager;
-    private final TownMainGUI townGUI;
 
     // Cache de sélection d'entreprise pour achats de terrains PROFESSIONNEL
     // UUID joueur → SIRET entreprise sélectionnée
@@ -40,7 +39,11 @@ public class TownCommandHandler implements CommandExecutor {
     public TownCommandHandler(RoleplayCity plugin, TownManager townManager) {
         this.plugin = plugin;
         this.townManager = townManager;
-        this.townGUI = new TownMainGUI(plugin, townManager);
+    }
+
+    // FIX: Utiliser le lazy getter au lieu de créer une nouvelle instance
+    private TownMainGUI getTownGUI() {
+        return plugin.getTownMainGUI();
     }
 
     /**
@@ -57,6 +60,13 @@ public class TownCommandHandler implements CommandExecutor {
         return selectedCompanyCache.remove(playerUuid);
     }
 
+    /**
+     * Vérifie si un joueur a une entreprise sélectionnée dans le cache (sans la supprimer)
+     */
+    public String getSelectedCompany(UUID playerUuid) {
+        return selectedCompanyCache.get(playerUuid);
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -66,7 +76,7 @@ public class TownCommandHandler implements CommandExecutor {
 
         // Sans arguments : ouvrir le GUI principal
         if (args.length == 0) {
-            townGUI.openMainMenu(player);
+            getTownGUI().openMainMenu(player);
             return true;
         }
 
@@ -91,7 +101,7 @@ public class TownCommandHandler implements CommandExecutor {
                 return true;
             }
             case "gui" -> {
-                townGUI.openMainMenu(player);
+                getTownGUI().openMainMenu(player);
                 return true;
             }
             case "accept" -> {
@@ -229,7 +239,7 @@ public class TownCommandHandler implements CommandExecutor {
             }
             default -> {
                 player.sendMessage(ChatColor.RED + "Sous-commande inconnue.");
-                townGUI.openMainMenu(player);
+                getTownGUI().openMainMenu(player);
                 return true;
             }
         }
@@ -269,38 +279,53 @@ public class TownCommandHandler implements CommandExecutor {
 
             // NOUVEAU : Si terrain PROFESSIONNEL, gérer sélection d'entreprise
             if (terrainType == PlotType.PROFESSIONNEL) {
-                CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
+                // Vérifier d'abord si un SIRET a déjà été sélectionné (via GUI)
+                // Si oui, ne pas re-ouvrir le GUI, continuer vers la confirmation
+                String cachedSiret = null;
+                if (plugin.getEnterpriseContextManager() != null) {
+                    // Peek sans supprimer - on vérifie juste si cache existe
+                    // Note: on ne peut pas peek, donc on vérifie via le cache TownCommandHandler
+                    cachedSiret = getSelectedCompany(player.getUniqueId());
+                }
 
-                // Compter les entreprises du joueur
-                List<EntrepriseManagerLogic.Entreprise> playerCompanies = new ArrayList<>();
-                for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
-                    String gerantUuidStr = entreprise.getGerantUUID();
-                    if (gerantUuidStr != null) {
-                        try {
-                            UUID gerantUuid = UUID.fromString(gerantUuidStr);
-                            if (gerantUuid.equals(player.getUniqueId())) {
-                                playerCompanies.add(entreprise);
+                if (cachedSiret == null) {
+                    // Pas de cache → Première fois, ouvrir le GUI
+                    com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
+                        plugin.getEnterpriseContextManager();
+
+                    List<EntrepriseManagerLogic.Entreprise> playerCompanies;
+                    if (enterpriseContextManager != null) {
+                        playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
+                    } else {
+                        // Fallback si pas encore initialisé
+                        playerCompanies = new ArrayList<>();
+                        for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+                            String gerantUuidStr = entreprise.getGerantUUID();
+                            if (gerantUuidStr != null) {
+                                try {
+                                    UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                    if (gerantUuid.equals(player.getUniqueId())) {
+                                        playerCompanies.add(entreprise);
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                    // UUID invalide, ignorer
+                                }
                             }
-                        } catch (IllegalArgumentException e) {
-                            // UUID invalide, ignorer
                         }
                     }
-                }
 
-                if (playerCompanies.isEmpty()) {
-                    player.sendMessage(ChatColor.RED + "Vous devez posséder une entreprise pour acheter un terrain PROFESSIONNEL !");
-                    player.sendMessage(ChatColor.YELLOW + "→ Discutez de votre projet avec le Maire pour obtenir un contrat d'entreprise");
-                    return;
-                }
+                    if (playerCompanies.isEmpty()) {
+                        player.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour acheter un terrain PROFESSIONNEL.");
+                        player.sendMessage(ChatColor.YELLOW + "→ Créez-en une avec /entreprise creer");
+                        return;
+                    }
 
-                if (playerCompanies.size() > 1) {
-                    // 2+ entreprises : ouvrir GUI de sélection
-                    plugin.getCompanySelectionGUI().open(player, chunkX, chunkZ, worldName, false);
+                    // TOUJOURS ouvrir le GUI de sélection, même avec 1 entreprise
+                    plugin.getCompanySelectionGUI().open(player, chunkX, chunkZ, worldName, false,
+                        com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.PURCHASE);
                     return; // Stopper ici, la confirmation viendra après sélection
-                } else {
-                    // 1 seule entreprise : stocker automatiquement
-                    setSelectedCompany(player.getUniqueId(), playerCompanies.get(0).getSiret());
                 }
+                // Sinon: cache existe, continuer normalement vers le message de confirmation
             }
 
             // Vérifier la vente
@@ -316,9 +341,9 @@ public class TownCommandHandler implements CommandExecutor {
 
             // Message de confirmation
             player.sendMessage("");
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRMATION D'ACHAT");
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             if (plot.isGrouped()) {
                 player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé (" + totalChunks + " chunks)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
@@ -334,7 +359,7 @@ public class TownCommandHandler implements CommandExecutor {
             confirmButton.setColor(net.md_5.bungee.api.ChatColor.GREEN);
             confirmButton.setBold(true);
             confirmButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/ville:confirmbuy " + chunkX + " " + chunkZ + " " + worldName));
+                "/ville confirmbuy " + chunkX + " " + chunkZ + " " + worldName));
             confirmButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder("Cliquez pour confirmer l'achat")
@@ -360,7 +385,7 @@ public class TownCommandHandler implements CommandExecutor {
             message.addExtra(cancelButton);
             player.spigot().sendMessage(message);
 
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage("");
 
         } catch (NumberFormatException e) {
@@ -403,6 +428,62 @@ public class TownCommandHandler implements CommandExecutor {
                 return;
             }
 
+            // AJOUT BUG FIX: Si terrain PROFESSIONNEL, gérer sélection d'entreprise
+            PlotType terrainType = plot.getType();
+            if (terrainType == PlotType.PROFESSIONNEL) {
+                // Vérifier si c'est une recharge (déjà locataire)
+                UUID currentRenter = plot.getRenterUuid();
+                boolean isRecharge = (currentRenter != null && currentRenter.equals(player.getUniqueId()));
+
+                // Seulement demander entreprise pour NOUVELLE location, pas recharge
+                if (!isRecharge) {
+                    // Vérifier d'abord si un SIRET a déjà été sélectionné (via GUI)
+                    String cachedSiret = null;
+                    if (plugin.getEnterpriseContextManager() != null) {
+                        cachedSiret = getSelectedCompany(player.getUniqueId());
+                    }
+
+                    if (cachedSiret == null) {
+                        // Pas de cache → Première fois, ouvrir le GUI
+                        com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
+                            plugin.getEnterpriseContextManager();
+
+                        List<EntrepriseManagerLogic.Entreprise> playerCompanies;
+                        if (enterpriseContextManager != null) {
+                            playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
+                        } else {
+                            // Fallback si pas encore initialisé
+                            playerCompanies = new ArrayList<>();
+                            for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+                                String gerantUuidStr = entreprise.getGerantUUID();
+                                if (gerantUuidStr != null) {
+                                    try {
+                                        UUID gerantUuid = UUID.fromString(gerantUuidStr);
+                                        if (gerantUuid.equals(player.getUniqueId())) {
+                                            playerCompanies.add(entreprise);
+                                        }
+                                    } catch (IllegalArgumentException e) {
+                                        // UUID invalide, ignorer
+                                    }
+                                }
+                            }
+                        }
+
+                        if (playerCompanies.isEmpty()) {
+                            player.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour louer un terrain PROFESSIONNEL.");
+                            player.sendMessage(ChatColor.YELLOW + "→ Créez-en une avec /entreprise creer");
+                            return;
+                        }
+
+                        // TOUJOURS ouvrir le GUI de sélection, même avec 1 entreprise
+                        plugin.getCompanySelectionGUI().open(player, chunkX, chunkZ, worldName, false,
+                            com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.RENTAL);
+                        return; // Stopper ici, la confirmation viendra après sélection
+                    }
+                    // Sinon: cache existe, continuer normalement vers le message de confirmation
+                }
+            }
+
             // Récupérer les informations
             double rentPrice = plot.getRentPricePerDay();
             UUID currentRenter = plot.getRenterUuid();
@@ -429,9 +510,9 @@ public class TownCommandHandler implements CommandExecutor {
 
             // Message de confirmation
             player.sendMessage("");
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + (isRecharge ? "RECHARGE DE LOCATION" : "LOCATION"));
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             if (plot.isGrouped()) {
                 player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé (" + totalChunks + " chunks)");
                 player.sendMessage(ChatColor.YELLOW + "Surface totale: " + ChatColor.WHITE + surface + "m²");
@@ -457,7 +538,7 @@ public class TownCommandHandler implements CommandExecutor {
             confirmButton.setColor(net.md_5.bungee.api.ChatColor.AQUA);
             confirmButton.setBold(true);
             confirmButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/ville:confirmrent " + chunkX + " " + chunkZ + " " + worldName + " " + daysToRent));
+                "/ville confirmrent " + chunkX + " " + chunkZ + " " + worldName + " " + daysToRent));
             confirmButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder((isRecharge ? "Recharger" : "Louer") + " pour " + daysToRent + " jour\nTotal: " + String.format("%.2f€", rentPrice * daysToRent))
@@ -483,7 +564,7 @@ public class TownCommandHandler implements CommandExecutor {
             player.spigot().sendMessage(message);
 
             player.sendMessage("");
-            player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage("");
 
         } catch (NumberFormatException e) {
@@ -534,9 +615,9 @@ public class TownCommandHandler implements CommandExecutor {
 
             if (success) {
                 player.sendMessage("");
-                player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ ACHAT CONFIRMÉ");
-                player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 if (plot.isGrouped()) {
                     player.sendMessage(ChatColor.YELLOW + "Félicitations ! Vous êtes maintenant propriétaire de ce terrain.");
                     player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
@@ -546,7 +627,7 @@ public class TownCommandHandler implements CommandExecutor {
                     player.sendMessage(ChatColor.GRAY + "Position: " + ChatColor.WHITE + "X: " + (chunkX * 16) + " Z: " + (chunkZ * 16));
                 }
                 player.sendMessage(ChatColor.GRAY + "Surface: " + ChatColor.WHITE + surface + "m²");
-                player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 player.sendMessage("");
             } else {
                 player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
@@ -604,9 +685,9 @@ public class TownCommandHandler implements CommandExecutor {
             if (success) {
                 double totalPrice = rentPrice * days;
                 player.sendMessage("");
-                player.sendMessage(ChatColor.AQUA + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.AQUA + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "✓ LOCATION CONFIRMÉE");
-                player.sendMessage(ChatColor.AQUA + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.AQUA + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 if (plot.isGrouped()) {
                     player.sendMessage(ChatColor.YELLOW + "Vous louez maintenant ce terrain pour " + days + " jour(s) !");
                     player.sendMessage(ChatColor.GRAY + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
@@ -618,7 +699,7 @@ public class TownCommandHandler implements CommandExecutor {
                 player.sendMessage(ChatColor.GRAY + "Surface: " + ChatColor.WHITE + surface + "m²");
                 player.sendMessage(ChatColor.GRAY + "Coût: " + ChatColor.GOLD + String.format("%.2f€", totalPrice));
                 player.sendMessage(ChatColor.GRAY + "Jours restants: " + ChatColor.WHITE + finalDays);
-                player.sendMessage(ChatColor.AQUA + "═══════════════════════════════════════");
+                player.sendMessage(ChatColor.AQUA + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 player.sendMessage("");
             } else {
                 player.sendMessage(ChatColor.RED + "✗ Location impossible (fonds insuffisants ou erreur).");
@@ -799,14 +880,14 @@ public class TownCommandHandler implements CommandExecutor {
         townManager.saveTownsNow();
 
         player.sendMessage("");
-        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ DETTES EFFACÉES");
-        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.YELLOW + "Joueur: " + ChatColor.WHITE + targetName);
         player.sendMessage(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + townName);
         player.sendMessage(ChatColor.YELLOW + "Dettes effacées: " + ChatColor.WHITE + debtCount);
         player.sendMessage(ChatColor.YELLOW + "Montant total: " + ChatColor.GOLD + String.format("%.2f€", totalDebt));
-        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage("");
 
         // Notifier le joueur s'il est en ligne

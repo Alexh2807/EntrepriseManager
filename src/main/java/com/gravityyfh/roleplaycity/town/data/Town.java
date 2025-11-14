@@ -120,7 +120,8 @@ public class Town {
 
         TownMember member = members.get(playerUuid);
         if (member != null) {
-            member.setRole(role);
+            // FIX BASSE #6: Utiliser setRoles() au lieu de setRole() deprecated
+            member.setRoles(Set.of(role));
         }
     }
 
@@ -201,18 +202,6 @@ public class Town {
 
     public boolean hasPlot(String worldName, int chunkX, int chunkZ) {
         return getPlot(worldName, chunkX, chunkZ) != null;
-    }
-
-    public List<Plot> getPlotsByType(PlotType type) {
-        return plots.values().stream()
-            .filter(plot -> plot.getType() == type)
-            .toList();
-    }
-
-    public List<Plot> getPlotsByOwner(UUID ownerUuid) {
-        return plots.values().stream()
-            .filter(plot -> plot.isOwnedBy(ownerUuid))
-            .toList();
     }
 
     private String getPlotKey(String world, int x, int z) {
@@ -309,33 +298,9 @@ public class Town {
         return total;
     }
 
-    public double calculateHourlyTaxes() {
-        return calculateTotalTaxes() / 24.0;
-    }
+
 
     // === STATISTIQUES ===
-
-    public Map<PlotType, Long> getPlotStatistics() {
-        Map<PlotType, Long> stats = new HashMap<>();
-        for (PlotType type : PlotType.values()) {
-            long count = plots.values().stream()
-                .filter(plot -> plot.getType() == type)
-                .count();
-            stats.put(type, count);
-        }
-        return stats;
-    }
-
-    public Map<TownRole, Long> getRoleStatistics() {
-        Map<TownRole, Long> stats = new HashMap<>();
-        for (TownRole role : TownRole.values()) {
-            long count = members.values().stream()
-                .filter(member -> member.getRole() == role)
-                .count();
-            stats.put(role, count);
-        }
-        return stats;
-    }
 
     // === NOUVEAU : GESTION DES DETTES ===
 

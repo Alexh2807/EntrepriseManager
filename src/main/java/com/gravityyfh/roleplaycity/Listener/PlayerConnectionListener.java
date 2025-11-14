@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.logging.Level; // Pour un log plus précis
 
 public class PlayerConnectionListener implements Listener {
@@ -49,9 +50,17 @@ public class PlayerConnectionListener implements Listener {
         }, 20L * 5); // Délai de 5 secondes (20 ticks/seconde * 5 secondes)
     }
 
-    // Vous pourriez ajouter ici un @EventHandler pour PlayerQuitEvent si vous avez besoin de
-    // gérer des logiques spécifiques à la déconnexion (par exemple, terminer des sessions d'activité
-    // si ce n'est pas déjà géré ailleurs, ou sauvegarder des données spécifiques au joueur).
-    // Pour l'instant, la logique de fin de session d'activité semble être gérée par le activityCheckTask
-    // dans EntrepriseManagerLogic.
+    // FIX HAUTE: Nettoyer les contextes GUI orphelins lors de la déconnexion
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        java.util.UUID playerUUID = player.getUniqueId();
+
+        // Nettoyer les contextes GUI pour éviter les fuites mémoire
+        if (plugin.getEntrepriseGUI() != null) {
+            plugin.getEntrepriseGUI().cleanupPlayerContext(playerUUID);
+        }
+
+        plugin.getLogger().log(Level.FINE, "Contextes GUI nettoyés pour " + player.getName() + " après déconnexion.");
+    }
 }

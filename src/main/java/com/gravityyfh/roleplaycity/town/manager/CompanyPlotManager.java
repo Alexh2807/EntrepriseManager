@@ -9,6 +9,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -81,16 +82,31 @@ public class CompanyPlotManager {
     }
 
     /**
-     * Récupère l'entreprise du joueur (en tant que gérant)
+     * Récupère la PREMIÈRE entreprise d'un joueur (en tant que gérant)
+     *
+     * @deprecated Cette méthode retourne la PREMIÈRE entreprise du joueur de manière non-déterministe.
+     * Si le joueur possède plusieurs entreprises, le comportement est imprévisible.
+     * Utilisez {@link EnterpriseContextManager#getPlayerEnterprises(Player)} à la place,
+     * qui retourne TOUTES les entreprises et permet au joueur de choisir.
+     *
+     * Cette méthode est conservée temporairement pour compatibilité backward,
+     * mais sera supprimée dans une version future (v1.07+).
+     *
+     * @param player Le joueur
+     * @return La première entreprise trouvée, ou null si aucune
      */
+    @Deprecated
     public EntrepriseManagerLogic.Entreprise getPlayerCompany(Player player) {
+        plugin.getLogger().warning("[DEPRECATED] getPlayerCompany() appelé pour " + player.getName() +
+            ". Utilisez EnterpriseContextManager.getPlayerEnterprises() à la place.");
+
         for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
             String gerantUuidStr = entreprise.getGerantUUID();
             if (gerantUuidStr != null) {
                 try {
                     UUID gerantUuid = UUID.fromString(gerantUuidStr);
                     if (gerantUuid.equals(player.getUniqueId())) {
-                        return entreprise;
+                        return entreprise; // Retourne la PREMIÈRE trouvée (non-déterministe!)
                     }
                 } catch (IllegalArgumentException e) {
                     // UUID invalide, ignorer cette entreprise
@@ -116,22 +132,22 @@ public class CompanyPlotManager {
             return;
         }
 
-        // NOUVEAU : Supprimer TOUS les shops de cette entreprise
-        com.gravityyfh.roleplaycity.Shop.ShopManager shopManager = plugin.getShopManager();
-        if (shopManager != null) {
-            int deletedShops = shopManager.deleteAllShopsByCompany(
-                siret,
-                true, // Notifier
-                "Dissolution de l'entreprise"
-            );
-
-            if (deletedShops > 0) {
-                plugin.getLogger().info(String.format(
-                    "[CompanyPlotManager] %d boutique(s) supprimée(s) suite à dissolution entreprise SIRET %s",
-                    deletedShops, siret
-                ));
-            }
-        }
+        // TODO: Supprimer TOUS les shops de cette entreprise (à réimplémenter)
+        // com.gravityyfh.roleplaycity.Shop.ShopManager shopManager = plugin.getShopManager();
+        // if (shopManager != null) {
+        //     int deletedShops = shopManager.deleteAllShopsByCompany(
+        //         siret,
+        //         true, // Notifier
+        //         "Dissolution de l'entreprise"
+        //     );
+        //
+        //     if (deletedShops > 0) {
+        //         plugin.getLogger().info(String.format(
+        //             "[CompanyPlotManager] %d boutique(s) supprimée(s) suite à dissolution entreprise SIRET %s",
+        //             deletedShops, siret
+        //         ));
+        //     }
+        // }
 
         Town town = townManager.getTown(townName);
         if (town == null) {
@@ -207,7 +223,8 @@ public class CompanyPlotManager {
         // Vérifier si le délai de 7 jours est dépassé
         LocalDateTime warningDate = plot.getLastDebtWarningDate();
         LocalDateTime now = LocalDateTime.now();
-        long daysPassed = java.time.Duration.between(warningDate, now).toDays();
+        // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+        long daysPassed = ChronoUnit.DAYS.between(warningDate.toLocalDate(), now.toLocalDate());
 
         if (daysPassed >= DEBT_GRACE_PERIOD_DAYS) {
             // Délai dépassé - saisie automatique

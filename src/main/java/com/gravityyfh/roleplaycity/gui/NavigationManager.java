@@ -149,8 +149,8 @@ public class NavigationManager {
         NavigationLevel level = new NavigationLevel(name, displayName, inventory, type);
         stack.push(level);
 
-        // Ajouter le fil d'Ariane en bas de l'inventaire
-        addBreadcrumbToInventory(inventory, stack.getBreadcrumb());
+        // TEMP FIX: Désactiver le fil d'Ariane pour éviter l'erreur "Invalid inventory size"
+        // addBreadcrumbToInventory(inventory, stack.getBreadcrumb());
 
         player.openInventory(inventory);
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.0f);

@@ -233,10 +233,17 @@ public class ClaimManager {
         double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
         double refund = claimCost * (refundPercentage / 100.0);
 
-        // NOUVEAU : Supprimer la mailbox de ce terrain avant de l'unclaim
-        if (plugin.getMailboxManager() != null) {
-            plugin.getMailboxManager().removeMailboxByChunk(coord.getWorldName(), coord.getX(), coord.getZ());
+        // Nettoyer la mailbox si nécessaire avant de supprimer le plot
+        if (plot.hasMailbox() && plugin.getMailboxManager() != null) {
+            plugin.getMailboxManager().removeMailbox(plot);
         }
+
+        // Fire event AVANT de supprimer la parcelle
+        com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent event =
+            new com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent(
+                townName, plot, coord.getWorldName(), coord.getX(), coord.getZ()
+            );
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
 
         // Supprimer la parcelle
         town.removePlot(coord.getWorldName(), coord.getX(), coord.getZ());

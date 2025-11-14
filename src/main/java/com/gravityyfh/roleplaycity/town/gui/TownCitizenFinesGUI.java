@@ -129,6 +129,11 @@ public class TownCitizenFinesGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Fermer")) {

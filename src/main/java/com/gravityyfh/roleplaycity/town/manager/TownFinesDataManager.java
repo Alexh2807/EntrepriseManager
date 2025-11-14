@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.logging.Level;
 
 /**
  * Gestionnaire de sauvegarde/chargement des amendes
@@ -120,8 +121,8 @@ public class TownFinesDataManager {
                         fines.add(fine);
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().severe("Erreur lors du chargement d'une amende: " + e.getMessage());
-                    e.printStackTrace();
+                    // FIX BASSE: Utiliser logging avec exception complète
+                    plugin.getLogger().log(Level.SEVERE, "Erreur lors du chargement d'une amende", e);
                 }
             }
 

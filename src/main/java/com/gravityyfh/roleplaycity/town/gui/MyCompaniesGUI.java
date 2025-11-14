@@ -19,6 +19,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,7 +55,7 @@ public class MyCompaniesGUI implements Listener {
         int rows = Math.min(6, Math.max(3, (companies.size() + 9) / 9));
         int invSize = rows * 9;
 
-        Inventory inv = Bukkit.createInventory(null, invSize, ChatColor.GOLD + "💼 Mes Entreprises");
+        Inventory inv = Bukkit.createInventory(null, invSize, "Mes Entreprises");
 
         int slot = 0;
 
@@ -124,7 +125,8 @@ public class MyCompaniesGUI implements Listener {
                     // Calculer jours restants avant saisie
                     if (plot.getLastDebtWarningDate() != null) {
                         LocalDateTime warningDate = plot.getLastDebtWarningDate();
-                        long daysPassed = Duration.between(warningDate, LocalDateTime.now()).toDays();
+                        // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+                        long daysPassed = ChronoUnit.DAYS.between(warningDate.toLocalDate(), LocalDateTime.now().toLocalDate());
                         int daysRemaining = (int) (7 - daysPassed);
                         if (daysRemaining < minDaysUntilSeizure) {
                             minDaysUntilSeizure = daysRemaining;
@@ -176,12 +178,15 @@ public class MyCompaniesGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!event.getView().getTitle().equals(ChatColor.GOLD + "💼 Mes Entreprises")) return;
+        if (!event.getView().getTitle().equals("Mes Entreprises")) return;
 
         event.setCancelled(true);
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) return;
 
         // Bouton "Retour"
         if (clicked.getType() == Material.ARROW) {
@@ -259,9 +264,9 @@ public class MyCompaniesGUI implements Listener {
 
         player.closeInventory();
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GOLD + "  Terrains de " + ChatColor.WHITE + company.getNom());
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
 
         if (individualPlots.isEmpty() && groupedPlots.isEmpty()) {
             player.sendMessage(ChatColor.GRAY + "Cette entreprise ne possède aucun terrain PRO.");
@@ -285,7 +290,8 @@ public class MyCompaniesGUI implements Listener {
                         player.sendMessage(ChatColor.GRAY + "  • Dette: " + ChatColor.RED +
                             String.format("%.2f€", plot.getCompanyDebtAmount()));
                         if (plot.getLastDebtWarningDate() != null) {
-                            long daysPassed = Duration.between(plot.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                            // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+                            long daysPassed = ChronoUnit.DAYS.between(plot.getLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
                             int daysRemaining = (int) (7 - daysPassed);
                             player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + daysRemaining + " jours");
                         }
@@ -312,7 +318,8 @@ public class MyCompaniesGUI implements Listener {
                         player.sendMessage(ChatColor.GRAY + "  • Dette: " + ChatColor.RED +
                             String.format("%.2f€", plot.getCompanyDebtAmount()));
                         if (plot.getLastDebtWarningDate() != null) {
-                            long daysPassed = Duration.between(plot.getLastDebtWarningDate(), LocalDateTime.now()).toDays();
+                            // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
+                            long daysPassed = ChronoUnit.DAYS.between(plot.getLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
                             int daysRemaining = (int) (7 - daysPassed);
                             player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + daysRemaining + " jours");
                         }
@@ -322,7 +329,7 @@ public class MyCompaniesGUI implements Listener {
         }
 
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GRAY + "Tapez " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " pour revenir au menu");
         player.sendMessage("");
     }

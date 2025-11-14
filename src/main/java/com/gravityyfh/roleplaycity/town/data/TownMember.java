@@ -49,9 +49,11 @@ public class TownMember {
     }
 
     /**
-     * @deprecated Utilisez getRoles() pour obtenir tous les rôles
+     * FIX BASSE #5: Méthode utilitaire conservée (non-deprecated)
+     * Retourne le rôle principal (celui avec le plus haut pouvoir)
+     *
+     * @return Le rôle avec le plus haut niveau de pouvoir, ou CITOYEN par défaut
      */
-    @Deprecated
     public TownRole getRole() {
         // Retourne le rôle avec le plus haut pouvoir pour compatibilité
         return roles.stream()
@@ -64,14 +66,10 @@ public class TownMember {
     }
 
     public void addRole(TownRole role) {
-        // MAIRE est exclusif - si on ajoute MAIRE, on garde uniquement MAIRE
-        if (role == TownRole.MAIRE) {
-            roles.clear();
-            roles.add(TownRole.MAIRE);
-        } else if (!roles.contains(TownRole.MAIRE)) {
-            // Ne peut pas ajouter d'autres rôles si la personne est MAIRE
-            roles.add(role);
-        }
+        // SYSTÈME UN SEUL RÔLE : Remplacer le rôle actuel par le nouveau
+        // Chaque membre ne peut avoir qu'un seul rôle à la fois
+        roles.clear();
+        roles.add(role);
     }
 
     public void removeRole(TownRole role) {
@@ -82,14 +80,7 @@ public class TownMember {
         }
     }
 
-    /**
-     * @deprecated Utilisez addRole() ou removeRole()
-     */
-    @Deprecated
-    public void setRole(TownRole role) {
-        roles.clear();
-        roles.add(role);
-    }
+    // FIX BASSE #6: Méthode setRole() deprecated supprimée - utiliser setRoles(), addRole() ou removeRole()
 
     public void setRoles(Set<TownRole> newRoles) {
         roles.clear();

@@ -49,40 +49,47 @@ public class TownProtectionListener implements Listener {
             return;
         }
 
+        // FIX BASSE #14: Simplification avec early returns
         // Gestion RenterBlockTracker
         String townName = claimManager.getClaimOwner(location);
-        if (townName != null) {
-            Town town = townManager.getTown(townName);
-            if (town != null) {
-                Plot plot = claimManager.getPlotAt(location);
-                if (plot != null) {
-                    UUID playerUuid = player.getUniqueId();
-                    UUID renterUuid = plot.getRenterUuid();
+        if (townName == null) {
+            return;
+        }
 
-                    // CAS 1 : Joueur est locataire - peut seulement casser SES blocs
-                    if (plot.isRentedBy(playerUuid)) {
-                        if (!plot.getRenterBlockTracker().canRenterBreak(playerUuid, location)) {
-                            event.setCancelled(true);
-                            player.sendMessage(ChatColor.RED + "Vous ne pouvez pas casser les blocs existants de cette location.");
-                            player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement casser les blocs que vous avez placés.");
-                            return;
-                        }
-                        // Retirer le bloc du tracker après cassage
-                        plot.getRenterBlockTracker().removeBlock(playerUuid, location);
-                        townManager.saveTownsNow();
-                        return;
-                    }
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            return;
+        }
 
-                    // CAS 2 : Terrain loué à quelqu'un d'autre - propriétaire ne peut pas casser blocs locataire
-                    if (renterUuid != null && !plot.isRentedBy(playerUuid)) {
-                        if (plot.getRenterBlockTracker().canRenterBreak(renterUuid, location)) {
-                            event.setCancelled(true);
-                            player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
-                            player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
-                            return;
-                        }
-                    }
-                }
+        Plot plot = claimManager.getPlotAt(location);
+        if (plot == null) {
+            return;
+        }
+
+        UUID playerUuid = player.getUniqueId();
+        UUID renterUuid = plot.getRenterUuid();
+
+        // CAS 1 : Joueur est locataire - peut seulement casser SES blocs
+        if (plot.isRentedBy(playerUuid)) {
+            if (!plot.getRenterBlockTracker().canRenterBreak(playerUuid, location)) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "Vous ne pouvez pas casser les blocs existants de cette location.");
+                player.sendMessage(ChatColor.GRAY + "Vous pouvez seulement casser les blocs que vous avez placés.");
+                return;
+            }
+            // Retirer le bloc du tracker après cassage
+            plot.getRenterBlockTracker().removeBlock(playerUuid, location);
+            townManager.saveTownsNow();
+            return;
+        }
+
+        // CAS 2 : Terrain loué à quelqu'un d'autre - propriétaire ne peut pas casser blocs locataire
+        if (renterUuid != null && !plot.isRentedBy(playerUuid)) {
+            if (plot.getRenterBlockTracker().canRenterBreak(renterUuid, location)) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
+                player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
+                return;
             }
         }
     }

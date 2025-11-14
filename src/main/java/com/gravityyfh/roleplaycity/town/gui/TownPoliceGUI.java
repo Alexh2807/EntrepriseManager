@@ -80,7 +80,7 @@ public class TownPoliceGUI implements Listener {
         statsItem.setItemMeta(statsMeta);
         inv.setItem(4, statsItem);
 
-        // Émettre une amende
+        // Émettre une amende (slot 10)
         ItemStack issueFineItem = new ItemStack(Material.PAPER);
         ItemMeta issueFineMeta = issueFineItem.getItemMeta();
         issueFineMeta.setDisplayName(ChatColor.RED + "Émettre une Amende");
@@ -91,9 +91,9 @@ public class TownPoliceGUI implements Listener {
         issueFineLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
         issueFineMeta.setLore(issueFineLore);
         issueFineItem.setItemMeta(issueFineMeta);
-        inv.setItem(11, issueFineItem);
+        inv.setItem(10, issueFineItem);
 
-        // Voir les amendes actives
+        // Amendes en attente (slot 12)
         ItemStack activeFinesItem = new ItemStack(Material.REDSTONE);
         ItemMeta activeFinesMeta = activeFinesItem.getItemMeta();
         activeFinesMeta.setDisplayName(ChatColor.YELLOW + "Amendes en Attente");
@@ -105,9 +105,9 @@ public class TownPoliceGUI implements Listener {
         activeFinesLore.add(ChatColor.YELLOW + "Cliquez pour voir");
         activeFinesMeta.setLore(activeFinesLore);
         activeFinesItem.setItemMeta(activeFinesMeta);
-        inv.setItem(13, activeFinesItem);
+        inv.setItem(12, activeFinesItem);
 
-        // Amendes contestées
+        // Amendes contestées (slot 14)
         ItemStack contestedItem = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta contestedMeta = contestedItem.getItemMeta();
         contestedMeta.setDisplayName(ChatColor.GOLD + "Amendes Contestées");
@@ -119,7 +119,39 @@ public class TownPoliceGUI implements Listener {
         contestedLore.add(ChatColor.YELLOW + "Cliquez pour voir");
         contestedMeta.setLore(contestedLore);
         contestedItem.setItemMeta(contestedMeta);
-        inv.setItem(15, contestedItem);
+        inv.setItem(14, contestedItem);
+
+        // Emprisonner un joueur (slot 19 - système de prison)
+        if (plugin.getPrisonManager() != null) {
+            ItemStack imprisonItem = new ItemStack(Material.IRON_BARS);
+            ItemMeta imprisonMeta = imprisonItem.getItemMeta();
+            imprisonMeta.setDisplayName(ChatColor.DARK_RED + "⛓️ Emprisonner");
+            List<String> imprisonLore = new ArrayList<>();
+            imprisonLore.add(ChatColor.GRAY + "Emprisonner un joueur");
+            imprisonLore.add(ChatColor.GRAY + "menotté sur un COMMISSARIAT");
+            imprisonLore.add("");
+            imprisonLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
+            imprisonMeta.setLore(imprisonLore);
+            imprisonItem.setItemMeta(imprisonMeta);
+            inv.setItem(19, imprisonItem);
+        }
+
+        // Gérer les prisonniers (slot 21)
+        if (plugin.getPrisonManager() != null) {
+            int prisonersCount = plugin.getPrisonManager().getImprisonedData().getImprisonedCount();
+            ItemStack managePrisonersItem = new ItemStack(Material.IRON_DOOR);
+            ItemMeta managePrisonersMeta = managePrisonersItem.getItemMeta();
+            managePrisonersMeta.setDisplayName(ChatColor.DARK_RED + "🔒 Gérer les Prisonniers");
+            List<String> managePrisonersLore = new ArrayList<>();
+            managePrisonersLore.add(ChatColor.GRAY + "Voir tous les prisonniers");
+            managePrisonersLore.add(ChatColor.GRAY + "de votre ville");
+            managePrisonersLore.add("");
+            managePrisonersLore.add(ChatColor.WHITE + "Prisonniers: " + prisonersCount);
+            managePrisonersLore.add(ChatColor.YELLOW + "Cliquez pour voir");
+            managePrisonersMeta.setLore(managePrisonersLore);
+            managePrisonersItem.setItemMeta(managePrisonersMeta);
+            inv.setItem(21, managePrisonersItem);
+        }
 
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
@@ -235,6 +267,11 @@ public class TownPoliceGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         // Menu principal de la police
         if (title.equals(POLICE_TITLE)) {
             event.setCancelled(true);
@@ -244,6 +281,16 @@ public class TownPoliceGUI implements Listener {
                 // Initialiser le contexte et ouvrir la phase 1
                 pendingFines.put(player.getUniqueId(), new FineContext());
                 openPlayerSelectionMenu(player);
+            } else if (displayName.contains("Emprisonner")) {
+                // Ouvrir le workflow d'emprisonnement
+                if (plugin.getImprisonmentWorkflowGUI() != null) {
+                    plugin.getImprisonmentWorkflowGUI().openPrisonerSelectionMenu(player);
+                }
+            } else if (displayName.contains("Gérer les Prisonniers")) {
+                // Ouvrir le menu de gestion des prisonniers
+                if (plugin.getTownPrisonManagementGUI() != null) {
+                    plugin.getTownPrisonManagementGUI().openPrisonManagementMenu(player);
+                }
             } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
             }

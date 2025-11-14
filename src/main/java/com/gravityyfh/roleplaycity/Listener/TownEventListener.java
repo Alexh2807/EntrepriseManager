@@ -41,8 +41,12 @@ public class TownEventListener implements Listener {
         plugin.getLogger().log(Level.INFO, "La ville '" + deletedTownName + "' est en cours de suppression. Nettoyage des entreprises et boutiques associées...");
 
         // 1. Supprimer toutes les boutiques de la ville
+        int shopsSupprimees = 0;
         if (plugin.getShopManager() != null) {
-            plugin.getShopManager().deleteShopsInTown(deletedTownName);
+            shopsSupprimees = plugin.getShopManager().deleteShopsInTown(
+                deletedTownName,
+                "Ville '" + deletedTownName + "' supprimée"
+            );
         }
 
         // 2. Supprimer toutes les entreprises de la ville
@@ -53,6 +57,10 @@ public class TownEventListener implements Listener {
                 entrepriseLogic.handleEntrepriseRemoval(entreprise, "La ville '" + deletedTownName + "' a été supprimée.");
                 entreprisesSupprimees++;
             }
+        }
+
+        if (shopsSupprimees > 0) {
+            plugin.getLogger().log(Level.INFO, shopsSupprimees + " boutique(s) supprimée(s) suite à la suppression de la ville '" + deletedTownName + "'.");
         }
 
         if (entreprisesSupprimees > 0) {

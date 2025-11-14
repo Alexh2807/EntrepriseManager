@@ -32,6 +32,10 @@ public class PlayerCVGUI implements Listener {
     private final EntrepriseManagerLogic entrepriseLogic; // Référence nécessaire pour récupérer l'historique/entreprise actuelle
     private final CVManager cvManager;                 // Référence nécessaire pour initier les partages de CV
 
+    // FIX MOYENNE: Protection contre le double-click pour éviter exploits
+    private final java.util.Map<UUID, Long> clickTimestamps = new java.util.HashMap<>();
+    private static final long CLICK_DELAY_MS = 500;
+
     // Titres de menu
     private static final String TITLE_CV_VIEW_PREFIX = ChatColor.DARK_AQUA + "CV de ";
     private static final String TITLE_CV_MAIN_MENU = ChatColor.DARK_GREEN + "Gestion de CV";
@@ -151,6 +155,17 @@ public class PlayerCVGUI implements Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
         String topInventoryTitle = event.getView().getTitle(); // Titre de l'inventaire supérieur (celui du GUI)
+
+        // FIX MOYENNE: Vérifier que c'est bien un menu CV avant de vérifier le délai
+        if (isPluginCVMenu(topInventoryTitle)) {
+            // FIX MOYENNE: Vérifier le délai entre clics pour éviter exploits
+            long currentTime = System.currentTimeMillis();
+            if (clickTimestamps.getOrDefault(player.getUniqueId(), 0L) + CLICK_DELAY_MS > currentTime) {
+                event.setCancelled(true);
+                return;
+            }
+            clickTimestamps.put(player.getUniqueId(), currentTime);
+        }
 
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || !clickedItem.hasItemMeta() || clickedItem.getItemMeta().getDisplayName() == null) {

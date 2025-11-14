@@ -144,9 +144,9 @@ public class TownLevelManager {
 
         // Message de succès
         mayor.sendMessage("");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🎉 VILLE AMÉLIORÉE !");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.YELLOW + "Votre ville est passée de " + previousLevel.getDisplayName() +
             ChatColor.YELLOW + " à " + nextLevel.getDisplayName() + ChatColor.YELLOW + " !");
@@ -157,7 +157,7 @@ public class TownLevelManager {
         mayor.sendMessage(ChatColor.GRAY + "  • Juges : " + ChatColor.WHITE + nextConfig.getMaxJuges());
         mayor.sendMessage(ChatColor.GRAY + "  • Médecins : " + ChatColor.WHITE + nextConfig.getMaxMedecins());
         mayor.sendMessage("");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
 
         // Notification au maire (les membres verront le changement dans le menu)

@@ -24,6 +24,8 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -34,13 +36,23 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseManagerLogic {
+    // FIX CRITIQUE: Retirer 'static' pour éviter race conditions et problèmes de synchronisation
+    // Le plugin reste statique pour être accessible aux classes internes
     public static RoleplayCity plugin;
-    private static Map<String, Entreprise> entreprises;
-    private static File entrepriseFile;
+    private Map<String, Entreprise> entreprises;
+    // FIX PERFORMANCE HAUTE: Index SIRET pour recherche O(1) au lieu de O(n)
+    private Map<String, Entreprise> entreprisesBySiret;
+    private File entrepriseFile;
 
     private BukkitTask activityCheckTask;
+    private BukkitTask inactivityKickTask; // FIX MOYENNE: Task pour vérifier les employés inactifs
     private LocalDateTime nextPaymentTime; // <-- CHAMP À AJOUTER
     private static final long INACTIVITY_THRESHOLD_SECONDS = 15;
+
+    // FIX MOYENNE: Constantes pour auto-kick des employés inactifs
+    private static final int INACTIVITY_WARNING_DAYS = 30; // Avertissement après 30 jours
+    private static final int INACTIVITY_KICK_DAYS = 45; // Licenciement après 45 jours
+    private static final long INACTIVITY_CHECK_INTERVAL_TICKS = 20L * 60L * 60L * 24L; // 1 fois par jour
 
     // --- Historique ---
     private static File playerHistoryFile;
@@ -55,8 +67,71 @@ public class EntrepriseManagerLogic {
     private final Map<String, String> invitations = new ConcurrentHashMap<>();
     private final Map<UUID, DemandeCreation> demandesEnAttente = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, ActionInfo>> joueurActivitesRestrictions = new ConcurrentHashMap<>();
+
+    // FIX HAUTE: Système de confirmation pour suppression d'entreprise
+    // Map: UUID joueur -> Nom entreprise à supprimer
+    private final Map<UUID, String> suppressionsEnAttente = new ConcurrentHashMap<>();
+
+    // FIX MOYENNE: Système de confirmation pour retrait d'argent
+    // Map: UUID joueur -> Pair<Nom entreprise, Montant>
+    private static class WithdrawalRequest {
+        final String entrepriseName;
+        final double amount;
+        final long timestamp;
+        WithdrawalRequest(String entrepriseName, double amount) {
+            this.entrepriseName = entrepriseName;
+            this.amount = amount;
+            this.timestamp = System.currentTimeMillis();
+        }
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CONFIRMATION_TIMEOUT_MS;
+        }
+    }
+    private final Map<UUID, WithdrawalRequest> retraitsEnAttente = new ConcurrentHashMap<>();
+
+    // FIX MOYENNE: Système de confirmation pour licenciement employé
+    // Map: UUID gérant -> Pair<Nom entreprise, Nom employé>
+    private static class KickRequest {
+        final String entrepriseName;
+        final String employeeName;
+        final long timestamp;
+        KickRequest(String entrepriseName, String employeeName) {
+            this.entrepriseName = entrepriseName;
+            this.employeeName = employeeName;
+            this.timestamp = System.currentTimeMillis();
+        }
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CONFIRMATION_TIMEOUT_MS;
+        }
+    }
+    private final Map<UUID, KickRequest> kicksEnAttente = new ConcurrentHashMap<>();
+
+    // FIX PERFORMANCE HAUTE: Cache des restrictions pour éviter O(n) à chaque action
+    // Structure: "ACTION_TYPE:MATERIAL" -> List<RestrictionInfo>
+    private final Map<String, List<RestrictionInfo>> restrictionsCache = new ConcurrentHashMap<>();
+    // FIX MOYENNE: Ajouter un TTL (Time To Live) au cache des restrictions
+    private long restrictionsCacheLoadTime = 0;
+    private static final long RESTRICTIONS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
     private BukkitTask hourlyTask;
     private static final long ACTIVITY_CHECK_INTERVAL_TICKS = 20L * 10L;
+
+    // FIX MOYENNE: Constantes pour les timeouts de confirmation (magic numbers)
+    private static final long CONFIRMATION_TIMEOUT_MS = 30000; // 30 secondes
+    private static final long CONFIRMATION_TIMEOUT_TICKS = 600L; // 30 secondes (20 ticks/sec * 30)
+
+    // Classe pour stocker les infos de restriction (pour le cache)
+    private static class RestrictionInfo {
+        final String entrepriseType;
+        final int limiteNonMembre;
+        final List<String> messagesErreur;
+
+        RestrictionInfo(String entrepriseType, int limiteNonMembre, List<String> messagesErreur) {
+            this.entrepriseType = entrepriseType;
+            this.limiteNonMembre = limiteNonMembre;
+            this.messagesErreur = messagesErreur;
+        }
+    }
 
 
     // --- Enumérations et Classes Internes ---
@@ -134,7 +209,19 @@ public class EntrepriseManagerLogic {
         public EmployeeActivityRecord(UUID employeeId, String employeeName) { this.employeeId = employeeId; this.employeeName = employeeName; this.currentSessionStartTime = null; this.lastActivityTime = null; this.actionsPerformedCount = new ConcurrentHashMap<>(); this.totalValueGenerated = 0; this.joinDate = LocalDateTime.now(); this.detailedProductionLog = Collections.synchronizedList(new ArrayList<>()); }
         public void startSession() { if (currentSessionStartTime == null) { currentSessionStartTime = LocalDateTime.now(); lastActivityTime = LocalDateTime.now(); if (plugin != null && Bukkit.getPlayer(employeeId) != null) plugin.getLogger().fine("Session démarrée pour " + employeeName); } }
         public void endSession() { if (currentSessionStartTime != null) { if (plugin != null && Bukkit.getPlayer(employeeId) != null) plugin.getLogger().fine("Session terminée pour " + employeeName + ". Durée: " + (lastActivityTime != null ? Duration.between(currentSessionStartTime, lastActivityTime).toMinutes() + "min" : "N/A")); currentSessionStartTime = null; } }
-        public void recordAction(String genericActionKey, double value, int quantity, DetailedActionType detailedActionType, Material material) { this.actionsPerformedCount.merge(genericActionKey, (long) quantity, Long::sum); this.totalValueGenerated += value; this.lastActivityTime = LocalDateTime.now(); synchronized(detailedProductionLog) { this.detailedProductionLog.add(new DetailedProductionRecord(detailedActionType, material, quantity)); } if (this.currentSessionStartTime == null) { startSession(); } }
+        public void recordAction(String genericActionKey, double value, int quantity, DetailedActionType detailedActionType, Material material) {
+            this.actionsPerformedCount.merge(genericActionKey, (long) quantity, Long::sum);
+            this.totalValueGenerated += value;
+            this.lastActivityTime = LocalDateTime.now();
+            synchronized(detailedProductionLog) {
+                this.detailedProductionLog.add(new DetailedProductionRecord(detailedActionType, material, quantity));
+                // FIX CRITIQUE: Rotation des logs détaillés par employé (évite millions d'enregistrements)
+                int maxLogSize = plugin.getConfig().getInt("entreprise.max-detailed-production-log-size", 1000);
+                if(detailedProductionLog.size() > maxLogSize)
+                    detailedProductionLog.subList(0, detailedProductionLog.size() - maxLogSize).clear();
+            }
+            if (this.currentSessionStartTime == null) { startSession(); }
+        }
         public Map<Material, Integer> getDetailedStatsForPeriod(DetailedActionType filterActionType, LocalDateTime start, LocalDateTime end, Set<Material> relevantMaterials) { Map<Material, Integer> stats = new HashMap<>(); synchronized(detailedProductionLog){ for (DetailedProductionRecord record : detailedProductionLog) { if ((filterActionType == null || record.actionType == filterActionType) && (relevantMaterials == null || relevantMaterials.contains(record.material)) && !record.timestamp.isBefore(start) && record.timestamp.isBefore(end)) { stats.merge(record.material, record.quantity, Integer::sum); } } } return stats; }
         public boolean isActive() { Player player = Bukkit.getPlayer(employeeId); return currentSessionStartTime != null && player != null && player.isOnline(); }
         public String getFormattedSeniority() { if (joinDate == null) return "N/A"; Duration seniority = Duration.between(joinDate, LocalDateTime.now()); long days = seniority.toDays(); long hours = seniority.toHours() % 24; long minutes = seniority.toMinutes() % 60; if (days > 365) return String.format("%d an(s)", days / 365); if (days > 30) return String.format("%d mois", days / 30); if (days > 0) return String.format("%d j, %dh", days, hours); if (hours > 0) return String.format("%dh, %dmin", hours, minutes); return String.format("%d min", Math.max(0, minutes)); }
@@ -149,6 +236,7 @@ public class EntrepriseManagerLogic {
     public EntrepriseManagerLogic(RoleplayCity plugin) {
         EntrepriseManagerLogic.plugin = plugin;
         entreprises = new ConcurrentHashMap<>();
+        entreprisesBySiret = new ConcurrentHashMap<>();
         entrepriseFile = new File(plugin.getDataFolder(), "entreprise.yml");
         // --- Suppression de l'initialisation de playerPlacedBlocksFile et playerPlacedBlocksLocations ---
 
@@ -159,18 +247,25 @@ public class EntrepriseManagerLogic {
         loadPlayerHistory();
         planifierTachesHoraires();
         planifierVerificationActiviteEmployes();
+        planifierVerificationInactiviteEmployes(); // FIX MOYENNE: Vérifier employés inactifs longue durée
     }
 
     public Entreprise getEntrepriseBySiret(String siret) {
         if (siret == null || siret.isEmpty()) {
             return null;
         }
-        for (Entreprise entreprise : entreprises.values()) {
-            if (siret.equals(entreprise.getSiret())) {
-                return entreprise;
-            }
+        // FIX PERFORMANCE HAUTE: Recherche O(1) avec l'index au lieu de O(n) itération
+        Entreprise result = entreprisesBySiret.get(siret);
+
+        // DEBUG: Log pour tracer les recherches de SIRET
+        if (result == null) {
+            plugin.getLogger().warning("[DEBUG] SIRET introuvable: " + siret);
+            plugin.getLogger().warning("[DEBUG] SIRET disponibles dans l'index: " + entreprisesBySiret.keySet());
+        } else {
+            plugin.getLogger().info("[DEBUG] SIRET trouvé: " + siret + " -> " + result.getNom());
         }
-        return null;
+
+        return result;
     }
     public int countTotalPlayerInvolvements(String playerName) {
         if (playerName == null) return 0;
@@ -232,6 +327,95 @@ public class EntrepriseManagerLogic {
                 }
             }
         }.runTaskTimerAsynchronously(plugin, ACTIVITY_CHECK_INTERVAL_TICKS, ACTIVITY_CHECK_INTERVAL_TICKS);
+    }
+
+    /**
+     * FIX MOYENNE: Vérification quotidienne des employés inactifs depuis longtemps
+     * - Avertissement après 30 jours d'inactivité
+     * - Licenciement automatique après 45 jours d'inactivité
+     */
+    private void planifierVerificationInactiviteEmployes() {
+        if (inactivityKickTask != null && !inactivityKickTask.isCancelled()) inactivityKickTask.cancel();
+
+        inactivityKickTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                LocalDateTime now = LocalDateTime.now();
+                int totalWarnings = 0;
+                int totalKicks = 0;
+
+                for (Entreprise entreprise : entreprises.values()) {
+                    List<UUID> employesToKick = new ArrayList<>();
+
+                    for (EmployeeActivityRecord record : entreprise.getEmployeeActivityRecords().values()) {
+                        // Ignorer le gérant
+                        if (record.employeeId.equals(UUID.fromString(entreprise.getGerantUUID()))) {
+                            continue;
+                        }
+
+                        // Déterminer la date de dernière activité
+                        LocalDateTime lastActivity = record.lastActivityTime != null ? record.lastActivityTime : record.joinDate;
+                        if (lastActivity == null) {
+                            continue; // Pas de données, on ignore
+                        }
+
+                        long daysSinceLastActivity = Duration.between(lastActivity, now).toDays();
+
+                        // Licenciement après 45 jours
+                        if (daysSinceLastActivity >= INACTIVITY_KICK_DAYS) {
+                            employesToKick.add(record.employeeId);
+                            totalKicks++;
+
+                            // Message différé au gérant
+                            String messageGerant = ChatColor.YELLOW + "L'employé " + record.employeeName +
+                                " a été automatiquement licencié pour inactivité (" + daysSinceLastActivity + " jours sans activité).";
+                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom(), 0);
+
+                            plugin.getLogger().info("[Inactivité] " + record.employeeName + " licencié de '" +
+                                entreprise.getNom() + "' après " + daysSinceLastActivity + " jours d'inactivité");
+                        }
+                        // Avertissement après 30 jours
+                        else if (daysSinceLastActivity >= INACTIVITY_WARNING_DAYS) {
+                            totalWarnings++;
+
+                            // Message différé à l'employé
+                            String messageEmploye = ChatColor.GOLD + "⚠ Vous êtes inactif depuis " + daysSinceLastActivity +
+                                " jours dans l'entreprise '" + entreprise.getNom() + "'. " +
+                                ChatColor.YELLOW + "Vous serez licencié automatiquement après " + INACTIVITY_KICK_DAYS +
+                                " jours d'inactivité.";
+                            ajouterMessageEmployeDifferre(record.employeeId.toString(), messageEmploye, entreprise.getNom(), 0);
+
+                            // Message au gérant
+                            String messageGerant = ChatColor.YELLOW + "Votre employé " + record.employeeName +
+                                " est inactif depuis " + daysSinceLastActivity + " jours.";
+                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom(), 0);
+                        }
+                    }
+
+                    // Exécuter les licenciements dans le thread principal
+                    if (!employesToKick.isEmpty()) {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            for (UUID employeeId : employesToKick) {
+                                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(employeeId);
+                                String employeeName = offlinePlayer.getName();
+                                if (employeeName != null && entreprise.getEmployesInternal().remove(employeeName)) {
+                                    recordPlayerHistoryEntry(employeeId, entreprise, "Employé", LocalDateTime.now());
+                                    entreprise.retirerPrimeEmploye(employeeId.toString());
+                                    EmployeeActivityRecord record = entreprise.getEmployeeActivityRecord(employeeId);
+                                    if (record != null) record.endSession();
+                                }
+                            }
+                            saveEntreprises();
+                        });
+                    }
+                }
+
+                if (totalWarnings > 0 || totalKicks > 0) {
+                    plugin.getLogger().info("[Inactivité] Vérification terminée: " + totalWarnings +
+                        " avertissement(s), " + totalKicks + " licenciement(s)");
+                }
+            }
+        }.runTaskTimerAsynchronously(plugin, INACTIVITY_CHECK_INTERVAL_TICKS, INACTIVITY_CHECK_INTERVAL_TICKS);
     }
 
     // --- NOUVELLE MÉTHODE ---
@@ -469,6 +653,69 @@ public class EntrepriseManagerLogic {
                 (materialEquivalentPourLogDetaille != null ? ", log détaillé comme " + materialEquivalentPourLogDetaille.name() : ", pas de log détaillé matériel") );
     }
 
+    /**
+     * Enregistre l'activité productive pour le craft d'un backpack.
+     * Cette méthode est appelée APRÈS que la vérification des restrictions a été faite.
+     *
+     * @param player Le joueur qui a crafté le backpack
+     * @param backpackType Le type de backpack (sacoche, valisette, sac_course, etc.)
+     */
+    public void enregistrerCraftBackpack(Player player, String backpackType) {
+        if (player == null || backpackType == null) {
+            plugin.getLogger().warning("enregistrerCraftBackpack appelé avec des paramètres nuls");
+            return;
+        }
+
+        Entreprise entreprise = getEntrepriseDuJoueur(player);
+        if (entreprise == null) {
+            return; // Pas d'entreprise, pas d'enregistrement
+        }
+
+        // Récupérer la valeur du backpack depuis la config
+        String typeEntreprise = entreprise.getType();
+        String configPath = "types-entreprise." + typeEntreprise + ".activites-payantes.CRAFT_BACKPACK." + backpackType;
+        double valeurBackpack = plugin.getConfig().getDouble(configPath, 0.0);
+
+        if (valeurBackpack > 0) {
+            // Enregistrer l'activité dans le record de l'employé
+            EmployeeActivityRecord activityRecord = entreprise.getOrCreateEmployeeActivityRecord(
+                player.getUniqueId(),
+                player.getName()
+            );
+
+            String actionKey = "CRAFT_BACKPACK:" + backpackType;
+
+            // Utiliser LEATHER comme Material de référence pour les backpacks dans les logs
+            Material backpackMaterial = Material.LEATHER;
+
+            // Enregistrer l'action détaillée
+            activityRecord.recordAction(
+                actionKey,
+                valeurBackpack,
+                1,
+                DetailedActionType.ITEM_CRAFTED,
+                backpackMaterial
+            );
+
+            // Ajouter au chiffre d'affaires productif horaire
+            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurBackpack, Double::sum);
+
+            // Ajouter au log global de production de l'entreprise
+            entreprise.addGlobalProductionRecord(
+                LocalDateTime.now(),
+                backpackMaterial,
+                1,
+                player.getUniqueId().toString(),
+                DetailedActionType.ITEM_CRAFTED
+            );
+
+            plugin.getLogger().fine("Craft de backpack '" + backpackType + "' enregistré pour " + player.getName() +
+                    " (Entreprise: " + entreprise.getNom() + ", Type: " + typeEntreprise + ", Valeur: " + valeurBackpack + "€)");
+        } else {
+            plugin.getLogger().fine("Backpack '" + backpackType + "' n'a pas de valeur configurée dans activites-payantes.CRAFT_BACKPACK pour " + typeEntreprise);
+        }
+    }
+
     // --- REFACTORED AND NEW HOURLY METHODS ---
 
     /**
@@ -480,7 +727,9 @@ public class EntrepriseManagerLogic {
         plugin.getLogger().info("Début du cycle financier horaire...");
         boolean dataModified = false;
 
-        double pourcentageTaxes = plugin.getConfig().getDouble("finance.pourcentage-taxes", 15.0);
+        // FIX BASSE #26: Utiliser ConfigDefaults
+        double pourcentageTaxes = plugin.getConfig().getDouble("finance.pourcentage-taxes",
+            com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_POURCENTAGE_TAXES);
 
         for (Entreprise entreprise : entreprises.values()) {
             double ancienSolde = entreprise.getSolde();
@@ -561,8 +810,14 @@ public class EntrepriseManagerLogic {
             if (activity == null || !activity.isActive()) continue; // Only active employees get primes
 
             if (entreprise.getSolde() >= primeConfigurée) {
+                // FIX MOYENNE: Log détaillé transaction Vault
+                plugin.getLogger().fine("[Vault] DEPOSIT (Prime): " + employeNom + " ← " + String.format("%.2f€", primeConfigurée) +
+                    " (Entreprise: " + entreprise.getNom() + ")");
+
                 EconomyResponse er = RoleplayCity.getEconomy().depositPlayer(employeOffline, primeConfigurée);
+
                 if (er.transactionSuccess()) {
+                    plugin.getLogger().fine("[Vault] DEPOSIT SUCCESS (Prime): " + employeNom + " ← " + String.format("%.2f€", primeConfigurée));
                     entreprise.setSolde(entreprise.getSolde() - primeConfigurée);
                     entreprise.addTransaction(new Transaction(TransactionType.PRIMES, primeConfigurée, "Prime horaire: " + employeNom, "System"));
                     totalPrimesPayees += primeConfigurée;
@@ -573,7 +828,8 @@ public class EntrepriseManagerLogic {
                     else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&', msgEmploye), entreprise.getNom(), primeConfigurée);
 
                 } else {
-                    plugin.getLogger().severe("Erreur Vault (prime) pour " + employeNom + ": " + er.errorMessage);
+                    // FIX MOYENNE: Log détaillé échec transaction Vault
+                    plugin.getLogger().severe("[Vault] DEPOSIT FAILED (Prime): " + employeNom + " ← " + primeConfigurée + "€ - Reason: " + er.errorMessage);
                 }
             } else {
                 String msgEchecEmp = String.format("&cL'entreprise '&6%s&c' n'a pas pu verser votre prime de &e%.2f€ &c(solde insuffisant).", entreprise.getNom(), primeConfigurée);
@@ -592,7 +848,9 @@ public class EntrepriseManagerLogic {
      * @return The total amount paid in charges.
      */
     private double payerChargesSalarialesPourEntreprise(Entreprise entreprise) {
-        double chargeParEmploye = plugin.getConfig().getDouble("finance.charge-salariale-par-employe-horaire", 0.0);
+        // FIX BASSE #26: Utiliser ConfigDefaults
+        double chargeParEmploye = plugin.getConfig().getDouble("finance.charge-salariale-par-employe-horaire",
+            com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_CHARGE_SALARIALE_PAR_EMPLOYE);
         if (chargeParEmploye <= 0) return 0;
 
         boolean actifsSeulement = plugin.getConfig().getBoolean("finance.charges-sur-employes-actifs-seulement", true);
@@ -627,7 +885,9 @@ public class EntrepriseManagerLogic {
         double totalDepenses = taxes + primes + charges;
         double nouveauSolde = ancienSolde + benefice;
         String typeEntreprise = entreprise.getType() != null ? entreprise.getType() : "N/A";
-        double taxRate = plugin.getConfig().getDouble("finance.pourcentage-taxes", 15.0);
+        // FIX BASSE #26: Utiliser ConfigDefaults
+        double taxRate = plugin.getConfig().getDouble("finance.pourcentage-taxes",
+            com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_POURCENTAGE_TAXES);
 
         List<String> report = new ArrayList<>();
         report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
@@ -672,7 +932,9 @@ public class EntrepriseManagerLogic {
     }
 
     public void payerAllocationChomageHoraire() {
-        double montantAllocation = plugin.getConfig().getDouble("finance.allocation-chomage-horaire", 0);
+        // FIX BASSE #26: Utiliser ConfigDefaults pour valeur par défaut
+        double montantAllocation = plugin.getConfig().getDouble("finance.allocation-chomage-horaire",
+            com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_ALLOCATION_CHOMAGE_HORAIRE);
         if (montantAllocation <= 0) return;
         int joueursPayes = 0;
         for (Player joueurConnecte : Bukkit.getOnlinePlayers()) {
@@ -685,65 +947,70 @@ public class EntrepriseManagerLogic {
         if (joueursPayes > 0) plugin.getLogger().fine(joueursPayes + " joueur(s) ont reçu l'allocation chômage.");
     }
 
+    /**
+     * FIX PERFORMANCE HAUTE: Version optimisée avec cache O(1) au lieu de O(n)
+     * FIX MOYENNE: Le cache expire après 5 minutes et se recharge automatiquement
+     */
     public boolean verifierEtGererRestrictionAction(Player player, String actionTypeString, String targetName, int quantite) {
         Entreprise entrepriseJoueurObj = getEntrepriseDuJoueur(player);
-        String typeEntrepriseJoueur = (entrepriseJoueurObj != null) ? entrepriseJoueurObj.getType() : "Aucune";
 
-        ConfigurationSection typesEntreprisesConfig = plugin.getConfig().getConfigurationSection("types-entreprise");
-        if (typesEntreprisesConfig == null) {
-            plugin.getLogger().severe("[DEBUG Restrict] Section 'types-entreprise' INTROUVABLE dans config.yml!");
-            return false;
+        // FIX MOYENNE: Vérifier si le cache a expiré et le recharger si nécessaire
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - restrictionsCacheLoadTime > RESTRICTIONS_CACHE_TTL_MS) {
+            plugin.getLogger().fine("Cache de restrictions expiré, rechargement...");
+            loadRestrictionsCache();
         }
 
-        for (String typeEntSpecialise : typesEntreprisesConfig.getKeys(false)) {
-            String restrictionPath = "types-entreprise." + typeEntSpecialise + ".action_restrictions." + actionTypeString.toUpperCase() + "." + targetName.toUpperCase();
-            boolean actionEstRestreinte = plugin.getConfig().contains(restrictionPath);
+        // Recherche O(1) dans le cache au lieu de parcourir tous les types d'entreprise
+        String cacheKey = actionTypeString.toUpperCase() + ":" + targetName.toUpperCase();
+        List<RestrictionInfo> restrictions = restrictionsCache.get(cacheKey);
 
-            if (actionEstRestreinte) {
-                boolean estMembreDeCeTypeSpecialise = (entrepriseJoueurObj != null && entrepriseJoueurObj.getType().equals(typeEntSpecialise));
+        if (restrictions == null || restrictions.isEmpty()) {
+            return false; // Aucune restriction pour cette action
+        }
 
-                if (estMembreDeCeTypeSpecialise) {
-                    return false; // Les membres ne sont pas restreints, on autorise l'action.
+        // Vérifier chaque restriction trouvée
+        for (RestrictionInfo restriction : restrictions) {
+            boolean estMembreDeCeTypeSpecialise = (entrepriseJoueurObj != null &&
+                entrepriseJoueurObj.getType().equals(restriction.entrepriseType));
+
+            if (estMembreDeCeTypeSpecialise) {
+                return false; // Les membres de ce type ne sont pas restreints
+            }
+
+            // Le joueur n'est pas membre, appliquer la limite
+            if (restriction.limiteNonMembre == -1) {
+                continue; // Pas de limite pour ce type
+            }
+
+            if (restriction.limiteNonMembre == 0) {
+                restriction.messagesErreur.forEach(msg ->
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", "0"))));
+                return true; // Action bloquée
+            }
+
+            String actionIdPourRestriction = restriction.entrepriseType + "_" +
+                actionTypeString.toUpperCase() + "_" + targetName.toUpperCase();
+
+            ActionInfo info = joueurActivitesRestrictions
+                .computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(actionIdPourRestriction, k -> new ActionInfo());
+
+            synchronized(info) {
+                if (info.getNombreActions() + quantite > restriction.limiteNonMembre) {
+                    final int currentCount = info.getNombreActions();
+                    restriction.messagesErreur.forEach(msg ->
+                        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            msg.replace("%limite%", String.valueOf(restriction.limiteNonMembre)))));
+                    player.sendMessage(ChatColor.GRAY + "(Limite atteinte: " + currentCount + "/" + restriction.limiteNonMembre + ")");
+                    return true; // Action bloquée
                 } else {
-                    // Le joueur n'est pas membre, on applique la limite horaire.
-                    int limiteNonMembre = plugin.getConfig().getInt("types-entreprise." + typeEntSpecialise + ".limite-non-membre-par-heure", -1);
-                    if (limiteNonMembre == -1) {
-                        continue; // Pas de limite pour ce type, on passe au suivant.
-                    }
-
-                    List<String> messagesErreur = plugin.getConfig().getStringList("types-entreprise." + typeEntSpecialise + ".message-erreur-restriction");
-                    if (messagesErreur.isEmpty()) {
-                        messagesErreur.add("&cAction restreinte. Limite horaire : %limite%");
-                    }
-
-                    if (limiteNonMembre == 0) {
-                        messagesErreur.forEach(msg -> player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", "0"))));
-                        return true; // Action bloquée.
-                    }
-
-                    String actionIdPourRestriction = typeEntSpecialise + "_" + actionTypeString.toUpperCase() + "_" + targetName.toUpperCase();
-                    ActionInfo info = joueurActivitesRestrictions
-                            .computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
-                            .computeIfAbsent(actionIdPourRestriction, k -> new ActionInfo());
-
-                    synchronized(info) {
-                        // LA LOGIQUE DE RESET INDIVIDUELLE A ÉTÉ SUPPRIMÉE ICI.
-                        // La réinitialisation est maintenant globale via resetHourlyLimitsForAllPlayers().
-
-                        if (info.getNombreActions() + quantite > limiteNonMembre) {
-                            final int currentCount = info.getNombreActions();
-                            messagesErreur.forEach(msg -> player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", String.valueOf(limiteNonMembre)))));
-                            player.sendMessage(ChatColor.GRAY + "(Limite atteinte: " + currentCount + "/" + limiteNonMembre + ")");
-                            return true; // Action bloquée car la limite est dépassée.
-                        } else {
-                            info.incrementerActions(quantite);
-                        }
-                    }
+                    info.incrementerActions(quantite);
                 }
             }
         }
 
-        return false; // Aucune restriction bloquante trouvée, l'action est autorisée.
+        return false; // Aucune restriction bloquante
     }
     public LocalDateTime getNextPaymentTime() {
         return nextPaymentTime;
@@ -754,21 +1021,178 @@ public class EntrepriseManagerLogic {
     public List<Entreprise> getEntreprisesByVille(String ville) { return entreprises.values().stream().filter(e -> e.getVille() != null && e.getVille().equalsIgnoreCase(ville)).collect(Collectors.toList()); }
     public Set<String> getTypesEntreprise() { ConfigurationSection s = plugin.getConfig().getConfigurationSection("types-entreprise"); return (s != null) ? s.getKeys(false) : Collections.emptySet(); }
     public List<Entreprise> getEntreprisesGereesPar(String nomGerant) { return entreprises.values().stream().filter(e -> e.getGerant() != null && e.getGerant().equalsIgnoreCase(nomGerant)).collect(Collectors.toList()); }
+
+    /**
+     * Vérifie si un item peut être vendu dans un shop selon le type d'entreprise
+     * @param typeEntreprise Le type de l'entreprise (ex: "Minage", "Agriculture", "Supermarche", "Styliste")
+     * @param itemMaterial Le matériau de l'item à vendre
+     * @return true si l'item est autorisé, false sinon
+     */
+    public boolean isItemAllowedInShop(String typeEntreprise, Material itemMaterial) {
+        if (typeEntreprise == null || itemMaterial == null) {
+            return false;
+        }
+
+        // Vérifier si ce type d'entreprise a la restriction de shop désactivée
+        boolean shopSansRestriction = plugin.getConfig().getBoolean(
+            "types-entreprise." + typeEntreprise + ".shop-sans-restriction",
+            false
+        );
+
+        // Si shop-sans-restriction est true, tous les items sont autorisés
+        if (shopSansRestriction) {
+            return true;
+        }
+
+        // Sinon, vérifier que l'item est dans les action_restrictions
+        ConfigurationSection actionsSection = plugin.getConfig().getConfigurationSection(
+            "types-entreprise." + typeEntreprise + ".action_restrictions"
+        );
+
+        if (actionsSection == null) {
+            // Pas de restrictions définies = rien n'est autorisé par défaut
+            return false;
+        }
+
+        // Parcourir tous les types d'actions (BLOCK_BREAK, CRAFT_ITEM, ENTITY_KILL, BLOCK_PLACE, CRAFT_BACKPACK)
+        for (String actionType : actionsSection.getKeys(false)) {
+            ConfigurationSection materialsSection = plugin.getConfig().getConfigurationSection(
+                "types-entreprise." + typeEntreprise + ".action_restrictions." + actionType
+            );
+
+            if (materialsSection == null) {
+                continue;
+            }
+
+            // Vérifier si le matériau est dans cette section
+            if (materialsSection.contains(itemMaterial.name())) {
+                return true;
+            }
+        }
+
+        // L'item n'est pas dans les restrictions = pas autorisé
+        return false;
+    }
+
+    /**
+     * Vérifie si un backpack custom peut être vendu dans un shop selon le type d'entreprise
+     * @param typeEntreprise Le type de l'entreprise
+     * @param backpackType Le type de backpack (ex: "sacoche", "valisette", etc.)
+     * @return true si le backpack est autorisé, false sinon
+     */
+    public boolean isBackpackAllowedInShop(String typeEntreprise, String backpackType) {
+        if (typeEntreprise == null || backpackType == null) {
+            return false;
+        }
+
+        // Vérifier si ce type d'entreprise a la restriction de shop désactivée
+        boolean shopSansRestriction = plugin.getConfig().getBoolean(
+            "types-entreprise." + typeEntreprise + ".shop-sans-restriction",
+            false
+        );
+
+        // Si shop-sans-restriction est true, tous les items sont autorisés
+        if (shopSansRestriction) {
+            return true;
+        }
+
+        // Vérifier si le backpack est dans les action_restrictions.CRAFT_BACKPACK
+        ConfigurationSection backpackSection = plugin.getConfig().getConfigurationSection(
+            "types-entreprise." + typeEntreprise + ".action_restrictions.CRAFT_BACKPACK"
+        );
+
+        if (backpackSection == null) {
+            return false;
+        }
+
+        // Vérifier si ce type de backpack est autorisé
+        return backpackSection.contains(backpackType);
+    }
+
+    /**
+     * Récupère quelques exemples d'items autorisés pour un type d'entreprise
+     * @param typeEntreprise Le type de l'entreprise
+     * @param maxExamples Nombre maximum d'exemples à retourner
+     * @return Une chaîne avec les exemples séparés par des virgules, ou null si aucun
+     */
+    public String getAuthorizedItemsExamples(String typeEntreprise, int maxExamples) {
+        if (typeEntreprise == null) {
+            return null;
+        }
+
+        // Vérifier si shop-sans-restriction est activé
+        boolean shopSansRestriction = plugin.getConfig().getBoolean(
+            "types-entreprise." + typeEntreprise + ".shop-sans-restriction",
+            false
+        );
+
+        if (shopSansRestriction) {
+            return "TOUS LES ITEMS (entreprise sans restriction)";
+        }
+
+        ConfigurationSection actionsSection = plugin.getConfig().getConfigurationSection(
+            "types-entreprise." + typeEntreprise + ".action_restrictions"
+        );
+
+        if (actionsSection == null) {
+            return null;
+        }
+
+        List<String> examples = new ArrayList<>();
+        int count = 0;
+
+        // Parcourir tous les types d'actions et collecter des exemples
+        for (String actionType : actionsSection.getKeys(false)) {
+            if (count >= maxExamples) {
+                break;
+            }
+
+            ConfigurationSection materialsSection = plugin.getConfig().getConfigurationSection(
+                "types-entreprise." + typeEntreprise + ".action_restrictions." + actionType
+            );
+
+            if (materialsSection == null) {
+                continue;
+            }
+
+            for (String materialName : materialsSection.getKeys(false)) {
+                if (count >= maxExamples) {
+                    break;
+                }
+                examples.add(materialName);
+                count++;
+            }
+        }
+
+        if (examples.isEmpty()) {
+            return null;
+        }
+
+        return String.join(", ", examples);
+    }
+
     // --- Fin Accès Entreprises ---
 
     // --- Suppression et Dissolution (AVEC HISTORIQUE) ---
     public void handleEntrepriseRemoval(Entreprise entreprise, String reason) {
         if (entreprise == null) return;
 
-        // --- MODIFICATION PRINCIPALE ---
-        // On s'assure de supprimer toutes les boutiques de l'entreprise AVANT de continuer.
-        // C'est la ligne la plus importante à ajouter ici.
+        // 1. Supprimer toutes les boutiques de l'entreprise
+        int shopsSupprimees = 0;
         if (plugin.getShopManager() != null) {
-            plugin.getShopManager().deleteAllShopsForEnterprise(entreprise.getSiret());
+            shopsSupprimees = plugin.getShopManager().deleteShopsBySiret(
+                entreprise.getSiret(),
+                "Entreprise supprimée: " + reason
+            );
+            if (shopsSupprimees > 0) {
+                plugin.getLogger().info(String.format(
+                    "[EntrepriseManager] %d boutique(s) de l'entreprise '%s' supprimée(s)",
+                    shopsSupprimees, entreprise.getNom()
+                ));
+            }
         }
-        // --- FIN DE LA MODIFICATION ---
 
-        // --- NOUVEAU : Vendre tous les terrains PROFESSIONNEL de cette entreprise ---
+        // 2. Vendre tous les terrains PROFESSIONNEL de cette entreprise
         if (plugin.getTownManager() != null && plugin.getCompanyPlotManager() != null) {
             String siret = entreprise.getSiret();
             int totalPlotsSold = 0;
@@ -826,6 +1250,8 @@ public class EntrepriseManagerLogic {
         plugin.getLogger().info("[EntrepriseManagerLogic] Suppression effective de '" + nomEntreprise + "'.");
         entreprise.getEmployeeActivityRecords().values().forEach(EmployeeActivityRecord::endSession);
         entreprises.remove(nomEntreprise);
+        // FIX PERFORMANCE HAUTE: Maintenir l'index SIRET
+        entreprisesBySiret.remove(entreprise.getSiret());
         activiteProductiveHoraireValeur.remove(nomEntreprise);
         saveEntreprises();
 
@@ -842,6 +1268,9 @@ public class EntrepriseManagerLogic {
             }
         }
     }
+    /**
+     * FIX HAUTE: Système de confirmation obligatoire avant suppression
+     */
     public void supprimerEntreprise(Player initiator, String nomEntreprise) {
         Entreprise entrepriseASupprimer = getEntreprise(nomEntreprise);
         if (entrepriseASupprimer == null) {
@@ -857,32 +1286,81 @@ public class EntrepriseManagerLogic {
             return;
         }
 
-        // --- AJOUT IMPORTANT ---
-        // On supprime d'abord toutes les boutiques associées à cette entreprise.
-        // Cela évite de laisser des boutiques "fantômes" après la suppression de l'entreprise.
-        if (plugin.getShopManager() != null) {
-            plugin.getShopManager().deleteAllShopsForEnterprise(entrepriseASupprimer.getSiret());
+        // Vérifier si une confirmation est en attente
+        String entrepriseEnAttente = suppressionsEnAttente.get(initiator.getUniqueId());
+
+        if (entrepriseEnAttente != null && entrepriseEnAttente.equals(nomEntreprise)) {
+            // Confirmation reçue, procéder à la suppression
+            suppressionsEnAttente.remove(initiator.getUniqueId());
+
+            // FIX MOYENNE: Log opération critique de suppression
+            plugin.getLogger().warning("[OPERATION CRITIQUE] Suppression entreprise '" + nomEntreprise + "' (SIRET: " +
+                entrepriseASupprimer.getSiret() + ") par " + initiator.getName() +
+                " (Admin: " + isAdmin + ", Gérant: " + isGerant + ")");
+            plugin.getLogger().info("[SUPPRESSION] Solde: " + String.format("%.2f€", entrepriseASupprimer.getSolde()) +
+                ", Employés: " + entrepriseASupprimer.getEmployes().size());
+
+            // TODO: Supprimer toutes les boutiques associées (à réimplémenter)
+            // if (plugin.getShopManager() != null) {
+            //     plugin.getShopManager().deleteAllShopsForEnterprise(entrepriseASupprimer.getSiret());
+            // }
+
+            String reason = "Dissolution par " + initiator.getName() + (isAdmin && !isGerant ? " (Admin)" : " (Gérant)");
+            handleEntrepriseRemoval(entrepriseASupprimer, reason);
+
+            initiator.sendMessage(ChatColor.GREEN + "✓ L'entreprise '" + nomEntreprise + "' a été définitivement dissoute.");
+
+        } else {
+            // Première demande, enregistrer et demander confirmation
+            suppressionsEnAttente.put(initiator.getUniqueId(), nomEntreprise);
+
+            initiator.sendMessage(ChatColor.DARK_RED + "⚠ ATTENTION - SUPPRESSION D'ENTREPRISE ⚠");
+            initiator.sendMessage(ChatColor.RED + "Vous êtes sur le point de supprimer l'entreprise '" + nomEntreprise + "'");
+            initiator.sendMessage(ChatColor.YELLOW + "Cette action est IRRÉVERSIBLE et supprimera :");
+            initiator.sendMessage(ChatColor.GRAY + "  • Tous les employés (" + entrepriseASupprimer.getEmployes().size() + ")");
+            initiator.sendMessage(ChatColor.GRAY + "  • Toutes les boutiques");
+            initiator.sendMessage(ChatColor.GRAY + "  • Tous les terrains professionnels");
+            initiator.sendMessage(ChatColor.GRAY + "  • Le solde de l'entreprise (" + String.format("%,.2f", entrepriseASupprimer.getSolde()) + "€)");
+            initiator.sendMessage(ChatColor.GREEN + "Pour confirmer, retapez la même commande dans les 30 secondes.");
+            initiator.sendMessage(ChatColor.GRAY + "(Timeout automatique après 30s)");
+
+            // Nettoyer après 30 secondes
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (suppressionsEnAttente.remove(initiator.getUniqueId(), nomEntreprise)) {
+                    initiator.sendMessage(ChatColor.YELLOW + "Demande de suppression de '" + nomEntreprise + "' annulée (timeout).");
+                }
+            }, 30 * 20L); // 30 secondes
         }
-        // --- FIN DE L'AJOUT ---
-
-        String reason = "Dissolution par " + initiator.getName() + (isAdmin && !isGerant ? " (Admin)" : " (Gérant)");
-        handleEntrepriseRemoval(entrepriseASupprimer, reason); // Cette méthode gère la suppression de l'objet Entreprise et l'historique
-
-        // On met à jour le message de confirmation pour être plus précis.
-        initiator.sendMessage(ChatColor.GREEN + "L'entreprise '" + nomEntreprise + "' et toutes ses boutiques ont été dissoutes.");
     }
     // --- Fin Suppression / Dissolution ---
 
     // --- Création / Invitations ---
+    /**
+     * FIX HAUTE + MOYENNE: Validation du nom d'entreprise à la création (centralisée)
+     */
     public void declareEntreprise(Player maireCreateur, String ville, String nomEntreprise, String type, Player gerantCible, String siret, double coutCreation) {
+        // FIX MOYENNE: Utiliser la validation centralisée
+        if (!isValidEntrepriseName(nomEntreprise, maireCreateur)) {
+            return;
+        }
+
         if (entreprises.containsKey(nomEntreprise)) {
             maireCreateur.sendMessage(ChatColor.RED + "Nom entreprise déjà pris.");
             return;
         }
+
         Entreprise nouvelleEntreprise = new Entreprise(nomEntreprise, ville, type, gerantCible.getName(), gerantCible.getUniqueId().toString(), new HashSet<>(), 0.0, siret);
         nouvelleEntreprise.addTransaction(new Transaction(TransactionType.CREATION_COST, coutCreation, "Frais de création", gerantCible.getName()));
         entreprises.put(nomEntreprise, nouvelleEntreprise);
+        // FIX PERFORMANCE HAUTE: Maintenir l'index SIRET
+        entreprisesBySiret.put(siret, nouvelleEntreprise);
         activiteProductiveHoraireValeur.put(nomEntreprise, 0.0);
+
+        // FIX MOYENNE: Log opération critique de création
+        plugin.getLogger().info("[OPERATION CRITIQUE] Création entreprise '" + nomEntreprise + "' (SIRET: " + siret +
+            ", Type: " + type + ") par maire " + maireCreateur.getName() + " pour gérant " + gerantCible.getName() +
+            " (Ville: " + ville + ", Coût: " + String.format("%.2f€", coutCreation) + ")");
+
         saveEntreprises();
         maireCreateur.sendMessage(ChatColor.GREEN + "Entreprise '" + nomEntreprise + "' (Type: " + type + ") créée pour " + gerantCible.getName() + " à " + ville + ".");
         gerantCible.sendMessage(ChatColor.GREEN + "Félicitations ! Vous gérez '" + nomEntreprise + "'. Coût: " + String.format("%,.2f", coutCreation) + "€.");
@@ -1006,12 +1484,28 @@ public class EntrepriseManagerLogic {
         joueur.sendMessage(ChatColor.YELLOW + "Invitation pour '" + nomEntreprise + "' refusée.");
         Entreprise entreprise = getEntreprise(nomEntreprise); if (entreprise != null) { Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant()); if (gerantPlayer != null) gerantPlayer.sendMessage(ChatColor.YELLOW + joueur.getName() + " a refusé l'invitation."); }
     }
+    /**
+     * FIX HAUTE: Ne pas écraser joinDate si l'employé existe déjà
+     */
     public void addEmploye(String nomEntreprise, String nomJoueur, UUID joueurUUID) {
         Entreprise entreprise = entreprises.get(nomEntreprise);
         if (entreprise != null && entreprise.getEmployesInternal().add(nomJoueur)) {
             entreprise.setPrimePourEmploye(joueurUUID.toString(), 0.0);
+
+            // Vérifier si l'employé avait déjà un record (réembauche)
+            EmployeeActivityRecord existingRecord = entreprise.getEmployeeActivityRecord(joueurUUID);
+            boolean isRejoining = (existingRecord != null && existingRecord.joinDate != null);
+
             EmployeeActivityRecord record = entreprise.getOrCreateEmployeeActivityRecord(joueurUUID, nomJoueur);
-            record.joinDate = LocalDateTime.now();
+
+            // Ne définir joinDate que pour les nouveaux employés
+            if (!isRejoining) {
+                record.joinDate = LocalDateTime.now();
+                plugin.getLogger().fine("Nouvel employé ajouté: " + nomJoueur + " dans " + nomEntreprise);
+            } else {
+                plugin.getLogger().fine("Employé réembauché: " + nomJoueur + " (ancienneté conservée)");
+            }
+
             saveEntreprises();
         }
     }
@@ -1020,10 +1514,50 @@ public class EntrepriseManagerLogic {
     // --- Départ et Licenciement (AVEC HISTORIQUE) ---
     public void kickEmploye(Player gerant, String nomEntreprise, String nomEmployeAKick) {
         Entreprise entreprise = getEntreprise(nomEntreprise);
-        if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(gerant.getName())) { gerant.sendMessage(ChatColor.RED + "Action impossible."); return; }
+        // FIX MOYENNE: Message d'erreur plus spécifique
+        if (entreprise == null) {
+            gerant.sendMessage(ChatColor.RED + "Impossible de licencier: l'entreprise '" + nomEntreprise + "' n'existe pas.");
+            return;
+        }
+        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName())) {
+            gerant.sendMessage(ChatColor.RED + "Impossible de licencier: vous n'êtes pas le gérant de '" + nomEntreprise + "'.");
+            return;
+        }
         OfflinePlayer employeOffline = Bukkit.getOfflinePlayer(nomEmployeAKick);
         if ((!employeOffline.hasPlayedBefore() && !employeOffline.isOnline()) || !entreprise.getEmployes().contains(nomEmployeAKick)) { gerant.sendMessage(ChatColor.RED + "Employé '" + nomEmployeAKick + "' introuvable ou pas ici."); return; }
         UUID employeUUID = employeOffline.getUniqueId();
+
+        // FIX MOYENNE: Système de confirmation pour licenciement
+        KickRequest requestEnAttente = kicksEnAttente.get(gerant.getUniqueId());
+
+        if (requestEnAttente != null &&
+            requestEnAttente.entrepriseName.equals(nomEntreprise) &&
+            requestEnAttente.employeeName.equals(nomEmployeAKick) &&
+            !requestEnAttente.isExpired()) {
+
+            // Confirmation reçue, procéder au licenciement
+            kicksEnAttente.remove(gerant.getUniqueId());
+        } else {
+            // Première demande, avertir
+            kicksEnAttente.put(gerant.getUniqueId(), new KickRequest(nomEntreprise, nomEmployeAKick));
+
+            gerant.sendMessage("");
+            gerant.sendMessage(ChatColor.GOLD + "⚠ CONFIRMATION LICENCIEMENT ⚠");
+            gerant.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + nomEntreprise);
+            gerant.sendMessage(ChatColor.YELLOW + "Employé à licencier: " + ChatColor.WHITE + nomEmployeAKick);
+            gerant.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Pour confirmer, retapez la même commande dans les 30 secondes.");
+            gerant.sendMessage("");
+
+            // Timeout après 30 secondes
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                KickRequest req = kicksEnAttente.remove(gerant.getUniqueId());
+                if (req != null && req.entrepriseName.equals(nomEntreprise) && req.employeeName.equals(nomEmployeAKick)) {
+                    gerant.sendMessage(ChatColor.GRAY + "[Entreprise] Demande de licenciement expirée.");
+                }
+            }, CONFIRMATION_TIMEOUT_TICKS);
+
+            return;
+        }
 
         if (entreprise.getEmployesInternal().remove(nomEmployeAKick)) {
             recordPlayerHistoryEntry(employeUUID, entreprise, "Employé", LocalDateTime.now());
@@ -1032,7 +1566,11 @@ public class EntrepriseManagerLogic {
             saveEntreprises();
             gerant.sendMessage(ChatColor.GREEN + nomEmployeAKick + " viré de '" + nomEntreprise + "'.");
             Player onlineEmp = employeOffline.getPlayer(); if (onlineEmp != null) { onlineEmp.sendMessage(ChatColor.RED + "Vous avez été viré de '" + nomEntreprise + "'."); }
-        } else { gerant.sendMessage(ChatColor.RED + "Erreur licenciement " + nomEmployeAKick + "."); }
+        } else {
+            // FIX MOYENNE: Message d'erreur plus spécifique
+            gerant.sendMessage(ChatColor.RED + "Erreur lors du licenciement de " + nomEmployeAKick + ": employé introuvable dans la liste (corruption de données?).");
+            plugin.getLogger().warning("[Entreprise] Échec du remove() pour " + nomEmployeAKick + " de l'entreprise '" + nomEntreprise + "' - incohérence de données");
+        }
     }
     public void leaveEntreprise(Player joueur, String nomEntreprise) {
         Entreprise entreprise = getEntreprise(nomEntreprise);
@@ -1046,17 +1584,47 @@ public class EntrepriseManagerLogic {
             saveEntreprises();
             joueur.sendMessage(ChatColor.GREEN + "Vous avez quitté '" + nomEntreprise + "'.");
             Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant()); if (gerantPlayer != null && gerantPlayer.isOnline()) { gerantPlayer.sendMessage(ChatColor.YELLOW + joueur.getName() + " a quitté '" + nomEntreprise + "'."); }
-        } else { joueur.sendMessage(ChatColor.RED + "Erreur en quittant."); }
+        } else {
+            // FIX MOYENNE: Message d'erreur plus spécifique
+            joueur.sendMessage(ChatColor.RED + "Erreur lors du départ de l'entreprise: vous n'étiez pas dans la liste des employés (corruption de données?).");
+            plugin.getLogger().warning("[Entreprise] Échec du remove() pour " + joueur.getName() + " quittant l'entreprise '" + nomEntreprise + "' - incohérence de données");
+        }
     }
     // --- Fin Départ / Licenciement ---
 
     // --- Création / Contrat ---
+
+    /**
+     * FIX MOYENNE: Validation centralisée du nom d'entreprise
+     * Prévient les caractères spéciaux qui peuvent causer des problèmes (YAML injection, etc.)
+     */
+    /**
+     * FIX BASSE #32-33: Validation robuste des noms d'entreprise
+     */
+    private boolean isValidEntrepriseName(String name, Player player) {
+        // Utiliser le NameValidator pour une validation robuste
+        com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation =
+            plugin.getNameValidator().validateEntrepriseName(name);
+
+        if (!validation.isValid()) {
+            player.sendMessage(ChatColor.RED + "❌ " + validation.getError());
+            return false;
+        }
+
+        return true;
+    }
 
     public void proposerCreationEntreprise(Player maire, Player gerantCible, String type, String ville, String nomEntreprisePropose, String siret) {
         double coutCreation = plugin.getConfig().getDouble("types-entreprise." + type + ".cout-creation", 0.0);
         double distanceMaxCreation = plugin.getConfig().getDouble("creation.distance-max-maire-gerant", 15.0);
 
         plugin.getLogger().log(Level.INFO, "[DEBUG CREATION] Début proposition pour " + nomEntreprisePropose + " par " + maire.getName() + " pour gérant " + gerantCible.getName());
+
+        // FIX MOYENNE: Valider le nom avant de créer la demande
+        if (!isValidEntrepriseName(nomEntreprisePropose, maire)) {
+            plugin.getLogger().log(Level.INFO, "[DEBUG CREATION] Échec: Nom d'entreprise invalide.");
+            return;
+        }
 
         if (!gerantCible.isOnline()) {
             maire.sendMessage(ChatColor.RED + gerantCible.getName() + " est hors ligne.");
@@ -1197,7 +1765,28 @@ public class EntrepriseManagerLogic {
         String townName = plugin.getTownManager().getPlayerTown(player.getUniqueId());
         return townName;
     }
-    public String generateSiret() { return UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(plugin.getConfig().getInt("siret.longueur", 14), 32)); }
+    /**
+     * FIX HAUTE: Génération de SIRET avec garantie d'unicité
+     */
+    public String generateSiret() {
+        int longueur = Math.min(plugin.getConfig().getInt("siret.longueur", 14), 32);
+        String siret;
+        int tentatives = 0;
+        int maxTentatives = 100;
+
+        do {
+            siret = UUID.randomUUID().toString().replace("-", "").substring(0, longueur);
+            tentatives++;
+
+            if (tentatives >= maxTentatives) {
+                plugin.getLogger().severe("Impossible de générer un SIRET unique après " + maxTentatives + " tentatives!");
+                return null;
+            }
+        } while (getEntrepriseBySiret(siret) != null);
+
+        plugin.getLogger().fine("SIRET unique généré en " + tentatives + " tentative(s): " + siret);
+        return siret;
+    }
     public boolean estMaire(Player joueur) {
         // Utilise notre système de ville au lieu de Towny
         return plugin.getTownManager().isPlayerMayor(joueur.getUniqueId());
@@ -1209,9 +1798,59 @@ public class EntrepriseManagerLogic {
         if (!entreprise.getGerant().equalsIgnoreCase(player.getName())) { player.sendMessage(ChatColor.RED + "Seul le gérant peut retirer."); return; }
         if (montant <= 0) { player.sendMessage(ChatColor.RED + "Montant doit être positif."); return; }
         if (entreprise.getSolde() < montant) { player.sendMessage(ChatColor.RED + "Solde ent. (" + String.format("%,.2f€", entreprise.getSolde()) + ") insuffisant."); return; }
+
+        // FIX MOYENNE: Système de confirmation pour montants >= 1000€
+        if (montant >= 1000.0) {
+            WithdrawalRequest requestEnAttente = retraitsEnAttente.get(player.getUniqueId());
+
+            if (requestEnAttente != null &&
+                requestEnAttente.entrepriseName.equals(nomEntreprise) &&
+                Math.abs(requestEnAttente.amount - montant) < 0.01 &&
+                !requestEnAttente.isExpired()) {
+
+                // Confirmation reçue, procéder au retrait
+                retraitsEnAttente.remove(player.getUniqueId());
+            } else {
+                // Première demande, avertir
+                retraitsEnAttente.put(player.getUniqueId(), new WithdrawalRequest(nomEntreprise, montant));
+
+                player.sendMessage("");
+                player.sendMessage(ChatColor.GOLD + "⚠ CONFIRMATION RETRAIT D'ARGENT ⚠");
+                player.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + nomEntreprise);
+                player.sendMessage(ChatColor.YELLOW + "Montant: " + ChatColor.GREEN + String.format("%,.2f€", montant));
+                player.sendMessage(ChatColor.YELLOW + "Solde restant: " + ChatColor.WHITE + String.format("%,.2f€", entreprise.getSolde() - montant));
+                player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Pour confirmer, retapez la même commande dans les 30 secondes.");
+                player.sendMessage("");
+
+                // Timeout après 30 secondes
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    WithdrawalRequest req = retraitsEnAttente.remove(player.getUniqueId());
+                    if (req != null && req.entrepriseName.equals(nomEntreprise)) {
+                        player.sendMessage(ChatColor.GRAY + "[Entreprise] Demande de retrait expirée.");
+                    }
+                }, CONFIRMATION_TIMEOUT_TICKS);
+
+                return;
+            }
+        }
+
+        // FIX MOYENNE: Log détaillé transaction Vault
+        plugin.getLogger().info("[Vault] DEPOSIT (Retrait entreprise): " + player.getName() + " ← " + String.format("%.2f€", montant) +
+            " (Entreprise: " + nomEntreprise + ", Solde avant: " + String.format("%.2f€", entreprise.getSolde()) + ")");
+
         EconomyResponse response = RoleplayCity.getEconomy().depositPlayer(player, montant);
-        if (response.transactionSuccess()) { entreprise.setSolde(entreprise.getSolde() - montant); entreprise.addTransaction(new Transaction(TransactionType.WITHDRAWAL, montant, "Retrait par gérant " + player.getName(), player.getName())); saveEntreprises(); player.sendMessage(ChatColor.GREEN + String.format("%,.2f€", montant) + " retirés de '" + nomEntreprise + "'. Solde: " + String.format("%,.2f€", entreprise.getSolde()) + "."); }
-        else { player.sendMessage(ChatColor.RED + "Erreur dépôt compte: " + response.errorMessage); }
+
+        if (response.transactionSuccess()) {
+            plugin.getLogger().info("[Vault] DEPOSIT SUCCESS (Retrait): " + player.getName() + " ← " + String.format("%.2f€", montant) +
+                " (Balance joueur: " + String.format("%.2f€", response.balance) + ")");
+            entreprise.setSolde(entreprise.getSolde() - montant);
+            entreprise.addTransaction(new Transaction(TransactionType.WITHDRAWAL, montant, "Retrait par gérant " + player.getName(), player.getName()));
+            saveEntreprises();
+            player.sendMessage(ChatColor.GREEN + String.format("%,.2f€", montant) + " retirés de '" + nomEntreprise + "'. Solde: " + String.format("%,.2f€", entreprise.getSolde()) + ".");
+        } else {
+            plugin.getLogger().severe("[Vault] DEPOSIT FAILED (Retrait): " + player.getName() + " - " + montant + "€ - Reason: " + response.errorMessage);
+            player.sendMessage(ChatColor.RED + "Erreur dépôt compte: " + response.errorMessage);
+        }
     }
     public void deposerArgent(Player player, String nomEntreprise, double montant) {
         Entreprise entreprise = getEntreprise(nomEntreprise);
@@ -1232,28 +1871,55 @@ public class EntrepriseManagerLogic {
             return;
         }
 
+        // FIX HAUTE: Meilleur feedback utilisateur sur ajustement du montant
+        double montantOriginal = montant;
         double soldeMaxActuel = getLimiteMaxSoldeActuelle(entreprise);
+
         if (entreprise.getSolde() + montant > soldeMaxActuel) {
             double montantAutorise = soldeMaxActuel - entreprise.getSolde();
+
             if (montantAutorise <= 0) {
                 player.sendMessage(ChatColor.RED + "L'entreprise a atteint son solde maximum actuel (" + String.format("%,.2f", soldeMaxActuel) + "€).");
+                player.sendMessage(ChatColor.GRAY + "Solde actuel: " + String.format("%,.2f", entreprise.getSolde()) + "€");
                 return;
             }
-            player.sendMessage(ChatColor.YELLOW + "Le montant a été ajusté pour ne pas dépasser le solde maximum de l'entreprise (" + String.format("%,.2f", soldeMaxActuel) + "€).");
-            montant = montantAutorise; // Ajuste le montant au maximum possible
-            if (montant <= 0) { // Double check si après ajustement c'est 0 ou moins
+
+            // Message clair sur l'ajustement
+            player.sendMessage(ChatColor.YELLOW + "⚠ Le montant demandé dépasse le solde maximum !");
+            player.sendMessage(ChatColor.GRAY + "Montant demandé: " + String.format("%,.2f", montantOriginal) + "€");
+            player.sendMessage(ChatColor.GRAY + "Montant maximum autorisé: " + String.format("%,.2f", montantAutorise) + "€");
+            player.sendMessage(ChatColor.GREEN + "→ Seuls " + String.format("%,.2f", montantAutorise) + "€ seront déposés.");
+
+            montant = montantAutorise;
+
+            if (montant <= 0) {
                 player.sendMessage(ChatColor.RED + "Aucun dépôt possible sans dépasser le solde maximum.");
                 return;
             }
         }
 
+        // FIX MOYENNE: Log détaillé transaction Vault
+        plugin.getLogger().info("[Vault] WITHDRAW (Dépôt entreprise): " + player.getName() + " → " + String.format("%.2f€", montant) +
+            " (Entreprise: " + nomEntreprise + ", Solde avant: " + String.format("%.2f€", entreprise.getSolde()) + ")");
+
         EconomyResponse response = RoleplayCity.getEconomy().withdrawPlayer(player, montant);
+
         if (response.transactionSuccess()) {
-            entreprise.setSolde(entreprise.getSolde() + montant);
+            plugin.getLogger().info("[Vault] WITHDRAW SUCCESS (Dépôt): " + player.getName() + " → " + String.format("%.2f€", montant) +
+                " (Balance joueur: " + String.format("%.2f€", response.balance) + ")");
+            double nouveauSolde = entreprise.getSolde() + montant;
+            // FIX MOYENNE: Vérifier cohérence du solde (ne devrait jamais être négatif après un dépôt)
+            if (nouveauSolde < 0) {
+                plugin.getLogger().severe("[COHERENCE] Solde négatif détecté après dépôt pour '" + nomEntreprise + "': " +
+                    entreprise.getSolde() + " + " + montant + " = " + nouveauSolde);
+                nouveauSolde = montant; // Corriger à au moins le montant déposé
+            }
+            entreprise.setSolde(nouveauSolde);
             entreprise.addTransaction(new Transaction(TransactionType.DEPOSIT, montant, "Dépôt par " + player.getName(), player.getName()));
             saveEntreprises();
             player.sendMessage(ChatColor.GREEN + String.format("%,.2f", montant) + "€ déposés dans '" + nomEntreprise + "'. Nouveau solde de l'entreprise : " + String.format("%,.2f", entreprise.getSolde()) + "€.");
         } else {
+            plugin.getLogger().severe("[Vault] WITHDRAW FAILED (Dépôt): " + player.getName() + " - " + montant + "€ - Reason: " + response.errorMessage);
             player.sendMessage(ChatColor.RED + "Erreur lors du retrait de votre compte : " + response.errorMessage);
         }
     }
@@ -1279,6 +1945,12 @@ public class EntrepriseManagerLogic {
         for (String nomEnt : entreprisesSection.getKeys(false)) {
             String path = "entreprises." + nomEnt + ".";
             try {
+                // FIX BASSE #31: Valider le nom de l'entreprise au chargement
+                if (!plugin.getNameValidator().isValidLoadedName(nomEnt, "entreprise")) {
+                    plugin.getLogger().warning("⚠ Entreprise avec nom invalide ignorée: " + nomEnt);
+                    continue;
+                }
+
                 String ville = currentConfig.getString(path + "ville");
                 String type = currentConfig.getString(path + "type");
                 String gerantNom = currentConfig.getString(path + "gerantNom");
@@ -1291,8 +1963,57 @@ public class EntrepriseManagerLogic {
                 int niveauMaxEmployes = currentConfig.getInt(path + "niveauMaxEmployes", 0);
                 int niveauMaxSolde = currentConfig.getInt(path + "niveauMaxSolde", 0);
 
+                // FIX MOYENNE: Validation robuste des données lors de la désérialisation
                 if (gerantNom == null || gerantUUIDStr == null || type == null || ville == null) {
                     plugin.getLogger().severe("Données essentielles manquantes pour l'entreprise '" + nomEnt + "'. Elle ne sera pas chargée.");
+                    continue;
+                }
+
+                // Valider le solde
+                if (solde < 0 || Double.isNaN(solde) || Double.isInfinite(solde)) {
+                    plugin.getLogger().warning("Solde invalide pour l'entreprise '" + nomEnt + "': " + solde + ". Réinitialisé à 0.");
+                    solde = 0.0;
+                }
+
+                // Valider le CA total
+                if (caTotal < 0 || Double.isNaN(caTotal) || Double.isInfinite(caTotal)) {
+                    plugin.getLogger().warning("CA total invalide pour l'entreprise '" + nomEnt + "': " + caTotal + ". Réinitialisé à 0.");
+                    caTotal = 0.0;
+                }
+
+                // Valider les CA horaires
+                if (caProductifHoraire < 0 || Double.isNaN(caProductifHoraire) || Double.isInfinite(caProductifHoraire)) {
+                    plugin.getLogger().warning("CA productif horaire invalide pour l'entreprise '" + nomEnt + "': " + caProductifHoraire + ". Réinitialisé à 0.");
+                    caProductifHoraire = 0.0;
+                }
+                if (caMagasinHoraire < 0 || Double.isNaN(caMagasinHoraire) || Double.isInfinite(caMagasinHoraire)) {
+                    plugin.getLogger().warning("CA magasin horaire invalide pour l'entreprise '" + nomEnt + "': " + caMagasinHoraire + ". Réinitialisé à 0.");
+                    caMagasinHoraire = 0.0;
+                }
+
+                // Valider les niveaux
+                if (niveauMaxEmployes < 0) {
+                    plugin.getLogger().warning("Niveau max employés invalide pour l'entreprise '" + nomEnt + "': " + niveauMaxEmployes + ". Réinitialisé à 0.");
+                    niveauMaxEmployes = 0;
+                }
+                if (niveauMaxSolde < 0) {
+                    plugin.getLogger().warning("Niveau max solde invalide pour l'entreprise '" + nomEnt + "': " + niveauMaxSolde + ". Réinitialisé à 0.");
+                    niveauMaxSolde = 0;
+                }
+
+                // Valider le SIRET (doit être hexadécimal de longueur configurée)
+                int expectedLength = Math.min(plugin.getConfig().getInt("siret.longueur", 14), 32);
+                if (siret != null && !siret.matches("[0-9a-f]{" + expectedLength + "}")) {
+                    plugin.getLogger().warning("SIRET invalide pour l'entreprise '" + nomEnt + "': " + siret +
+                        " (attendu: " + expectedLength + " caractères hexadécimaux). Un nouveau SIRET sera généré.");
+                    siret = generateSiret();
+                }
+
+                // Valider l'UUID du gérant
+                try {
+                    UUID.fromString(gerantUUIDStr);
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().severe("UUID gérant invalide pour l'entreprise '" + nomEnt + "': " + gerantUUIDStr + ". Elle ne sera pas chargée.");
                     continue;
                 }
 
@@ -1306,7 +2027,13 @@ public class EntrepriseManagerLogic {
                             OfflinePlayer p = Bukkit.getOfflinePlayer(empUuid);
                             if (p != null && p.getName() != null && (p.hasPlayedBefore() || p.isOnline())) {
                                 employesSet.add(p.getName());
-                                primesMap.put(uuidStr, employesSect.getDouble(uuidStr + ".prime", 0.0));
+                                // FIX MOYENNE: Valider les primes lors de la désérialisation
+                                double prime = employesSect.getDouble(uuidStr + ".prime", 0.0);
+                                if (prime < 0 || Double.isNaN(prime) || Double.isInfinite(prime)) {
+                                    plugin.getLogger().warning("Prime invalide pour l'employé " + uuidStr + " dans l'entreprise " + nomEnt + ": " + prime + ". Réinitialisée à 0.");
+                                    prime = 0.0;
+                                }
+                                primesMap.put(uuidStr, prime);
                             } else {
                                 plugin.getLogger().warning("Employé avec UUID " + uuidStr + " pour l'entreprise " + nomEnt + " n'a pas pu être validé (nom null ou jamais joué).");
                             }
@@ -1376,7 +2103,14 @@ public class EntrepriseManagerLogic {
                 ent.setNiveauMaxEmployes(niveauMaxEmployes);
                 ent.setNiveauMaxSolde(niveauMaxSolde);
 
+                // FIX MOYENNE: Valider et nettoyer la cohérence des données après chargement
+                validateAndCleanEntrepriseData(ent);
+
                 entreprises.put(nomEnt, ent);
+                // FIX PERFORMANCE HAUTE: Maintenir l'index SIRET lors du chargement
+                if (ent.getSiret() != null) {
+                    entreprisesBySiret.put(ent.getSiret(), ent);
+                }
                 activiteProductiveHoraireValeur.put(nomEnt, caProductifHoraire);
                 activiteMagasinHoraireValeur.put(nomEnt, caMagasinHoraire);
                 entreprisesChargees++;
@@ -1385,8 +2119,179 @@ public class EntrepriseManagerLogic {
             }
         }
         plugin.getLogger().info(entreprisesChargees + " entreprises chargées depuis entreprise.yml.");
+
+        // FIX PERFORMANCE HAUTE: Charger le cache des restrictions
+        loadRestrictionsCache();
     }
+
+    /**
+     * FIX MOYENNE: Valide et nettoie les données d'une entreprise après chargement
+     * - Valide les tailles de collections (détection corruption/exploits)
+     * - Valide les ranges de valeurs numériques
+     * - Vérifie cohérence des activity records et primes
+     */
+    private void validateAndCleanEntrepriseData(Entreprise entreprise) {
+        if (entreprise == null) return;
+
+        int issuesFixed = 0;
+        String nomEnt = entreprise.getNom();
+
+        // 1. FIX MOYENNE: Valider les tailles de collections (détection corruption/exploits)
+        final int MAX_REASONABLE_EMPLOYEES = 100;
+        final int MAX_REASONABLE_TRANSACTIONS = 10000;
+        final int MAX_REASONABLE_PRODUCTION_RECORDS = 50000;
+        final int MAX_REASONABLE_ACTIVITY_RECORDS = 150;
+
+        if (entreprise.getEmployes().size() > MAX_REASONABLE_EMPLOYEES) {
+            plugin.getLogger().severe("[INTEGRITY] Entreprise '" + nomEnt + "': Nombre d'employés anormal (" +
+                entreprise.getEmployes().size() + "), possible corruption!");
+        }
+
+        // Valider et trimmer activity records si trop volumineux
+        Map<UUID, EmployeeActivityRecord> activityRecords = entreprise.getEmployeeActivityRecords();
+        if (activityRecords != null && activityRecords.size() > MAX_REASONABLE_ACTIVITY_RECORDS) {
+            plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': Trop d'activity records (" +
+                activityRecords.size() + "), nettoyage des plus anciens");
+            // Garder seulement les plus récents basés sur lastActivityTime
+            List<Map.Entry<UUID, EmployeeActivityRecord>> sorted = new ArrayList<>(activityRecords.entrySet());
+            sorted.sort((a, b) -> {
+                LocalDateTime timeA = a.getValue().lastActivityTime != null ? a.getValue().lastActivityTime : LocalDateTime.MIN;
+                LocalDateTime timeB = b.getValue().lastActivityTime != null ? b.getValue().lastActivityTime : LocalDateTime.MIN;
+                return timeB.compareTo(timeA);
+            });
+            activityRecords.clear();
+            sorted.stream().limit(MAX_REASONABLE_ACTIVITY_RECORDS).forEach(e -> activityRecords.put(e.getKey(), e.getValue()));
+            issuesFixed++;
+        }
+
+        List<Transaction> transactions = entreprise.getTransactionLog();
+        if (transactions != null && transactions.size() > MAX_REASONABLE_TRANSACTIONS) {
+            plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': Trop de transactions (" +
+                transactions.size() + "), trimming à " + MAX_REASONABLE_TRANSACTIONS);
+            // Garder seulement les plus récentes
+            List<Transaction> trimmed = transactions.stream()
+                .sorted((a, b) -> b.timestamp.compareTo(a.timestamp))
+                .limit(MAX_REASONABLE_TRANSACTIONS)
+                .collect(java.util.stream.Collectors.toList());
+            entreprise.setTransactionLog(trimmed);
+            issuesFixed++;
+        }
+
+        List<ProductionRecord> production = entreprise.getGlobalProductionLog();
+        if (production != null && production.size() > MAX_REASONABLE_PRODUCTION_RECORDS) {
+            plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': Trop de records de production (" +
+                production.size() + "), trimming à " + MAX_REASONABLE_PRODUCTION_RECORDS);
+            // Garder seulement les plus récents
+            List<ProductionRecord> trimmed = production.stream()
+                .sorted((a, b) -> b.timestamp.compareTo(a.timestamp))
+                .limit(MAX_REASONABLE_PRODUCTION_RECORDS)
+                .collect(java.util.stream.Collectors.toList());
+            entreprise.setGlobalProductionLog(trimmed);
+            issuesFixed++;
+        }
+
+        // 2. FIX MOYENNE: Valider les ranges de valeurs numériques
+        final double MAX_REASONABLE_SOLDE = 100_000_000.0; // 100 millions
+        final double MAX_REASONABLE_CA = 1_000_000_000.0; // 1 milliard
+        final double MAX_REASONABLE_PRIME = 10_000.0; // 10k par heure
+
+        if (entreprise.getSolde() < 0) {
+            plugin.getLogger().severe("[INTEGRITY] Entreprise '" + nomEnt + "': Solde négatif (" +
+                entreprise.getSolde() + "), correction à 0");
+            entreprise.setSolde(0);
+            issuesFixed++;
+        } else if (entreprise.getSolde() > MAX_REASONABLE_SOLDE) {
+            plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': Solde anormalement élevé (" +
+                String.format("%.2f€", entreprise.getSolde()) + "), possible exploit");
+        }
+
+        if (entreprise.getChiffreAffairesTotal() < 0) {
+            plugin.getLogger().severe("[INTEGRITY] Entreprise '" + nomEnt + "': CA négatif (" +
+                entreprise.getChiffreAffairesTotal() + "), correction à 0");
+            entreprise.setChiffreAffairesTotal(0);
+            issuesFixed++;
+        } else if (entreprise.getChiffreAffairesTotal() > MAX_REASONABLE_CA) {
+            plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': CA anormalement élevé (" +
+                String.format("%.2f€", entreprise.getChiffreAffairesTotal()) + ")");
+        }
+
+        // 3. FIX MOYENNE: Valider les primes (utilise String comme clé pour UUID.toString())
+        Map<String, Double> primes = entreprise.getPrimes();
+        if (primes != null && !primes.isEmpty()) {
+            List<String> invalidPrimes = new ArrayList<>();
+            for (Map.Entry<String, Double> entry : primes.entrySet()) {
+                double prime = entry.getValue();
+                if (prime < 0 || prime > MAX_REASONABLE_PRIME || Double.isNaN(prime) || Double.isInfinite(prime)) {
+                    plugin.getLogger().warning("[INTEGRITY] Entreprise '" + nomEnt + "': Prime invalide pour employé " +
+                        entry.getKey() + " (" + prime + "€/h), suppression");
+                    invalidPrimes.add(entry.getKey());
+                    issuesFixed++;
+                }
+            }
+            invalidPrimes.forEach(primes::remove);
+        }
+
+        if (issuesFixed > 0) {
+            plugin.getLogger().info("[COHERENCE] Entreprise '" + nomEnt + "': " + issuesFixed + " problème(s) corrigé(s)");
+        }
+    }
+
+    /**
+     * FIX PERFORMANCE HAUTE: Précharge les restrictions d'actions en cache
+     * Évite de parcourir tous les types d'entreprise (O(n)) à chaque action du joueur
+     * FIX MOYENNE: Le cache expire après 5 minutes pour éviter les données obsolètes
+     */
+    private void loadRestrictionsCache() {
+        restrictionsCache.clear();
+        restrictionsCacheLoadTime = System.currentTimeMillis();
+
+        ConfigurationSection typesEntreprisesConfig = plugin.getConfig().getConfigurationSection("types-entreprise");
+        if (typesEntreprisesConfig == null) {
+            plugin.getLogger().warning("Section 'types-entreprise' introuvable, aucune restriction chargée");
+            return;
+        }
+
+        int restrictionsChargees = 0;
+        for (String typeEntSpecialise : typesEntreprisesConfig.getKeys(false)) {
+            ConfigurationSection actionsSection = plugin.getConfig().getConfigurationSection(
+                "types-entreprise." + typeEntSpecialise + ".action_restrictions");
+
+            if (actionsSection == null) continue;
+
+            int limiteNonMembre = plugin.getConfig().getInt(
+                "types-entreprise." + typeEntSpecialise + ".limite-non-membre-par-heure", -1);
+
+            List<String> messagesErreur = plugin.getConfig().getStringList(
+                "types-entreprise." + typeEntSpecialise + ".message-erreur-restriction");
+            if (messagesErreur.isEmpty()) {
+                messagesErreur = Collections.singletonList("&cAction restreinte. Limite horaire : %limite%");
+            }
+
+            // Parcourir toutes les actions restreintes pour ce type
+            for (String actionType : actionsSection.getKeys(false)) {
+                ConfigurationSection materialsSection = plugin.getConfig().getConfigurationSection(
+                    "types-entreprise." + typeEntSpecialise + ".action_restrictions." + actionType);
+
+                if (materialsSection == null) continue;
+
+                for (String material : materialsSection.getKeys(false)) {
+                    String cacheKey = actionType.toUpperCase() + ":" + material.toUpperCase();
+
+                    restrictionsCache.computeIfAbsent(cacheKey, k -> new ArrayList<>())
+                        .add(new RestrictionInfo(typeEntSpecialise, limiteNonMembre, messagesErreur));
+
+                    restrictionsChargees++;
+                }
+            }
+        }
+
+        plugin.getLogger().info("Cache de restrictions chargé: " + restrictionsChargees + " règles indexées");
+    }
+
     public void saveEntreprises() {
+        // FIX BASSE #28: Mesurer performance de la sauvegarde
+        com.gravityyfh.roleplaycity.util.PerformanceMetrics.Timer timer = plugin.getPerformanceMetrics().startSave("entreprises");
+
         if (plugin == null || entrepriseFile == null) {
             System.err.println("ERREUR CRITIQUE: Plugin ou fichier entreprise est null lors de la tentative de sauvegarde !");
             return;
@@ -1435,18 +2340,93 @@ public class EntrepriseManagerLogic {
             entreprisesSection.set(path + "productionLog", serializedProductionLog);
         }
 
+        // FIX CRITIQUE: Sauvegarde atomique avec backup et validation
+        File tempFile = new File(entrepriseFile.getParentFile(), "entreprise.yml.tmp");
+        File backupFile = new File(entrepriseFile.getParentFile(), "entreprise.yml.backup");
+
         try {
-            tempConfig.save(entrepriseFile);
+            // Étape 1: Écrire dans un fichier temporaire
+            tempConfig.save(tempFile);
+
+            // Étape 2: Valider le fichier temporaire
+            FileConfiguration testLoad = YamlConfiguration.loadConfiguration(tempFile);
+            ConfigurationSection testSection = testLoad.getConfigurationSection("entreprises");
+            if ((testSection == null || testSection.getKeys(false).isEmpty()) && !entreprises.isEmpty()) {
+                throw new IOException("Validation échouée: le fichier temporaire est vide alors que des entreprises existent");
+            }
+
+            // Étape 3: Créer un backup de l'ancien fichier (si existe)
+            if (entrepriseFile.exists()) {
+                Files.copy(entrepriseFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // Étape 4: Renommage atomique (remplace l'ancien fichier)
+            Files.move(tempFile.toPath(), entrepriseFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+            plugin.getLogger().info("Entreprises sauvegardées dans entreprise.yml (atomic write + backup)");
+            // FIX BASSE #28: Fin mesure performance (succès)
+            timer.stop();
+
         } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Impossible de sauvegarder entreprise.yml", e);
+            plugin.getLogger().log(Level.SEVERE, "Erreur critique lors de la sauvegarde de entreprise.yml", e);
+
+            // FIX MOYENNE: Alerter les admins en ligne en cas d'échec de sauvegarde
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                for (Player admin : Bukkit.getOnlinePlayers()) {
+                    if (admin.hasPermission("entreprisemanager.admin.alerts")) {
+                        admin.sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "[ALERTE CRITIQUE]");
+                        admin.sendMessage(ChatColor.RED + "Échec de la sauvegarde de entreprise.yml !");
+                        admin.sendMessage(ChatColor.YELLOW + "Erreur: " + e.getMessage());
+                        admin.sendMessage(ChatColor.GOLD + "Vérifiez les logs du serveur pour plus de détails.");
+                    }
+                }
+            });
+
+            // Tentative de restauration depuis backup si disponible
+            if (backupFile.exists() && !entrepriseFile.exists()) {
+                try {
+                    Files.copy(backupFile.toPath(), entrepriseFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    plugin.getLogger().warning("Fichier entreprise.yml restauré depuis le backup");
+                } catch (IOException restoreEx) {
+                    plugin.getLogger().log(Level.SEVERE, "Impossible de restaurer depuis le backup", restoreEx);
+                }
+            }
         }
         savePlayerHistory();
     }
     // --- Fin Chargement / Sauvegarde ---
 
     // --- Reload (AVEC HISTORIQUE) ---
-    public void reloadPluginData() { plugin.reloadConfig(); loadEntreprises(); loadPlayerHistory(); planifierTachesHoraires(); planifierVerificationActiviteEmployes(); plugin.getLogger().info("[RoleplayCity] Données, historique et configuration rechargés."); }
+    public void reloadPluginData() { plugin.reloadConfig(); loadEntreprises(); loadPlayerHistory(); planifierTachesHoraires(); planifierVerificationActiviteEmployes(); planifierVerificationInactiviteEmployes(); plugin.getLogger().info("[RoleplayCity] Données, historique et configuration rechargés."); }
     // --- Fin Reload ---
+
+    // --- Cleanup (FIX MOYENNE) ---
+    /**
+     * FIX MOYENNE: Nettoyer proprement toutes les tasks asynchrones lors du shutdown
+     * Prévient les erreurs et fuites de ressources
+     */
+    public void cleanup() {
+        plugin.getLogger().info("[EntrepriseManager] Nettoyage des tasks en cours...");
+
+        if (hourlyTask != null && !hourlyTask.isCancelled()) {
+            hourlyTask.cancel();
+            plugin.getLogger().fine("[EntrepriseManager] Task horaire annulée");
+        }
+
+        if (activityCheckTask != null && !activityCheckTask.isCancelled()) {
+            activityCheckTask.cancel();
+            plugin.getLogger().fine("[EntrepriseManager] Task de vérification d'activité annulée");
+        }
+
+        if (inactivityKickTask != null && !inactivityKickTask.isCancelled()) {
+            inactivityKickTask.cancel();
+            plugin.getLogger().fine("[EntrepriseManager] Task de kick inactivité annulée");
+        }
+
+        plugin.getLogger().info("[EntrepriseManager] Nettoyage terminé");
+    }
+    // --- Fin Cleanup ---
 
     // --- Messages Différés ---
     public void ajouterMessageEmployeDifferre(String joueurUUID, String message, String entrepriseNom, double montantPrime) { File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + joueurUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); if (montantPrime > 0) { String totalPrimePath = "messages." + joueurUUID + "." + entrepriseNom + ".totalPrime"; messagesConfig.set(totalPrimePath, messagesConfig.getDouble(totalPrimePath, 0.0) + montantPrime); } try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé employé " + joueurUUID + ": " + e.getMessage()); } }
@@ -1744,13 +2724,22 @@ public class EntrepriseManagerLogic {
         public void setNom(String nom) { this.nom = nom; }
         protected Set<String> getEmployesInternal() { return this.employesNoms; }
         public synchronized void setSolde(double solde) { this.solde = solde; }
-        public synchronized void setChiffreAffairesTotal(double ca) { this.chiffreAffairesTotal = ca; }
-        public void setPrimes(Map<String, Double> p) { this.primes.clear(); if (p != null) this.primes.putAll(p); }
-        public void setTransactionLog(List<Transaction> log) { synchronized(transactionLog) { this.transactionLog.clear(); if (log != null) this.transactionLog.addAll(log); } }
-        public void setEmployeeActivityRecords(Map<UUID, EmployeeActivityRecord> r) { this.employeeActivityRecords.clear(); if (r != null) this.employeeActivityRecords.putAll(r); }
-        public void setGlobalProductionLog(List<ProductionRecord> log) { synchronized(globalProductionLog) { this.globalProductionLog.clear(); if (log != null) this.globalProductionLog.addAll(log); } }
+        // FIX BASSE #16: Renamed parameters for clarity
+        public synchronized void setChiffreAffairesTotal(double totalRevenue) { this.chiffreAffairesTotal = totalRevenue; }
+        public void setPrimes(Map<String, Double> newPrimes) { this.primes.clear(); if (newPrimes != null) this.primes.putAll(newPrimes); }
+        public void setTransactionLog(List<Transaction> transactions) { synchronized(transactionLog) { this.transactionLog.clear(); if (transactions != null) this.transactionLog.addAll(transactions); } }
+        public void setEmployeeActivityRecords(Map<UUID, EmployeeActivityRecord> records) { this.employeeActivityRecords.clear(); if (records != null) this.employeeActivityRecords.putAll(records); }
+        public void setGlobalProductionLog(List<ProductionRecord> productionRecords) { synchronized(globalProductionLog) { this.globalProductionLog.clear(); if (productionRecords != null) this.globalProductionLog.addAll(productionRecords); } }
         public void addTransaction(Transaction tx) { synchronized(transactionLog) { this.transactionLog.add(tx); int maxLogSize = plugin.getConfig().getInt("entreprise.max-transaction-log-size", 200); if(transactionLog.size() > maxLogSize) transactionLog.subList(0, transactionLog.size() - maxLogSize).clear(); } }
-        public void addGlobalProductionRecord(LocalDateTime ts, Material m, int q, String employeeUUIDPerformingAction, DetailedActionType actionType) { synchronized(globalProductionLog) { this.globalProductionLog.add(new ProductionRecord(ts, m, q, employeeUUIDPerformingAction, actionType)); } }
+        public void addGlobalProductionRecord(LocalDateTime timestamp, Material material, int quantity, String employeeUUIDPerformingAction, DetailedActionType actionType) {
+            synchronized(globalProductionLog) {
+                this.globalProductionLog.add(new ProductionRecord(timestamp, material, quantity, employeeUUIDPerformingAction, actionType));
+                // FIX CRITIQUE: Rotation des logs pour éviter fuite mémoire (millions d'enregistrements après quelques semaines)
+                int maxLogSize = plugin.getConfig().getInt("entreprise.max-production-log-size", 500);
+                if(globalProductionLog.size() > maxLogSize)
+                    globalProductionLog.subList(0, globalProductionLog.size() - maxLogSize).clear();
+            }
+        }
         public EmployeeActivityRecord getEmployeeActivityRecord(UUID employeeId) { return employeeActivityRecords.get(employeeId); }
         public EmployeeActivityRecord getOrCreateEmployeeActivityRecord(UUID employeeId, String employeeName) { return employeeActivityRecords.computeIfAbsent(employeeId, k -> new EmployeeActivityRecord(k, employeeName)); }
         public double getPrimePourEmploye(String employeeUUID) { return this.primes.getOrDefault(employeeUUID, 0.0); }
@@ -1763,8 +2752,7 @@ public class EntrepriseManagerLogic {
         public double calculateProfitLoss(LocalDateTime start, LocalDateTime end) { synchronized(transactionLog) { double income = 0; double expense = 0; for (Transaction tx : transactionLog) { if (!tx.timestamp.isBefore(start) && tx.timestamp.isBefore(end)) { if (tx.type.isOperationalIncome()) income += tx.amount; else if (tx.type.isOperationalExpense()) expense += Math.abs(tx.amount); } } return income - expense; } }
         public Map<Material, Integer> getEmployeeProductionStatsForPeriod(UUID employeeUUID, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter, Set<Material> relevantMaterials) { EmployeeActivityRecord record = getEmployeeActivityRecord(employeeUUID); if (record == null) return Collections.emptyMap(); return record.getDetailedStatsForPeriod(actionTypeFilter, start, end, relevantMaterials); }
         public Map<Material, Integer> getAggregatedProductionStatsForPeriod(LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter, Set<Material> relevantMaterials) { Map<Material, Integer> aggregatedStats = new HashMap<>(); for (EmployeeActivityRecord record : employeeActivityRecords.values()) { Map<Material, Integer> employeeStats = record.getDetailedStatsForPeriod(actionTypeFilter, start, end, relevantMaterials); employeeStats.forEach((material, quantity) -> aggregatedStats.merge(material, quantity, Integer::sum)); } return aggregatedStats; }
-        @Deprecated
-        public Map<Material, Integer> getGlobalProductionStatsForPeriod(LocalDateTime start, LocalDateTime end) { synchronized(globalProductionLog) { Map<Material, Integer> stats = new HashMap<>(); for (ProductionRecord r : globalProductionLog) { if (!r.timestamp.isBefore(start) && r.timestamp.isBefore(end)) { stats.merge(r.material, r.quantity, Integer::sum); } } return stats; } }
+        // FIX BASSE #3: Méthode getGlobalProductionStatsForPeriod() deprecated supprimée - utiliser getAggregatedProductionStatsForPeriod()
         public String getEmployeeSeniorityFormatted(UUID employeeId) { EmployeeActivityRecord record = getEmployeeActivityRecord(employeeId); return (record != null) ? record.getFormattedSeniority() : "N/A"; }
         public Set<Material> getTrackedProductionMaterials() { Set<Material> materials = new HashSet<>(); if (plugin == null || plugin.getConfig() == null) return materials; ConfigurationSection typeConfig = plugin.getConfig().getConfigurationSection("types-entreprise." + this.type); if (typeConfig == null) return materials; ConfigurationSection activitesPayantesConfig = typeConfig.getConfigurationSection("activites-payantes"); if (activitesPayantesConfig != null) { for (String actionTypeKey : activitesPayantesConfig.getKeys(false)) { ConfigurationSection materialsConfig = activitesPayantesConfig.getConfigurationSection(actionTypeKey); if (materialsConfig != null) { for (String materialKey : materialsConfig.getKeys(false)) { Material mat = Material.matchMaterial(materialKey); if (mat != null) materials.add(mat); } } } } return materials; }
         @Override public String toString() { return "Entreprise{nom='" + nom + "', type='" + type + "', gérant='" + gerantNom + "', solde=" + solde + "}"; }

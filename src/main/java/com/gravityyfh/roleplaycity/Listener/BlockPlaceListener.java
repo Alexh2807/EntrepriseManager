@@ -51,6 +51,12 @@ public class BlockPlaceListener implements Listener {
         if (!preventRevenue) {
             entrepriseLogic.enregistrerActionProductive(player, "BLOCK_PLACE", blockType, 1, block);
         }
+
+        // FIX PERFORMANCES: Enregistrer le bloc dans le cache pour éviter les lookups CoreProtect futurs
+        com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache cache = plugin.getBlockPlaceCache();
+        if (cache != null) {
+            cache.recordBlockPlace(block, player.getName(), player.getUniqueId());
+        }
     }
 
     private boolean checkAntiDuplication(Player player, Block block, Material blockType) {

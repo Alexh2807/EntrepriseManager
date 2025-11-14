@@ -28,7 +28,9 @@ public class InjuredPlayerData {
                 dataFile.getParentFile().mkdirs();
                 dataFile.createNewFile();
             } catch (IOException e) {
-                e.printStackTrace();
+                // FIX BASSE: Utiliser Bukkit logger au lieu de printStackTrace
+                org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
+                    "InjuredPlayerData: Erreur création fichier de données", e);
             }
         }
         config = YamlConfiguration.loadConfiguration(dataFile);
@@ -124,7 +126,9 @@ public class InjuredPlayerData {
         try {
             config.save(dataFile);
         } catch (IOException e) {
-            e.printStackTrace();
+            // FIX BASSE: Utiliser Bukkit logger au lieu de printStackTrace
+            org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
+                "InjuredPlayerData: Erreur sauvegarde fichier de données", e);
         }
     }
 

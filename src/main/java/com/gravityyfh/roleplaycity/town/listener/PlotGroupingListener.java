@@ -81,9 +81,9 @@ public class PlotGroupingListener implements Listener {
         activeSessions.put(player.getUniqueId(), session);
 
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "MODE GROUPEMENT DE PARCELLES");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.YELLOW + "Instructions:");
         player.sendMessage(ChatColor.WHITE + "→ Faites " + ChatColor.AQUA + "clic droit" + ChatColor.WHITE + " sur les parcelles à grouper");
         player.sendMessage(ChatColor.WHITE + "→ Minimum 2 parcelles adjacentes requises");
@@ -93,7 +93,7 @@ public class PlotGroupingListener implements Listener {
         player.sendMessage(ChatColor.RED + "🔴 Rouge" + ChatColor.GRAY + " = Impossible à sélectionner");
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Session active pendant 5 minutes");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage("");
 
         // Démarrer l'affichage des particules
@@ -501,7 +501,7 @@ public class PlotGroupingListener implements Listener {
                 if (chunkParts.length == 3) {
                     Plot plotToGroup = town.getPlot(chunkParts[0], Integer.parseInt(chunkParts[1]), Integer.parseInt(chunkParts[2]));
                     if (plotToGroup != null) {
-                        plugin.getMailboxManager().removeMailboxByPlot(plotToGroup);
+                        plugin.getMailboxManager().removeMailbox(plotToGroup);
                     }
                 }
             }
@@ -530,13 +530,13 @@ public class PlotGroupingListener implements Listener {
 
         // Message de succès
         player.sendMessage("");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ GROUPE CRÉÉ AVEC SUCCÈS");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.YELLOW + "Nom: " + ChatColor.WHITE + groupName);
         player.sendMessage(ChatColor.YELLOW + "Parcelles: " + ChatColor.WHITE + session.selectedChunkKeys.size());
         player.sendMessage(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + (session.selectedChunkKeys.size() * 256) + "m²");
-        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════════════");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage("");
 
         // Nettoyer la session

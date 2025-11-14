@@ -31,6 +31,10 @@ public class TownBankGUI implements Listener {
 
     private final Map<UUID, BankActionContext> pendingActions;
 
+    // FIX MOYENNE: Protection contre le double-click pour éviter exploits
+    private final Map<UUID, Long> clickTimestamps = new HashMap<>();
+    private static final long CLICK_DELAY_MS = 500;
+
     public TownBankGUI(RoleplayCity plugin, TownManager townManager, TownEconomyManager economyManager) {
         this.plugin = plugin;
         this.townManager = townManager;
@@ -71,7 +75,7 @@ public class TownBankGUI implements Listener {
 
         TownRole role = town.getMemberRole(player.getUniqueId());
 
-        // Déposer
+        // Déposer (slot 10)
         ItemStack depositItem = new ItemStack(Material.EMERALD);
         ItemMeta depositMeta = depositItem.getItemMeta();
         depositMeta.setDisplayName(ChatColor.GREEN + "Déposer de l'Argent");
@@ -82,9 +86,22 @@ public class TownBankGUI implements Listener {
         depositLore.add(ChatColor.YELLOW + "Cliquez pour déposer");
         depositMeta.setLore(depositLore);
         depositItem.setItemMeta(depositMeta);
-        inv.setItem(11, depositItem);
+        inv.setItem(10, depositItem);
 
-        // Retirer (maire/adjoint uniquement)
+        // Historique des transactions (slot 13)
+        ItemStack historyItem = new ItemStack(Material.BOOK);
+        ItemMeta historyMeta = historyItem.getItemMeta();
+        historyMeta.setDisplayName(ChatColor.AQUA + "Historique des Transactions");
+        List<String> historyLore = new ArrayList<>();
+        historyLore.add(ChatColor.GRAY + "Voir les dernières");
+        historyLore.add(ChatColor.GRAY + "opérations financières");
+        historyLore.add("");
+        historyLore.add(ChatColor.YELLOW + "Cliquez pour voir");
+        historyMeta.setLore(historyLore);
+        historyItem.setItemMeta(historyMeta);
+        inv.setItem(13, historyItem);
+
+        // Retirer (slot 16 - maire/adjoint uniquement)
         if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
             ItemStack withdrawItem = new ItemStack(Material.GOLD_INGOT);
             ItemMeta withdrawMeta = withdrawItem.getItemMeta();
@@ -97,23 +114,10 @@ public class TownBankGUI implements Listener {
             withdrawLore.add(ChatColor.YELLOW + "Cliquez pour retirer");
             withdrawMeta.setLore(withdrawLore);
             withdrawItem.setItemMeta(withdrawMeta);
-            inv.setItem(13, withdrawItem);
+            inv.setItem(16, withdrawItem);
         }
 
-        // Historique des transactions
-        ItemStack historyItem = new ItemStack(Material.BOOK);
-        ItemMeta historyMeta = historyItem.getItemMeta();
-        historyMeta.setDisplayName(ChatColor.AQUA + "Historique des Transactions");
-        List<String> historyLore = new ArrayList<>();
-        historyLore.add(ChatColor.GRAY + "Voir les dernières");
-        historyLore.add(ChatColor.GRAY + "opérations financières");
-        historyLore.add("");
-        historyLore.add(ChatColor.YELLOW + "Cliquez pour voir");
-        historyMeta.setLore(historyLore);
-        historyItem.setItemMeta(historyMeta);
-        inv.setItem(15, historyItem);
-
-        // Collecter les taxes (maire/adjoint uniquement)
+        // Collecter les taxes (slot 20 - maire/adjoint uniquement)
         if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
             ItemStack taxItem = new ItemStack(Material.DIAMOND);
             ItemMeta taxMeta = taxItem.getItemMeta();
@@ -128,7 +132,7 @@ public class TownBankGUI implements Listener {
             taxLore.add(ChatColor.YELLOW + "Cliquez pour collecter");
             taxMeta.setLore(taxLore);
             taxItem.setItemMeta(taxMeta);
-            inv.setItem(22, taxItem);
+            inv.setItem(20, taxItem);
         }
 
         // Fermer
@@ -202,8 +206,20 @@ public class TownBankGUI implements Listener {
             return;
         }
 
+        // FIX MOYENNE: Vérifier le délai entre clics pour éviter exploits
+        long currentTime = System.currentTimeMillis();
+        if (clickTimestamps.getOrDefault(player.getUniqueId(), 0L) + CLICK_DELAY_MS > currentTime) {
+            return;
+        }
+        clickTimestamps.put(player.getUniqueId(), currentTime);
+
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 
@@ -236,8 +252,20 @@ public class TownBankGUI implements Listener {
             return;
         }
 
+        // FIX MOYENNE: Vérifier le délai entre clics pour éviter exploits
+        long currentTime = System.currentTimeMillis();
+        if (clickTimestamps.getOrDefault(player.getUniqueId(), 0L) + CLICK_DELAY_MS > currentTime) {
+            return;
+        }
+        clickTimestamps.put(player.getUniqueId(), currentTime);
+
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 

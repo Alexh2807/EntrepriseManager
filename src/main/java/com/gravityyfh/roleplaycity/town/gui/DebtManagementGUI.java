@@ -262,9 +262,9 @@ public class DebtManagementGUI implements Listener {
 
             // Messages de succès
             player.sendMessage("");
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ DETTE PAYÉE");
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + company.getNom());
             player.sendMessage(ChatColor.YELLOW + "Montant payé: " + ChatColor.GOLD + String.format("%.2f€", debtAmount));
             player.sendMessage(ChatColor.YELLOW + "Solde restant: " + ChatColor.GOLD + String.format("%.2f€", company.getSolde()));
@@ -274,7 +274,7 @@ public class DebtManagementGUI implements Listener {
             }
             player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage("");
 
         } else {
@@ -298,9 +298,9 @@ public class DebtManagementGUI implements Listener {
 
             // Messages de succès
             player.sendMessage("");
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ DETTE PAYÉE");
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage(ChatColor.YELLOW + "Montant payé: " + ChatColor.GOLD + String.format("%.2f€", debtAmount));
             player.sendMessage(ChatColor.YELLOW + "Argent restant: " + ChatColor.GOLD +
                 String.format("%.2f€", RoleplayCity.getEconomy().getBalance(player)));
@@ -310,7 +310,7 @@ public class DebtManagementGUI implements Listener {
             }
             player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getCoordinates());
 
-            player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════════");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             player.sendMessage("");
         }
 

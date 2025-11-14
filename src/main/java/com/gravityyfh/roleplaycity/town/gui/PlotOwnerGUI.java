@@ -91,7 +91,7 @@ public class PlotOwnerGUI implements Listener {
         infoItem.setItemMeta(infoMeta);
         inv.setItem(4, infoItem);
 
-        // Gérer les permissions
+        // Gérer les permissions (slot 10)
         ItemStack permsItem = new ItemStack(Material.PAPER);
         ItemMeta permsMeta = permsItem.getItemMeta();
         permsMeta.setDisplayName(ChatColor.BLUE + "Gérer les Permissions");
@@ -102,9 +102,9 @@ public class PlotOwnerGUI implements Listener {
         permsLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
         permsMeta.setLore(permsLore);
         permsItem.setItemMeta(permsMeta);
-        inv.setItem(11, permsItem);
+        inv.setItem(10, permsItem);
 
-        // Flags de protection
+        // Flags de protection (slot 13)
         ItemStack flagsItem = new ItemStack(Material.SHIELD);
         ItemMeta flagsMeta = flagsItem.getItemMeta();
         flagsMeta.setDisplayName(ChatColor.DARK_PURPLE + "Flags de Protection");
@@ -117,7 +117,7 @@ public class PlotOwnerGUI implements Listener {
         flagsItem.setItemMeta(flagsMeta);
         inv.setItem(13, flagsItem);
 
-        // Joueurs de confiance
+        // Joueurs de confiance (slot 16)
         ItemStack trustItem = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta trustMeta = trustItem.getItemMeta();
         trustMeta.setDisplayName(ChatColor.GREEN + "Joueurs de Confiance");
@@ -128,9 +128,9 @@ public class PlotOwnerGUI implements Listener {
         trustLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
         trustMeta.setLore(trustLore);
         trustItem.setItemMeta(trustMeta);
-        inv.setItem(15, trustItem);
+        inv.setItem(16, trustItem);
 
-        // Retour à Mes Propriétés
+        // Retour à Mes Propriétés (slot 26)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
         backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
@@ -138,7 +138,7 @@ public class PlotOwnerGUI implements Listener {
         backLore.add(ChatColor.GRAY + "Voir tous vos terrains");
         backMeta.setLore(backLore);
         backItem.setItemMeta(backMeta);
-        inv.setItem(22, backItem);
+        inv.setItem(26, backItem);
 
         player.openInventory(inv);
     }
@@ -341,6 +341,11 @@ public class PlotOwnerGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Gérer les Permissions")) {
@@ -371,6 +376,11 @@ public class PlotOwnerGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Ajouter un Joueur")) {
@@ -397,6 +407,11 @@ public class PlotOwnerGUI implements Listener {
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 

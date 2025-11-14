@@ -114,6 +114,14 @@ public class EntrepriseGUI implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
+    // FIX HAUTE: Nettoyer les contextes GUI orphelins lors de la déconnexion
+    public void cleanupPlayerContext(UUID playerUUID) {
+        if (playerUUID != null) {
+            playerContexts.remove(playerUUID);
+            clickTimestamps.remove(playerUUID);
+        }
+    }
+
     private PlayerGUIContext getPlayerContext(Player player) {
         return playerContexts.computeIfAbsent(player.getUniqueId(), k -> new PlayerGUIContext(getMainMenuTitle()));
     }
@@ -162,9 +170,8 @@ public class EntrepriseGUI implements Listener {
         // --- NOUVELLE LOGIQUE ---
         // D'abord, on vérifie si le clic a lieu dans un menu géré par une autre classe.
         // Si c'est le cas, on ignore complètement l'événement dans CETTE classe.
-        if ((plugin.getShopGUI() != null && plugin.getShopGUI().isShopMenu(topInventoryTitle)) ||
-                (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(topInventoryTitle))) {
-            return; // Laisser ShopGUI ou PlayerCVGUI gérer ce clic.
+        if (plugin.getPlayerCVGUI() != null && plugin.getPlayerCVGUI().isPluginCVMenu(topInventoryTitle)) {
+            return; // Laisser PlayerCVGUI gérer ce clic.
         }
 
         // Si on arrive ici, on sait que ce n'est pas un menu Shop ou CV.
@@ -357,7 +364,9 @@ public class EntrepriseGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, 54, TITLE_SELECT_GERANT);
         Collection<String> residentsInTown = entrepriseLogic.getPlayersInMayorTown(maire);
         boolean foundEligible = false;
-        int maxManagedByGerantConfig = plugin.getConfig().getInt("finance.max-entreprises-par-gerant", 1);
+        // FIX BASSE #26: Utiliser ConfigDefaults
+        int maxManagedByGerantConfig = plugin.getConfig().getInt("finance.max-entreprises-par-gerant",
+            com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_MAX_ENTREPRISES_PAR_GERANT);
         Set<String> potentialGerants = new HashSet<>(residentsInTown);
         potentialGerants.add(maire.getName());
 
@@ -554,9 +563,14 @@ public class EntrepriseGUI implements Listener {
         } else if (itemName.equals("Recruter Employé")) {
             openRecruitEmployeeProximityMenu(gerant, context, entreprise);
 
-            // MODIFICATION ICI : La condition vérifie le nouveau nom et appelle la bonne méthode de ShopGUI.
+            // Boutiques
         } else if (itemName.equals("Mes Boutiques")) {
-            plugin.getShopGUI().openShopListMenu(gerant, entreprise, 0); // Ouvre la liste des boutiques
+            if (plugin.getShopListGUI() != null) {
+                plugin.getShopListGUI().openShopList(gerant, entreprise, 0);
+            } else {
+                gerant.sendMessage(ChatColor.RED + "Erreur: Système de boutiques non disponible.");
+                gerant.closeInventory();
+            }
 
         } else if (itemName.equals("Renommer Entreprise")) {
             plugin.getChatListener().attendreNouveauNomEntreprise(gerant, entreprise.getNom());
@@ -1057,7 +1071,8 @@ public class EntrepriseGUI implements Listener {
             }
         } else if (itemName.equals("Recharger Configuration")) {
             if (player.hasPermission("entreprisemanager.admin.reload")) {
-                plugin.reloadPluginData();
+                // FIX BASSE #4: Utiliser la nouvelle méthode au lieu de deprecated
+                plugin.reloadPluginConfig();
                 player.sendMessage(ChatColor.GREEN + "Plugin rechargé.");
             } else {
                 player.sendMessage(ChatColor.RED + "Permission refusée.");

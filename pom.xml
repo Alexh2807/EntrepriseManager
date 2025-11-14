@@ -6,7 +6,7 @@
 
     <groupId>com.gravityyfh.roleplaycity</groupId>
     <artifactId>RoleplayCity</artifactId>
-    <version>1.06.05</version>
+    <version>1.06.25</version>
     <packaging>jar</packaging>
 
     <name>RoleplayCity</name>

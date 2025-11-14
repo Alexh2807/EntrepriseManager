@@ -1,11 +1,13 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
+import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 
 public class TownDataManager {
     private final RoleplayCity plugin;
@@ -24,6 +27,11 @@ public class TownDataManager {
 
     // FIX CRITIQUE P1.2: Lock pour éviter corruption lors de sauvegardes parallèles
     private final ReentrantLock saveLock = new ReentrantLock();
+
+    // FIX BASSE #12: Dirty flag pour batching des sauvegardes
+    private volatile boolean isDirty = false;
+    private long lastSaveTime = System.currentTimeMillis();
+    private static final long SAVE_INTERVAL_MS = 60000; // Sauvegarder au maximum toutes les 60 secondes
 
     public TownDataManager(RoleplayCity plugin) {
         this.plugin = plugin;
@@ -167,8 +175,12 @@ public class TownDataManager {
                 if (plot.getRenterUuid() != null) {
                     townsConfig.set(plotPath + ".renter-uuid", plot.getRenterUuid().toString());
                     townsConfig.set(plotPath + ".rent-start", plot.getRentStartDate().format(DATE_FORMAT));
-                    townsConfig.set(plotPath + ".last-rent-update", plot.getLastRentUpdate().format(DATE_FORMAT));
-                    townsConfig.set(plotPath + ".rent-days-remaining", plot.getRentDaysRemaining());
+                    // NOUVEAU : Sauvegarder la date d'expiration au lieu du système ancien
+                    if (plot.getRentEndDate() != null) {
+                        townsConfig.set(plotPath + ".rent-end-date", plot.getRentEndDate().format(DATE_FORMAT));
+                    }
+                    // Sauvegarder le prix de location même si forRent = false (important pour le locataire actuel)
+                    townsConfig.set(plotPath + ".rent-price-per-day", plot.getRentPricePerDay());
                 }
 
                 // Sauvegarder le SIRET du locataire (entreprise)
@@ -234,6 +246,40 @@ public class TownDataManager {
                     townsConfig.set(plotPath + ".flags." + flagEntry.getKey().name(), flagEntry.getValue());
                 }
 
+                // ⛓️ Spawn prison (pour COMMISSARIAT)
+                if (plot.hasPrisonSpawn()) {
+                    Location prisonSpawn = plot.getPrisonSpawn();
+                    townsConfig.set(plotPath + ".prison-spawn.world", prisonSpawn.getWorld().getName());
+                    townsConfig.set(plotPath + ".prison-spawn.x", prisonSpawn.getX());
+                    townsConfig.set(plotPath + ".prison-spawn.y", prisonSpawn.getY());
+                    townsConfig.set(plotPath + ".prison-spawn.z", prisonSpawn.getZ());
+                    townsConfig.set(plotPath + ".prison-spawn.yaw", prisonSpawn.getYaw());
+                    townsConfig.set(plotPath + ".prison-spawn.pitch", prisonSpawn.getPitch());
+                }
+
+                // 📬 Boîte aux lettres (intégrée dans le plot)
+                if (plot.hasMailbox()) {
+                    com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox = plot.getMailbox();
+                    String mailboxPath = plotPath + ".mailbox";
+
+                    townsConfig.set(mailboxPath + ".type", mailbox.getType().name());
+
+                    // Sauvegarder la position de la tête
+                    Location headLoc = mailbox.getHeadLocation();
+                    townsConfig.set(mailboxPath + ".head-location.world", headLoc.getWorld().getName());
+                    townsConfig.set(mailboxPath + ".head-location.x", headLoc.getX());
+                    townsConfig.set(mailboxPath + ".head-location.y", headLoc.getY());
+                    townsConfig.set(mailboxPath + ".head-location.z", headLoc.getZ());
+
+                    // Sauvegarder l'inventaire virtuel (items)
+                    Map<Integer, org.bukkit.inventory.ItemStack> items = mailbox.getItems();
+                    if (!items.isEmpty()) {
+                        for (Map.Entry<Integer, org.bukkit.inventory.ItemStack> itemEntry : items.entrySet()) {
+                            townsConfig.set(mailboxPath + ".items." + itemEntry.getKey(), itemEntry.getValue());
+                        }
+                    }
+                }
+
                 plotIndex++;
             }
         }
@@ -250,11 +296,65 @@ public class TownDataManager {
 
             plugin.getLogger().info("Sauvegardé " + towns.size() + " villes dans towns.yml (atomic write)");
         } catch (IOException e) {
-            plugin.getLogger().severe("Erreur lors de la sauvegarde des villes: " + e.getMessage());
-            e.printStackTrace();
+            // FIX BASSE: Utiliser logging avec exception complète
+            plugin.getLogger().log(Level.SEVERE, "Erreur lors de la sauvegarde des villes", e);
         } finally {
             saveLock.unlock();
+            // Réinitialiser le dirty flag après sauvegarde réussie
+            isDirty = false;
+            lastSaveTime = System.currentTimeMillis();
         }
+    }
+
+    /**
+     * FIX BASSE #12: Marque les données comme modifiées (dirty)
+     * La sauvegarde sera effectuée lors du prochain appel à saveIfDirty()
+     */
+    public void markDirty() {
+        isDirty = true;
+    }
+
+    /**
+     * FIX BASSE #12: Sauvegarde uniquement si les données sont dirty ET que l'intervalle est dépassé
+     * Cela permet de batching les sauvegardes pour améliorer les performances
+     *
+     * @param towns Map des villes à sauvegarder
+     * @param force Si true, force la sauvegarde même si l'intervalle n'est pas dépassé
+     */
+    public void saveIfDirty(Map<String, Town> towns, boolean force) {
+        if (!isDirty) {
+            return; // Aucune modification, pas besoin de sauvegarder
+        }
+
+        long currentTime = System.currentTimeMillis();
+        long timeSinceLastSave = currentTime - lastSaveTime;
+
+        if (force || timeSinceLastSave >= SAVE_INTERVAL_MS) {
+            plugin.getLogger().fine("[TownDataManager] Sauvegarde (dirty=" + isDirty +
+                ", elapsed=" + (timeSinceLastSave / 1000) + "s, force=" + force + ")");
+            saveTowns(towns);
+        }
+    }
+
+    /**
+     * FIX BASSE #12: Version simplifiée sans force
+     */
+    public void saveIfDirty(Map<String, Town> towns) {
+        saveIfDirty(towns, false);
+    }
+
+    /**
+     * Vérifie si les données sont dirty (modifiées mais pas sauvegardées)
+     */
+    public boolean isDirty() {
+        return isDirty;
+    }
+
+    /**
+     * Retourne le temps écoulé depuis la dernière sauvegarde en millisecondes
+     */
+    public long getTimeSinceLastSave() {
+        return System.currentTimeMillis() - lastSaveTime;
     }
 
     public Map<String, Town> loadTowns() {
@@ -269,13 +369,19 @@ public class TownDataManager {
 
         for (String townName : townsSection.getKeys(false)) {
             try {
+                // FIX BASSE #31: Valider le nom de la ville au chargement
+                if (!plugin.getNameValidator().isValidLoadedName(townName, "ville")) {
+                    plugin.getLogger().warning("⚠ Ville avec nom invalide ignorée: " + townName);
+                    continue;
+                }
+
                 Town town = loadTown(townName, townsSection.getConfigurationSection(townName));
                 if (town != null) {
                     towns.put(townName, town);
                 }
             } catch (Exception e) {
-                plugin.getLogger().severe("Erreur lors du chargement de la ville " + townName + ": " + e.getMessage());
-                e.printStackTrace();
+                // FIX BASSE: Utiliser logging avec exception complète
+                plugin.getLogger().log(Level.SEVERE, "Erreur lors du chargement de la ville " + townName, e);
             }
         }
 
@@ -563,25 +669,104 @@ public class TownDataManager {
         // Charger locataire
         if (section.contains("renter-uuid")) {
             UUID renterUuid = UUID.fromString(section.getString("renter-uuid"));
-            int daysRemaining = section.getInt("rent-days-remaining", 1);
-            plot.setRenter(renterUuid, daysRemaining);
 
-            // Charger les dates si disponibles
-            if (section.contains("last-rent-update")) {
-                // Les dates sont déjà définies par setRenter, mais on peut les surcharger
+            // NOUVEAU SYSTÈME : Charger la date d'expiration directement
+            if (section.contains("rent-end-date")) {
                 try {
-                    LocalDateTime lastUpdate = LocalDateTime.parse(
-                        section.getString("last-rent-update"), DATE_FORMAT);
-                    // Note: il faudrait un setter pour lastRentUpdate si besoin de précision
+                    LocalDateTime rentEndDate = LocalDateTime.parse(
+                        section.getString("rent-end-date"), DATE_FORMAT);
+
+                    // Définir le locataire (initialisation de base)
+                    plot.setRenter(renterUuid, 1);
+                    // Puis surcharger avec la vraie date d'expiration
+                    plot.setRentEndDate(rentEndDate);
                 } catch (Exception e) {
-                    plugin.getLogger().warning("Erreur lors du chargement de last-rent-update");
+                    plugin.getLogger().warning("Erreur lors du chargement de rent-end-date, utilisation du fallback: " + e.getMessage());
+                    // Fallback: utiliser l'ancien système si disponible
+                    int daysRemaining = section.getInt("rent-days-remaining", 1);
+                    plot.setRenter(renterUuid, daysRemaining);
                 }
+            } else {
+                // ANCIEN SYSTÈME (rétrocompatibilité) : Calculer rentEndDate depuis lastRentUpdate + rentDaysRemaining
+                try {
+                    if (section.contains("last-rent-update") && section.contains("rent-days-remaining")) {
+                        LocalDateTime lastUpdate = LocalDateTime.parse(
+                            section.getString("last-rent-update"), DATE_FORMAT);
+                        int daysRemaining = section.getInt("rent-days-remaining", 1);
+
+                        // Calculer la date d'expiration: lastUpdate + daysRemaining jours
+                        LocalDateTime rentEndDate = lastUpdate.plusDays(daysRemaining);
+
+                        // Définir le locataire (initialisation de base)
+                        plot.setRenter(renterUuid, 1);
+                        // Puis surcharger avec la date calculée
+                        plot.setRentEndDate(rentEndDate);
+
+                        plugin.getLogger().info("Migration ancien système → nouveau système pour plot: " +
+                            "rentEndDate calculée = " + rentEndDate.format(DATE_FORMAT));
+                    } else {
+                        // Dernier fallback: utiliser rent-days-remaining seulement
+                        int daysRemaining = section.getInt("rent-days-remaining", 1);
+                        plot.setRenter(renterUuid, daysRemaining);
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Erreur lors de la migration de l'ancien système: " + e.getMessage());
+                    // Fallback absolu
+                    int daysRemaining = section.getInt("rent-days-remaining", 1);
+                    plot.setRenter(renterUuid, daysRemaining);
+                }
+            }
+
+            // Charger le prix de location (important pour affichage au locataire)
+            if (section.contains("rent-price-per-day")) {
+                plot.setRentPricePerDay(section.getDouble("rent-price-per-day"));
+            } else if (section.contains("rent-price")) {
+                // Ancien système: convertir prix total en prix par jour
+                double totalPrice = section.getDouble("rent-price");
+                int duration = section.getInt("rent-duration", 1);
+                plot.setRentPricePerDay(totalPrice / Math.max(1, duration));
             }
         }
 
         // Charger le SIRET du locataire (entreprise)
         if (section.contains("renter-company-siret")) {
             plot.setRenterCompanySiret(section.getString("renter-company-siret"));
+        }
+
+        // ⚠️ MIGRATION AUTOMATIQUE : Si location PRO sans SIRET, le reconstruire
+        if (plot.getType() == PlotType.PROFESSIONNEL &&
+            plot.getRenterUuid() != null &&
+            plot.getRenterCompanySiret() == null) {
+
+            // Tentative de reconstruction du SIRET manquant
+            try {
+                UUID renterUuid = plot.getRenterUuid();
+                Player renterPlayer = plugin.getServer().getPlayer(renterUuid);
+                String renterName = renterPlayer != null ? renterPlayer.getName() :
+                                  plugin.getServer().getOfflinePlayer(renterUuid).getName();
+
+                if (renterName != null) {
+                    // Rechercher l'entreprise du locataire par son nom
+                    String companyName = plugin.getEntrepriseManagerLogic().getNomEntrepriseDuMembre(renterName);
+
+                    if (companyName != null) {
+                        EntrepriseManagerLogic.Entreprise renterCompany =
+                            plugin.getEntrepriseManagerLogic().getEntreprise(companyName);
+
+                        if (renterCompany != null) {
+                            plot.setRenterCompanySiret(renterCompany.getSiret());
+                            plugin.getLogger().info("Migration: SIRET locataire reconstruit pour le terrain " +
+                                plot.getPlotNumber() + " - Entreprise: " + renterCompany.getNom());
+                        }
+                    } else {
+                        plugin.getLogger().warning("Migration: Impossible de retrouver l'entreprise du locataire " +
+                            renterName + " pour le terrain " + plot.getPlotNumber());
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Erreur lors de la migration du SIRET locataire pour " +
+                    plot.getPlotNumber() + ": " + e.getMessage());
+            }
         }
 
         // Charger les blocs protégés uniquement si le monde est disponible
@@ -696,6 +881,80 @@ public class TownDataManager {
                 } catch (IllegalArgumentException e) {
                     plugin.getLogger().warning("Flag invalide: " + flagName);
                 }
+            }
+        }
+
+        // ⛓️ Charger le spawn prison (pour COMMISSARIAT)
+        if (section.contains("prison-spawn")) {
+            try {
+                String prisonWorldName = section.getString("prison-spawn.world");
+                org.bukkit.World prisonWorld = plugin.getServer().getWorld(prisonWorldName);
+
+                if (prisonWorld != null) {
+                    double x = section.getDouble("prison-spawn.x");
+                    double y = section.getDouble("prison-spawn.y");
+                    double z = section.getDouble("prison-spawn.z");
+                    float yaw = (float) section.getDouble("prison-spawn.yaw", 0.0);
+                    float pitch = (float) section.getDouble("prison-spawn.pitch", 0.0);
+
+                    Location prisonSpawn = new Location(prisonWorld, x, y, z, yaw, pitch);
+                    plot.setPrisonSpawn(prisonSpawn);
+                } else {
+                    plugin.getLogger().warning("Monde introuvable pour prison spawn: " + prisonWorldName);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Erreur lors du chargement du prison spawn: " + e.getMessage());
+            }
+        }
+
+        // 📬 Charger la boîte aux lettres (intégrée dans le plot)
+        if (section.contains("mailbox")) {
+            try {
+                ConfigurationSection mailboxSection = section.getConfigurationSection("mailbox");
+                if (mailboxSection != null) {
+                    // Charger le type
+                    com.gravityyfh.roleplaycity.postal.data.MailboxType type =
+                        com.gravityyfh.roleplaycity.postal.data.MailboxType.valueOf(
+                            mailboxSection.getString("type", "LIGHT_GRAY")
+                        );
+
+                    // Charger la position de la tête
+                    String headWorldName = mailboxSection.getString("head-location.world");
+                    org.bukkit.World headWorld = plugin.getServer().getWorld(headWorldName);
+
+                    if (headWorld != null) {
+                        double x = mailboxSection.getDouble("head-location.x");
+                        double y = mailboxSection.getDouble("head-location.y");
+                        double z = mailboxSection.getDouble("head-location.z");
+                        Location headLocation = new Location(headWorld, x, y, z);
+
+                        // Charger l'inventaire virtuel (items)
+                        Map<Integer, org.bukkit.inventory.ItemStack> items = new HashMap<>();
+                        ConfigurationSection itemsSection = mailboxSection.getConfigurationSection("items");
+                        if (itemsSection != null) {
+                            for (String slotKey : itemsSection.getKeys(false)) {
+                                try {
+                                    int slot = Integer.parseInt(slotKey);
+                                    org.bukkit.inventory.ItemStack item = itemsSection.getItemStack(slotKey);
+                                    if (item != null) {
+                                        items.put(slot, item);
+                                    }
+                                } catch (NumberFormatException e) {
+                                    plugin.getLogger().warning("Slot invalide dans mailbox: " + slotKey);
+                                }
+                            }
+                        }
+
+                        // Créer l'objet Mailbox et l'attacher au plot
+                        com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox =
+                            new com.gravityyfh.roleplaycity.postal.data.Mailbox(type, headLocation, items);
+                        plot.setMailbox(mailbox);
+                    } else {
+                        plugin.getLogger().warning("Monde introuvable pour mailbox: " + headWorldName);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Erreur lors du chargement de la mailbox: " + e.getMessage());
             }
         }
 

@@ -51,7 +51,8 @@ public class TownEconomyTask extends BukkitRunnable {
     }
 
     /**
-     * Met à jour les soldes de location de toutes les parcelles (individuelles et groupées)
+     * Vérifie l'expiration des locations de toutes les parcelles
+     * Système basé sur la date d'expiration (comme AbonnementConnection)
      */
     private void updateAllRentDays() {
         townManager.getTownNames().forEach(townName -> {
@@ -59,7 +60,7 @@ public class TownEconomyTask extends BukkitRunnable {
             if (town != null) {
                 town.getPlots().values().forEach(plot -> {
                     if (plot.getRenterUuid() != null) {
-                        plot.updateRentDays();
+                        plot.checkRentExpiration();
                     }
                 });
             }

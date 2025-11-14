@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.logging.Level;
 
 /**
  * [DataEngineer]
@@ -132,8 +133,8 @@ public class NotificationDataManager {
             plugin.getLogger().info("Sauvegardé " + totalOffline + " notifications offline et " +
                                   totalHistory + " notifications d'historique dans notifications.yml");
         } catch (IOException e) {
-            plugin.getLogger().severe("Erreur lors de la sauvegarde des notifications: " + e.getMessage());
-            e.printStackTrace();
+            // FIX BASSE: Utiliser logging avec exception complète
+            plugin.getLogger().log(Level.SEVERE, "Erreur lors de la sauvegarde des notifications", e);
         }
     }
 
@@ -283,8 +284,8 @@ public class NotificationDataManager {
             return new Notification(type, title, message, timestamp, read);
 
         } catch (Exception e) {
-            plugin.getLogger().severe("Erreur lors du chargement d'une notification: " + e.getMessage());
-            e.printStackTrace();
+            // FIX BASSE: Utiliser logging avec exception complète
+            plugin.getLogger().log(Level.SEVERE, "Erreur lors du chargement d'une notification", e);
             return null;
         }
     }

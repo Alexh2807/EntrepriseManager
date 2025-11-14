@@ -50,11 +50,26 @@ public class MyPropertyGUI implements Listener {
 
         UUID playerUuid = player.getUniqueId();
 
+        // Détecter la parcelle actuelle du joueur
+        Plot currentPlot = plugin.getClaimManager().getPlotAt(player.getLocation());
+        boolean isCurrentPlotOwned = false;
+        boolean isCurrentPlotRented = false;
+
+        if (currentPlot != null) {
+            isCurrentPlotOwned = playerUuid.equals(currentPlot.getOwnerUuid());
+            isCurrentPlotRented = playerUuid.equals(currentPlot.getRenterUuid());
+        }
+
         // Récupérer les terrains possédés
         List<Plot> ownedPlots = new ArrayList<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getOwnerUuid())) {
-                ownedPlots.add(plot);
+                // Si c'est la parcelle actuelle, on la met en premier
+                if (isCurrentPlotOwned && plot.equals(currentPlot)) {
+                    ownedPlots.add(0, plot);
+                } else {
+                    ownedPlots.add(plot);
+                }
             }
         }
 
@@ -62,7 +77,12 @@ public class MyPropertyGUI implements Listener {
         List<Plot> rentedPlots = new ArrayList<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getRenterUuid())) {
-                rentedPlots.add(plot);
+                // Si c'est la parcelle actuelle, on la met en premier
+                if (isCurrentPlotRented && plot.equals(currentPlot)) {
+                    rentedPlots.add(0, plot);
+                } else {
+                    rentedPlots.add(plot);
+                }
             }
         }
 
@@ -71,7 +91,7 @@ public class MyPropertyGUI implements Listener {
         int rows = Math.min(6, Math.max(3, (totalItems + 9) / 9)); // Entre 3 et 6 lignes
         int invSize = rows * 9;
 
-        Inventory inv = Bukkit.createInventory(null, invSize, ChatColor.GREEN + "🏠 Mes Propriétés");
+        Inventory inv = Bukkit.createInventory(null, invSize, "Mes Proprietes");
 
         // Map temporaire pour associer slot → Plot
         Map<Integer, Plot> slotMap = new HashMap<>();
@@ -82,7 +102,8 @@ public class MyPropertyGUI implements Listener {
             for (Plot plot : ownedPlots) {
                 if (slot >= invSize - 9) break; // Garder la dernière ligne pour les boutons
 
-                ItemStack item = createPlotItem(plot, false, town);
+                boolean isThisCurrentPlot = isCurrentPlotOwned && plot.equals(currentPlot);
+                ItemStack item = createPlotItem(plot, false, town, isThisCurrentPlot);
                 inv.setItem(slot, item);
                 slotMap.put(slot, plot); // Stocker l'association
                 slot++;
@@ -94,7 +115,8 @@ public class MyPropertyGUI implements Listener {
             for (Plot plot : rentedPlots) {
                 if (slot >= invSize - 9) break;
 
-                ItemStack item = createPlotItem(plot, true, town);
+                boolean isThisCurrentPlot = isCurrentPlotRented && plot.equals(currentPlot);
+                ItemStack item = createPlotItem(plot, true, town, isThisCurrentPlot);
                 inv.setItem(slot, item);
                 slotMap.put(slot, plot); // Stocker l'association
                 slot++;
@@ -103,6 +125,7 @@ public class MyPropertyGUI implements Listener {
 
         // Sauvegarder la map pour ce joueur
         playerPlotSlots.put(playerUuid, slotMap);
+        plugin.getLogger().info("[DEBUG] Stored slotMap for " + player.getName() + " with " + slotMap.size() + " plots. Instance: " + System.identityHashCode(this));
 
         // Boutons de la dernière ligne
         int lastRow = invSize - 9;
@@ -120,7 +143,7 @@ public class MyPropertyGUI implements Listener {
     /**
      * Crée un ItemStack représentant un terrain
      */
-    private ItemStack createPlotItem(Plot plot, boolean isRented, Town town) {
+    private ItemStack createPlotItem(Plot plot, boolean isRented, Town town, boolean isCurrentPlot) {
         int totalChunks = plot.getChunks().size();
         boolean isGrouped = plot.isGrouped();
 
@@ -133,12 +156,13 @@ public class MyPropertyGUI implements Listener {
 
         // Titre
         String title;
+        String starPrefix = isCurrentPlot ? "⭐(Actuelle) " : "";
         if (isGrouped) {
-            title = ChatColor.GOLD + "🔗 " + plot.getType().getDisplayName() + " (Groupé)";
+            title = ChatColor.GOLD + starPrefix + "🔗 " + plot.getType().getDisplayName() + " (Groupé)";
         } else {
             title = isRented ?
-                ChatColor.AQUA + "📦 Terrain Loué" :
-                ChatColor.GREEN + "🏠 " + plot.getType().getDisplayName();
+                ChatColor.AQUA + starPrefix + "📦 Terrain Loué" :
+                ChatColor.GREEN + starPrefix + "🏠 " + plot.getType().getDisplayName();
         }
         meta.setDisplayName(title);
 
@@ -161,8 +185,27 @@ public class MyPropertyGUI implements Listener {
         }
 
         if (isRented) {
-            lore.add(ChatColor.YELLOW + "Jours restants: " + ChatColor.WHITE + plot.getRentDaysRemaining() + "/30");
+            // 📅 Afficher le temps restant détaillé
+            Plot.RentTimeRemaining timeRemaining = plot.getRentTimeRemaining();
+            String timeDisplay = timeRemaining != null
+                ? timeRemaining.formatDetailed()
+                : plot.getRentDaysRemaining() + " jours";
+
+            lore.add(ChatColor.YELLOW + "Temps restant: " + ChatColor.WHITE + timeDisplay);
+            lore.add(ChatColor.GRAY + "(Max: 30 jours)");
             lore.add(ChatColor.YELLOW + "Prix/jour: " + ChatColor.GOLD + String.format("%.2f€", plot.getRentPricePerDay()));
+
+            // Afficher l'entreprise locataire si c'est un terrain professionnel
+            if (plot.getRenterCompanySiret() != null) {
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic entrepriseLogic =
+                    ((com.gravityyfh.roleplaycity.RoleplayCity) org.bukkit.Bukkit.getPluginManager().getPlugin("RoleplayCity"))
+                    .getEntrepriseManagerLogic();
+                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise entreprise =
+                    entrepriseLogic.getEntrepriseBySiret(plot.getRenterCompanySiret());
+                if (entreprise != null) {
+                    lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + entreprise.getNom());
+                }
+            }
         } else {
             lore.add(ChatColor.YELLOW + "Taxe: " + ChatColor.GOLD + String.format("%.2f€/jour", plot.getDailyTax()));
 
@@ -209,7 +252,7 @@ public class MyPropertyGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!event.getView().getTitle().equals(ChatColor.GREEN + "🏠 Mes Propriétés")) return;
+        if (!event.getView().getTitle().equals("Mes Proprietes")) return;
 
         event.setCancelled(true);
 
@@ -231,8 +274,10 @@ public class MyPropertyGUI implements Listener {
 
         // Clic sur un terrain
         if (isPlotItem(clicked.getType())) {
+            plugin.getLogger().info("[DEBUG] Plot item clicked by " + player.getName() + ". Instance: " + System.identityHashCode(this));
             // Récupérer le Plot directement depuis la map
             Map<Integer, Plot> slotMap = playerPlotSlots.get(player.getUniqueId());
+            plugin.getLogger().info("[DEBUG] slotMap for " + player.getName() + ": " + (slotMap == null ? "NULL" : "EXISTS with " + slotMap.size() + " entries"));
             if (slotMap == null) {
                 player.sendMessage(ChatColor.RED + "Erreur: Session expirée, réouvrez le menu.");
                 player.closeInventory();
@@ -288,7 +333,7 @@ public class MyPropertyGUI implements Listener {
     @EventHandler
     public void onInventoryClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (!event.getView().getTitle().equals(ChatColor.GREEN + "🏠 Mes Propriétés")) return;
+        if (!event.getView().getTitle().equals("Mes Proprietes")) return;
 
         // Nettoyer la map pour libérer la mémoire
         playerPlotSlots.remove(player.getUniqueId());

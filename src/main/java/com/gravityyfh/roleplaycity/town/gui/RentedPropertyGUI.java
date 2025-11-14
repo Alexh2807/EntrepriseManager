@@ -50,7 +50,7 @@ public class RentedPropertyGUI implements Listener {
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.AQUA + "📦 Gestion de Location");
+        Inventory inv = Bukkit.createInventory(null, 27, "Gestion de Location");
 
         // Récupérer le plot - Format: "chunkX:chunkZ:worldName"
         String[] parts = chunkKey.split(":");
@@ -78,6 +78,12 @@ public class RentedPropertyGUI implements Listener {
         boolean forSale = plot.isForSale();
         double salePrice = plot.getSalePrice();
 
+        // 📅 Obtenir le temps restant détaillé
+        Plot.RentTimeRemaining timeRemaining = plot.getRentTimeRemaining();
+        String timeDisplay = timeRemaining != null
+            ? timeRemaining.formatDetailed()
+            : daysRemaining + " jours";
+
         // BOUTON: Informations
         ItemStack infoItem = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = infoItem.getItemMeta();
@@ -86,7 +92,9 @@ public class RentedPropertyGUI implements Listener {
         infoLore.add(ChatColor.GRAY + "─────────────────");
         infoLore.add(ChatColor.YELLOW + "Surface: " + ChatColor.WHITE + surface + "m²");
         infoLore.add(ChatColor.YELLOW + "Prix/jour: " + ChatColor.GOLD + String.format("%.2f€", rentPrice));
-        infoLore.add(ChatColor.YELLOW + "Jours restants: " + ChatColor.WHITE + daysRemaining + "/30");
+        infoLore.add(ChatColor.YELLOW + "Temps restant:");
+        infoLore.add(ChatColor.WHITE + "  " + timeDisplay);
+        infoLore.add(ChatColor.GRAY + "(Max: 30 jours)");
         infoLore.add(ChatColor.GRAY + "─────────────────");
         infoMeta.setLore(infoLore);
         infoItem.setItemMeta(infoMeta);
@@ -132,6 +140,30 @@ public class RentedPropertyGUI implements Listener {
         cancelItem.setItemMeta(cancelMeta);
         inv.setItem(13, cancelItem);
 
+        // BOUTON: Gérer la boîte aux lettres
+        boolean hasMailbox = plot.hasMailbox();
+        ItemStack mailboxItem = new ItemStack(hasMailbox ? Material.LIME_CONCRETE : Material.RED_CONCRETE);
+        ItemMeta mailboxMeta = mailboxItem.getItemMeta();
+        mailboxMeta.setDisplayName(ChatColor.AQUA + "📬 Gestion Boîte aux Lettres");
+        List<String> mailboxLore = new ArrayList<>();
+        mailboxLore.add(ChatColor.GRAY + "Gérer votre boîte aux lettres");
+        mailboxLore.add("");
+
+        if (hasMailbox) {
+            mailboxLore.add(ChatColor.GREEN + "✓ Boîte aux lettres installée");
+            mailboxLore.add("");
+            mailboxLore.add(ChatColor.YELLOW + "Clic gauche: Supprimer");
+            mailboxLore.add(ChatColor.YELLOW + "Clic droit: Déplacer");
+        } else {
+            mailboxLore.add(ChatColor.RED + "✖ Aucune boîte aux lettres");
+            mailboxLore.add("");
+            mailboxLore.add(ChatColor.YELLOW + "Cliquez pour placer");
+        }
+
+        mailboxMeta.setLore(mailboxLore);
+        mailboxItem.setItemMeta(mailboxMeta);
+        inv.setItem(15, mailboxItem);
+
         // BOUTON: Acheter (si disponible à la vente)
         if (forSale) {
             ItemStack buyItem = new ItemStack(Material.DIAMOND);
@@ -145,7 +177,7 @@ public class RentedPropertyGUI implements Listener {
             buyLore.add(ChatColor.GREEN + "➜ Cliquez pour acheter");
             buyMeta.setLore(buyLore);
             buyItem.setItemMeta(buyMeta);
-            inv.setItem(15, buyItem);
+            inv.setItem(17, buyItem);
         }
 
         // BOUTON: Retour
@@ -165,7 +197,7 @@ public class RentedPropertyGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!event.getView().getTitle().equals(ChatColor.AQUA + "📦 Gestion de Location")) return;
+        if (!event.getView().getTitle().equals("Gestion de Location")) return;
 
         event.setCancelled(true);
 
@@ -209,6 +241,15 @@ public class RentedPropertyGUI implements Listener {
             handleBuy(player, town, chunkKey);
             return;
         }
+
+        // BOUTON: Boîte aux lettres
+        if (clicked.getType() == Material.LIME_CONCRETE || clicked.getType() == Material.RED_CONCRETE) {
+            if (clicked.getItemMeta().getDisplayName().contains("Gestion Boîte aux Lettres")) {
+                player.closeInventory();
+                handleMailbox(player, town, chunkKey, event.getClick());
+                return;
+            }
+        }
     }
 
     private void handleRecharge(Player player, Town town, String chunkKey) {
@@ -220,35 +261,26 @@ public class RentedPropertyGUI implements Listener {
             return;
         }
 
-        if (plot.getRentDaysRemaining() >= 30) {
-            player.sendMessage(ChatColor.RED + "Vous avez déjà le maximum de 30 jours !");
-            return;
+        // CORRECTION: Utiliser TownEconomyManager.rechargePlotRent() au lieu de gérer le paiement ici
+        // Cette méthode gère correctement le paiement par entreprise pour les terrains PRO
+        boolean success = plugin.getTownEconomyManager().rechargePlotRent(town.getName(), plot, player, 1);
+
+        if (success) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
+
+            if (plot.isGrouped()) {
+                player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
+            }
+
+            player.sendMessage(ChatColor.YELLOW + "Jours ajoutés: " + ChatColor.WHITE + "1");
+            player.sendMessage(ChatColor.YELLOW + "Total: " + ChatColor.WHITE + plot.getRentDaysRemaining() + "/30 jours");
+            player.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GOLD + String.format("%.2f€", plot.getRentPricePerDay()));
+            player.sendMessage("");
         }
-
-        double cost = plot.getRentPricePerDay();
-        if (!RoleplayCity.getEconomy().has(player, cost)) {
-            player.sendMessage(ChatColor.RED + "Fonds insuffisants ! Prix: " + String.format("%.2f€", cost));
-            return;
-        }
-
-        RoleplayCity.getEconomy().withdrawPlayer(player, cost);
-        int actualDays = plot.rechargeDays(1);
-
-        player.sendMessage("");
-        player.sendMessage(ChatColor.GREEN + "✓ Location rechargée !");
-
-        if (plot.isGrouped()) {
-            player.sendMessage(ChatColor.YELLOW + "Terrain: " + ChatColor.WHITE + "Terrain groupé");
-        } else {
-            player.sendMessage(ChatColor.YELLOW + "Parcelle: " + ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
-        }
-
-        player.sendMessage(ChatColor.YELLOW + "Jours ajoutés: " + ChatColor.WHITE + actualDays);
-        player.sendMessage(ChatColor.YELLOW + "Total: " + ChatColor.WHITE + plot.getRentDaysRemaining() + "/30 jours");
-        player.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GOLD + String.format("%.2f€", cost));
-        player.sendMessage("");
-
-        townManager.saveTownsNow();
+        // Les messages d'erreur sont gérés par rechargePlotRent()
     }
 
     private void handleCancel(Player player, Town town, String chunkKey) {
@@ -300,6 +332,44 @@ public class RentedPropertyGUI implements Listener {
             player.sendMessage("");
         } else {
             player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
+        }
+    }
+
+    /**
+     * Gère la gestion de mailbox pour le locataire
+     * Clic gauche: Supprimer mailbox
+     * Clic droit: Déplacer mailbox
+     * Clic normal: Placer mailbox
+     */
+    private void handleMailbox(Player player, Town town, String chunkKey, org.bukkit.event.inventory.ClickType clickType) {
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+
+        if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
+            player.sendMessage(ChatColor.RED + "Erreur: Terrain loué introuvable.");
+            return;
+        }
+
+        var mailboxManager = plugin.getMailboxManager();
+        boolean hasMailbox = plot.hasMailbox();
+
+        if (hasMailbox) {
+            // Mailbox existe déjà
+            if (clickType.isLeftClick()) {
+                // Supprimer la mailbox
+                mailboxManager.removeMailbox(plot);
+                player.sendMessage("");
+                player.sendMessage(ChatColor.GREEN + "✓ Boîte aux lettres supprimée");
+                player.sendMessage(ChatColor.GRAY + "Terrain: " + plot.getIdentifier());
+                player.sendMessage("");
+            } else if (clickType.isRightClick()) {
+                // Déplacer la mailbox
+                plugin.getMailboxVisualPlacement().startVisualPlacement(player, plot);
+                player.sendMessage(ChatColor.YELLOW + "Mode déplacement de boîte aux lettres activé.");
+            }
+        } else {
+            // Pas de mailbox, placer une nouvelle
+            plugin.getMailboxVisualPlacement().startVisualPlacement(player, plot);
         }
     }
 }

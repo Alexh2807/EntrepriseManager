@@ -5,6 +5,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class Plot {
@@ -45,9 +46,8 @@ public class Plot {
     private boolean forRent;
     private UUID renterUuid;
     private String renterCompanySiret; // SIRET de l'entreprise du locataire (PROFESSIONNEL uniquement)
-    private LocalDateTime rentStartDate;
-    private LocalDateTime lastRentUpdate; // Dernière mise à jour du solde
-    private int rentDaysRemaining; // Solde de jours restants (max 30)
+    private LocalDateTime rentStartDate; // Date de début de location
+    private LocalDateTime rentEndDate; // Date de fin de location (expiration)
 
     // Blocs existants lors de la mise en location (protégés contre le locataire)
     private Set<String> protectedBlocks; // Format: "x:y:z"
@@ -66,6 +66,12 @@ public class Plot {
     // Flags de protection
     private final Map<PlotFlag, Boolean> flags;
 
+    // ⛓️ Système de prison (pour COMMISSARIAT uniquement)
+    private Location prisonSpawnLocation;
+
+    // 📬 Système de boîte aux lettres (intégré dans le plot)
+    private com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox;
+
     /**
      * Constructeur pour un nouveau terrain (1 chunk initial)
      */
@@ -82,7 +88,7 @@ public class Plot {
         this.claimDate = LocalDateTime.now();
         this.forSale = false;
         this.forRent = false;
-        this.rentDaysRemaining = 0;
+        this.rentEndDate = null; // Pas de location active
         this.companyDebtAmount = 0.0;
         this.debtWarningCount = 0;
         this.particularDebtAmount = 0.0;
@@ -114,7 +120,7 @@ public class Plot {
         this.claimDate = LocalDateTime.now();
         this.forSale = false;
         this.forRent = false;
-        this.rentDaysRemaining = 0;
+        this.rentEndDate = null; // Pas de location active
         this.companyDebtAmount = 0.0;
         this.debtWarningCount = 0;
         this.particularDebtAmount = 0.0;
@@ -234,17 +240,8 @@ public class Plot {
 
     public double getRentPricePerDay() { return rentPricePerDay; }
 
-    /**
-     * @deprecated Utilisez getRentPricePerDay() * getRentDaysRemaining() pour le prix total
-     */
-    @Deprecated
-    public double getRentPrice() { return rentPricePerDay * Math.max(1, rentDaysRemaining); }
-
-    /**
-     * @deprecated Utilisez getRentDaysRemaining()
-     */
-    @Deprecated
-    public int getRentDurationDays() { return rentDaysRemaining; }
+    // FIX BASSE #7: Méthodes getRentPrice() et getRentDurationDays() deprecated supprimées
+    // → Utiliser getRentPricePerDay() et getRentDaysRemaining()
 
     public boolean isForRent() { return forRent; }
 
@@ -254,9 +251,17 @@ public class Plot {
 
     public LocalDateTime getRentStartDate() { return rentStartDate; }
 
-    public LocalDateTime getLastRentUpdate() { return lastRentUpdate; }
+    public LocalDateTime getRentEndDate() { return rentEndDate; }
 
-    public int getRentDaysRemaining() { return rentDaysRemaining; }
+    /**
+     * Calcule le nombre de jours restants (arrondi)
+     * Pour compatibilité avec l'ancien code
+     * @return Nombre de jours restants (0 si expiré)
+     */
+    public int getRentDaysRemaining() {
+        RentTimeRemaining remaining = getRentTimeRemaining();
+        return remaining != null ? remaining.days : 0;
+    }
 
     public LocalDateTime getClaimDate() { return claimDate; }
 
@@ -265,13 +270,27 @@ public class Plot {
     public RenterBlockTracker getRenterBlockTracker() { return renterBlockTracker; }
 
     // Setters
-    public void setType(PlotType type) { this.type = type; }
+    public void setType(PlotType type) {
+        PlotType oldType = this.type;
+        this.type = type;
+
+        // Fire event
+        com.gravityyfh.roleplaycity.town.event.PlotTypeChangeEvent event =
+            new com.gravityyfh.roleplaycity.town.event.PlotTypeChangeEvent(this, oldType, type);
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
+    }
     public void setMunicipalSubType(MunicipalSubType subType) { this.municipalSubType = subType; }
     public void setPlotNumber(String plotNumber) { this.plotNumber = plotNumber; }
 
     public void setOwner(UUID ownerUuid, String ownerName) {
+        UUID oldOwnerUuid = this.ownerUuid;
         this.ownerUuid = ownerUuid;
         this.ownerName = ownerName;
+
+        // Fire event
+        com.gravityyfh.roleplaycity.town.event.PlotOwnerChangeEvent event =
+            new com.gravityyfh.roleplaycity.town.event.PlotOwnerChangeEvent(this, oldOwnerUuid, ownerUuid, ownerName);
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
     }
 
     public void setCompany(String companyName) {
@@ -331,14 +350,8 @@ public class Plot {
         this.forSale = forSale;
     }
 
-    /**
-     * @deprecated Utilisez setRentPricePerDay()
-     */
-    @Deprecated
-    public void setRent(double totalPrice, int durationDays) {
-        this.rentPricePerDay = totalPrice / Math.max(1, durationDays);
-        this.rentDaysRemaining = durationDays;
-    }
+    // FIX BASSE #7: Méthode setRent() deprecated supprimée
+    // → Utiliser setRentPricePerDay() et setRentDaysRemaining()
 
     public void setRentPricePerDay(double pricePerDay) {
         this.rentPricePerDay = pricePerDay;
@@ -348,11 +361,18 @@ public class Plot {
         this.forRent = forRent;
     }
 
+    /**
+     * Définit un locataire avec une durée de location
+     * @param renterUuid UUID du locataire
+     * @param initialDays Nombre de jours de location (max 30)
+     */
     public void setRenter(UUID renterUuid, int initialDays) {
         this.renterUuid = renterUuid;
-        this.rentStartDate = LocalDateTime.now();
-        this.lastRentUpdate = LocalDateTime.now();
-        this.rentDaysRemaining = Math.min(initialDays, 30); // Max 30 jours
+        LocalDateTime now = LocalDateTime.now();
+        this.rentStartDate = now;
+        // Calculer la date d'expiration: maintenant + nombre de jours (max 30)
+        int days = Math.min(initialDays, 30);
+        this.rentEndDate = now.plusDays(days);
     }
 
     public void setRenterCompanySiret(String renterCompanySiret) {
@@ -366,8 +386,7 @@ public class Plot {
         this.renterUuid = null;
         this.renterCompanySiret = null;
         this.rentStartDate = null;
-        this.lastRentUpdate = null;
-        this.rentDaysRemaining = 0;
+        this.rentEndDate = null; // Pas de location active
         this.protectedBlocks.clear();
 
         // NOUVEAU : Nettoyer le tracker des blocs du locataire
@@ -375,55 +394,180 @@ public class Plot {
             renterBlockTracker.clearRenter(oldRenter);
         }
 
-        // NOUVEAU : Supprimer les shops du locataire sur ce terrain
+        // Supprimer les shops du locataire sur ce terrain
         if (oldRenterSiret != null) {
-            com.gravityyfh.roleplaycity.Shop.ShopManager shopManager =
-                ((com.gravityyfh.roleplaycity.RoleplayCity) org.bukkit.Bukkit.getPluginManager().getPlugin("RoleplayCity")).getShopManager();
-            if (shopManager != null) {
-                shopManager.deleteShopsByCompanyOnPlot(
+            com.gravityyfh.roleplaycity.RoleplayCity plugin =
+                (com.gravityyfh.roleplaycity.RoleplayCity) org.bukkit.Bukkit.getPluginManager().getPlugin("RoleplayCity");
+            if (plugin != null && plugin.getShopManager() != null) {
+                int deleted = plugin.getShopManager().deleteShopsByCompanyOnPlot(
                     oldRenterSiret,
                     this,
-                    true, // Notifier
                     "Fin de la location du terrain"
                 );
+                if (deleted > 0) {
+                    plugin.getLogger().info(String.format(
+                        "[Plot] %d boutique(s) du locataire (SIRET: %s) supprimée(s) sur le terrain %s:%d,%d",
+                        deleted, oldRenterSiret, this.worldName, this.getChunkX(), this.getChunkZ()
+                    ));
+                }
             }
         }
     }
 
     /**
-     * Recharger le solde de location (max 30 jours total)
+     * Recharge la location en ajoutant des jours
+     * Inspiré du système d'AbonnementConnection
+     * @param daysToAdd Nombre de jours à ajouter
+     * @return Nombre de jours effectivement ajoutés (limité par la limite de 30 jours)
      */
     public int rechargeDays(int daysToAdd) {
-        int maxDays = 30;
-        int newTotal = this.rentDaysRemaining + daysToAdd;
-        if (newTotal > maxDays) {
-            int actualAdded = maxDays - this.rentDaysRemaining;
-            this.rentDaysRemaining = maxDays;
-            return actualAdded;
+        if (daysToAdd <= 0 || renterUuid == null) {
+            return 0;
         }
-        this.rentDaysRemaining = newTotal;
-        return daysToAdd;
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime baseTime;
+
+        // Si la location est encore valide, ajouter à partir de rentEndDate
+        // Sinon, ajouter à partir de maintenant
+        if (rentEndDate != null && rentEndDate.isAfter(now)) {
+            baseTime = rentEndDate;
+        } else {
+            baseTime = now;
+        }
+
+        // Calculer la nouvelle date de fin
+        LocalDateTime newEndDate = baseTime.plusDays(daysToAdd);
+
+        // Vérifier la limite de 30 jours à partir de maintenant
+        LocalDateTime maxEndDate = now.plusDays(30);
+
+        if (newEndDate.isAfter(maxEndDate)) {
+            // Limiter à 30 jours max à partir de maintenant
+            this.rentEndDate = maxEndDate;
+            // Calculer combien de jours ont réellement été ajoutés
+            return (int) java.time.Duration.between(baseTime, maxEndDate).toDays();
+        } else {
+            this.rentEndDate = newEndDate;
+            return daysToAdd;
+        }
     }
 
     /**
-     * Mettre à jour le solde (appelé chaque jour)
+     * Vérifie si la location est expirée et nettoie le locataire si nécessaire
+     * À appeler périodiquement (toutes les 5 minutes par exemple)
      */
-    public void updateRentDays() {
-        if (lastRentUpdate == null || renterUuid == null) {
+    public void checkRentExpiration() {
+        if (rentEndDate == null || renterUuid == null) {
             return;
         }
 
         LocalDateTime now = LocalDateTime.now();
-        long daysPassed = java.time.Duration.between(lastRentUpdate, now).toDays();
+        if (now.isAfter(rentEndDate)) {
+            // Location expirée
+            clearRenter();
+        }
+    }
 
-        if (daysPassed > 0) {
-            rentDaysRemaining -= (int) daysPassed;
-            lastRentUpdate = now;
+    /**
+     * 📅 Calcule la durée restante précise de la location
+     * Retourne un objet contenant jours, heures et minutes restants
+     * Système basé sur la date d'expiration (comme AbonnementConnection)
+     *
+     * @return RentTimeRemaining avec durée détaillée, ou null si pas de location
+     */
+    public RentTimeRemaining getRentTimeRemaining() {
+        if (renterUuid == null || rentEndDate == null) {
+            return null;
+        }
 
-            if (rentDaysRemaining <= 0) {
-                // Location expirée
-                clearRenter();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Si on a dépassé la date d'expiration, la location est expirée
+        if (now.isAfter(rentEndDate)) {
+            return new RentTimeRemaining(0, 0, 0);
+        }
+
+        // Calculer la différence précise jusqu'à rentEndDate
+        long totalMinutes = java.time.Duration.between(now, rentEndDate).toMinutes();
+
+        int days = (int) (totalMinutes / (24 * 60));
+        int hours = (int) ((totalMinutes % (24 * 60)) / 60);
+        int minutes = (int) (totalMinutes % 60);
+
+        return new RentTimeRemaining(days, hours, minutes);
+    }
+
+    /**
+     * Classe interne pour représenter le temps restant d'une location
+     */
+    public static class RentTimeRemaining {
+        public final int days;
+        public final int hours;
+        public final int minutes;
+
+        public RentTimeRemaining(int days, int hours, int minutes) {
+            this.days = days;
+            this.hours = hours;
+            this.minutes = minutes;
+        }
+
+        /**
+         * Formate la durée en format compact pour scoreboard
+         * Exemples: "5j 3h", "2j 12h 30m", "18h 45m", "30m"
+         */
+        public String formatCompact() {
+            if (days > 0) {
+                if (hours > 0) {
+                    if (minutes > 0) {
+                        return days + "j " + hours + "h " + minutes + "m";
+                    }
+                    return days + "j " + hours + "h";
+                }
+                return days + "j";
+            } else if (hours > 0) {
+                if (minutes > 0) {
+                    return hours + "h " + minutes + "m";
+                }
+                return hours + "h";
+            } else {
+                return minutes + "m";
             }
+        }
+
+        /**
+         * Formate la durée en format détaillé pour GUI
+         * Exemples: "5 jours, 3 heures", "2 jours, 12 heures, 30 minutes"
+         */
+        public String formatDetailed() {
+            StringBuilder sb = new StringBuilder();
+
+            if (days > 0) {
+                sb.append(days).append(days > 1 ? " jours" : " jour");
+            }
+
+            if (hours > 0) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(hours).append(hours > 1 ? " heures" : " heure");
+            }
+
+            if (minutes > 0) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(minutes).append(minutes > 1 ? " minutes" : " minute");
+            }
+
+            if (sb.length() == 0) {
+                return "Expiré";
+            }
+
+            return sb.toString();
+        }
+
+        /**
+         * Vérifie si la location est expirée
+         */
+        public boolean isExpired() {
+            return days == 0 && hours == 0 && minutes == 0;
         }
     }
 
@@ -473,13 +617,26 @@ public class Plot {
         protectedBlocks.remove(key);
     }
 
+    /**
+     * Nettoyer tous les blocs protégés (utilisé lors de la mise en location)
+     */
+    public void clearProtectedBlocks() {
+        protectedBlocks.clear();
+    }
+
     public void clearOwner() {
+        UUID oldOwnerUuid = this.ownerUuid;
         this.ownerUuid = null;
         this.ownerName = null;
         this.companyName = null;
         this.forSale = false;
         this.forRent = false;
         clearRenter();
+
+        // Fire event
+        com.gravityyfh.roleplaycity.town.event.PlotClearEvent event =
+            new com.gravityyfh.roleplaycity.town.event.PlotClearEvent(this, oldOwnerUuid, "Manual clear");
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
     }
 
     // ========== Utility methods (implémentation interface) ==========
@@ -492,13 +649,8 @@ public class Plot {
         return renterUuid != null && renterUuid.equals(playerUuid);
     }
 
-    /**
-     * @deprecated Le système utilise maintenant updateRentDays() et rentDaysRemaining
-     */
-    @Deprecated
-    public boolean isRentExpired() {
-        return rentDaysRemaining <= 0;
-    }
+    // FIX BASSE #7: Méthode isRentExpired() deprecated supprimée
+    // → Utiliser getRentDaysRemaining() <= 0
 
     public boolean isMunicipal() {
         return type == PlotType.MUNICIPAL;
@@ -521,14 +673,19 @@ public class Plot {
     }
 
     public boolean canPlayerBuild(UUID playerUuid, TownRole role) {
-        // Public : tout le monde peut construire
+        // Public : espaces communs (routes, places, parcs) - seuls maire/adjoints peuvent aménager
         if (isPublic()) {
-            return true;
+            return role == TownRole.MAIRE || role == TownRole.ADJOINT;
         }
 
-        // Municipal : architecte, maire ou adjoint
+        // Municipal : bâtiments administratifs - architecte, maire ou adjoint
         if (isMunicipal()) {
             return role == TownRole.ARCHITECTE || role == TownRole.MAIRE || role == TownRole.ADJOINT;
+        }
+
+        // Terrain non-attribué (pas de propriétaire) : maire et adjoints peuvent construire
+        if (ownerUuid == null) {
+            return role == TownRole.MAIRE || role == TownRole.ADJOINT;
         }
 
         // Particulier/Professionnel : propriétaire ou locataire
@@ -539,13 +696,9 @@ public class Plot {
      * Vérifie si un joueur peut construire sur cette parcelle (avec contexte de ville)
      */
     public boolean canBuild(UUID playerUuid, Town town) {
-        // Public : tout le monde peut construire
-        if (isPublic()) {
-            return true;
-        }
-
-        // Récupérer le rôle du joueur
+        // Récupérer le rôle du joueur (null si pas membre)
         TownRole role = town.getMemberRole(playerUuid);
+
         if (role == null) {
             return false; // Pas membre de la ville
         }
@@ -557,9 +710,9 @@ public class Plot {
      * Vérifie si un joueur peut interagir avec les blocs de cette parcelle
      */
     public boolean canInteract(UUID playerUuid, Town town) {
-        // Public : tout le monde peut interagir
+        // Public : tous les membres de la ville peuvent interagir
         if (isPublic()) {
-            return true;
+            return town.isMember(playerUuid);
         }
 
         // Municipal : tous les membres de la ville peuvent interagir
@@ -763,8 +916,84 @@ public class Plot {
 
     /**
      * Définit directement le nombre de jours restants (utilisé pour synchronisation avec groupe)
+     * Recalcule rentEndDate à partir de maintenant + days
      */
     public void setRentDaysRemaining(int days) {
-        this.rentDaysRemaining = days;
+        if (days > 0) {
+            LocalDateTime now = LocalDateTime.now();
+            this.rentEndDate = now.plusDays(days);
+        } else {
+            this.rentEndDate = null;
+        }
+    }
+
+    /**
+     * Définit directement la date de fin de location
+     * @param rentEndDate Nouvelle date de fin
+     */
+    public void setRentEndDate(LocalDateTime rentEndDate) {
+        this.rentEndDate = rentEndDate;
+    }
+
+    // ========== Gestion du spawn prison (COMMISSARIAT) ==========
+
+    /**
+     * Définit le spawn de prison pour ce COMMISSARIAT
+     */
+    public void setPrisonSpawn(Location location) {
+        this.prisonSpawnLocation = location;
+    }
+
+    /**
+     * Obtient le spawn de prison
+     */
+    public Location getPrisonSpawn() {
+        return prisonSpawnLocation;
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 📬 GESTION DE LA BOÎTE AUX LETTRES
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * Vérifie si ce plot a une boîte aux lettres
+     */
+    public boolean hasMailbox() {
+        return mailbox != null;
+    }
+
+    /**
+     * Obtient la boîte aux lettres de ce plot
+     */
+    public com.gravityyfh.roleplaycity.postal.data.Mailbox getMailbox() {
+        return mailbox;
+    }
+
+    /**
+     * Définit la boîte aux lettres de ce plot
+     */
+    public void setMailbox(com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox) {
+        this.mailbox = mailbox;
+    }
+
+    /**
+     * Retire la boîte aux lettres de ce plot
+     */
+    public void removeMailbox() {
+        this.mailbox = null;
+    }
+
+    /**
+     * Vérifie si un spawn de prison est défini
+     */
+    public boolean hasPrisonSpawn() {
+        return prisonSpawnLocation != null;
+    }
+
+    /**
+     * Supprime le spawn de prison
+     */
+    public void removePrisonSpawn() {
+        this.prisonSpawnLocation = null;
     }
 }

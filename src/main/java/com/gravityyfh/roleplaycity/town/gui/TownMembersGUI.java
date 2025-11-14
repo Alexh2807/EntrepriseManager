@@ -71,16 +71,9 @@ public class TownMembersGUI implements Listener {
 
             List<String> lore = new ArrayList<>();
 
-            // Afficher tous les rôles
-            Set<TownRole> memberRoles = member.getRoles();
-            if (memberRoles.size() == 1) {
-                lore.add(ChatColor.GRAY + "Rôle: " + ChatColor.AQUA + member.getRole().getDisplayName());
-            } else {
-                lore.add(ChatColor.GRAY + "Rôles:");
-                for (TownRole role : memberRoles) {
-                    lore.add(ChatColor.AQUA + "  • " + role.getDisplayName());
-                }
-            }
+            // Afficher le rôle unique du joueur
+            TownRole memberRole = member.getRole();
+            lore.add(ChatColor.GRAY + "Rôle: " + ChatColor.AQUA + memberRole.getDisplayName());
 
             if (member.getPlayerUuid().equals(town.getMayorUuid())) {
                 lore.add(ChatColor.GOLD + "★ Maire de la ville ★");
@@ -155,36 +148,56 @@ public class TownMembersGUI implements Listener {
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_AQUA + "Rôles: " + targetName);
+        Inventory inv = Bukkit.createInventory(null, 27, ChatColor.DARK_AQUA + "Rôle de " + targetName);
 
-        Set<TownRole> currentRoles = targetMember.getRoles();
+        // UN SEUL RÔLE : Récupérer le rôle actuel du joueur
+        TownRole currentRole = targetMember.getRole();
 
         int slot = 10;
         for (TownRole role : TownRole.values()) {
             if (role == TownRole.MAIRE) continue; // Le maire ne peut pas être assigné
 
-            boolean hasRole = currentRoles.contains(role);
+            boolean hasRole = (currentRole == role);
 
             ItemStack roleItem = new ItemStack(getRoleIcon(role));
             ItemMeta meta = roleItem.getItemMeta();
 
+            // Vérifier si le rôle peut être attribué selon le niveau de ville et les limites
+            var levelManager = plugin.getTownLevelManager();
+            var assignmentResult = levelManager.canAssignRole(town, role);
+            boolean canAssign = assignmentResult.canAssign() || hasRole; // Peut toujours retirer son rôle actuel
+
             // Afficher avec état actif/inactif
             if (hasRole) {
-                meta.setDisplayName(ChatColor.GREEN + "✓ " + role.getDisplayName());
+                meta.setDisplayName(ChatColor.GREEN + "✓ " + role.getDisplayName() + " (Actuel)");
+            } else if (!canAssign) {
+                meta.setDisplayName(ChatColor.RED + "✗ " + role.getDisplayName() + " (Indisponible)");
             } else {
-                meta.setDisplayName(ChatColor.GRAY + "✗ " + role.getDisplayName());
+                meta.setDisplayName(ChatColor.YELLOW + "○ " + role.getDisplayName());
             }
 
             List<String> lore = new ArrayList<>();
             lore.add(ChatColor.GRAY + "Permissions:");
-            if (role.canManageTown()) lore.add(ChatColor.GREEN + "✓ Gérer la ville");
-            if (role.canManageClaims()) lore.add(ChatColor.GREEN + "✓ Gérer les claims");
+            if (role.canManageTown()) lore.add(ChatColor.GREEN + "  ✓ Gérer la ville");
+            if (role.canManageClaims()) lore.add(ChatColor.GREEN + "  ✓ Gérer les claims");
             lore.add("");
 
             if (hasRole) {
-                lore.add(ChatColor.RED + "Cliquez pour retirer");
+                lore.add(ChatColor.DARK_GRAY + "Rôle actuel du joueur");
+                lore.add(ChatColor.YELLOW + "Cliquez pour changer");
+            } else if (!canAssign) {
+                // Afficher pourquoi le rôle n'est pas disponible
+                var config = levelManager.getConfig(town.getLevel());
+                if (!config.isRoleAvailable(role)) {
+                    lore.add(ChatColor.RED + "Niveau de ville insuffisant");
+                    lore.add(ChatColor.GRAY + "Nécessite: " + ChatColor.WHITE + "Village ou plus");
+                } else {
+                    int current = town.getMembersByRole(role).size();
+                    int max = config.getRoleLimit(role);
+                    lore.add(ChatColor.RED + "Limite atteinte: " + current + "/" + max);
+                }
             } else {
-                lore.add(ChatColor.YELLOW + "Cliquez pour ajouter");
+                lore.add(ChatColor.YELLOW + "Cliquez pour attribuer ce rôle");
             }
 
             meta.setLore(lore);
@@ -212,6 +225,8 @@ public class TownMembersGUI implements Listener {
             case ADJOINT -> Material.GOLD_BLOCK;
             case POLICIER -> Material.IRON_CHESTPLATE;
             case JUGE -> Material.GOLDEN_SWORD;
+            case MEDECIN -> Material.GOLDEN_APPLE;
+            case ARCHITECTE -> Material.BRICK;
             case CITOYEN -> Material.PLAYER_HEAD;
             default -> Material.PLAYER_HEAD;
         };
@@ -232,6 +247,11 @@ public class TownMembersGUI implements Listener {
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 
@@ -302,12 +322,16 @@ public class TownMembersGUI implements Listener {
                     }
                 }
             }
-        } else if (title.contains("Rôles:")) {
+        } else if (title.contains("Rôle de")) {
             if (strippedName.contains("Retour")) {
                 player.closeInventory();
                 openMembersMenu(player);
+            } else if (strippedName.contains("Indisponible")) {
+                // Rôle indisponible - ne rien faire
+                player.sendMessage(ChatColor.RED + "Ce rôle n'est pas disponible pour votre ville.");
+                return;
             } else {
-                // Basculer un rôle (ajouter/retirer)
+                // Changer le rôle (UN SEUL RÔLE À LA FOIS)
                 TownRole selectedRole = null;
                 for (TownRole role : TownRole.values()) {
                     if (strippedName.contains(role.getDisplayName())) {
@@ -325,27 +349,46 @@ public class TownMembersGUI implements Listener {
                         return;
                     }
 
-                    boolean hasRole = targetMember.hasRole(selectedRole);
+                    TownRole currentRole = targetMember.getRole();
                     OfflinePlayer target = Bukkit.getOfflinePlayer(targetUuid);
 
-                    if (hasRole) {
-                        // Retirer le rôle
-                        targetMember.removeRole(selectedRole);
-                        player.sendMessage(ChatColor.YELLOW + "Rôle " + selectedRole.getDisplayName() + " retiré à " + target.getName());
+                    // Vérifier si le rôle cliqué est déjà le rôle actuel
+                    if (currentRole == selectedRole) {
+                        player.sendMessage(ChatColor.YELLOW + target.getName() + " a déjà le rôle " + selectedRole.getDisplayName());
+                        return;
+                    }
 
-                        Player targetPlayer = target.getPlayer();
-                        if (targetPlayer != null && targetPlayer.isOnline()) {
-                            targetPlayer.sendMessage(ChatColor.YELLOW + "Le rôle " + selectedRole.getDisplayName() + " vous a été retiré dans " + townName);
-                        }
-                    } else {
-                        // Ajouter le rôle
-                        targetMember.addRole(selectedRole);
-                        player.sendMessage(ChatColor.GREEN + "Rôle " + selectedRole.getDisplayName() + " ajouté à " + target.getName());
+                    // Vérifier si le rôle peut être attribué (niveau de ville + limites)
+                    var levelManager = plugin.getTownLevelManager();
+                    var assignmentResult = levelManager.canAssignRole(town, selectedRole);
 
-                        Player targetPlayer = target.getPlayer();
-                        if (targetPlayer != null && targetPlayer.isOnline()) {
-                            targetPlayer.sendMessage(ChatColor.GREEN + "Vous avez reçu le rôle " + selectedRole.getDisplayName() + " dans " + townName);
-                        }
+                    if (!assignmentResult.canAssign()) {
+                        player.closeInventory();
+                        player.sendMessage("");
+                        player.sendMessage(assignmentResult.getMessage());
+                        player.sendMessage("");
+                        return;
+                    }
+
+                    // Attribuer le nouveau rôle (remplace automatiquement l'ancien)
+                    targetMember.addRole(selectedRole);
+                    player.sendMessage(ChatColor.GREEN + "✓ Rôle de " + target.getName() + " changé:");
+                    player.sendMessage(ChatColor.GRAY + "  Ancien: " + ChatColor.YELLOW + currentRole.getDisplayName());
+                    player.sendMessage(ChatColor.GRAY + "  Nouveau: " + ChatColor.GREEN + selectedRole.getDisplayName());
+
+                    Player targetPlayer = target.getPlayer();
+                    if (targetPlayer != null && targetPlayer.isOnline()) {
+                        targetPlayer.sendMessage("");
+                        targetPlayer.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        targetPlayer.sendMessage(ChatColor.AQUA + "   👔 CHANGEMENT DE RÔLE");
+                        targetPlayer.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        targetPlayer.sendMessage("");
+                        targetPlayer.sendMessage(ChatColor.YELLOW + "Votre rôle dans " + ChatColor.AQUA + townName + ChatColor.YELLOW + " a changé:");
+                        targetPlayer.sendMessage(ChatColor.GRAY + "  Ancien: " + ChatColor.RED + currentRole.getDisplayName());
+                        targetPlayer.sendMessage(ChatColor.GRAY + "  Nouveau: " + ChatColor.GREEN + selectedRole.getDisplayName());
+                        targetPlayer.sendMessage("");
+                        targetPlayer.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        targetPlayer.sendMessage("");
                     }
 
                     // Rafraîchir le menu
@@ -389,15 +432,16 @@ public class TownMembersGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.GREEN + "Inviter un joueur");
 
         // Liste des joueurs en ligne dans un rayon de 50 blocs
+        // FIX BASSE #16: Renamed 'p' → 'nearbyPlayer' for clarity
         List<Player> nearbyPlayers = new ArrayList<>();
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (!p.equals(inviter) &&
-                p.getWorld().equals(inviter.getWorld()) &&
-                p.getLocation().distance(inviter.getLocation()) <= 50) {
+        for (Player nearbyPlayer : Bukkit.getOnlinePlayers()) {
+            if (!nearbyPlayer.equals(inviter) &&
+                nearbyPlayer.getWorld().equals(inviter.getWorld()) &&
+                nearbyPlayer.getLocation().distance(inviter.getLocation()) <= 50) {
 
                 // Vérifier qu'il n'est pas déjà dans une ville
-                if (townManager.getPlayerTown(p.getUniqueId()) == null) {
-                    nearbyPlayers.add(p);
+                if (townManager.getPlayerTown(nearbyPlayer.getUniqueId()) == null) {
+                    nearbyPlayers.add(nearbyPlayer);
                 }
             }
         }

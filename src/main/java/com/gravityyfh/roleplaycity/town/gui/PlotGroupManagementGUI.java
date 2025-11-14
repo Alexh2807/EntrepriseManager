@@ -219,7 +219,7 @@ public class PlotGroupManagementGUI implements Listener {
 
         // NOUVEAU : Supprimer la mailbox du terrain groupé AVANT le dégroupement
         if (plugin.getMailboxManager() != null) {
-            plugin.getMailboxManager().removeMailboxByPlot(plot);
+            plugin.getMailboxManager().removeMailbox(plot);
         }
 
         // Sauvegarder la liste des chunks AVANT modification (getChunks() retourne une copie)
@@ -235,38 +235,10 @@ public class PlotGroupManagementGUI implements Listener {
         plot.setGrouped(false);
         plot.setGroupName(null);
 
+        // FIX BASSE #14: Extraction de méthode pour simplifier
         // ÉTAPE 2 : Créer des plots individuels pour les chunks restants (à partir de l'index 1)
         for (int i = 1; i < chunks.size(); i++) {
-            String chunkKey = chunks.get(i);
-            String[] parts = chunkKey.split(":");
-            if (parts.length == 3) {
-                String world = parts[0];
-                int x = Integer.parseInt(parts[1]);
-                int z = Integer.parseInt(parts[2]);
-
-                // Créer un nouveau plot individuel
-                org.bukkit.World bukkitWorld = plugin.getServer().getWorld(world);
-                if (bukkitWorld != null) {
-                    Plot newPlot = new Plot(townName, bukkitWorld.getChunkAt(x, z));
-                    newPlot.setType(plot.getType());
-                    newPlot.setMunicipalSubType(plot.getMunicipalSubType());
-                    // Garder le même propriétaire si existant
-                    if (plot.getOwnerUuid() != null) {
-                        newPlot.setOwner(plot.getOwnerUuid(), plot.getOwnerName());
-                    }
-                    // Attribuer un numéro unique si le type nécessite un numéro
-                    com.gravityyfh.roleplaycity.town.data.PlotType plotType = newPlot.getType();
-                    if (plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PARTICULIER ||
-                        plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL ||
-                        plotType == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
-                        String plotNumber = town.generateUniquePlotNumber();
-                        if (plotNumber != null) {
-                            newPlot.setPlotNumber(plotNumber);
-                        }
-                    }
-                    town.addPlot(newPlot);
-                }
-            }
+            createSeparatePlotFromChunk(chunks.get(i), plot, town, townName);
         }
 
         // Sauvegarder
@@ -279,6 +251,49 @@ public class PlotGroupManagementGUI implements Listener {
         player.sendMessage(ChatColor.YELLOW + "Ancien nom: " + ChatColor.WHITE + groupName);
         player.sendMessage(ChatColor.YELLOW + "Parcelles séparées: " + ChatColor.WHITE + chunkCount);
         player.closeInventory();
+    }
+
+    /**
+     * FIX BASSE #14: Méthode extraite pour réduire les niveaux d'imbrication
+     * Crée un nouveau plot séparé à partir d'un chunk lors du dégroupage
+     */
+    private void createSeparatePlotFromChunk(String chunkKey, Plot originalPlot, Town town, String townName) {
+        String[] parts = chunkKey.split(":");
+        if (parts.length != 3) {
+            return; // Early return si format invalide
+        }
+
+        String world = parts[0];
+        int x = Integer.parseInt(parts[1]);
+        int z = Integer.parseInt(parts[2]);
+
+        org.bukkit.World bukkitWorld = plugin.getServer().getWorld(world);
+        if (bukkitWorld == null) {
+            return; // Early return si monde introuvable
+        }
+
+        // Créer un nouveau plot individuel
+        Plot newPlot = new Plot(townName, bukkitWorld.getChunkAt(x, z));
+        newPlot.setType(originalPlot.getType());
+        newPlot.setMunicipalSubType(originalPlot.getMunicipalSubType());
+
+        // Garder le même propriétaire si existant
+        if (originalPlot.getOwnerUuid() != null) {
+            newPlot.setOwner(originalPlot.getOwnerUuid(), originalPlot.getOwnerName());
+        }
+
+        // Attribuer un numéro unique si le type nécessite un numéro
+        com.gravityyfh.roleplaycity.town.data.PlotType plotType = newPlot.getType();
+        if (plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PARTICULIER ||
+            plotType == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL ||
+            plotType == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
+            String plotNumber = town.generateUniquePlotNumber();
+            if (plotNumber != null) {
+                newPlot.setPlotNumber(plotNumber);
+            }
+        }
+
+        town.addPlot(newPlot);
     }
 
     @EventHandler
@@ -294,6 +309,9 @@ public class PlotGroupManagementGUI implements Listener {
 
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType() == Material.AIR) return;
+
+            // NPE Guard: Vérifier que l'item a une metadata et un displayName
+            if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) return;
 
             String townName = extractTownName(player);
             if (townName == null) return;
@@ -317,6 +335,9 @@ public class PlotGroupManagementGUI implements Listener {
 
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType() == Material.AIR) return;
+
+            // NPE Guard: Vérifier que l'item a une metadata et un displayName
+            if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) return;
 
             String townName = title.replace(ChatColor.DARK_PURPLE + "📋 Groupes de ", "");
 

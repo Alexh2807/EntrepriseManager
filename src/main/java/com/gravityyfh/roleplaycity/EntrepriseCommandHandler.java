@@ -12,10 +12,18 @@ import org.bukkit.entity.Player;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseCommandHandler implements CommandExecutor {
+
+    // FIX MOYENNE: Constantes pour les limites de montants (magic numbers)
+    private static final double MAX_TRANSACTION_AMOUNT = 1000000000.0; // 1 milliard d'euros
+
+    // FIX MOYENNE: Anti-spam pour commandes
+    private final Map<UUID, Long> commandCooldowns = new ConcurrentHashMap<>();
+    private static final long COMMAND_COOLDOWN_MS = 500; // 500ms entre chaque commande
 
     private final EntrepriseManagerLogic entrepriseLogic;
     private final EntrepriseGUI entrepriseGUI;
@@ -29,12 +37,62 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         this.cvManager = cvManager;
     }
 
+    // FIX MOYENNE: Validation robuste des montants saisis
+    private Double parseAmount(String input, Player player) {
+        try {
+            double amount = Double.parseDouble(input);
+            if (Double.isNaN(amount) || Double.isInfinite(amount)) {
+                player.sendMessage(ChatColor.RED + "Montant invalide: " + input);
+                return null;
+            }
+            if (amount < 0) {
+                player.sendMessage(ChatColor.RED + "Le montant ne peut pas être négatif: " + amount);
+                return null;
+            }
+            if (amount > MAX_TRANSACTION_AMOUNT) {
+                player.sendMessage(ChatColor.RED + "Montant trop élevé (max: " + String.format("%,.0f", MAX_TRANSACTION_AMOUNT) + "€)");
+                return null;
+            }
+            return amount;
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Format de montant invalide: '" + input + "'. Utilisez un nombre décimal.");
+            return null;
+        }
+    }
+
+    private Integer parsePositiveInt(String input, Player player) {
+        return parsePositiveInt(input, player, true);
+    }
+
+    private Integer parsePositiveInt(String input, Player player, boolean showError) {
+        try {
+            int value = Integer.parseInt(input);
+            if (value < 0) {
+                if (showError) player.sendMessage(ChatColor.RED + "La valeur ne peut pas être négative: " + value);
+                return null;
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            if (showError) player.sendMessage(ChatColor.RED + "Format de nombre invalide: '" + input + "'. Utilisez un nombre entier.");
+            return null;
+        }
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Seuls les joueurs peuvent exécuter cette commande.");
             return true;
         }
+
+        // FIX MOYENNE: Anti-spam protection
+        Long lastCommand = commandCooldowns.get(player.getUniqueId());
+        long currentTime = System.currentTimeMillis();
+        if (lastCommand != null && (currentTime - lastCommand) < COMMAND_COOLDOWN_MS) {
+            // Ne pas afficher de message pour éviter de spammer le chat
+            return true;
+        }
+        commandCooldowns.put(player.getUniqueId(), currentTime);
 
         if (args.length == 0) {
             entrepriseGUI.openMainMenu(player);
@@ -136,7 +194,12 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
 
-        plugin.getShopGUI().openShopListMenu(player, entreprise, 0);
+        // Ouvrir la liste des boutiques
+        if (plugin.getShopListGUI() != null) {
+            plugin.getShopListGUI().openShopList(player, entreprise, 0);
+        } else {
+            player.sendMessage(ChatColor.RED + "Erreur: Système de boutiques non disponible.");
+        }
     }
 
     private void handleDeleteCommand(Player player, String[] args) {
@@ -197,22 +260,23 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
 
-        try {
-            double amount = Double.parseDouble(args[args.length - 1]);
-            String nomEntreprise = joinArguments(args, 1, args.length - 1);
+        // FIX MOYENNE: Utiliser la validation robuste des montants
+        Double amount = parseAmount(args[args.length - 1], player);
+        if (amount == null) {
+            return; // parseAmount a déjà envoyé un message d'erreur
+        }
 
-            if (amount <= 0) {
-                player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
-                return;
-            }
+        String nomEntreprise = joinArguments(args, 1, args.length - 1);
 
-            if ("withdraw".equals(type)) {
-                entrepriseLogic.retirerArgent(player, nomEntreprise, amount);
-            } else {
-                entrepriseLogic.deposerArgent(player, nomEntreprise, amount);
-            }
-        } catch (NumberFormatException e) {
-            player.sendMessage(ChatColor.RED + "Montant invalide.");
+        if (amount <= 0) {
+            player.sendMessage(ChatColor.RED + "Le montant doit être positif.");
+            return;
+        }
+
+        if ("withdraw".equals(type)) {
+            entrepriseLogic.retirerArgent(player, nomEntreprise, amount);
+        } else {
+            entrepriseLogic.deposerArgent(player, nomEntreprise, amount);
         }
     }
 
@@ -304,21 +368,22 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
         } else if (action.equals("setprime")) {
             if (args.length < 5) { player.sendMessage(ChatColor.RED + "Usage: /entreprise employee setprime <NomEnt> <NomEmp> <Montant>"); return; }
-            try {
-                double montant = Double.parseDouble(args[args.length - 1]);
-                String nomEmp = args[args.length - 2];
-                String nomEnt = joinArguments(args, 2, args.length - 2);
 
-                if(montant < 0) { player.sendMessage(ChatColor.RED + "Le montant de la prime doit être positif ou nul."); return;}
-                entrepriseLogic.definirPrime(nomEnt, nomEmp, montant);
-                player.sendMessage(ChatColor.GREEN + "Prime de " + nomEmp + " définie à " + String.format("%,.2f", montant) + "€/h pour '" + nomEnt + "'.");
-                Player empPlayer = Bukkit.getPlayerExact(nomEmp);
-                if (empPlayer != null && empPlayer.isOnline()) {
-                    empPlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + nomEnt + "' est maintenant de " + String.format("%,.2f", montant) + "€/h.");
-                }
+            // FIX MOYENNE: Utiliser la validation robuste des montants
+            Double montant = parseAmount(args[args.length - 1], player);
+            if (montant == null) {
+                return; // parseAmount a déjà envoyé un message d'erreur
+            }
 
-            } catch (NumberFormatException e){
-                player.sendMessage(ChatColor.RED + "Montant invalide.");
+            String nomEmp = args[args.length - 2];
+            String nomEnt = joinArguments(args, 2, args.length - 2);
+
+            if(montant < 0) { player.sendMessage(ChatColor.RED + "Le montant de la prime doit être positif ou nul."); return;}
+            entrepriseLogic.definirPrime(nomEnt, nomEmp, montant);
+            player.sendMessage(ChatColor.GREEN + "Prime de " + nomEmp + " définie à " + String.format("%,.2f", montant) + "€/h pour '" + nomEnt + "'.");
+            Player empPlayer = Bukkit.getPlayerExact(nomEmp);
+            if (empPlayer != null && empPlayer.isOnline()) {
+                empPlayer.sendMessage(ChatColor.GOLD + "Votre prime pour '" + nomEnt + "' est maintenant de " + String.format("%,.2f", montant) + "€/h.");
             }
         } else {
             player.sendMessage(ChatColor.RED + "Action employé '" + action + "' inconnue. Utilisez invite ou setprime.");
@@ -350,7 +415,8 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
         if (plugin != null) {
-            plugin.reloadPluginData();
+            // FIX BASSE #4: Utiliser la nouvelle méthode au lieu de deprecated
+            plugin.reloadPluginConfig();
             player.sendMessage(ChatColor.GREEN + "Plugin RoleplayCity et ses données ont été rechargés.");
         } else {
             player.sendMessage(ChatColor.RED + "Erreur: Instance du plugin non trouvée.");
@@ -382,12 +448,14 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
 
-        boolean removed = plugin.getShopManager().removeTargetedDisplayItem(player);
-        if (removed) {
-            player.sendMessage(ChatColor.GREEN + "[Succès] L'entité Display ciblée a été supprimée.");
-        } else {
-            player.sendMessage(ChatColor.RED + "[Erreur] Vous ne visez aucune entité Display.");
-        }
+        // TODO: Réimplémenter la suppression d'entité Display
+        player.sendMessage(ChatColor.RED + "Fonction temporairement désactivée.");
+        // boolean removed = plugin.getShopManager().removeTargetedDisplayItem(player);
+        // if (removed) {
+        //     player.sendMessage(ChatColor.GREEN + "[Succès] L'entité Display ciblée a été supprimée.");
+        // } else {
+        //     player.sendMessage(ChatColor.RED + "[Erreur] Vous ne visez aucune entité Display.");
+        // }
     }
 
     private void handleStatsCommand(Player player, String[] args) {
@@ -407,12 +475,13 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                 int limit = 10;
                 String nomEntTransac = joinArguments(args, 2, args.length);
                 if (args.length > 3) {
-                    try {
-                        limit = Integer.parseInt(args[args.length - 1]);
+                    // FIX MOYENNE: Utiliser la validation robuste (silencieuse pour fallback au nom)
+                    Integer parsedLimit = parsePositiveInt(args[args.length - 1], player, false);
+                    if (parsedLimit != null) {
+                        limit = parsedLimit;
                         nomEntTransac = joinArguments(args, 2, args.length - 1);
-                    } catch (NumberFormatException e) {
-                        // l'argument final n'est pas un nombre, on le considère comme partie du nom
                     }
+                    // Si parsing échoue, on considère l'argument comme partie du nom
                 }
                 handleStatsTransactionsCommand(player, nomEntTransac, limit);
                 break;

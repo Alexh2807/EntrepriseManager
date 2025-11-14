@@ -53,18 +53,39 @@ public class PastExperience {
             String role = (String) map.get("role");
             LocalDateTime entree = null;
             if (map.containsKey("dateEntree") && map.get("dateEntree") instanceof String) {
-                try { entree = LocalDateTime.parse((String) map.get("dateEntree")); }
-                catch (Exception e) { System.err.println("Format dateEntree invalide: " + map.get("dateEntree")); }
+                try {
+                    entree = LocalDateTime.parse((String) map.get("dateEntree"));
+                } catch (Exception e) {
+                    // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
+                    org.bukkit.Bukkit.getLogger().warning("PastExperience: Format dateEntree invalide: " + map.get("dateEntree"));
+                }
             }
             LocalDateTime sortie = null;
             if (map.containsKey("dateSortie") && map.get("dateSortie") instanceof String) {
-                try { sortie = LocalDateTime.parse((String) map.get("dateSortie")); }
-                catch (Exception e) { System.err.println("Format dateSortie invalide: " + map.get("dateSortie")); }
-            } else { System.err.println("dateSortie manquante: " + map); return null; }
-            if (nom == null || type == null || role == null || sortie == null) { System.err.println("Données requises manquantes/invalides: " + map); return null; }
+                try {
+                    sortie = LocalDateTime.parse((String) map.get("dateSortie"));
+                } catch (Exception e) {
+                    // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
+                    org.bukkit.Bukkit.getLogger().warning("PastExperience: Format dateSortie invalide: " + map.get("dateSortie"));
+                }
+            } else {
+                // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
+                org.bukkit.Bukkit.getLogger().warning("PastExperience: dateSortie manquante: " + map);
+                return null;
+            }
+            // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
+            if (nom == null || type == null || role == null || sortie == null) {
+                org.bukkit.Bukkit.getLogger().warning("PastExperience: Données requises manquantes/invalides: " + map);
+                return null;
+            }
             double ca = ((Number) map.getOrDefault("caGenere", 0.0)).doubleValue();
             return new PastExperience(nom, type, role, entree, sortie, ca);
-        } catch (Exception e) { System.err.println("Erreur générale deserialize PastExperience: " + e.getMessage() + " pour map: " + map); e.printStackTrace(); return null; }
+        } catch (Exception e) {
+            // FIX BASSE: Utiliser Bukkit logger avec exception complète au lieu de printStackTrace
+            org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                "Erreur générale deserialize PastExperience pour map: " + map, e);
+            return null;
+        }
     }
 
     @Override

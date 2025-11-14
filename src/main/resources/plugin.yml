@@ -30,6 +30,10 @@ commands:
     description: Système de livraison - Envoyer des lettres et des colis aux résidents
     usage: /<command>
     aliases: [poste, mail]
+  backpack:
+    description: Système de backpacks physiques - Gérer les backpacks
+    usage: /<command> [give|reload|info|help]
+    aliases: [bp, sac]
 
 permissions:
   roleplaycity.use:
@@ -59,3 +63,12 @@ permissions:
   roleplaycity.town.admin:
     description: Permet de gérer toutes les villes (administrateurs)
     default: op
+  roleplaycity.backpack.give:
+    description: Permet de donner des backpacks avec /backpack give
+    default: op
+  roleplaycity.backpack.reload:
+    description: Permet de recharger la configuration des backpacks avec /backpack reload
+    default: op
+  roleplaycity.backpack.info:
+    description: Permet d'afficher les informations d'un backpack avec /backpack info
+    default: true

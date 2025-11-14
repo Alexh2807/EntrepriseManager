@@ -14,6 +14,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class TownManager {
     private final RoleplayCity plugin;
@@ -34,6 +35,18 @@ public class TownManager {
     // === CRÉATION ET SUPPRESSION ===
 
     public boolean createTown(String townName, Player mayor, double creationCost) {
+        // FIX BASSE #32: Valider le nom avant toute autre vérification
+        com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation =
+            plugin.getNameValidator().validateTownName(townName);
+
+        if (!validation.isValid()) {
+            mayor.sendMessage(ChatColor.RED + "❌ Nom de ville invalide: " + validation.getError());
+            return false;
+        }
+
+        // Utiliser le nom sanitisé (trimmed, sans caractères dangereux)
+        townName = validation.getSanitizedName();
+
         // Vérifications
         if (townExists(townName)) {
             return false;
@@ -74,9 +87,9 @@ public class TownManager {
         double claimCost = plugin.getConfig().getDouble("town.claim-cost-per-chunk", 500.0);
 
         mayor.sendMessage("");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🏛️ FÉLICITATIONS, MAIRE DE " + townName.toUpperCase() + " !");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "📋 PREMIERS PAS POUR DÉVELOPPER VOTRE VILLE :");
         mayor.sendMessage("");
@@ -104,11 +117,11 @@ public class TownManager {
         mayor.sendMessage(ChatColor.GRAY + "   → Créez des entreprises pour vos citoyens");
         mayor.sendMessage(ChatColor.GRAY + "   → Gérez les taxes et l'économie municipale");
         mayor.sendMessage("");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage(ChatColor.GREEN + "💡 Conseil : " + ChatColor.GRAY + "Commencez par déposer au minimum " +
             ChatColor.GOLD + String.format("%.2f€", claimCost * 5) + ChatColor.GRAY + " dans");
         mayor.sendMessage(ChatColor.GRAY + "   la banque pour pouvoir revendiquer 5 chunks de départ.");
-        mayor.sendMessage(ChatColor.GOLD + "════════════════════════════════════════════════════");
+        mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
     }
 
@@ -164,10 +177,8 @@ public class TownManager {
             playerTowns.put(memberUuid, newName);
         }
 
-        // NOUVEAU : Mettre à jour le nom de ville dans toutes les mailboxes
-        if (plugin.getMailboxManager() != null) {
-            plugin.getMailboxManager().renameTownInMailboxes(oldName, newName);
-        }
+        // Les données de mailbox sont maintenant dans Plot, pas besoin de mise à jour séparée
+        // Le renommage de la ville mettra automatiquement à jour le townName dans Plot via TownDataManager
 
         plugin.getLogger().info("Ville renommée: " + oldName + " -> " + newName);
 
@@ -370,9 +381,16 @@ public class TownManager {
         TownMember kickedMember = town.getMember(kickedUuid);
         String kickedName = kickedMember != null ? kickedMember.getPlayerName() : kickedUuid.toString();
 
-        // Déclencher l'événement de départ de membre
-        TownMemberLeaveEvent event = new TownMemberLeaveEvent(townName, kickedUuid, kickedName);
-        Bukkit.getPluginManager().callEvent(event);
+        // Déclencher l'événement de départ de membre (générique)
+        TownMemberLeaveEvent leaveEvent = new TownMemberLeaveEvent(townName, kickedUuid, kickedName);
+        Bukkit.getPluginManager().callEvent(leaveEvent);
+
+        // Déclencher l'événement spécifique au kick
+        com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent kickEvent =
+            new com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent(
+                townName, kickedUuid, kickedName, kicker.getUniqueId(), kicker.getName()
+            );
+        Bukkit.getPluginManager().callEvent(kickEvent);
 
         // Retirer le joueur
         town.removeMember(kickedUuid);
@@ -596,8 +614,8 @@ public class TownManager {
                         plugin.getTownDataManager().saveTowns(getTownsForSave());
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().severe("Erreur lors de la sauvegarde asynchrone des villes: " + e.getMessage());
-                    e.printStackTrace();
+                    // FIX BASSE: Utiliser logging avec exception complète
+                    plugin.getLogger().log(Level.SEVERE, "Erreur lors de la sauvegarde asynchrone des villes", e);
                 } finally {
                     // Réinitialiser le flag pour permettre une nouvelle sauvegarde
                     savePending.set(false);
@@ -653,9 +671,11 @@ public class TownManager {
             return;
         }
 
-        // Sauvegarder les informations pour le log
+        // Sauvegarder les informations pour le log et l'event
+        UUID oldOwnerUuid = plot.getOwnerUuid();
         String previousOwner = plot.getOwnerName();
         String previousCompany = plot.getCompanyName();
+        String oldCompanySiret = plot.getCompanySiret();
 
         // Effacer la propriété
         clearPlotOwnership(plot);
@@ -678,6 +698,11 @@ public class TownManager {
             previousOwner != null ? previousOwner : "Aucun",
             previousCompany != null ? previousCompany : "Aucune"
         ));
+
+        // Fire event
+        com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent event =
+            new com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent(plot, oldOwnerUuid, oldCompanySiret, reason);
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
     }
 
     /**
@@ -692,5 +717,14 @@ public class TownManager {
         plot.setCompany(null);
         plot.setCompanySiret(null);
         plot.resetDebt();
+
+        // 📬 Supprimer la boîte aux lettres si le terrain devient public/municipal
+        if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC ||
+            plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
+            if (plot.hasMailbox()) {
+                plugin.getMailboxManager().removeMailbox(plot);
+                plugin.getLogger().info("Mailbox supprimée du plot " + plot.getIdentifier() + " (type: " + plot.getType() + ")");
+            }
+        }
     }
 }

@@ -3,7 +3,7 @@ package com.gravityyfh.roleplaycity.Listener;// Dans ton fichier ChatListener.ja
 import com.gravityyfh.roleplaycity.EntrepriseGUI;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
-import com.gravityyfh.roleplaycity.Shop.Shop;
+import com.gravityyfh.roleplaycity.shop.model.Shop;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -17,6 +17,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class ChatListener implements Listener {
 
@@ -69,36 +70,37 @@ public class ChatListener implements Listener {
 
     // --- Les méthodes que tu appelles depuis le GUI ---
 
-    public void attendreMontantDepot(Player p, String nomEnt) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.DEPOSIT_AMOUNT, nomEnt));
-        p.sendMessage(ChatColor.GOLD + "Entrez le montant à déposer. Tapez 'annuler' pour annuler.");
+    // FIX BASSE #16: Renamed 'p' → 'player', 'e' → 'company' for clarity
+    public void attendreMontantDepot(Player player, String nomEnt) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.DEPOSIT_AMOUNT, nomEnt));
+        player.sendMessage(ChatColor.GOLD + "Entrez le montant à déposer. Tapez 'annuler' pour annuler.");
     }
 
-    public void attendreMontantRetrait(Player p, String nomEnt) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.WITHDRAW_AMOUNT, nomEnt));
-        p.sendMessage(ChatColor.GOLD + "Entrez le montant à retirer. Tapez 'annuler' pour annuler.");
+    public void attendreMontantRetrait(Player player, String nomEnt) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.WITHDRAW_AMOUNT, nomEnt));
+        player.sendMessage(ChatColor.GOLD + "Entrez le montant à retirer. Tapez 'annuler' pour annuler.");
     }
 
-    public void attendreNouveauNomEntreprise(Player p, String nomEnt) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.RENAME_ENTREPRISE_NEW_NAME, nomEnt));
-        p.sendMessage(ChatColor.GOLD + "Entrez le nouveau nom de l'entreprise. Tapez 'annuler' pour annuler.");
+    public void attendreNouveauNomEntreprise(Player player, String nomEnt) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.RENAME_ENTREPRISE_NEW_NAME, nomEnt));
+        player.sendMessage(ChatColor.GOLD + "Entrez le nouveau nom de l'entreprise. Tapez 'annuler' pour annuler.");
     }
 
-    public void requestShopCreationDetails(Player p, EntrepriseManagerLogic.Entreprise e, Location loc, ItemStack item) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_CREATION_DETAILS, e, loc, item));
-        p.sendMessage(ChatColor.GOLD + "Veuillez entrer la QUANTITÉ par vente, suivie du PRIX total pour cette quantité.");
-        p.sendMessage(ChatColor.GRAY + "Exemple : " + ChatColor.YELLOW + "16 350.50" + ChatColor.GRAY + " (pour vendre 16 objets à 350.50€)");
-        p.sendMessage(ChatColor.RED + "Utilisez un point '.' pour les décimales. Tapez 'annuler' pour annuler.");
+    public void requestShopCreationDetails(Player player, EntrepriseManagerLogic.Entreprise company, Location loc, ItemStack item) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.SHOP_CREATION_DETAILS, company, loc, item));
+        player.sendMessage(ChatColor.GOLD + "Veuillez entrer la QUANTITÉ par vente, suivie du PRIX total pour cette quantité.");
+        player.sendMessage(ChatColor.GRAY + "Exemple : " + ChatColor.YELLOW + "16 350.50" + ChatColor.GRAY + " (pour vendre 16 objets à 350.50€)");
+        player.sendMessage(ChatColor.RED + "Utilisez un point '.' pour les décimales. Tapez 'annuler' pour annuler.");
     }
 
-    public void requestNewPriceForShop(Player p, Shop shop) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_PRICE, shop));
-        p.sendMessage(ChatColor.GOLD + "Entrez le nouveau prix pour la boutique. Tapez 'annuler' pour annuler.");
+    public void requestNewPriceForShop(Player player, Shop shop) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_PRICE, shop));
+        player.sendMessage(ChatColor.GOLD + "Entrez le nouveau prix pour la boutique. Tapez 'annuler' pour annuler.");
     }
 
-    public void requestNewQuantityForShop(Player p, Shop shop) {
-        playersWaitingForInput.put(p.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_QUANTITY, shop));
-        p.sendMessage(ChatColor.GOLD + "Entrez la nouvelle quantité par vente. Tapez 'annuler' pour annuler.");
+    public void requestNewQuantityForShop(Player player, Shop shop) {
+        playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.SHOP_NEW_QUANTITY, shop));
+        player.sendMessage(ChatColor.GOLD + "Entrez la nouvelle quantité par vente. Tapez 'annuler' pour annuler.");
     }
 
     // Méthode générique pour attendre une saisie avec callback
@@ -174,8 +176,8 @@ public class ChatListener implements Listener {
                     }
                 } catch (Exception e) {
                     player.sendMessage(ChatColor.RED + "Une erreur est survenue lors du traitement de votre saisie. Veuillez réessayer.");
-                    plugin.getLogger().severe("Erreur lors du traitement de la saisie chat pour " + player.getName() + ": " + e.getMessage());
-                    e.printStackTrace();
+                    // FIX BASSE: Utiliser logging avec exception complète
+                    plugin.getLogger().log(Level.SEVERE, "Erreur lors du traitement de la saisie chat pour " + player.getName(), e);
                 }
             }
         }.runTask(plugin);
@@ -231,7 +233,9 @@ public class ChatListener implements Listener {
                 return;
             }
 
-            plugin.getShopManager().finalizeShopCreation(player, entreprise, location, itemStack, quantity, price);
+            // TODO: Réimplémenter la création de shop
+            player.sendMessage(ChatColor.RED + "Création de shop temporairement désactivée.");
+            // plugin.getShopManager().finalizeShopCreation(player, entreprise, location, itemStack, quantity, price);
 
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Assurez-vous d'entrer des nombres corrects.");
@@ -246,8 +250,10 @@ public class ChatListener implements Listener {
             if (newPrice <= 0) {
                 player.sendMessage(ChatColor.RED + "Le prix doit être un nombre positif.");
             } else {
-                plugin.getShopManager().changeShopPrice(shop, newPrice);
-                player.sendMessage(ChatColor.GREEN + "Le prix de la boutique a été mis à jour à " + String.format("%,.2f", newPrice) + "€.");
+                // TODO: Réimplémenter le changement de prix de shop
+                player.sendMessage(ChatColor.RED + "Modification de prix temporairement désactivée.");
+                // plugin.getShopManager().changeShopPrice(shop, newPrice);
+                // player.sendMessage(ChatColor.GREEN + "Le prix de la boutique a été mis à jour à " + String.format("%,.2f", newPrice) + "€.");
             }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre (ex: 150.50).");
@@ -262,8 +268,10 @@ public class ChatListener implements Listener {
             if (newQuantity <= 0) {
                 player.sendMessage(ChatColor.RED + "La quantité doit être un nombre entier positif.");
             } else {
-                plugin.getShopManager().changeShopQuantity(shop, newQuantity);
-                player.sendMessage(ChatColor.GREEN + "La quantité par vente a été mise à jour à " + newQuantity + ".");
+                // TODO: Réimplémenter le changement de quantité de shop
+                player.sendMessage(ChatColor.RED + "Modification de quantité temporairement désactivée.");
+                // plugin.getShopManager().changeShopQuantity(shop, newQuantity);
+                // player.sendMessage(ChatColor.GREEN + "La quantité par vente a été mise à jour à " + newQuantity + ".");
             }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre entier (ex: 16).");
@@ -285,7 +293,8 @@ public class ChatListener implements Listener {
         if (context.inputType == InputType.SHOP_NEW_PRICE || context.inputType == InputType.SHOP_NEW_QUANTITY) {
             Shop shop = (Shop) context.data;
             if (shop != null) {
-                plugin.getShopGUI().openManageShopMenu(player, shop);
+                // TODO: Réimplémenter le menu de gestion de shop
+                // plugin.getShopGUI().openManageShopMenu(player, shop);
             }
         }
         // Ajoute ici d'autres logiques pour ré-ouvrir d'autres menus si nécessaire

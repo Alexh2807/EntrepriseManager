@@ -242,6 +242,11 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Affaires en Cours")) {
@@ -261,6 +266,11 @@ public class TownJusticeGUI implements Listener {
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 
@@ -302,6 +312,11 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
+        // NPE Guard: Vérifier que l'item a une metadata et un displayName
+        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
+            return;
+        }
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
         if (displayName.contains("Retour")) {
@@ -313,6 +328,11 @@ public class TownJusticeGUI implements Listener {
         // Récupérer l'ID de l'amende depuis le dossier
         ItemStack dossierItem = event.getInventory().getItem(4);
         if (dossierItem == null || dossierItem.getType() != Material.PAPER) {
+            return;
+        }
+
+        // NPE Guard: Vérifier que le dossier a une metadata et un displayName
+        if (!dossierItem.hasItemMeta() || dossierItem.getItemMeta().getDisplayName() == null) {
             return;
         }
 
