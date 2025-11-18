@@ -1,0 +1,251 @@
+# ============================================
+# Configuration des Backpacks
+# ============================================
+# Ce fichier permet de définir différents types de backpacks avec leurs propriétés,
+# crafts personnalisés, et support ItemsAdder
+
+backpacks:
+
+  # 1 — Sacoche (le moins coûteux)
+  sacoche:
+    enabled: true
+    display_name: '&6&lSacoche'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CSC"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+
+  # 2 — Valisette
+  valisette:
+    enabled: true
+    display_name: '&6&lValisette'
+    lore:
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu&apos;une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BCB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+
+  # 3 — Sac de course
+  sac_course:
+    enabled: true
+    display_name: '&6&lSac de course'
+    lore:
+      - '&7Un sac en tissu léger.'
+      - '&7Idéal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "W.W"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+
+  # 4 — Sac de sport
+  sac_sport:
+    enabled: true
+    display_name: '&6&lSac de sport'
+    lore:
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "W.W"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+
+  # 5 — Sac à dos moyen
+  sacados_moyen:
+    enabled: true
+    display_name: '&6&lSac à dos moyen'
+    lore:
+      - '&7Un sac à dos pratique.'
+      - '&7Parfait pour les déplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CBC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: OAK_PLANKS
+        I: IRON_INGOT
+
+  # 6 — Grand sac à dos
+  sacados_grand:
+    enabled: true
+    display_name: '&6&lGrand sac à dos'
+    lore:
+      - '&7Un grand sac à dos solide.'
+      - '&7Conçu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CBC"
+        - "ICI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+
+  # 7 — Valise de voyage (le plus coûteux)
+  valise_voyage:
+    enabled: true
+    display_name: '&6&lValise de voyage'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Idéale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:white_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CBC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+
+
+
+
+
+
+
+# Configuration globale des backpacks
+global_settings:
+  # Sons pour tous les backpacks (peut être override par type)
+  sounds:
+    enabled: true
+    open: BLOCK_CHEST_OPEN
+    close: BLOCK_CHEST_CLOSE
+    volume: 1.0
+    pitch: 1.0
+
+  # Afficher le contenu dans la lore
+  show_content_in_lore: true
+  content_lore_format: '&7Contenu: &e{item_count} items ({used_slots}/{total_slots} slots)'
+
+  # Aperçu des items dans la lore
+  show_items_preview: false
+  max_items_preview: 5
+
+  # Blacklist globale (items interdits dans TOUS les backpacks)
+  global_blacklist:
+    - SHULKER_BOX
+    - WHITE_SHULKER_BOX
+    - ORANGE_SHULKER_BOX
+    - MAGENTA_SHULKER_BOX
+    - LIGHT_BLUE_SHULKER_BOX
+    - YELLOW_SHULKER_BOX
+    - LIME_SHULKER_BOX
+    - PINK_SHULKER_BOX
+    - GRAY_SHULKER_BOX
+    - LIGHT_GRAY_SHULKER_BOX
+    - CYAN_SHULKER_BOX
+    - PURPLE_SHULKER_BOX
+    - BLUE_SHULKER_BOX
+    - BROWN_SHULKER_BOX
+    - GREEN_SHULKER_BOX
+    - RED_SHULKER_BOX
+    - BLACK_SHULKER_BOX
+    - ENDER_CHEST
+    - BUNDLE
+
+  # Protections globales
+  protections:
+    prevent_in_ender_chest: true
+    prevent_in_shulker_box: true
+    prevent_nesting: true
+    prevent_block_placement: true
+    prevent_rename: false
+
+  # Cooldown entre ouvertures (ms)
+  open_cooldown: 500
+
+
+
+
+
+
+
+
+
+
+  # ⚡ OPTIMISATIONS DE PERFORMANCE (pour serveurs avec 100+ joueurs)
+  performance:
+    # Compression GZIP des données (économie ~50-70% de mémoire)
+    # Recommandé: true si vous avez beaucoup de backpacks actifs
+    # Impact: légère augmentation du CPU (+1-2ms par sauvegarde)
+    compression_enabled: false
+
+    # Taille max du cache LRU (nombre de backpacks en mémoire)
+    # Augmenter si beaucoup de joueurs ouvrent souvent leurs backpacks
+    cache_size: 100
+
+    # Durée de vie du cache (minutes)
+    cache_ttl: 5
+
+    # Taille des batches de sauvegarde (pour batch processing)
+    # Plus élevé = moins d'opérations mais plus de mémoire
+    batch_size: 10
+
+    # Afficher les métriques de performance dans les logs
+    # Utile pour diagnostiquer les problèmes de performance
+    log_metrics: true
+
+    # Intervalle d'affichage des métriques (minutes)
+    metrics_interval: 5

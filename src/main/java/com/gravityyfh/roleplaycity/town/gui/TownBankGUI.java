@@ -301,12 +301,12 @@ public class TownBankGUI implements Listener {
         TownEconomyManager.TaxCollectionResult result = economyManager.collectTaxes(townName);
 
         player.sendMessage(ChatColor.GREEN + "=== Collecte des Taxes ===");
-        player.sendMessage(ChatColor.GOLD + "Total collecté: " + String.format("%.2f€", result.totalCollected));
-        player.sendMessage(ChatColor.GRAY + "Parcelles: " + result.parcelsCollected);
+        player.sendMessage(ChatColor.GOLD + "Total collecté: " + String.format("%.2f€", result.totalCollected()));
+        player.sendMessage(ChatColor.GRAY + "Parcelles: " + result.parcelsCollected());
 
-        if (result.unpaidCount > 0) {
-            player.sendMessage(ChatColor.RED + "Impayés: " + result.unpaidCount);
-            player.sendMessage(ChatColor.GRAY + "Joueurs: " + String.join(", ", result.unpaidPlayers));
+        if (result.unpaidCount() > 0) {
+            player.sendMessage(ChatColor.RED + "Impayés: " + result.unpaidCount());
+            player.sendMessage(ChatColor.GRAY + "Joueurs: " + String.join(", ", result.unpaidPlayers()));
         }
     }
 
@@ -393,13 +393,6 @@ public class TownBankGUI implements Listener {
         WITHDRAW
     }
 
-    private static class BankActionContext {
-        final ActionType actionType;
-        final String townName;
-
-        BankActionContext(ActionType actionType, String townName) {
-            this.actionType = actionType;
-            this.townName = townName;
-        }
+    private record BankActionContext(ActionType actionType, String townName) {
     }
 }

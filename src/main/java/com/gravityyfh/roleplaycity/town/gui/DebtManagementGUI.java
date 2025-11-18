@@ -3,7 +3,6 @@ package com.gravityyfh.roleplaycity.town.gui;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
-import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -85,7 +84,7 @@ public class DebtManagementGUI implements Listener {
      * Crée un item représentant une dette
      */
     private ItemStack createDebtItem(Town.PlayerDebt debt, Town town) {
-        Plot plot = debt.getPlot();
+        Plot plot = debt.plot();
         boolean isCompanyDebt = (plot.getCompanyDebtAmount() > 0);
         boolean isGroup = plot.isGrouped();
 
@@ -102,7 +101,6 @@ public class DebtManagementGUI implements Listener {
         if (meta != null) {
             // Titre
             if (isGroup) {
-                String groupName = plot.getGroupName() != null ? plot.getGroupName() : "Groupe";
                 meta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD +
                     (isCompanyDebt ? "💼 Dette Entreprise - Groupe" : "🏠 Dette Particulier - Groupe"));
             } else {
@@ -118,19 +116,20 @@ public class DebtManagementGUI implements Listener {
 
             lore.add(ChatColor.YELLOW + "Ville: " + ChatColor.WHITE + town.getName());
             lore.add("");
-            lore.add(ChatColor.RED + "Dette: " + ChatColor.GOLD + String.format("%.2f€", debt.getAmount()));
+            lore.add(ChatColor.RED + "Dette: " + ChatColor.GOLD + String.format("%.2f€", debt.amount()));
 
-            // Date d'avertissement et jours restants
-            if (debt.getWarningDate() != null) {
-                long daysSince = ChronoUnit.DAYS.between(debt.getWarningDate(), LocalDateTime.now());
-                long daysRemaining = 7 - daysSince;
+            // Date d'avertissement et temps restant précis
+            if (debt.warningDate() != null) {
+                lore.add(ChatColor.GRAY + "Depuis: " + debt.warningDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
 
-                lore.add(ChatColor.GRAY + "Depuis: " + debt.getWarningDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
-
-                if (daysRemaining > 0) {
-                    lore.add(ChatColor.YELLOW + "⚠ Saisie dans: " + ChatColor.RED + daysRemaining + " jour" + (daysRemaining > 1 ? "s" : ""));
-                } else {
-                    lore.add(ChatColor.DARK_RED + "⚠ SAISIE IMMINENTE !");
+                // Afficher le temps restant précis (jours, heures, minutes)
+                Plot.DebtTimeRemaining timeRemaining = debt.getTimeRemaining();
+                if (timeRemaining != null) {
+                    if (!timeRemaining.isExpired()) {
+                        lore.add(ChatColor.YELLOW + "⚠ Saisie dans: " + ChatColor.RED + timeRemaining.formatDetailed());
+                    } else {
+                        lore.add(ChatColor.DARK_RED + "⚠ SAISIE IMMINENTE !");
+                    }
                 }
             }
 
@@ -160,8 +159,7 @@ public class DebtManagementGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
 
         String title = event.getView().getTitle();
         if (!title.equals(ChatColor.RED + "🔴 Gestion des Dettes")) {
@@ -215,9 +213,9 @@ public class DebtManagementGUI implements Listener {
      * Gère le paiement d'une dette
      */
     private void handleDebtPayment(Player player, Town town, Town.PlayerDebt debt) {
-        Plot plot = debt.getPlot();
+        Plot plot = debt.plot();
         boolean isCompanyDebt = (plot.getCompanyDebtAmount() > 0);
-        double debtAmount = debt.getAmount();
+        double debtAmount = debt.amount();
 
         player.closeInventory();
 

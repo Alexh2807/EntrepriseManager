@@ -41,8 +41,8 @@ public class InjuredPlayerData {
      */
     public void saveInjuredPlayer(UUID playerUuid, String cause, long timestamp) {
         config.set("injured." + playerUuid.toString() + ".cause", cause);
-        config.set("injured." + playerUuid.toString() + ".timestamp", timestamp);
-        config.set("injured." + playerUuid.toString() + ".wasServerRunning", true);
+        config.set("injured." + playerUuid + ".timestamp", timestamp);
+        config.set("injured." + playerUuid + ".wasServerRunning", true);
         save();
     }
 

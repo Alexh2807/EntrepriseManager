@@ -42,24 +42,16 @@ public class ChatListener implements Listener {
         RENAME_TOWN_NAME
     }
 
-    // Classe interne pour stocker le contexte de la demande
-    private static class PlayerInputContext {
-        final InputType inputType;
-        final Object data; // Peut stocker un nom d'entreprise, un objet Shop, etc.
-        final Object secondaryData; // Pour les contextes plus complexes (ex: Location)
-        final Object tertiaryData; // Pour les contextes encore plus complexes (ex: ItemStack)
+    /**
+     * @param data          Peut stocker un nom d'entreprise, un objet Shop, etc.
+     * @param secondaryData Pour les contextes plus complexes (ex: Location)
+     * @param tertiaryData  Pour les contextes encore plus complexes (ex: ItemStack)
+     */ // Classe interne pour stocker le contexte de la demande
+        private record PlayerInputContext(InputType inputType, Object data, Object secondaryData, Object tertiaryData) {
+            PlayerInputContext(InputType inputType, Object data) {
+                this(inputType, data, null, null);
+            }
 
-
-        PlayerInputContext(InputType inputType, Object data) {
-            this(inputType, data, null, null);
-        }
-
-        PlayerInputContext(InputType inputType, Object data, Object secondaryData, Object tertiaryData) {
-            this.inputType = inputType;
-            this.data = data;
-            this.secondaryData = secondaryData;
-            this.tertiaryData = tertiaryData;
-        }
     }
 
     // Ton constructeur
@@ -171,7 +163,7 @@ public class ChatListener implements Listener {
                             break;
                         case CREATE_TOWN_NAME:
                         case RENAME_TOWN_NAME:
-                            handleGenericCallback(player, context, message);
+                            handleGenericCallback(context, message);
                             break;
                     }
                 } catch (Exception e) {
@@ -244,7 +236,6 @@ public class ChatListener implements Listener {
     }
 
     private void handleShopNewPrice(Player player, PlayerInputContext context, String message) {
-        Shop shop = (Shop) context.data;
         try {
             double newPrice = Double.parseDouble(message.replace(',', '.'));
             if (newPrice <= 0) {
@@ -262,7 +253,6 @@ public class ChatListener implements Listener {
     }
 
     private void handleShopNewQuantity(Player player, PlayerInputContext context, String message) {
-        Shop shop = (Shop) context.data;
         try {
             int newQuantity = Integer.parseInt(message);
             if (newQuantity <= 0) {
@@ -279,7 +269,7 @@ public class ChatListener implements Listener {
         reopenPreviousMenu(player, context);
     }
 
-    private void handleGenericCallback(Player player, PlayerInputContext context, String message) {
+    private void handleGenericCallback(PlayerInputContext context, String message) {
         // Le callback est stocké dans context.data
         if (context.data instanceof java.util.function.Consumer) {
             @SuppressWarnings("unchecked")

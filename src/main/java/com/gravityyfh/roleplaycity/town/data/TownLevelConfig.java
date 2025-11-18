@@ -147,7 +147,7 @@ public class TownLevelConfig {
 
     // Builder Pattern
     public static class Builder {
-        private TownLevel level;
+        private final TownLevel level;
         private double creationCost = 0;
         private double upgradeCost = 0;
         private int minPopulation = 1;

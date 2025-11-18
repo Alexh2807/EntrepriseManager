@@ -5,7 +5,6 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Chunk;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
@@ -725,7 +724,7 @@ public class TownEconomyManager {
                         companyManager.handleInsufficientFunds(plot, company, tax);
 
                         if (companyManager.checkCompanyDebtStatus(plot)) {
-                            companyManager.seizePlotForDebt(plot, townName);
+                            companyManager.seizePlotForDebt(plot);
                         }
                     }
                 } else {
@@ -879,7 +878,7 @@ public class TownEconomyManager {
                     }
 
                     if (companyManager.checkCompanyDebtStatus(plot)) {
-                        companyManager.seizePlotForDebt(plot, townName);
+                        companyManager.seizePlotForDebt(plot);
                     }
                 } else {
                     companyManager.handleCompanyDeletion(plot.getCompanySiret(), townName);
@@ -975,7 +974,7 @@ public class TownEconomyManager {
                     ));
 
                     // Notifier le joueur
-                    if (false && payer.isOnline() && payer.getPlayer() != null) {
+                    if (false) {
                         payer.getPlayer().sendMessage("");
                         payer.getPlayer().sendMessage(ChatColor.DARK_RED + "⚠――――――――――――――――――――――⚠");
                         payer.getPlayer().sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ SAISIE DE TERRAIN");
@@ -1161,18 +1160,7 @@ public class TownEconomyManager {
 
     // === RëSULTAT DE COLLECTE ===
 
-    public static class TaxCollectionResult {
-        public final double totalCollected;
-        public final int parcelsCollected;
-        public final int unpaidCount;
-        public final List<String> unpaidPlayers;
-
-        public TaxCollectionResult(double totalCollected, int parcelsCollected,
-                                   int unpaidCount, List<String> unpaidPlayers) {
-            this.totalCollected = totalCollected;
-            this.parcelsCollected = parcelsCollected;
-            this.unpaidCount = unpaidCount;
-            this.unpaidPlayers = unpaidPlayers;
-        }
+    public record TaxCollectionResult(double totalCollected, int parcelsCollected, int unpaidCount,
+                                      List<String> unpaidPlayers) {
     }
 }

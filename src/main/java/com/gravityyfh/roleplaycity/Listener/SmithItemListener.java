@@ -20,10 +20,9 @@ public class SmithItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSmithItem(SmithItemEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        Player player = (Player) event.getWhoClicked();
 
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;

@@ -61,6 +61,16 @@ public class PlayerConnectionListener implements Listener {
             plugin.getEntrepriseGUI().cleanupPlayerContext(playerUUID);
         }
 
-        plugin.getLogger().log(Level.FINE, "Contextes GUI nettoyés pour " + player.getName() + " après déconnexion.");
+        // Nettoyer le ServiceModeManager
+        if (plugin.getServiceModeManager() != null) {
+            plugin.getServiceModeManager().cleanupPlayer(playerUUID);
+        }
+
+        // Nettoyer les BossBars temporaires
+        if (entrepriseLogic != null) {
+            entrepriseLogic.cleanupTemporaryQuotaBossBar(playerUUID);
+        }
+
+        plugin.getLogger().log(Level.FINE, "Contextes GUI, Mode Service et BossBars nettoyés pour " + player.getName() + " après déconnexion.");
     }
 }

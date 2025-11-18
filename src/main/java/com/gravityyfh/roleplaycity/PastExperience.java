@@ -1,20 +1,20 @@
 package com.gravityyfh.roleplaycity; // Assurez-vous que le package est correct
 
+import org.bukkit.Bukkit;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
 
-public class PastExperience {
-    // Déclarer les champs en private final pour l'encapsulation
-    private final String entrepriseNom;
-    private final String entrepriseType;
-    private final String role;
-    private final LocalDateTime dateEntree; // Peut être null si non trouvé
-    private final LocalDateTime dateSortie;
-    private final double caGenere;
-
+/**
+ * @param entrepriseNom Déclarer les champs en private final pour l'encapsulation
+ * @param dateEntree    Peut être null si non trouvé
+ */
+public record PastExperience(String entrepriseNom, String entrepriseType, String role, LocalDateTime dateEntree,
+                             LocalDateTime dateSortie, double caGenere) {
     public PastExperience(String entrepriseNom, String entrepriseType, String role, LocalDateTime dateEntree, LocalDateTime dateSortie, double caGenere) {
         this.entrepriseNom = Objects.requireNonNull(entrepriseNom, "Nom entreprise ne peut être null");
         this.entrepriseType = Objects.requireNonNull(entrepriseType, "Type entreprise ne peut être null");
@@ -23,14 +23,6 @@ public class PastExperience {
         this.dateSortie = Objects.requireNonNull(dateSortie, "Date de sortie ne peut être null");
         this.caGenere = caGenere;
     }
-
-    // --- Getters pour accéder aux champs privés ---
-    public String getEntrepriseNom() { return entrepriseNom; }
-    public String getEntrepriseType() { return entrepriseType; }
-    public String getRole() { return role; }
-    public LocalDateTime getDateEntree() { return dateEntree; }
-    public LocalDateTime getDateSortie() { return dateSortie; } // <-- GETTER AJOUTÉ/VÉRIFIÉ
-    public double getCaGenere() { return caGenere; }
     // --- Fin des Getters ---
 
 
@@ -46,7 +38,10 @@ public class PastExperience {
     }
 
     public static PastExperience deserialize(Map<String, Object> map) {
-        if (map == null) { System.err.println("Erreur deserialize PastExperience: Map null."); return null; }
+        if (map == null) {
+            System.err.println("Erreur deserialize PastExperience: Map null.");
+            return null;
+        }
         try {
             String nom = (String) map.get("entrepriseNom");
             String type = (String) map.get("entrepriseType");
@@ -57,7 +52,7 @@ public class PastExperience {
                     entree = LocalDateTime.parse((String) map.get("dateEntree"));
                 } catch (Exception e) {
                     // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
-                    org.bukkit.Bukkit.getLogger().warning("PastExperience: Format dateEntree invalide: " + map.get("dateEntree"));
+                    Bukkit.getLogger().warning("PastExperience: Format dateEntree invalide: " + map.get("dateEntree"));
                 }
             }
             LocalDateTime sortie = null;
@@ -66,24 +61,24 @@ public class PastExperience {
                     sortie = LocalDateTime.parse((String) map.get("dateSortie"));
                 } catch (Exception e) {
                     // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
-                    org.bukkit.Bukkit.getLogger().warning("PastExperience: Format dateSortie invalide: " + map.get("dateSortie"));
+                    Bukkit.getLogger().warning("PastExperience: Format dateSortie invalide: " + map.get("dateSortie"));
                 }
             } else {
                 // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
-                org.bukkit.Bukkit.getLogger().warning("PastExperience: dateSortie manquante: " + map);
+                Bukkit.getLogger().warning("PastExperience: dateSortie manquante: " + map);
                 return null;
             }
             // FIX BASSE: Utiliser Bukkit logger au lieu de System.err
             if (nom == null || type == null || role == null || sortie == null) {
-                org.bukkit.Bukkit.getLogger().warning("PastExperience: Données requises manquantes/invalides: " + map);
+                Bukkit.getLogger().warning("PastExperience: Données requises manquantes/invalides: " + map);
                 return null;
             }
             double ca = ((Number) map.getOrDefault("caGenere", 0.0)).doubleValue();
             return new PastExperience(nom, type, role, entree, sortie, ca);
         } catch (Exception e) {
             // FIX BASSE: Utiliser Bukkit logger avec exception complète au lieu de printStackTrace
-            org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
-                "Erreur générale deserialize PastExperience pour map: " + map, e);
+            Bukkit.getLogger().log(Level.WARNING,
+                    "Erreur générale deserialize PastExperience pour map: " + map, e);
             return null;
         }
     }
@@ -104,8 +99,4 @@ public class PastExperience {
         return Double.compare(that.caGenere, caGenere) == 0 && Objects.equals(entrepriseNom, that.entrepriseNom) && Objects.equals(entrepriseType, that.entrepriseType) && Objects.equals(role, that.role) && Objects.equals(dateEntree, that.dateEntree) && Objects.equals(dateSortie, that.dateSortie);
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(entrepriseNom, entrepriseType, role, dateEntree, dateSortie, caGenere);
-    }
 }

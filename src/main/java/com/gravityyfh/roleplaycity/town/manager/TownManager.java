@@ -39,13 +39,13 @@ public class TownManager {
         com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation =
             plugin.getNameValidator().validateTownName(townName);
 
-        if (!validation.isValid()) {
-            mayor.sendMessage(ChatColor.RED + "❌ Nom de ville invalide: " + validation.getError());
+        if (!validation.valid()) {
+            mayor.sendMessage(ChatColor.RED + "❌ Nom de ville invalide: " + validation.error());
             return false;
         }
 
         // Utiliser le nom sanitisé (trimmed, sans caractères dangereux)
-        townName = validation.getSanitizedName();
+        townName = validation.sanitizedName();
 
         // Vérifications
         if (townExists(townName)) {
@@ -453,7 +453,7 @@ public class TownManager {
                 plugin.getTownLevelManager().canAssignRole(town, newRole);
 
             if (!result.canAssign()) {
-                changer.sendMessage(result.getMessage());
+                changer.sendMessage(result.message());
                 return false;
             }
         }
@@ -486,12 +486,9 @@ public class TownManager {
 
         // Vérifier les permissions
         TownRole role = town.getMemberRole(claimer.getUniqueId());
-        if (role == null || (!role.canManageClaims() && role != TownRole.MAIRE)) {
-            return false;
-        }
+        return role != null && (role.canManageClaims() || role == TownRole.MAIRE);
 
         // Le coût et la logique de claim sont gérés par ClaimManager
-        return true;
     }
 
     public boolean unclaimChunk(String townName, org.bukkit.Chunk chunk, Player claimer) {
@@ -502,11 +499,7 @@ public class TownManager {
 
         // Vérifier les permissions
         TownRole role = town.getMemberRole(claimer.getUniqueId());
-        if (role == null || (!role.canManageClaims() && role != TownRole.MAIRE)) {
-            return false;
-        }
-
-        return true;
+        return role != null && (role.canManageClaims() || role == TownRole.MAIRE);
     }
 
     // === GETTERS ===

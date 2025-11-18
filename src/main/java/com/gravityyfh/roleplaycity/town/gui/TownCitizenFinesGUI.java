@@ -240,11 +240,6 @@ public class TownCitizenFinesGUI implements Listener {
         });
     }
 
-    private static class ContestContext {
-        final Fine fine;
-
-        ContestContext(Fine fine) {
-            this.fine = fine;
-        }
+    private record ContestContext(Fine fine) {
     }
 }

@@ -125,7 +125,7 @@ public class TownLevelManager {
     public boolean upgradeTown(Town town, Player mayor) {
         UpgradeResult result = canUpgrade(town);
         if (!result.canUpgrade()) {
-            mayor.sendMessage(result.getMessage());
+            mayor.sendMessage(result.message());
             return false;
         }
 
@@ -234,44 +234,14 @@ public class TownLevelManager {
     }
 
     /**
-     * Résultat d'une vérification d'upgrade
-     */
-    public static class UpgradeResult {
-        private final boolean canUpgrade;
-        private final String message;
-
-        public UpgradeResult(boolean canUpgrade, String message) {
-            this.canUpgrade = canUpgrade;
-            this.message = message;
-        }
-
-        public boolean canUpgrade() {
-            return canUpgrade;
-        }
-
-        public String getMessage() {
-            return message;
-        }
+         * Résultat d'une vérification d'upgrade
+         */
+        public record UpgradeResult(boolean canUpgrade, String message) {
     }
 
     /**
-     * Résultat d'une vérification d'attribution de rôle
-     */
-    public static class RoleAssignmentResult {
-        private final boolean canAssign;
-        private final String message;
-
-        public RoleAssignmentResult(boolean canAssign, String message) {
-            this.canAssign = canAssign;
-            this.message = message;
-        }
-
-        public boolean canAssign() {
-            return canAssign;
-        }
-
-        public String getMessage() {
-            return message;
-        }
+         * Résultat d'une vérification d'attribution de rôle
+         */
+        public record RoleAssignmentResult(boolean canAssign, String message) {
     }
 }

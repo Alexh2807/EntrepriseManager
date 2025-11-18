@@ -215,7 +215,7 @@ public class ClaimManager {
 
         // ⚠️ SYSTÈME UNIFIÉ : Empêcher unclaim si chunk fait partie d'un terrain groupé
         // Récupérer la parcelle
-        Plot plot = town.getPlot(coord.getWorldName(), coord.getX(), coord.getZ());
+        Plot plot = town.getPlot(coord.worldName(), coord.x(), coord.z());
         if (plot == null) {
             return 0.0;
         }
@@ -241,12 +241,12 @@ public class ClaimManager {
         // Fire event AVANT de supprimer la parcelle
         com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent event =
             new com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent(
-                townName, plot, coord.getWorldName(), coord.getX(), coord.getZ()
+                townName, plot, coord.worldName(), coord.x(), coord.z()
             );
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
 
         // Supprimer la parcelle
-        town.removePlot(coord.getWorldName(), coord.getX(), coord.getZ());
+        town.removePlot(coord.worldName(), coord.x(), coord.z());
 
         // Mettre à jour le cache (les deux maps pour cohérence)
         chunkOwners.remove(coord);

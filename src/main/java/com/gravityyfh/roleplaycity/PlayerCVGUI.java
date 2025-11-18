@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -90,8 +89,7 @@ public class PlayerCVGUI implements Listener {
         plugin.getLogger().log(Level.INFO, "[PlayerCVGUI] Joueurs proches de " + requester.getName() + " (max " + distanceMax + " blocs) pour montrer CV:");
 
         for (Entity entity : nearbyEntities) {
-            if (entity instanceof Player && !entity.getUniqueId().equals(requester.getUniqueId())) {
-                Player target = (Player) entity;
+            if (entity instanceof Player target && !entity.getUniqueId().equals(requester.getUniqueId())) {
                 plugin.getLogger().log(Level.INFO, "[PlayerCVGUI]   - Trouvé: " + target.getName());
                 if (slot < 45) { // Laisser la dernière ligne pour les contrôles (0-44 pour les têtes)
                     inv.setItem(slot++, createPlayerHead(target.getName(), ChatColor.AQUA + target.getName(),
@@ -128,8 +126,7 @@ public class PlayerCVGUI implements Listener {
         plugin.getLogger().log(Level.INFO, "[PlayerCVGUI] Joueurs proches de " + requester.getName() + " (max " + distanceMax + " blocs) pour demander CV:");
 
         for (Entity entity : nearbyEntities) {
-            if (entity instanceof Player && !entity.getUniqueId().equals(requester.getUniqueId())) {
-                Player target = (Player) entity;
+            if (entity instanceof Player target && !entity.getUniqueId().equals(requester.getUniqueId())) {
                 plugin.getLogger().log(Level.INFO, "[PlayerCVGUI]   - Trouvé: " + target.getName());
                 if (slot < 45) {
                     inv.setItem(slot++, createPlayerHead(target.getName(), ChatColor.AQUA + target.getName(),
@@ -152,8 +149,7 @@ public class PlayerCVGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
         String topInventoryTitle = event.getView().getTitle(); // Titre de l'inventaire supérieur (celui du GUI)
 
         // FIX MOYENNE: Vérifier que c'est bien un menu CV avant de vérifier le délai
@@ -252,7 +248,8 @@ public class PlayerCVGUI implements Listener {
      * C'est la méthode qui construit l'inventaire visuel du CV.
      */
     public void openCV(Player viewer, Player cvOwner, EntrepriseManagerLogic logic) {
-        EntrepriseManagerLogic.Entreprise entrepriseActuelle = logic.getEntrepriseDuJoueur(cvOwner);
+        // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises actuelles
+        java.util.List<EntrepriseManagerLogic.Entreprise> entreprisesActuelles = logic.getEntreprisesDuJoueur(cvOwner);
         List<PastExperience> historique = logic.getPlayerHistory(cvOwner.getUniqueId());
 
         String cvTitle = TITLE_CV_VIEW_PREFIX + cvOwner.getName();
@@ -261,24 +258,39 @@ public class PlayerCVGUI implements Listener {
         // Ligne 1: Informations personnelles
         inv.setItem(4, createPlayerHead(cvOwner.getName(), ChatColor.GOLD + ChatColor.BOLD.toString() + cvOwner.getName(), List.of(ChatColor.GRAY + "Profil Professionnel")));
 
-        // Ligne 2: Expérience actuelle
-        if (entrepriseActuelle != null) {
-            EntrepriseManagerLogic.EmployeeActivityRecord record = entrepriseActuelle.getEmployeeActivityRecord(cvOwner.getUniqueId());
-            String role = entrepriseActuelle.getGerant().equalsIgnoreCase(cvOwner.getName()) ? "Gérant" : "Employé";
-            inv.setItem(10, createMenuItem(Material.EMERALD_BLOCK, ChatColor.AQUA + "Emploi Actuel", List.of(
-                    ChatColor.WHITE + entrepriseActuelle.getNom(),
-                    ChatColor.GRAY + "Type: " + entrepriseActuelle.getType()
-            )));
-            List<String> roleLore = new ArrayList<>();
-            roleLore.add(ChatColor.YELLOW + "Poste: " + ChatColor.WHITE + role);
-            if (record != null && record.joinDate != null) {
-                roleLore.add(ChatColor.YELLOW + "Membre depuis: " + ChatColor.WHITE + record.joinDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")));
-                roleLore.add(ChatColor.YELLOW + "Ancienneté: " + ChatColor.WHITE + formatDuration(record.joinDate, LocalDateTime.now()));
-                roleLore.add(ChatColor.YELLOW + "CA Rapporté: " + ChatColor.GREEN + String.format("%,.2f", record.totalValueGenerated) + "€");
+        // Ligne 2: Expériences actuelles (support multi-entreprises)
+        if (!entreprisesActuelles.isEmpty()) {
+            if (entreprisesActuelles.size() == 1) {
+                // Une seule entreprise : affichage classique
+                EntrepriseManagerLogic.Entreprise entrepriseActuelle = entreprisesActuelles.get(0);
+                EntrepriseManagerLogic.EmployeeActivityRecord record = entrepriseActuelle.getEmployeeActivityRecord(cvOwner.getUniqueId());
+                String role = entrepriseActuelle.getGerant().equalsIgnoreCase(cvOwner.getName()) ? "Gérant" : "Employé";
+                inv.setItem(10, createMenuItem(Material.EMERALD_BLOCK, ChatColor.AQUA + "Emploi Actuel", List.of(
+                        ChatColor.WHITE + entrepriseActuelle.getNom(),
+                        ChatColor.GRAY + "Type: " + entrepriseActuelle.getType()
+                )));
+                List<String> roleLore = new ArrayList<>();
+                roleLore.add(ChatColor.YELLOW + "Poste: " + ChatColor.WHITE + role);
+                if (record != null && record.joinDate != null) {
+                    roleLore.add(ChatColor.YELLOW + "Membre depuis: " + ChatColor.WHITE + record.joinDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")));
+                    roleLore.add(ChatColor.YELLOW + "Ancienneté: " + ChatColor.WHITE + formatDuration(record.joinDate, LocalDateTime.now()));
+                    roleLore.add(ChatColor.YELLOW + "CA Rapporté: " + ChatColor.GREEN + String.format("%,.2f", record.totalValueGenerated) + "€");
+                } else {
+                    roleLore.add(ChatColor.GRAY + "Données d'activité indisponibles.");
+                }
+                inv.setItem(12, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Détails Actuels", roleLore));
             } else {
-                roleLore.add(ChatColor.GRAY + "Données d'activité indisponibles.");
+                // Plusieurs entreprises : affichage multi-entreprises
+                List<String> entreprisesLore = new ArrayList<>();
+                entreprisesLore.add(ChatColor.GRAY + "Possède " + ChatColor.AQUA + entreprisesActuelles.size() + ChatColor.GRAY + " entreprises");
+                entreprisesLore.add("");
+                for (EntrepriseManagerLogic.Entreprise ent : entreprisesActuelles) {
+                    String role = ent.getGerant().equalsIgnoreCase(cvOwner.getName()) ? "Gérant" : "Employé";
+                    entreprisesLore.add(ChatColor.YELLOW + "• " + ChatColor.WHITE + ent.getNom());
+                    entreprisesLore.add(ChatColor.GRAY + "  Type: " + ent.getType() + " | Poste: " + role);
+                }
+                inv.setItem(11, createMenuItem(Material.EMERALD_BLOCK, ChatColor.AQUA + "Emplois Actuels", entreprisesLore));
             }
-            inv.setItem(12, createMenuItem(Material.CLOCK, ChatColor.AQUA + "Détails Actuels", roleLore));
         } else {
             inv.setItem(13, createMenuItem(Material.BARRIER, ChatColor.YELLOW + "Actuellement sans entreprise.",
                     List.of("" + ChatColor.ITALIC + ChatColor.GRAY + "À la recherche d'opportunités?")));
@@ -295,15 +307,15 @@ public class PlayerCVGUI implements Listener {
                 if (nextAvailableSlot >= 45) break; // S'arrêter avant la dernière ligne réservée aux contrôles
                 PastExperience exp = historique.get(i);
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yy");
-                String dateEntreeStr = exp.getDateEntree() != null ? exp.getDateEntree().format(formatter) : "N/A";
-                String dateSortieStr = exp.getDateSortie() != null ? exp.getDateSortie().format(formatter) : "N/A";
+                String dateEntreeStr = exp.dateEntree() != null ? exp.dateEntree().format(formatter) : "N/A";
+                String dateSortieStr = exp.dateSortie() != null ? exp.dateSortie().format(formatter) : "N/A";
                 List<String> expLore = List.of(
-                        ChatColor.YELLOW + "Type: " + ChatColor.WHITE + exp.getEntrepriseType(),
-                        ChatColor.YELLOW + "Rôle: " + ChatColor.WHITE + exp.getRole(),
+                        ChatColor.YELLOW + "Type: " + ChatColor.WHITE + exp.entrepriseType(),
+                        ChatColor.YELLOW + "Rôle: " + ChatColor.WHITE + exp.role(),
                         ChatColor.YELLOW + "Période: " + ChatColor.WHITE + dateEntreeStr + " - " + dateSortieStr,
-                        ChatColor.YELLOW + "CA Généré: " + ChatColor.GREEN + String.format("%,.2f", exp.getCaGenere()) + "€"
+                        ChatColor.YELLOW + "CA Généré: " + ChatColor.GREEN + String.format("%,.2f", exp.caGenere()) + "€"
                 );
-                inv.setItem(nextAvailableSlot, createMenuItem(Material.BOOK, ChatColor.AQUA + exp.getEntrepriseNom(), expLore));
+                inv.setItem(nextAvailableSlot, createMenuItem(Material.BOOK, ChatColor.AQUA + exp.entrepriseNom(), expLore));
                 nextAvailableSlot++;
                 if (nextAvailableSlot % 9 == 0) { // Si on arrive à la fin d'une ligne
                     nextAvailableSlot = (nextAvailableSlot / 9) * 9; // S'assurer qu'on est bien au début de la ligne
@@ -315,7 +327,7 @@ public class PlayerCVGUI implements Listener {
         }
 
         // Ligne 6: Bouton Fermer
-        inv.setItem(49, createMenuItem(Material.RED_WOOL, ChatColor.RED.toString() + ChatColor.BOLD.toString() + "Fermer le CV"));
+        inv.setItem(49, createMenuItem(Material.RED_WOOL, ChatColor.RED.toString() + ChatColor.BOLD + "Fermer le CV"));
 
         // Remplir les bords avec des vitres (esthétique)
         ItemStack filler = createMenuItem(Material.BLACK_STAINED_GLASS_PANE, " ");
@@ -384,7 +396,7 @@ public class PlayerCVGUI implements Listener {
         long days = ChronoUnit.DAYS.between(start, end); long hours = ChronoUnit.HOURS.between(start, end) % 24; long minutes = ChronoUnit.MINUTES.between(start, end) % 60;
         StringBuilder sb = new StringBuilder();
         if (days > 365) { long years = days / 365; sb.append(years).append(years > 1 ? " ans" : " an"); days %= 365; }
-        if (days > 30 && days <=365) { long months = days / 30; if(sb.length() > 0) sb.append(", "); sb.append(months).append(months > 1 ? " mois" : " mois"); days %= 30; }
+        if (days > 30 && days <=365) { long months = days / 30; if(sb.length() > 0) sb.append(", "); sb.append(months).append(" mois"); days %= 30; }
         if (days > 0 && days <=30) { if(sb.length() > 0) sb.append(", "); sb.append(days).append(days > 1 ? " jours" : " jour"); }
         if (sb.length() == 0 || (days > 0 && days <= 7)) { if (hours > 0) { if(sb.length() > 0 && days <=0) sb.append(", "); else if(sb.length() > 0 && days > 0) sb.append(", "); sb.append(hours).append(hours > 1 ? " heures" : " heure"); } if (minutes > 0 && hours == 0 && days == 0) { if(sb.length() > 0) sb.append(" et "); sb.append(minutes).append(minutes > 1 ? " minutes" : " minute"); } }
         return sb.length() > 0 ? sb.toString() : "Quelques instants";

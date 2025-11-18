@@ -92,10 +92,17 @@ public class BlockPlaceListener implements Listener {
             return true;
         }
 
-        EntrepriseManagerLogic.Entreprise currentCompany = entrepriseLogic.getEntrepriseDuJoueur(player);
-        if (currentCompany != null) {
-            String otherCompanyName = entrepriseLogic.getNomEntrepriseDuMembre(otherPlayerName);
-            return otherCompanyName != null && currentCompany.getNom().equals(otherCompanyName);
+        // FIX MULTI-ENTREPRISES: Vérifier si les deux joueurs partagent au moins une entreprise en commun
+        java.util.List<String> playerCompanies = entrepriseLogic.getNomsEntreprisesDuMembre(player.getName());
+        java.util.List<String> otherPlayerCompanies = entrepriseLogic.getNomsEntreprisesDuMembre(otherPlayerName);
+
+        if (!playerCompanies.isEmpty() && !otherPlayerCompanies.isEmpty()) {
+            // Vérifier s'il y a au moins une entreprise commune
+            for (String companyName : playerCompanies) {
+                if (otherPlayerCompanies.contains(companyName)) {
+                    return true; // Entreprise commune trouvée
+                }
+            }
         }
 
         return false;

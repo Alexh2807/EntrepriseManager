@@ -481,11 +481,6 @@ public class PlotOwnerGUI implements Listener {
         });
     }
 
-    private static class PermissionContext {
-        final Plot plot;
-
-        PermissionContext(Plot plot) {
-            this.plot = plot;
-        }
+    private record PermissionContext(Plot plot) {
     }
 }

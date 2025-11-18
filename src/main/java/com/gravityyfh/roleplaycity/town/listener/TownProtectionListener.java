@@ -89,7 +89,6 @@ public class TownProtectionListener implements Listener {
                 event.setCancelled(true);
                 player.sendMessage(ChatColor.RED + "Vous ne pouvez pas détruire les constructions de votre locataire.");
                 player.sendMessage(ChatColor.GRAY + "Attendez la fin de la location pour modifier ces blocs.");
-                return;
             }
         }
     }

@@ -27,10 +27,9 @@ public class CraftItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        Player player = (Player) event.getWhoClicked();
 
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
@@ -40,6 +39,14 @@ public class CraftItemListener implements Listener {
         if (recipe == null) return;
 
         ItemStack resultItem = recipe.getResult();
+
+        // FIX: Ignorer les backpacks - ils sont gérés par BackpackCraftListener
+        // Vérifier si c'est un backpack en regardant le NBT/ItemMeta
+        if (plugin.getBackpackItemManager() != null &&
+            plugin.getBackpackItemManager().isBackpack(resultItem)) {
+            return;
+        }
+
         Material itemType = resultItem.getType();
         String itemTypeName = itemType.name();
 
@@ -47,7 +54,7 @@ public class CraftItemListener implements Listener {
         int actualCraftedAmount = amountPerSingleCraftExecution;
 
         if (event.isShiftClick()) {
-            CraftingInventory craftInv = (CraftingInventory) event.getInventory();
+            CraftingInventory craftInv = event.getInventory();
             actualCraftedAmount = calculateMaxCrafts(recipe, craftInv);
             if (actualCraftedAmount == 0) {
                 actualCraftedAmount = amountPerSingleCraftExecution;
@@ -79,8 +86,7 @@ public class CraftItemListener implements Listener {
         // Étape 1: Déterminer les ingrédients requis et leurs quantités pour UN SEUL craft.
         Map<Material, Integer> requiredMaterials = new HashMap<>();
 
-        if (recipe instanceof ShapedRecipe) {
-            ShapedRecipe shapedRecipe = (ShapedRecipe) recipe;
+        if (recipe instanceof ShapedRecipe shapedRecipe) {
             Map<Character, ItemStack> ingredientMap = shapedRecipe.getIngredientMap();
             for (String row : shapedRecipe.getShape()) {
                 for (char symbol : row.toCharArray()) {
@@ -90,8 +96,7 @@ public class CraftItemListener implements Listener {
                     }
                 }
             }
-        } else if (recipe instanceof ShapelessRecipe) {
-            ShapelessRecipe shapelessRecipe = (ShapelessRecipe) recipe;
+        } else if (recipe instanceof ShapelessRecipe shapelessRecipe) {
             for (ItemStack requiredIngredient : shapelessRecipe.getIngredientList()) {
                 if (requiredIngredient != null && requiredIngredient.getType() != Material.AIR) {
                     requiredMaterials.merge(requiredIngredient.getType(), requiredIngredient.getAmount(), Integer::sum);

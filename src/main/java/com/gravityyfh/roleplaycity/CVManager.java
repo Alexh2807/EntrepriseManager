@@ -22,19 +22,14 @@ public class CVManager {
     // Valeur: Informations sur la demande en attente
     private final Map<UUID, PendingCVRequest> pendingRequests = new HashMap<>();
 
-    // Classe interne pour stocker les détails d'une demande en attente
-    private static class PendingCVRequest {
-        final UUID concernedPlayerUUID; // UUID du joueur dont le CV est concerné OU qui a initié une demande de voir
-        final RequestType type;         // Type de la demande (voir le CV de qqn OU montrer son propre CV)
-        final long expirationTimeMillis; // Timestamp d'expiration de la demande
-        final int bukkitTaskID;         // ID de la tâche Bukkit pour pouvoir l'annuler
-
-        PendingCVRequest(UUID concernedPlayerUUID, RequestType type, long expirationTimeMillis, int bukkitTaskID) {
-            this.concernedPlayerUUID = concernedPlayerUUID;
-            this.type = type;
-            this.expirationTimeMillis = expirationTimeMillis;
-            this.bukkitTaskID = bukkitTaskID;
-        }
+    /**
+     * @param concernedPlayerUUID  UUID du joueur dont le CV est concerné OU qui a initié une demande de voir
+     * @param type                 Type de la demande (voir le CV de qqn OU montrer son propre CV)
+     * @param expirationTimeMillis Timestamp d'expiration de la demande
+     * @param bukkitTaskID         ID de la tâche Bukkit pour pouvoir l'annuler
+     */ // Classe interne pour stocker les détails d'une demande en attente
+        private record PendingCVRequest(UUID concernedPlayerUUID, RequestType type, long expirationTimeMillis,
+                                        int bukkitTaskID) {
     }
 
     // Énumération pour distinguer les types de demandes

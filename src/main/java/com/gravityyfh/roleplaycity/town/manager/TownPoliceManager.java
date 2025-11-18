@@ -379,22 +379,7 @@ public class TownPoliceManager {
             totalAmount, collectedAmount);
     }
 
-    public static class FineStatistics {
-        public final long totalFines;
-        public final long paidFines;
-        public final long contestedFines;
-        public final long pendingFines;
-        public final double totalAmount;
-        public final double collectedAmount;
-
-        public FineStatistics(long totalFines, long paidFines, long contestedFines,
-                            long pendingFines, double totalAmount, double collectedAmount) {
-            this.totalFines = totalFines;
-            this.paidFines = paidFines;
-            this.contestedFines = contestedFines;
-            this.pendingFines = pendingFines;
-            this.totalAmount = totalAmount;
-            this.collectedAmount = collectedAmount;
-        }
+    public record FineStatistics(long totalFines, long paidFines, long contestedFines, long pendingFines,
+                                 double totalAmount, double collectedAmount) {
     }
 }

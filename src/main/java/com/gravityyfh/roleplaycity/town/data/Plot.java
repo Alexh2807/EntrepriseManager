@@ -2,10 +2,8 @@ package com.gravityyfh.roleplaycity.town.data;
 
 import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.Material;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class Plot {
@@ -50,10 +48,10 @@ public class Plot {
     private LocalDateTime rentEndDate; // Date de fin de location (expiration)
 
     // Blocs existants lors de la mise en location (protégés contre le locataire)
-    private Set<String> protectedBlocks; // Format: "x:y:z"
+    private final Set<String> protectedBlocks; // Format: "x:y:z"
 
     // NOUVEAU : Tracker des blocs placés par le locataire
-    private RenterBlockTracker renterBlockTracker;
+    private final RenterBlockTracker renterBlockTracker;
 
     private LocalDateTime claimDate;
 
@@ -499,21 +497,125 @@ public class Plot {
     }
 
     /**
-     * Classe interne pour représenter le temps restant d'une location
+     * 📅 Calcule le temps restant avant saisie pour dette d'entreprise (PROFESSIONNEL)
+     * Délai de 7 jours depuis la date d'avertissement
+     *
+     * @return DebtTimeRemaining avec durée détaillée, ou null si pas de dette
      */
-    public static class RentTimeRemaining {
-        public final int days;
-        public final int hours;
-        public final int minutes;
+    public DebtTimeRemaining getCompanyDebtTimeRemaining() {
+        if (companyDebtAmount <= 0 || lastDebtWarningDate == null) {
+            return null;
+        }
+        return calculateDebtTimeRemaining(lastDebtWarningDate);
+    }
 
-        public RentTimeRemaining(int days, int hours, int minutes) {
-            this.days = days;
-            this.hours = hours;
-            this.minutes = minutes;
+    /**
+     * 📅 Calcule le temps restant avant saisie pour dette de particulier
+     * Délai de 7 jours depuis la date d'avertissement
+     *
+     * @return DebtTimeRemaining avec durée détaillée, ou null si pas de dette
+     */
+    public DebtTimeRemaining getParticularDebtTimeRemaining() {
+        if (particularDebtAmount <= 0 || particularLastDebtWarningDate == null) {
+            return null;
+        }
+        return calculateDebtTimeRemaining(particularLastDebtWarningDate);
+    }
+
+    /**
+     * Calcule le temps restant avant saisie (7 jours de délai depuis avertissement)
+     * Méthode privée utilisée par getCompanyDebtTimeRemaining() et getParticularDebtTimeRemaining()
+     */
+    private DebtTimeRemaining calculateDebtTimeRemaining(LocalDateTime warningDate) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime deadline = warningDate.plusDays(7); // 7 jours de délai pour payer
+
+        // Si on a dépassé le délai, saisie imminente
+        if (now.isAfter(deadline)) {
+            return new DebtTimeRemaining(0, 0, 0);
         }
 
+        // Calculer la différence précise jusqu'à la deadline
+        long totalMinutes = java.time.Duration.between(now, deadline).toMinutes();
+
+        int days = (int) (totalMinutes / (24 * 60));
+        int hours = (int) ((totalMinutes % (24 * 60)) / 60);
+        int minutes = (int) (totalMinutes % 60);
+
+        return new DebtTimeRemaining(days, hours, minutes);
+    }
+
+    /**
+         * Classe interne pour représenter le temps restant d'une location
+         */
+        public record RentTimeRemaining(int days, int hours, int minutes) {
+
         /**
-         * Formate la durée en format compact pour scoreboard
+             * Formate la durée en format compact pour scoreboard
+             * Exemples: "5j 3h", "2j 12h 30m", "18h 45m", "30m"
+             */
+            public String formatCompact() {
+                if (days > 0) {
+                    if (hours > 0) {
+                        if (minutes > 0) {
+                            return days + "j " + hours + "h " + minutes + "m";
+                        }
+                        return days + "j " + hours + "h";
+                    }
+                    return days + "j";
+                } else if (hours > 0) {
+                    if (minutes > 0) {
+                        return hours + "h " + minutes + "m";
+                    }
+                    return hours + "h";
+                } else {
+                    return minutes + "m";
+                }
+            }
+
+            /**
+             * Formate la durée en format détaillé pour GUI
+             * Exemples: "5 jours, 3 heures", "2 jours, 12 heures, 30 minutes"
+             */
+            public String formatDetailed() {
+                StringBuilder sb = new StringBuilder();
+
+                if (days > 0) {
+                    sb.append(days).append(days > 1 ? " jours" : " jour");
+                }
+
+                if (hours > 0) {
+                    if (sb.length() > 0) sb.append(", ");
+                    sb.append(hours).append(hours > 1 ? " heures" : " heure");
+                }
+
+                if (minutes > 0) {
+                    if (sb.length() > 0) sb.append(", ");
+                    sb.append(minutes).append(minutes > 1 ? " minutes" : " minute");
+                }
+
+                if (sb.length() == 0) {
+                    return "Expiré";
+                }
+
+                return sb.toString();
+            }
+
+            /**
+             * Vérifie si la location est expirée
+             */
+            public boolean isExpired() {
+                return days == 0 && hours == 0 && minutes == 0;
+            }
+        }
+
+    /**
+     * Classe interne pour représenter le temps restant avant saisie pour dette
+     */
+    public record DebtTimeRemaining(int days, int hours, int minutes) {
+
+        /**
+         * Formate la durée en format compact pour scoreboard/item lore
          * Exemples: "5j 3h", "2j 12h 30m", "18h 45m", "30m"
          */
         public String formatCompact() {
@@ -530,13 +632,15 @@ public class Plot {
                     return hours + "h " + minutes + "m";
                 }
                 return hours + "h";
-            } else {
+            } else if (minutes > 0) {
                 return minutes + "m";
+            } else {
+                return "Expiré";
             }
         }
 
         /**
-         * Formate la durée en format détaillé pour GUI
+         * Formate la durée en format détaillé pour GUI/messages
          * Exemples: "5 jours, 3 heures", "2 jours, 12 heures, 30 minutes"
          */
         public String formatDetailed() {
@@ -564,7 +668,7 @@ public class Plot {
         }
 
         /**
-         * Vérifie si la location est expirée
+         * Vérifie si le délai est expiré (saisie imminente)
          */
         public boolean isExpired() {
             return days == 0 && hours == 0 && minutes == 0;

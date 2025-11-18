@@ -11,7 +11,6 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.text.NumberFormat;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -71,84 +70,59 @@ public class DebtNotificationService {
         private boolean pendingDisplay;
     }
 
-    private static final class DebtEntry {
-        private final String townName;
-        private final String label;
-        private final double amount;
-        private final long hoursRemaining;
-        private final boolean enterprise;
-        private final String companyName;
-        private final String companySiret;
-
-        private DebtEntry(String townName,
-                          String label,
-                          double amount,
-                          long hoursRemaining,
-                          boolean enterprise,
-                          String companyName,
-                          String companySiret) {
-            this.townName = townName;
-            this.label = label;
-            this.amount = amount;
-            this.hoursRemaining = hoursRemaining;
-            this.enterprise = enterprise;
-            this.companyName = companyName;
-            this.companySiret = companySiret;
-        }
+    private record DebtEntry(String townName, String label, double amount, long hoursRemaining, boolean enterprise,
+                             String companyName, String companySiret, Plot plot) {
 
         private long getDaysRemainingFloor() {
-            return Math.max(0L, hoursRemaining / 24L);
+                return Math.max(0L, hoursRemaining / 24L);
+            }
+
+            private boolean isImminent() {
+                return hoursRemaining <= 24;
+            }
+
+            /**
+             * Retourne le temps restant précis (jours, heures, minutes)
+             */
+            private Plot.DebtTimeRemaining getTimeRemaining() {
+                if (plot == null) return null;
+                return enterprise ? plot.getCompanyDebtTimeRemaining() : plot.getParticularDebtTimeRemaining();
+            }
         }
 
-        private boolean isImminent() {
-            return hoursRemaining <= 24;
-        }
-    }
-
-    private static final class DebtSummary {
-        private final List<DebtEntry> enterpriseEntries;
-        private final List<DebtEntry> personalEntries;
-        private final double totalAmount;
-
-        private DebtSummary(List<DebtEntry> enterpriseEntries,
-                            List<DebtEntry> personalEntries,
-                            double totalAmount) {
-            this.enterpriseEntries = enterpriseEntries;
-            this.personalEntries = personalEntries;
-            this.totalAmount = totalAmount;
-        }
+    private record DebtSummary(List<DebtEntry> enterpriseEntries, List<DebtEntry> personalEntries, double totalAmount) {
 
         private boolean isEmpty() {
-            return enterpriseEntries.isEmpty() && personalEntries.isEmpty();
-        }
+                return enterpriseEntries.isEmpty() && personalEntries.isEmpty();
+            }
 
-        private boolean hasImminentDebt() {
-            return enterpriseEntries.stream().anyMatch(DebtEntry::isImminent)
-                || personalEntries.stream().anyMatch(DebtEntry::isImminent);
-        }
+            private boolean hasImminentDebt() {
+                return enterpriseEntries.stream().anyMatch(DebtEntry::isImminent)
+                        || personalEntries.stream().anyMatch(DebtEntry::isImminent);
+            }
 
-        private String fingerprint() {
-            StringBuilder builder = new StringBuilder();
-            builder.append(String.format(Locale.ROOT, "%.2f|", totalAmount));
-            appendEntries(builder, enterpriseEntries);
-            builder.append("|");
-            appendEntries(builder, personalEntries);
-            return builder.toString();
-        }
+            private String fingerprint() {
+                StringBuilder builder = new StringBuilder();
+                builder.append(String.format(Locale.ROOT, "%.2f|", totalAmount));
+                appendEntries(builder, enterpriseEntries);
+                builder.append("|");
+                appendEntries(builder, personalEntries);
+                return builder.toString();
+            }
 
-        private void appendEntries(StringBuilder builder, List<DebtEntry> entries) {
-            entries.stream()
-                .sorted(Comparator.comparing(e -> e.townName + ":" + e.label))
-                .forEach(entry -> builder.append(entry.townName)
-                    .append("::")
-                    .append(entry.label)
-                    .append("::")
-                    .append(String.format(Locale.ROOT, "%.2f", entry.amount))
-                    .append("::")
-                    .append(entry.hoursRemaining)
-                    .append("||"));
+            private void appendEntries(StringBuilder builder, List<DebtEntry> entries) {
+                entries.stream()
+                        .sorted(Comparator.comparing(e -> e.townName + ":" + e.label))
+                        .forEach(entry -> builder.append(entry.townName)
+                                .append("::")
+                                .append(entry.label)
+                                .append("::")
+                                .append(String.format(Locale.ROOT, "%.2f", entry.amount))
+                                .append("::")
+                                .append(entry.hoursRemaining)
+                                .append("||"));
+            }
         }
-    }
 
     /**
      * Démarre les tâches planifiées (rafraîchissement horaire).
@@ -261,24 +235,24 @@ public class DebtNotificationService {
             }
 
             for (Town.PlayerDebt debt : debts) {
-                Plot plot = debt.getPlot();
+                Plot plot = debt.plot();
                 if (plot == null) {
                     continue;
                 }
 
-                double amount = roundCurrency(debt.getAmount());
+                double amount = roundCurrency(debt.amount());
                 if (amount <= EPSILON) {
                     continue;
                 }
 
                 boolean enterpriseDebt = isEnterpriseDebt(plot, debt);
-                LocalDateTime warningDate = debt.getWarningDate();
+                LocalDateTime warningDate = debt.warningDate();
                 if (warningDate == null) {
                     warningDate = enterpriseDebt ? plot.getLastDebtWarningDate() : plot.getParticularLastDebtWarningDate();
                 }
 
                 long hoursRemaining = computeRemainingHours(warningDate, now);
-                String label = buildDebtLabel(town, debt, plot);
+                String label = buildDebtLabel(town, plot);
 
                 if (enterpriseDebt) {
                     String companyName = resolveCompanyName(plot);
@@ -290,7 +264,8 @@ public class DebtNotificationService {
                         hoursRemaining,
                         true,
                         companyName,
-                        siret
+                        siret,
+                        plot
                     ));
                 } else {
                     personalEntries.add(new DebtEntry(
@@ -300,7 +275,8 @@ public class DebtNotificationService {
                         hoursRemaining,
                         false,
                         null,
-                        null
+                        null,
+                        plot
                     ));
                 }
 
@@ -316,7 +292,7 @@ public class DebtNotificationService {
 
     private boolean isEnterpriseDebt(Plot plot, Town.PlayerDebt debt) {
         double companyAmount = plot.getCompanyDebtAmount();
-        double amount = debt.getAmount();
+        double amount = debt.amount();
         if (companyAmount > EPSILON && Math.abs(companyAmount - amount) <= EPSILON) {
             return true;
         }
@@ -358,7 +334,7 @@ public class DebtNotificationService {
         return Math.round(value * 100.0d) / 100.0d;
     }
 
-    private String buildDebtLabel(Town town, Town.PlayerDebt debt, Plot plot) {
+    private String buildDebtLabel(Town town, Plot plot) {
         if (plot.isGrouped()) {
             return town.getName() + " • Terrain groupé";
         }
@@ -454,6 +430,16 @@ public class DebtNotificationService {
     }
 
     private String formatDeadline(DebtEntry entry) {
+        // Utiliser le nouveau système de temps précis (jours, heures, minutes)
+        Plot.DebtTimeRemaining timeRemaining = entry.getTimeRemaining();
+        if (timeRemaining != null) {
+            if (timeRemaining.isExpired()) {
+                return ChatColor.DARK_RED + "Saisie imminente";
+            }
+            return ChatColor.RED + timeRemaining.formatDetailed();
+        }
+
+        // Fallback sur l'ancien système si timeRemaining n'est pas disponible
         if (entry.hoursRemaining <= 0) {
             return ChatColor.DARK_RED + "Saisie imminente";
         }

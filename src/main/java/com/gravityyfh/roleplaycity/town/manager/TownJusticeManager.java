@@ -8,8 +8,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
-
 /**
  * Gestionnaire du système de justice des villes
  * Gère les contestations et les jugements
@@ -190,24 +188,23 @@ public class TownJusticeManager {
      * Obtenir un résumé d'une amende pour le juge
      */
     public String getFineReview(Fine fine) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(ChatColor.GOLD).append("=== DOSSIER D'AMENDE ===\n");
-        sb.append(ChatColor.GRAY).append("ID: ").append(ChatColor.WHITE)
-            .append(fine.getFineId().toString().substring(0, 8)).append("\n");
-        sb.append(ChatColor.GRAY).append("Contrevenant: ").append(ChatColor.YELLOW)
-            .append(fine.getOffenderName()).append("\n");
-        sb.append(ChatColor.GRAY).append("Policier: ").append(ChatColor.YELLOW)
-            .append(fine.getPolicierName()).append("\n");
-        sb.append(ChatColor.GRAY).append("Motif: ").append(ChatColor.WHITE)
-            .append(fine.getReason()).append("\n");
-        sb.append(ChatColor.GRAY).append("Montant: ").append(ChatColor.GOLD)
-            .append(fine.getAmount()).append("€\n");
-        sb.append(ChatColor.GRAY).append("Date: ").append(ChatColor.WHITE)
-            .append(fine.getIssueDate().toLocalDate()).append("\n");
-        sb.append(ChatColor.GRAY).append("Statut: ").append(ChatColor.AQUA)
-            .append(fine.getStatus().getDisplayName()).append("\n");
+        String sb = ChatColor.GOLD + "=== DOSSIER D'AMENDE ===\n" +
+                ChatColor.GRAY + "ID: " + ChatColor.WHITE +
+                fine.getFineId().toString().substring(0, 8) + "\n" +
+                ChatColor.GRAY + "Contrevenant: " + ChatColor.YELLOW +
+                fine.getOffenderName() + "\n" +
+                ChatColor.GRAY + "Policier: " + ChatColor.YELLOW +
+                fine.getPolicierName() + "\n" +
+                ChatColor.GRAY + "Motif: " + ChatColor.WHITE +
+                fine.getReason() + "\n" +
+                ChatColor.GRAY + "Montant: " + ChatColor.GOLD +
+                fine.getAmount() + "€\n" +
+                ChatColor.GRAY + "Date: " + ChatColor.WHITE +
+                fine.getIssueDate().toLocalDate() + "\n" +
+                ChatColor.GRAY + "Statut: " + ChatColor.AQUA +
+                fine.getStatus().getDisplayName() + "\n";
 
-        return sb.toString();
+        return sb;
     }
 
     /**
@@ -250,23 +247,12 @@ public class TownJusticeManager {
             cancelledJudgements, pendingContestations);
     }
 
-    public static class JusticeStatistics {
-        public final long totalJudgements;
-        public final long confirmedJudgements;
-        public final long cancelledJudgements;
-        public final long pendingContestations;
-
-        public JusticeStatistics(long totalJudgements, long confirmedJudgements,
-                               long cancelledJudgements, long pendingContestations) {
-            this.totalJudgements = totalJudgements;
-            this.confirmedJudgements = confirmedJudgements;
-            this.cancelledJudgements = cancelledJudgements;
-            this.pendingContestations = pendingContestations;
-        }
+    public record JusticeStatistics(long totalJudgements, long confirmedJudgements, long cancelledJudgements,
+                                    long pendingContestations) {
 
         public double getConfirmationRate() {
-            if (totalJudgements == 0) return 0;
-            return (double) confirmedJudgements / totalJudgements * 100;
+                if (totalJudgements == 0) return 0;
+                return (double) confirmedJudgements / totalJudgements * 100;
+            }
         }
-    }
 }

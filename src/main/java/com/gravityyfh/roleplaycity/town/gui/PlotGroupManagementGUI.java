@@ -227,7 +227,6 @@ public class PlotGroupManagementGUI implements Listener {
 
         // ÉTAPE 1 : Dégrouper le plot principal IMMÉDIATEMENT (garder uniquement le premier chunk)
         // Utiliser removeChunk() car getChunks() retourne une copie, pas la liste originale
-        String firstChunk = chunks.get(0);
         for (int i = 1; i < chunks.size(); i++) {
             plot.removeChunk(chunks.get(i));
         }
@@ -298,8 +297,7 @@ public class PlotGroupManagementGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
 
         String title = event.getView().getTitle();
 

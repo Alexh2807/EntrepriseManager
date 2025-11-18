@@ -39,25 +39,9 @@ public class NavigationManager {
     public static final String STAR = "✦";
 
     /**
-     * Classe représentant un niveau de navigation
-     */
-    public static class NavigationLevel {
-        private final String name;
-        private final String displayName;
-        private final Inventory inventory;
-        private final NavigationType type;
-
-        public NavigationLevel(String name, String displayName, Inventory inventory, NavigationType type) {
-            this.name = name;
-            this.displayName = displayName;
-            this.inventory = inventory;
-            this.type = type;
-        }
-
-        public String getName() { return name; }
-        public String getDisplayName() { return displayName; }
-        public Inventory getInventory() { return inventory; }
-        public NavigationType getType() { return type; }
+         * Classe représentant un niveau de navigation
+         */
+        public record NavigationLevel(String name, String displayName, Inventory inventory, NavigationType type) {
     }
 
     /**
@@ -122,7 +106,7 @@ public class NavigationManager {
                     breadcrumb.append(ChatColor.DARK_GRAY).append(" > ");
                 }
                 breadcrumb.append(i == path.size() - 1 ? ACCENT : BG_MEDIUM);
-                breadcrumb.append(path.get(i).getDisplayName());
+                breadcrumb.append(path.get(i).displayName());
             }
 
             return breadcrumb.toString();
@@ -172,7 +156,7 @@ public class NavigationManager {
         NavigationLevel previous = stack.peek();
 
         if (previous != null) {
-            player.openInventory(previous.getInventory());
+            player.openInventory(previous.inventory());
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.8f);
         } else {
             player.closeInventory();

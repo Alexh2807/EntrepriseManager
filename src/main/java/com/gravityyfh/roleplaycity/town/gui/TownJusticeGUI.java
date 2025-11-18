@@ -73,10 +73,10 @@ public class TownJusticeGUI implements Listener {
         ItemMeta statsMeta = statsItem.getItemMeta();
         statsMeta.setDisplayName(ChatColor.GOLD + "Statistiques");
         List<String> statsLore = new ArrayList<>();
-        statsLore.add(ChatColor.GRAY + "Total jugements: " + ChatColor.WHITE + stats.totalJudgements);
-        statsLore.add(ChatColor.GRAY + "Confirmés: " + ChatColor.RED + stats.confirmedJudgements);
-        statsLore.add(ChatColor.GRAY + "Annulés: " + ChatColor.GREEN + stats.cancelledJudgements);
-        statsLore.add(ChatColor.GRAY + "En attente: " + ChatColor.YELLOW + stats.pendingContestations);
+        statsLore.add(ChatColor.GRAY + "Total jugements: " + ChatColor.WHITE + stats.totalJudgements());
+        statsLore.add(ChatColor.GRAY + "Confirmés: " + ChatColor.RED + stats.confirmedJudgements());
+        statsLore.add(ChatColor.GRAY + "Annulés: " + ChatColor.GREEN + stats.cancelledJudgements());
+        statsLore.add(ChatColor.GRAY + "En attente: " + ChatColor.YELLOW + stats.pendingContestations());
         statsLore.add("");
         statsLore.add(ChatColor.GRAY + "Taux confirmation: " + ChatColor.AQUA +
             String.format("%.1f%%", stats.getConfirmationRate()));
@@ -92,7 +92,7 @@ public class TownJusticeGUI implements Listener {
         casesLore.add(ChatColor.GRAY + "Voir les contestations");
         casesLore.add(ChatColor.GRAY + "en attente de jugement");
         casesLore.add("");
-        casesLore.add(ChatColor.WHITE + "Total: " + stats.pendingContestations);
+        casesLore.add(ChatColor.WHITE + "Total: " + stats.pendingContestations());
         casesLore.add(ChatColor.YELLOW + "Cliquez pour voir");
         casesMeta.setLore(casesLore);
         casesItem.setItemMeta(casesMeta);

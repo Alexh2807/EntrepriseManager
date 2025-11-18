@@ -591,28 +591,17 @@ public class PlotGroupingListener implements Listener {
     }
 
     /**
-     * Classe helper pour coordonnées de chunk
-     */
-    private static class ChunkCoord {
-        final int x, z;
-
-        ChunkCoord(int x, int z) {
-            this.x = x;
-            this.z = z;
-        }
+         * Classe helper pour coordonnées de chunk
+         */
+        private record ChunkCoord(int x, int z) {
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ChunkCoord)) return false;
-            ChunkCoord that = (ChunkCoord) o;
-            return x == that.x && z == that.z;
-        }
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (!(o instanceof ChunkCoord that)) return false;
+                return x == that.x && z == that.z;
+            }
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(x, z);
-        }
     }
 
     /**

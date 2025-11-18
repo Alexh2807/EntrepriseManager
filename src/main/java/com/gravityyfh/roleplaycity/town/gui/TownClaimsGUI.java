@@ -280,7 +280,7 @@ public class TownClaimsGUI implements Listener {
             if (displayName.contains("Claim ce Chunk")) {
                 handleClaim(player, townName, town, currentChunk);
             } else {
-                handleUnclaim(player, townName, town, currentChunk);
+                handleUnclaim(player, townName, currentChunk);
             }
         }
         // === GÉRER TERRAIN ===
@@ -368,7 +368,7 @@ public class TownClaimsGUI implements Listener {
         }
     }
 
-    private void handleUnclaim(Player player, String townName, Town town, Chunk chunk) {
+    private void handleUnclaim(Player player, String townName, Chunk chunk) {
         // Vérifier si ce chunk appartient à la ville
         if (!claimManager.isClaimed(chunk)) {
             player.sendMessage(ChatColor.RED + "Ce chunk n'est pas claimé.");

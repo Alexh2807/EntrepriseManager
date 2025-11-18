@@ -2,6 +2,9 @@ package com.gravityyfh.roleplaycity;
 
 import com.gravityyfh.roleplaycity.Listener.*;
 import com.gravityyfh.roleplaycity.town.TownCommandHandler;
+import com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown;
+import com.gravityyfh.roleplaycity.town.gui.NoTownGUI;
+import com.gravityyfh.roleplaycity.town.gui.TownListGUI;
 import com.gravityyfh.roleplaycity.town.gui.TownMainGUI;
 import com.gravityyfh.roleplaycity.town.manager.TownDataManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -60,6 +63,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI companySelectionGUI;
     private com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI debtManagementGUI;
+    private com.gravityyfh.roleplaycity.town.gui.TownListGUI townListGUI;
+    private com.gravityyfh.roleplaycity.town.gui.NoTownGUI noTownGUI;
+    private com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown townTeleportCooldown;
     private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
@@ -134,6 +140,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.backpack.listener.BackpackCraftListener backpackCraftListener;
     private com.gravityyfh.roleplaycity.backpack.command.BackpackCommandHandler backpackCommandHandler;
 
+    // Système de Mode Service
+    private com.gravityyfh.roleplaycity.service.ServiceModeManager serviceModeManager;
+    private com.gravityyfh.roleplaycity.service.ServiceModeListener serviceModeListener;
+
     public void onEnable() {
         instance = this;
         getLogger().info("============================================");
@@ -203,6 +213,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
         // Système d'entreprises
         entrepriseLogic = new EntrepriseManagerLogic(this);
+
+        // Système de Mode Service
+        serviceModeManager = new com.gravityyfh.roleplaycity.service.ServiceModeManager(this, entrepriseLogic, econ);
+        serviceModeListener = new com.gravityyfh.roleplaycity.service.ServiceModeListener(this, serviceModeManager, entrepriseLogic);
+        getServer().getPluginManager().registerEvents(serviceModeListener, this);
+        debugLogger.debug("STARTUP", "ServiceModeManager et ServiceModeListener initialisés");
 
         // Système de boutiques moderne
         try {
@@ -429,6 +445,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Arrêter la tâche économique
         if (townEconomyTask != null) {
             townEconomyTask.cancel();
+        }
+
+        // Nettoyer le système de téléportation des villes
+        if (townTeleportCooldown != null) {
+            getLogger().info("Annulation des téléportations en cours...");
+            townTeleportCooldown.cancelAll();
+            getLogger().info("Système de téléportation des villes arrêté");
         }
 
         // Nettoyer le système médical
@@ -826,6 +849,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public static RoleplayCity getInstance() { return instance; }
     public EntrepriseManagerLogic getEntrepriseManagerLogic() { return entrepriseLogic; }
     public ChatListener getChatListener() { return chatListener; }
+    public com.gravityyfh.roleplaycity.service.ServiceModeManager getServiceModeManager() { return serviceModeManager; }
     public EntrepriseGUI getEntrepriseGUI() { return entrepriseGUI; }
     public PlayerCVGUI getPlayerCVGUI() { return playerCVGUI; }
     public static Economy getEconomy() { return econ; }
@@ -968,6 +992,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
                     debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI, debtNotificationService);
 
+                    // Système de téléportation et liste des villes
+                    townTeleportCooldown = new com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown(this);
+                    townListGUI = new com.gravityyfh.roleplaycity.town.gui.TownListGUI(this, townManager, townTeleportCooldown);
+                    noTownGUI = new com.gravityyfh.roleplaycity.town.gui.NoTownGUI(this, townManager, townListGUI);
+
                     debugLogger.debug("LAZY_LOAD", "TownMainGUI et GUIs liés initialisés");
 
                     // Étape 3: Lier les GUIs
@@ -982,6 +1011,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     townMainGUI.setMyPropertyGUI(myPropertyGUI);
                     townMainGUI.setMyCompaniesGUI(myCompaniesGUI);
                     townMainGUI.setDebtManagementGUI(debtManagementGUI);
+                    townMainGUI.setTownListGUI(townListGUI);
+                    townMainGUI.setNoTownGUI(noTownGUI);
+                    townMainGUI.setCooldownManager(townTeleportCooldown);
 
                     // Liaisons réciproques
                     townMembersGUI.setMainGUI(townMainGUI);
@@ -1001,6 +1033,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     getServer().getPluginManager().registerEvents(myPropertyGUI, this);
                     getServer().getPluginManager().registerEvents(myCompaniesGUI, this);
                     getServer().getPluginManager().registerEvents(debtManagementGUI, this);
+                    getServer().getPluginManager().registerEvents(townListGUI, this);
+                    getServer().getPluginManager().registerEvents(noTownGUI, this);
 
                     debugLogger.debug("LAZY_LOAD", "Tous les listeners GUI enregistrés");
                 }

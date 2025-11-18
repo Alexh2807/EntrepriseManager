@@ -8,7 +8,6 @@ import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.gui.scoreboard.ScoreboardContentProvider;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
-import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -20,8 +19,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 import java.util.HashMap;
@@ -71,28 +68,20 @@ public class TownHUDListener implements Listener {
 
     /**
      * Classe pour représenter l'état d'un territoire
+     *
+     * @param townName null si zone sauvage
+     * @param plotInfo Info complète sur la parcelle
      */
-    private static class TerritoryState {
-        final String townName; // null si zone sauvage
-        final String plotInfo; // Info complète sur la parcelle
-
-        TerritoryState(String townName, String plotInfo) {
-            this.townName = townName;
-            this.plotInfo = plotInfo;
-        }
+        private record TerritoryState(String townName, String plotInfo) {
 
         @Override
-        public boolean equals(Object obj) {
-            if (!(obj instanceof TerritoryState other)) return false;
-            if (townName == null && other.townName == null) return true; // Deux zones sauvages
-            if (townName == null || other.townName == null) return false; // Une ville et une zone sauvage
-            return townName.equals(other.townName) && plotInfo.equals(other.plotInfo);
-        }
+            public boolean equals(Object obj) {
+                if (!(obj instanceof TerritoryState other)) return false;
+                if (townName == null && other.townName == null) return true; // Deux zones sauvages
+                if (townName == null || other.townName == null) return false; // Une ville et une zone sauvage
+                return townName.equals(other.townName) && plotInfo.equals(other.plotInfo);
+            }
 
-        @Override
-        public int hashCode() {
-            return (townName != null ? townName.hashCode() : 0) * 31 + (plotInfo != null ? plotInfo.hashCode() : 0);
-        }
     }
 
     @EventHandler
@@ -218,7 +207,7 @@ public class TownHUDListener implements Listener {
                 sendDetailedPlotInfo(player, plot, claimingTown);
 
                 // Démarrer l'affichage automatique du contour
-                startAutoDisplay(player, plot, town, plot.isForSale(), plot.isForRent());
+                startAutoDisplay(player, plot, plot.isForSale());
             }
         } else {
             // Chunk non claim (zone sauvage)
@@ -276,7 +265,7 @@ public class TownHUDListener implements Listener {
                             sendDetailedPlotInfo(player, plotForScoreboard, claimingTown);
 
                             // Démarrer l'affichage automatique du contour
-                            startAutoDisplay(player, plotForScoreboard, town, plotForScoreboard.isForSale(), plotForScoreboard.isForRent());
+                            startAutoDisplay(player, plotForScoreboard, plotForScoreboard.isForSale());
                         }
                     }
                 }
@@ -444,7 +433,7 @@ public class TownHUDListener implements Listener {
         }
 
         // Créer le nouveau scoreboard avec le système modulaire
-        Scoreboard scoreboard = scoreboardProvider.createPlotScoreboard(player, town, plot);
+        Scoreboard scoreboard = scoreboardProvider.createPlotScoreboard(town, plot);
 
         // Sauvegarder et appliquer
         playerScoreboards.put(player.getUniqueId(), scoreboard);
@@ -470,7 +459,7 @@ public class TownHUDListener implements Listener {
      * Démarre l'affichage automatique du contour d'un terrain
      * L'affichage dure 15 secondes puis s'arrête automatiquement
      */
-    private void startAutoDisplay(Player player, Plot plot, Town town, boolean isForSale, boolean isForRent) {
+    private void startAutoDisplay(Player player, Plot plot, boolean isForSale) {
         UUID playerUuid = player.getUniqueId();
 
         // Arrêter l'affichage précédent s'il existe

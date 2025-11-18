@@ -8,7 +8,6 @@ import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.gui.TownMainGUI;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
-import com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager;
 import com.gravityyfh.roleplaycity.town.manager.TownEconomyManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -200,6 +199,16 @@ public class TownCommandHandler implements CommandExecutor {
             }
             case "buyplot" -> {
                 // Commande interne pour acheter une parcelle
+                // Vérifier si c'est une annulation
+                if (args.length >= 2 && args[1].equalsIgnoreCase("cancel")) {
+                    // Nettoyer le cache et afficher message d'annulation
+                    getAndClearSelectedCompany(player.getUniqueId());
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.YELLOW + "✗ Achat annulé.");
+                    player.sendMessage("");
+                    return true;
+                }
+
                 if (args.length < 4) {
                     player.sendMessage(ChatColor.RED + "Erreur interne: paramètres manquants.");
                     return true;
@@ -209,6 +218,16 @@ public class TownCommandHandler implements CommandExecutor {
             }
             case "rentplot" -> {
                 // Commande interne pour louer une parcelle
+                // Vérifier si c'est une annulation
+                if (args.length >= 2 && args[1].equalsIgnoreCase("cancel")) {
+                    // Nettoyer le cache et afficher message d'annulation
+                    getAndClearSelectedCompany(player.getUniqueId());
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.YELLOW + "✗ Location annulée.");
+                    player.sendMessage("");
+                    return true;
+                }
+
                 if (args.length < 4) {
                     player.sendMessage(ChatColor.RED + "Erreur interne: paramètres manquants.");
                     return true;
@@ -254,7 +273,6 @@ public class TownCommandHandler implements CommandExecutor {
             int chunkZ = Integer.parseInt(chunkZStr);
 
             ClaimManager claimManager = plugin.getClaimManager();
-            TownEconomyManager economyManager = plugin.getTownEconomyManager();
 
             ChunkCoordinate coord = new ChunkCoordinate(worldName, chunkX, chunkZ);
             String townName = claimManager.getClaimOwner(coord);
@@ -279,14 +297,9 @@ public class TownCommandHandler implements CommandExecutor {
 
             // NOUVEAU : Si terrain PROFESSIONNEL, gérer sélection d'entreprise
             if (terrainType == PlotType.PROFESSIONNEL) {
-                // Vérifier d'abord si un SIRET a déjà été sélectionné (via GUI)
-                // Si oui, ne pas re-ouvrir le GUI, continuer vers la confirmation
-                String cachedSiret = null;
-                if (plugin.getEnterpriseContextManager() != null) {
-                    // Peek sans supprimer - on vérifie juste si cache existe
-                    // Note: on ne peut pas peek, donc on vérifie via le cache TownCommandHandler
-                    cachedSiret = getSelectedCompany(player.getUniqueId());
-                }
+                // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
+                // Cela garantit que le GUI est TOUJOURS ouvert pour une nouvelle transaction
+                String cachedSiret = getAndClearSelectedCompany(player.getUniqueId());
 
                 if (cachedSiret == null) {
                     // Pas de cache → Première fois, ouvrir le GUI
@@ -316,7 +329,7 @@ public class TownCommandHandler implements CommandExecutor {
 
                     if (playerCompanies.isEmpty()) {
                         player.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour acheter un terrain PROFESSIONNEL.");
-                        player.sendMessage(ChatColor.YELLOW + "→ Créez-en une avec /entreprise creer");
+                        player.sendMessage(ChatColor.YELLOW + "→ Parlez avec le maire de votre ville afin de créer le projet");
                         return;
                     }
 
@@ -372,7 +385,7 @@ public class TownCommandHandler implements CommandExecutor {
             cancelButton.setColor(net.md_5.bungee.api.ChatColor.RED);
             cancelButton.setBold(true);
             cancelButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/ville"));
+                "/ville buyplot cancel"));
             cancelButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder("Annuler l'achat")
@@ -437,11 +450,9 @@ public class TownCommandHandler implements CommandExecutor {
 
                 // Seulement demander entreprise pour NOUVELLE location, pas recharge
                 if (!isRecharge) {
-                    // Vérifier d'abord si un SIRET a déjà été sélectionné (via GUI)
-                    String cachedSiret = null;
-                    if (plugin.getEnterpriseContextManager() != null) {
-                        cachedSiret = getSelectedCompany(player.getUniqueId());
-                    }
+                    // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
+                    // Cela garantit que le GUI est TOUJOURS ouvert pour une nouvelle transaction
+                    String cachedSiret = getAndClearSelectedCompany(player.getUniqueId());
 
                     if (cachedSiret == null) {
                         // Pas de cache → Première fois, ouvrir le GUI
@@ -471,7 +482,7 @@ public class TownCommandHandler implements CommandExecutor {
 
                         if (playerCompanies.isEmpty()) {
                             player.sendMessage(ChatColor.RED + "✗ Vous devez posséder une entreprise pour louer un terrain PROFESSIONNEL.");
-                            player.sendMessage(ChatColor.YELLOW + "→ Créez-en une avec /entreprise creer");
+                            player.sendMessage(ChatColor.YELLOW + "→ Parlez avec le maire de votre ville afin de créer le projet");
                             return;
                         }
 
@@ -550,7 +561,7 @@ public class TownCommandHandler implements CommandExecutor {
             TextComponent cancelButton = new TextComponent(" [✗ ANNULER]");
             cancelButton.setColor(net.md_5.bungee.api.ChatColor.RED);
             cancelButton.setBold(true);
-            cancelButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ville"));
+            cancelButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ville rentplot cancel"));
             cancelButton.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new ComponentBuilder("Annuler")
@@ -579,6 +590,10 @@ public class TownCommandHandler implements CommandExecutor {
         try {
             int chunkX = Integer.parseInt(chunkXStr);
             int chunkZ = Integer.parseInt(chunkZStr);
+
+            // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
+            // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
+            getAndClearSelectedCompany(player.getUniqueId());
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();
@@ -646,6 +661,10 @@ public class TownCommandHandler implements CommandExecutor {
             int chunkX = Integer.parseInt(chunkXStr);
             int chunkZ = Integer.parseInt(chunkZStr);
             int days = Integer.parseInt(daysStr);
+
+            // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
+            // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
+            getAndClearSelectedCompany(player.getUniqueId());
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();
@@ -865,7 +884,7 @@ public class TownCommandHandler implements CommandExecutor {
 
         // Effacer toutes les dettes
         for (Town.PlayerDebt debt : town.getPlayerDebts(target.getUniqueId())) {
-            Plot plot = debt.getPlot();
+            Plot plot = debt.plot();
 
             // Réinitialiser les dettes selon le type
             if (plot.getParticularDebtAmount() > 0) {

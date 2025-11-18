@@ -31,6 +31,9 @@ public class Town {
     private int totalClaims;
     private LocalDateTime lastTaxCollection;
 
+    // Spawn de la ville (pour téléportation)
+    private org.bukkit.Location spawnLocation;
+
     public Town(String name, UUID mayorUuid, String mayorName) {
         this.name = name;
         this.description = "Bienvenue à " + name;
@@ -75,6 +78,11 @@ public class Town {
     public void setCompanyTax(double tax) { this.companyTax = tax; }
     public void setLastTaxCollection(LocalDateTime time) { this.lastTaxCollection = time; }
     public void setLevel(TownLevel level) { this.level = level; }
+
+    // Spawn Location
+    public org.bukkit.Location getSpawnLocation() { return spawnLocation; }
+    public void setSpawnLocation(org.bukkit.Location location) { this.spawnLocation = location; }
+    public boolean hasSpawnLocation() { return spawnLocation != null; }
 
     // === GESTION DES MEMBRES ===
 
@@ -248,7 +256,6 @@ public class Town {
      * (en additionnant tous les chunks de tous les plots)
      */
     public int getRealChunkCount() {
-        int total = 0;
         // Utiliser un Set pour éviter de compter plusieurs fois le même chunk
         Set<String> countedChunks = new HashSet<>();
 
@@ -305,22 +312,25 @@ public class Town {
     // === NOUVEAU : GESTION DES DETTES ===
 
     /**
-     * Classe pour représenter une dette d'un joueur
-     */
-    public static class PlayerDebt {
-        private final Plot plot;
-        private final double amount;
-        private final LocalDateTime warningDate;
+         * Classe pour représenter une dette d'un joueur
+         */
+        public record PlayerDebt(Plot plot, double amount, LocalDateTime warningDate) {
 
-        public PlayerDebt(Plot plot, double amount, LocalDateTime warningDate) {
-            this.plot = plot;
-            this.amount = amount;
-            this.warningDate = warningDate;
+        /**
+         * Retourne le temps restant avant saisie pour cette dette
+         * @return DebtTimeRemaining ou null si pas de temps calculable
+         */
+        public Plot.DebtTimeRemaining getTimeRemaining() {
+            // Vérifier d'abord dette entreprise (PROFESSIONNEL)
+            if (plot.getCompanyDebtAmount() > 0) {
+                return plot.getCompanyDebtTimeRemaining();
+            }
+            // Sinon vérifier dette particulier
+            else if (plot.getParticularDebtAmount() > 0) {
+                return plot.getParticularDebtTimeRemaining();
+            }
+            return null;
         }
-
-        public Plot getPlot() { return plot; }
-        public double getAmount() { return amount; }
-        public LocalDateTime getWarningDate() { return warningDate; }
     }
 
     /**
@@ -362,7 +372,7 @@ public class Town {
      */
     public double getTotalPlayerDebt(UUID playerUuid) {
         return getPlayerDebts(playerUuid).stream()
-            .mapToDouble(PlayerDebt::getAmount)
+            .mapToDouble(PlayerDebt::amount)
             .sum();
     }
 

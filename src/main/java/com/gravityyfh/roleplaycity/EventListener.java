@@ -69,7 +69,7 @@ public class EventListener implements Listener {
         if (!blockWasPlacedBySamePlayer) {
             boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
             if (isBlocked) {
-                event.setDropItems(false);
+                event.setCancelled(true); // Bloquer complètement l'action
                 return;
             }
         }
@@ -81,22 +81,32 @@ public class EventListener implements Listener {
     }
 
     private boolean handleAgeable(BlockBreakEvent event, Player player, Block block, Material blockType, String blockTypeName) {
-        if (!(block.getBlockData() instanceof Ageable)) {
+        if (!(block.getBlockData() instanceof Ageable ageable)) {
             return false;
         }
 
-        Ageable ageable = (Ageable) block.getBlockData();
+        // Log pour debug
+        plugin.getLogger().fine("Culture détectée: " + blockType + ", Age: " + ageable.getAge() + "/" + ageable.getMaximumAge());
+
         if (ageable.getAge() != ageable.getMaximumAge()) {
+            plugin.getLogger().fine("Culture pas mature, ignorée: " + player.getName() + " - " + blockType);
             return false;
+        }
+
+        // Culture mature: retirer du cache pour éviter le message d'erreur
+        com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache cache = plugin.getBlockPlaceCache();
+        if (cache != null) {
+            cache.removeBlock(block);
         }
 
         boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "BLOCK_BREAK", blockTypeName, 1);
         if (isBlocked) {
-            event.setDropItems(false);
+            event.setCancelled(true); // Bloquer complètement l'action
             return true;
         }
 
         entrepriseLogic.enregistrerActionProductive(player, "BLOCK_BREAK", blockType, 1, block);
+        plugin.getLogger().fine("Culture mature récoltée: " + player.getName() + " - " + blockType + " (AGE=" + ageable.getAge() + ")");
         return true;
     }
 }

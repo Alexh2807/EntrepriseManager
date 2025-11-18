@@ -247,7 +247,6 @@ public class RentedPropertyGUI implements Listener {
             if (clicked.getItemMeta().getDisplayName().contains("Gestion Boîte aux Lettres")) {
                 player.closeInventory();
                 handleMailbox(player, town, chunkKey, event.getClick());
-                return;
             }
         }
     }
@@ -311,28 +310,19 @@ public class RentedPropertyGUI implements Listener {
 
     private void handleBuy(Player player, Town town, String chunkKey) {
         String[] parts = chunkKey.split(":");
-        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+        int chunkX = Integer.parseInt(parts[0]);
+        int chunkZ = Integer.parseInt(parts[1]);
+        String worldName = parts[2];
+        Plot plot = town.getPlot(worldName, chunkX, chunkZ);
 
         if (plot == null || !plot.isForSale()) {
             player.sendMessage(ChatColor.RED + "Ce terrain n'est pas en vente.");
             return;
         }
 
-        if (economyManager.buyPlot(town.getName(), plot, player)) {
-            player.sendMessage("");
-            player.sendMessage(ChatColor.GREEN + "✓ Achat réussi !");
-
-            if (plot.isGrouped()) {
-                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de: " + ChatColor.WHITE + "Terrain groupé");
-            } else {
-                player.sendMessage(ChatColor.YELLOW + "Vous êtes maintenant propriétaire de la parcelle: " +
-                    ChatColor.WHITE + plot.getChunkX() + ", " + plot.getChunkZ());
-            }
-
-            player.sendMessage("");
-        } else {
-            player.sendMessage(ChatColor.RED + "✗ Achat impossible (fonds insuffisants ou erreur).");
-        }
+        // FIX: Utiliser la commande /ville buyplot qui gère automatiquement
+        // la sélection d'entreprise pour les terrains PROFESSIONNEL
+        player.performCommand("ville buyplot " + chunkX + " " + chunkZ + " " + worldName);
     }
 
     /**

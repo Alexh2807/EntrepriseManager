@@ -24,10 +24,9 @@ public class EntityDamageListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPotentialFatalDamage(EntityDamageByEntityEvent event) {
         // On ne vérifie que si l'attaquant est un joueur
-        if (!(event.getDamager() instanceof Player)) {
+        if (!(event.getDamager() instanceof Player attacker)) {
             return;
         }
-        Player attacker = (Player) event.getDamager();
 
         // Ignorer le mode créatif
         if (attacker.getGameMode() == GameMode.CREATIVE) {
@@ -35,10 +34,9 @@ public class EntityDamageListener implements Listener {
         }
 
         // On ne vérifie que les entités vivantes
-        if (!(event.getEntity() instanceof LivingEntity)) {
+        if (!(event.getEntity() instanceof LivingEntity livingVictim)) {
             return;
         }
-        LivingEntity livingVictim = (LivingEntity) event.getEntity();
 
         // On vérifie si ce coup est fatal
         if (event.getFinalDamage() >= livingVictim.getHealth()) {

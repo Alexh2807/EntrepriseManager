@@ -17,12 +17,12 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.DetailedActionType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise;
+import com.gravityyfh.roleplaycity.service.ServiceModeData;
 
 
 public class EntrepriseGUI implements Listener {
@@ -164,8 +164,7 @@ public class EntrepriseGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
         String topInventoryTitle = event.getView().getTitle();
         // --- NOUVELLE LOGIQUE ---
         // D'abord, on vérifie si le clic a lieu dans un menu géré par une autre classe.
@@ -249,13 +248,13 @@ public class EntrepriseGUI implements Listener {
         else if (currentTitle.startsWith(TITLE_MANAGE_EMPLOYEES) && entreprise != null) handleManageEmployeesListClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_EMPLOYEE_OPTIONS_PREFIX) && entreprise != null) handleSpecificEmployeeOptionsMenuClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_SET_PRIME) && entreprise != null) handleSetPrimeAmountClick(player, context, itemName, entreprise);
-        else if (currentTitle.startsWith(TITLE_CONFIRM_DELETE) && entreprise != null) handleDeleteConfirmationClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_CONFIRM_DELETE) && entreprise != null) handleDeleteConfirmationClick(player, itemName, entreprise);
         else if (currentTitle.equals(TITLE_LIST_TOWNS)) handleListTownsMenuClick(player, context, itemName);
         else if (currentTitle.startsWith(TITLE_ENTREPRISES_IN_TOWN_PREFIX)) handleViewEntrepriseFromListClick(player, context, itemName);
         else if (currentTitle.equals(TITLE_ADMIN_MENU)) handleAdminMenuClick(player, itemName);
-        else if (currentTitle.startsWith(TITLE_CONFIRM_LEAVE_PREFIX) && entreprise != null) handleLeaveConfirmationClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_CONFIRM_LEAVE_PREFIX) && entreprise != null) handleLeaveConfirmationClick(player, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_STATS_MENU_PREFIX) && entreprise != null) handleEntrepriseStatsMenuClick(player, context, itemName, entreprise);
-        else if (currentTitle.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) && entreprise != null) handleProfitLossPeriodsMenuClick(player, context, itemName, entreprise);
+        else if (currentTitle.startsWith(TITLE_PROFIT_LOSS_PERIODS_PREFIX) && entreprise != null) handleProfitLossPeriodsMenuClick(player, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_TRANSACTIONS_PREFIX) && entreprise != null) handleTransactionHistoryMenuClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_EMPLOYEE_STATS_LIST_PREFIX) && entreprise != null) handleEmployeeStatsListMenuClick(player, context, itemName, entreprise);
         else if (currentTitle.startsWith(TITLE_PROD_STATS_ACTION_TYPE_CHOICE_PREFIX) && entreprise != null) handleProductionStatsActionTypeChoiceClick(player, context, itemName, entreprise);
@@ -539,6 +538,49 @@ public class EntrepriseGUI implements Listener {
             loreSolde.add(ChatColor.GREEN + "Niveau maximum pour solde atteint !");
         }
         inv.setItem(20, createMenuItem(Material.CHEST_MINECART, ChatColor.LIGHT_PURPLE + "Améliorer Solde Maximum", loreSolde));
+
+        // --- AMÉLIORATION NIVEAU RESTRICTIONS ---
+        int niveauActuelRestrictions = entreprise.getNiveauRestrictions();
+        int quotaActuel = entrepriseLogic.getLimiteRestrictionActuelle(entreprise, entreprise.getType());
+        double coutProchainNiveauRestrictions = entrepriseLogic.getCoutAmeliorationRestrictions(entreprise);
+        List<String> loreRestrictions = new ArrayList<>();
+        loreRestrictions.add(ChatColor.GRAY + "Niveau actuel: " + ChatColor.WHITE + niveauActuelRestrictions);
+        loreRestrictions.add(ChatColor.GRAY + "Quota horaire actuel: " + ChatColor.WHITE + (quotaActuel == -1 ? "Illimité" : quotaActuel + "/h"));
+        if (coutProchainNiveauRestrictions >= 0) {
+            int prochainNiveauRest = niveauActuelRestrictions + 1;
+            int quotaProchainNiveau = plugin.getConfig().getInt("types-entreprise." + entreprise.getType() + ".restriction-levels." + prochainNiveauRest + ".limite-par-heure", quotaActuel);
+            loreRestrictions.add(ChatColor.YELLOW + "Prochain niveau (" + prochainNiveauRest + "): " + ChatColor.WHITE + (quotaProchainNiveau == -1 ? "Illimité" : quotaProchainNiveau + "/h"));
+            loreRestrictions.add(ChatColor.GOLD + "Coût amélioration: " + ChatColor.WHITE + String.format("%,.2f", coutProchainNiveauRestrictions) + "€");
+        } else {
+            loreRestrictions.add(ChatColor.GREEN + "Niveau maximum de restrictions atteint !");
+        }
+        inv.setItem(21, createMenuItem(Material.DIAMOND, ChatColor.LIGHT_PURPLE + "Améliorer Niveau Restrictions", loreRestrictions));
+
+        // --- MODE SERVICE ---
+        boolean isInService = false;
+        String serviceStatus = ChatColor.RED + "DÉSACTIVÉ";
+        Material serviceMaterial = Material.GRAY_DYE;
+        List<String> loreService = new ArrayList<>();
+
+        if (plugin.getServiceModeManager() != null) {
+            isInService = plugin.getServiceModeManager().isInServiceFor(gerant.getUniqueId(), entreprise.getNom());
+            if (isInService) {
+                serviceStatus = ChatColor.GREEN + "ACTIVÉ";
+                serviceMaterial = Material.LIME_DYE;
+                ServiceModeData data = plugin.getServiceModeManager().getServiceData(gerant.getUniqueId());
+                if (data != null) {
+                    loreService.add(ChatColor.GRAY + "Gains cette heure: " + ChatColor.GREEN + String.format("%.2f€", data.getEarnedThisHour()));
+                }
+            }
+        }
+        loreService.add(ChatColor.GRAY + "Statut: " + serviceStatus);
+        loreService.add("");
+        loreService.add(ChatColor.YELLOW + "Cliquez pour " + (isInService ? "désactiver" : "activer"));
+        loreService.add(ChatColor.GRAY + "En mode service:");
+        loreService.add(ChatColor.GRAY + "  • Pas de restrictions");
+        loreService.add(ChatColor.GRAY + "  • Items ne tombent pas");
+        loreService.add(ChatColor.GRAY + "  • 50% gains joueur / 50% entreprise");
+        inv.setItem(22, createMenuItem(serviceMaterial, ChatColor.AQUA + "Mode Service", loreService));
         // --- FIN SECTION AMÉLIORATIONS ---
 
         inv.setItem(28, createMenuItem(Material.NAME_TAG, ChatColor.LIGHT_PURPLE + "Renommer Entreprise", List.of(ChatColor.GRAY + "Coût: " + plugin.getConfig().getDouble("rename-cost", 0) + "€")));
@@ -600,6 +642,43 @@ public class EntrepriseGUI implements Listener {
                     gerant.closeInventory();
                     gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
                 }
+            }
+        } else if (itemName.equals("Améliorer Niveau Restrictions")) {
+            String resultat = entrepriseLogic.tenterAmeliorationNiveauRestrictions(entreprise, gerant);
+            gerant.sendMessage(resultat);
+            if (resultat.startsWith(ChatColor.GREEN.toString())) {
+                Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+                if (updatedEntreprise != null) {
+                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
+                } else {
+                    gerant.closeInventory();
+                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
+                }
+            }
+        } else if (itemName.equals("Mode Service")) {
+            // Toggle service mode pour le gérant
+            if (plugin.getServiceModeManager() != null) {
+                boolean wasActive = plugin.getServiceModeManager().isInServiceFor(gerant.getUniqueId(), entreprise.getNom());
+
+                if (wasActive) {
+                    // Désactiver le mode service
+                    plugin.getServiceModeManager().deactivateService(gerant);
+                } else {
+                    // Activer le mode service
+                    plugin.getServiceModeManager().activateService(gerant, entreprise.getNom());
+                }
+
+                // Rafraîchir le menu pour afficher le nouveau statut
+                Entreprise updatedEntreprise = entrepriseLogic.getEntreprise(entreprise.getNom());
+                if (updatedEntreprise != null) {
+                    openManageSpecificEntrepriseMenu(gerant, updatedEntreprise);
+                } else {
+                    gerant.closeInventory();
+                    gerant.sendMessage(ChatColor.RED + "Erreur lors du rechargement de l'entreprise.");
+                }
+            } else {
+                gerant.sendMessage(ChatColor.RED + "Le système de mode service n'est pas disponible.");
+                gerant.closeInventory();
             }
         }
     }
@@ -726,7 +805,7 @@ public class EntrepriseGUI implements Listener {
         player.openInventory(inv);
     }
 
-    private void handleProfitLossPeriodsMenuClick(Player player, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+    private void handleProfitLossPeriodsMenuClick(Player player, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
         LocalDateTime end = LocalDateTime.now(); LocalDateTime start = null; String periodName = "";
         switch (itemName) {
             case "3 Dernières Heures": start = end.minusHours(3); periodName = "des 3 dernières heures"; break;
@@ -926,10 +1005,10 @@ public class EntrepriseGUI implements Listener {
             openRecruitEmployeeProximityMenu(gerant, context, entreprise); return;
         }
         context.selectedEmployeeForManagement = targetPlayerName;
-        openRecruitConfirmationMenu(gerant, context, targetPlayerName, entreprise);
+        openRecruitConfirmationMenu(gerant, context, targetPlayerName);
     }
 
-    private void openRecruitConfirmationMenu(Player gerant, PlayerGUIContext context, String targetPlayerName, EntrepriseManagerLogic.Entreprise entreprise) {
+    private void openRecruitConfirmationMenu(Player gerant, PlayerGUIContext context, String targetPlayerName) {
         context.navigateTo(TITLE_CONFIRM_RECRUIT);
         Inventory inv = Bukkit.createInventory(null, 27, TITLE_CONFIRM_RECRUIT);
         inv.setItem(11, createMenuItem(Material.GREEN_WOOL, ChatColor.GREEN + "Oui, inviter " + targetPlayerName));
@@ -964,7 +1043,7 @@ public class EntrepriseGUI implements Listener {
         gerant.openInventory(inv);
     }
 
-    private void handleDeleteConfirmationClick(Player gerant, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+    private void handleDeleteConfirmationClick(Player gerant, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
         if (itemName.startsWith("OUI, Dissoudre")) {
             entrepriseLogic.supprimerEntreprise(gerant, entreprise.getNom());
             openMainMenu(gerant);
@@ -982,7 +1061,7 @@ public class EntrepriseGUI implements Listener {
         employe.openInventory(inv);
     }
 
-    private void handleLeaveConfirmationClick(Player employe, PlayerGUIContext context, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
+    private void handleLeaveConfirmationClick(Player employe, String itemName, EntrepriseManagerLogic.Entreprise entreprise) {
         if (itemName.startsWith("OUI, Quitter")) {
             entrepriseLogic.leaveEntreprise(employe, entreprise.getNom());
             openMyEntreprisesMenu(employe, getPlayerContext(employe));
@@ -1107,6 +1186,24 @@ public class EntrepriseGUI implements Listener {
         int niveauSolde = entreprise.getNiveauMaxSolde();
         player.sendMessage(ChatColor.YELLOW + "Solde: " + ChatColor.GREEN + String.format("%,.2f", entreprise.getSolde()) + "€" + ChatColor.WHITE + " / " + String.format("%,.2f", soldeMaxActuel) + "€" + ChatColor.GRAY + " (Niv. " + niveauSolde + ")");
 
+        // Afficher le niveau de restrictions
+        int niveauRestrictions = entreprise.getNiveauRestrictions();
+        int quotaActuel = entrepriseLogic.getLimiteRestrictionActuelle(entreprise, entreprise.getType());
+        String quotaDisplay = quotaActuel == -1 ? "Illimité" : quotaActuel + "/h";
+        player.sendMessage(ChatColor.YELLOW + "Niveau Restrictions: " + ChatColor.LIGHT_PURPLE + niveauRestrictions + ChatColor.GRAY + " (Quota: " + ChatColor.WHITE + quotaDisplay + ChatColor.GRAY + ")");
+
+        // Afficher le statut de mode service du joueur
+        if (plugin.getServiceModeManager() != null) {
+            boolean isInService = plugin.getServiceModeManager().isInServiceFor(player.getUniqueId(), entreprise.getNom());
+            if (isInService) {
+                ServiceModeData serviceData = plugin.getServiceModeManager().getServiceData(player.getUniqueId());
+                String earnings = serviceData != null ? String.format("%.2f€", serviceData.getEarnedThisHour()) : "0.00€";
+                player.sendMessage(ChatColor.YELLOW + "Mode Service: " + ChatColor.GREEN + "✓ ACTIF" + ChatColor.GRAY + " (Gains: " + ChatColor.GREEN + earnings + ChatColor.GRAY + ")");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "Mode Service: " + ChatColor.RED + "✗ Inactif");
+            }
+        }
+
         player.sendMessage(ChatColor.YELLOW + "CA Brut (Total): " + ChatColor.DARK_GREEN + String.format("%,.2f", entreprise.getChiffreAffairesTotal()) + "€");
         player.sendMessage(ChatColor.YELLOW + "CA Potentiel Horaire: " + ChatColor.AQUA + String.format("%,.2f", entrepriseLogic.getActiviteHoraireValeurPour(entreprise.getNom())) + "€");
 
@@ -1156,7 +1253,6 @@ public class EntrepriseGUI implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         Player player = (Player) event.getPlayer();
         if (plugin.getChatListener() != null && plugin.getChatListener().isPlayerWaitingForInput(player.getUniqueId())) {
-            return;
         }
     }
 
@@ -1231,8 +1327,8 @@ public class EntrepriseGUI implements Listener {
                     start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN;
                 } else {
                     start = entreprise.getGlobalProductionLog().stream()
-                            .min(Comparator.comparing(prodRec -> prodRec.timestamp))
-                            .map(prodRec -> prodRec.timestamp)
+                            .min(Comparator.comparing(prodRec -> prodRec.timestamp()))
+                            .map(prodRec -> prodRec.timestamp())
                             .orElse(LocalDateTime.MIN);
                     if (start == LocalDateTime.MIN && !entreprise.getGlobalProductionLog().isEmpty()) start = end;
                 }

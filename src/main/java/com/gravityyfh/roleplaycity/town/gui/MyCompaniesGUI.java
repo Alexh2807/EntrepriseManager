@@ -102,6 +102,7 @@ public class MyCompaniesGUI implements Listener {
         double totalDebt = 0.0;
         int plotsWithDebt = 0;
         int minDaysUntilSeizure = Integer.MAX_VALUE;
+        Plot.DebtTimeRemaining closestSeizure = null; // Temps restant précis pour saisie la plus proche
 
         if (townName != null) {
             List<Plot> plots = townManager.getPlotsByCompanySiret(company.getSiret(), townName);
@@ -122,14 +123,16 @@ public class MyCompaniesGUI implements Listener {
                     totalDebt += plot.getCompanyDebtAmount();
                     plotsWithDebt++;
 
-                    // Calculer jours restants avant saisie
+                    // Récupérer le temps restant précis avant saisie
                     if (plot.getLastDebtWarningDate() != null) {
-                        LocalDateTime warningDate = plot.getLastDebtWarningDate();
-                        // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
-                        long daysPassed = ChronoUnit.DAYS.between(warningDate.toLocalDate(), LocalDateTime.now().toLocalDate());
-                        int daysRemaining = (int) (7 - daysPassed);
-                        if (daysRemaining < minDaysUntilSeizure) {
-                            minDaysUntilSeizure = daysRemaining;
+                        Plot.DebtTimeRemaining timeRemaining = plot.getCompanyDebtTimeRemaining();
+                        if (timeRemaining != null) {
+                            // Calculer le total de jours pour comparaison (pour trouver le minimum)
+                            int totalDays = timeRemaining.days();
+                            if (totalDays < minDaysUntilSeizure) {
+                                minDaysUntilSeizure = totalDays;
+                                closestSeizure = timeRemaining; // Stocker le temps précis
+                            }
                         }
                     }
                 }
@@ -150,9 +153,13 @@ public class MyCompaniesGUI implements Listener {
             lore.add(ChatColor.RED + "⚠ DETTE ACTIVE");
             lore.add(ChatColor.YELLOW + "Montant total: " + ChatColor.RED + String.format("%.2f€", totalDebt));
             lore.add(ChatColor.YELLOW + "Terrains endettés: " + ChatColor.RED + plotsWithDebt);
-            if (minDaysUntilSeizure < Integer.MAX_VALUE) {
-                String daysText = minDaysUntilSeizure <= 0 ? "IMMINENT" : "J-" + minDaysUntilSeizure;
-                lore.add(ChatColor.YELLOW + "Saisie: " + ChatColor.RED + ChatColor.BOLD + daysText);
+            // Afficher le temps restant précis avant saisie la plus proche
+            if (closestSeizure != null) {
+                if (closestSeizure.isExpired()) {
+                    lore.add(ChatColor.YELLOW + "Saisie: " + ChatColor.DARK_RED + ChatColor.BOLD + "IMMINENTE");
+                } else {
+                    lore.add(ChatColor.YELLOW + "Saisie: " + ChatColor.RED + ChatColor.BOLD + closestSeizure.formatCompact());
+                }
             }
         } else {
             lore.add("");
@@ -289,11 +296,14 @@ public class MyCompaniesGUI implements Listener {
                     if (plot.getCompanyDebtAmount() > 0) {
                         player.sendMessage(ChatColor.GRAY + "  • Dette: " + ChatColor.RED +
                             String.format("%.2f€", plot.getCompanyDebtAmount()));
-                        if (plot.getLastDebtWarningDate() != null) {
-                            // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
-                            long daysPassed = ChronoUnit.DAYS.between(plot.getLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
-                            int daysRemaining = (int) (7 - daysPassed);
-                            player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + daysRemaining + " jours");
+                        // Afficher le temps restant précis avant saisie
+                        Plot.DebtTimeRemaining timeRemaining = plot.getCompanyDebtTimeRemaining();
+                        if (timeRemaining != null) {
+                            if (timeRemaining.isExpired()) {
+                                player.sendMessage(ChatColor.GRAY + "  • Saisie: " + ChatColor.DARK_RED + "IMMINENTE");
+                            } else {
+                                player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + timeRemaining.formatDetailed());
+                            }
                         }
                     }
                 }
@@ -317,11 +327,14 @@ public class MyCompaniesGUI implements Listener {
                     if (plot.getCompanyDebtAmount() > 0) {
                         player.sendMessage(ChatColor.GRAY + "  • Dette: " + ChatColor.RED +
                             String.format("%.2f€", plot.getCompanyDebtAmount()));
-                        if (plot.getLastDebtWarningDate() != null) {
-                            // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
-                            long daysPassed = ChronoUnit.DAYS.between(plot.getLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
-                            int daysRemaining = (int) (7 - daysPassed);
-                            player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + daysRemaining + " jours");
+                        // Afficher le temps restant précis avant saisie
+                        Plot.DebtTimeRemaining timeRemaining = plot.getCompanyDebtTimeRemaining();
+                        if (timeRemaining != null) {
+                            if (timeRemaining.isExpired()) {
+                                player.sendMessage(ChatColor.GRAY + "  • Saisie: " + ChatColor.DARK_RED + "IMMINENTE");
+                            } else {
+                                player.sendMessage(ChatColor.GRAY + "  • Saisie dans: " + ChatColor.RED + timeRemaining.formatDetailed());
+                            }
                         }
                     }
                 }

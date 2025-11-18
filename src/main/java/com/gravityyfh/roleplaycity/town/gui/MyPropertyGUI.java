@@ -103,7 +103,7 @@ public class MyPropertyGUI implements Listener {
                 if (slot >= invSize - 9) break; // Garder la dernière ligne pour les boutons
 
                 boolean isThisCurrentPlot = isCurrentPlotOwned && plot.equals(currentPlot);
-                ItemStack item = createPlotItem(plot, false, town, isThisCurrentPlot);
+                ItemStack item = createPlotItem(plot, false, isThisCurrentPlot);
                 inv.setItem(slot, item);
                 slotMap.put(slot, plot); // Stocker l'association
                 slot++;
@@ -116,7 +116,7 @@ public class MyPropertyGUI implements Listener {
                 if (slot >= invSize - 9) break;
 
                 boolean isThisCurrentPlot = isCurrentPlotRented && plot.equals(currentPlot);
-                ItemStack item = createPlotItem(plot, true, town, isThisCurrentPlot);
+                ItemStack item = createPlotItem(plot, true, isThisCurrentPlot);
                 inv.setItem(slot, item);
                 slotMap.put(slot, plot); // Stocker l'association
                 slot++;
@@ -143,7 +143,7 @@ public class MyPropertyGUI implements Listener {
     /**
      * Crée un ItemStack représentant un terrain
      */
-    private ItemStack createPlotItem(Plot plot, boolean isRented, Town town, boolean isCurrentPlot) {
+    private ItemStack createPlotItem(Plot plot, boolean isRented, boolean isCurrentPlot) {
         int totalChunks = plot.getChunks().size();
         boolean isGrouped = plot.isGrouped();
 
@@ -213,6 +213,13 @@ public class MyPropertyGUI implements Listener {
                 lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + plot.getCompanyName());
                 if (plot.getCompanyDebtAmount() > 0) {
                     lore.add(ChatColor.RED + "⚠ Dette: " + String.format("%.2f€", plot.getCompanyDebtAmount()));
+                    // Afficher le temps restant avant saisie
+                    Plot.DebtTimeRemaining timeRemaining = plot.getCompanyDebtTimeRemaining();
+                    if (timeRemaining != null && !timeRemaining.isExpired()) {
+                        lore.add(ChatColor.YELLOW + "   Saisie dans: " + ChatColor.RED + timeRemaining.formatDetailed());
+                    } else if (timeRemaining != null && timeRemaining.isExpired()) {
+                        lore.add(ChatColor.DARK_RED + "   ⚠ SAISIE IMMINENTE");
+                    }
                 }
             }
 

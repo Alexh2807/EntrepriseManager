@@ -1,0 +1,180 @@
+# FIX BASSE #20-22: Fichier de messages français pour RoleplayCity
+# Système d'internationalisation avec formatage uniforme
+# Placeholders: {0}, {1}, {2}, etc.
+
+# === PRÉFIXES ===
+prefixes:
+  info: "&7[&bInfo&7]&f"
+  success: "&7[&a✓&7]&f"
+  warning: "&7[&e⚠&7]&f"
+  error: "&7[&c✗&7]&f"
+  debug: "&7[&dDebug&7]&f"
+
+# === MESSAGES GÉNÉRIQUES ===
+general:
+  no-permission: "Vous n'avez pas la permission d'effectuer cette action."
+  player-only: "Cette commande ne peut être exécutée que par un joueur."
+  invalid-player: "Le joueur &e{0}&f est introuvable ou hors ligne."
+  invalid-number: "&e{0}&f n'est pas un nombre valide."
+  invalid-amount: "Le montant doit être compris entre &e{0}&f et &e{1}&f."
+  too-far: "Vous êtes trop éloigné. Distance maximale: &e{0}&f blocs."
+  cooldown: "Veuillez patienter &e{0}&f secondes avant de réutiliser cette commande."
+  command-usage: "Usage: &e{0}"
+
+# === ENTREPRISES ===
+entreprise:
+  created: "Entreprise &e{0}&f créée avec succès ! SIRET: &e{1}"
+  deleted: "Entreprise &e{0}&f supprimée."
+  renamed: "Entreprise renommée en &e{0}&f. Coût: &e{1}"
+  not-found: "Aucune entreprise nommée &e{0}&f n'a été trouvée."
+  already-exists: "Une entreprise nommée &e{0}&f existe déjà."
+
+  # Erreurs avec contexte (FIX #21)
+  error:
+    insufficient-funds: "Fonds insuffisants. Requis: &e{0}&f, Disponible: &e{1}"
+    max-entreprises: "Vous avez atteint la limite de &e{0}&f entreprise(s)."
+    max-employees: "Limite d'employés atteinte (&e{0}/{1}&f)."
+    not-owner: "Vous devez être le gérant de &e{0}&f pour effectuer cette action."
+    invalid-name: "Nom invalide. Doit contenir entre &e{0}&f et &e{1}&f caractères."
+
+  # Confirmations (FIX #23)
+  confirm:
+    delete: "Êtes-vous sûr de vouloir supprimer l'entreprise &e{0}&f ? Cette action est irréversible et supprimera :\n&7• Tous les employés\n&7• Toutes les boutiques\n&7• L'historique des transactions"
+    fire-employee: "Êtes-vous sûr de vouloir licencier &e{0}&f de l'entreprise &e{1}&f ?"
+
+  # Succès
+  employee-hired: "&e{0}&f a été embauché(e) dans l'entreprise &e{1}&f."
+  employee-fired: "&e{0}&f a été licencié(e) de l'entreprise &e{1}&f."
+  salary-set: "Salaire de &e{0}&f défini à &e{1}&f par heure."
+  deposit-success: "&e{0}&f déposés dans l'entreprise. Nouveau solde: &e{1}"
+  withdraw-success: "&e{0}&f retirés de l'entreprise. Nouveau solde: &e{1}"
+
+# === VILLES ===
+town:
+  created: "Ville &e{0}&f fondée avec succès ! Vous êtes le maire."
+  deleted: "Ville &e{0}&f dissoute."
+  joined: "Vous avez rejoint la ville de &e{0}&f."
+  left: "Vous avez quitté la ville de &e{0}&f."
+  not-found: "La ville &e{0}&f n'existe pas."
+  already-exists: "Une ville nommée &e{0}&f existe déjà."
+
+  # Erreurs
+  error:
+    not-member: "Vous n'êtes pas membre de la ville &e{0}&f."
+    not-mayor: "Seul le maire peut effectuer cette action."
+    insufficient-bank: "La banque de la ville ne contient pas assez de fonds. Requis: &e{0}&f, Disponible: &e{1}"
+    max-claims: "Limite de claims atteinte (&e{0}/{1}&f). Améliorez votre ville pour en obtenir plus."
+    chunk-already-claimed: "Ce chunk est déjà réclamé par &e{0}&f."
+
+  # Confirmations
+  confirm:
+    delete-town: "Êtes-vous sûr de vouloir dissoudre la ville &e{0}&f ? Cette action supprimera :\n&7• Tous les membres ({1})\n&7• Toutes les parcelles ({2})\n&7• La banque ({3})"
+    kick-member: "Êtes-vous sûr de vouloir expulser &e{0}&f de la ville ?"
+
+  # Parcelles
+  plot:
+    claimed: "Chunk réclamé pour la ville de &e{0}&f. Claims restants: &e{1}"
+    unclaimed: "Chunk libéré. Claims utilisés: &e{0}/{1}"
+    sold: "Parcelle &e{0}&f vendue pour &e{1}&f."
+    rented: "Parcelle &e{0}&f louée pour &e{1}&f/jour pendant &e{2}&f jours."
+    type-changed: "Type de parcelle changé en &e{0}&f."
+
+  # Membres
+  member:
+    invited: "&e{0}&f a été invité(e) à rejoindre la ville."
+    role-changed: "Rôle de &e{0}&f changé en &e{1}&f."
+    kicked: "&e{0}&f a été expulsé(e) de la ville."
+
+# === POLICE & JUSTICE ===
+police:
+  fine-issued: "Amende de &e{0}&f infligée à &e{1}&f. Raison: &7{2}"
+  fine-paid: "Amende de &e{0}&f payée avec succès."
+  fine-expired: "Amende de &e{0}&f expirée."
+  warrant-issued: "Mandat d'arrêt émis contre &e{0}&f."
+
+  error:
+    no-fines: "&e{0}&f n'a aucune amende."
+    fine-not-found: "Amende &e#{0}&f introuvable."
+
+# === SYSTÈME MÉDICAL ===
+medical:
+  revive-requested: "Demande de réanimation envoyée aux médecins en ligne."
+  revive-success: "&e{0}&f a été réanimé(e) avec succès."
+  healing-started: "Soins en cours... Ne bougez pas !"
+  healing-complete: "Soins terminés. PV restaurés: &e+{0}"
+
+  error:
+    not-injured: "&e{0}&f n'est pas blessé(e)."
+    no-medics-online: "Aucun médecin n'est actuellement en ligne."
+    already-healing: "Vous êtes déjà en train de soigner quelqu'un."
+
+# === ÉCONOMIE ===
+economy:
+  transaction-success: "Transaction effectuée: &e{0}"
+  balance: "Solde: &e{0}"
+  tax-paid: "Taxes payées: &e{0}&f ({1})"
+  salary-received: "Salaire reçu: &e{0}&f de l'entreprise &e{1}&f"
+
+  error:
+    vault-not-found: "Système économique (Vault) non disponible."
+    transaction-failed: "Transaction échouée: &c{0}"
+
+# === SYSTÈME POSTAL ===
+postal:
+  mailbox-placed: "Boîte aux lettres placée avec succès."
+  mailbox-removed: "Boîte aux lettres retirée."
+  mail-sent: "Courrier envoyé à &e{0}&f. Coût: &e{1}"
+  mail-received: "Vous avez &e{0}&f nouveau(x) courrier(s) !"
+
+  error:
+    mailbox-not-found: "Aucune boîte aux lettres à cet emplacement."
+    mailbox-full: "La boîte aux lettres de &e{0}&f est pleine."
+
+# === TITRES GUI (FIX #24) ===
+gui:
+  titles:
+    main-menu: "&6&l⚙ RoleplayCity"
+    entreprise-list: "&6&l📋 Mes Entreprises"
+    entreprise-manage: "&6&l⚙ Gestion - {0}"
+    employee-list: "&6&l👥 Employés ({0}/{1})"
+    shop-list: "&6&l🏪 Boutiques"
+    town-main: "&6&l🏛 Ville de {0}"
+    town-members: "&6&l👥 Membres ({0})"
+    town-plots: "&6&l📍 Parcelles ({0})"
+    town-bank: "&6&l💰 Banque - {0}"
+    police-menu: "&6&l👮 Menu Police"
+    medical-menu: "&6&l⚕ Menu Médical"
+    mailbox: "&6&l📬 Boîte aux Lettres"
+
+  # Boutons communs
+  buttons:
+    back: "&7← Retour"
+    close: "&cFermer"
+    confirm: "&a✓ Confirmer"
+    cancel: "&c✗ Annuler"
+    next-page: "&7Page suivante →"
+    prev-page: "&7← Page précédente"
+    info: "&bℹ Information"
+
+# === NOTIFICATIONS ===
+notification:
+  header: "&8&m                    &r &6&lNOTIFICATION &8&m                    "
+  footer: "&8&m                                                                "
+
+# === AIDE ===
+help:
+  header: "&8&m                    &r &6&lAIDE &8&m                    "
+  footer: "&8&m                                                                "
+  available-commands: "&eCommandes disponibles:"
+
+# === RELOAD ===
+reload:
+  success: "Configuration rechargée avec succès."
+  messages-reloaded: "Messages rechargés. Langue: &e{0}"
+
+# === DEBUG ===
+debug:
+  mode-enabled: "Mode debug activé."
+  mode-disabled: "Mode debug désactivé."
+  metrics-enabled: "Métriques de performance activées."
+  metrics-disabled: "Métriques de performance désactivées."

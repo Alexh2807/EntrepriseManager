@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EntrepriseCommandHandler implements CommandExecutor {
@@ -164,6 +163,9 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "boutique":
                 handleShopCommand(player, args); // Cette ligne reste la même
                 break;
+            case "service":
+                handleServiceCommand(player, args);
+                break;
             default:
                 player.sendMessage(ChatColor.RED + "Commande inconnue. Utilisez /entreprise gui");
                 return false;
@@ -199,6 +201,82 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             plugin.getShopListGUI().openShopList(player, entreprise, 0);
         } else {
             player.sendMessage(ChatColor.RED + "Erreur: Système de boutiques non disponible.");
+        }
+    }
+
+    /**
+     * Gère la commande /entreprise service
+     * Permet d'activer/désactiver le mode service
+     */
+    private void handleServiceCommand(Player player, String[] args) {
+        if (plugin.getServiceModeManager() == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Système de mode service non disponible.");
+            return;
+        }
+
+        // Si aucun argument: toggle pour l'entreprise actuelle du joueur
+        if (args.length == 1) {
+            // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises du joueur
+            java.util.List<EntrepriseManagerLogic.Entreprise> entreprises = entrepriseLogic.getEntreprisesDuJoueur(player);
+
+            if (entreprises.isEmpty()) {
+                player.sendMessage(ChatColor.RED + "Vous devez être membre d'une entreprise pour utiliser le mode service.");
+                player.sendMessage(ChatColor.YELLOW + "Utilisez /entreprise -> Mes entreprises -> NomEntreprise -> Mode Service ON/OFF une fois dans une entreprise.");
+                return;
+            }
+
+            // Si une seule entreprise, toggle service pour celle-ci
+            if (entreprises.size() == 1) {
+                plugin.getServiceModeManager().toggleService(player, entreprises.get(0).getNom());
+                return;
+            }
+
+            // Si plusieurs entreprises, demander de spécifier
+            player.sendMessage(ChatColor.YELLOW + "Vous possédez plusieurs entreprises. Veuillez spécifier laquelle :");
+            player.sendMessage(ChatColor.GRAY + "Usage: " + ChatColor.WHITE + "/entreprise service <NomEntreprise>");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GOLD + "Vos entreprises :");
+            for (EntrepriseManagerLogic.Entreprise ent : entreprises) {
+                player.sendMessage(ChatColor.GRAY + " • " + ChatColor.YELLOW + ent.getNom() + ChatColor.GRAY + " (" + ent.getType() + ")");
+            }
+            return;
+        }
+
+        // Avec argument: activer/désactiver pour une entreprise spécifique
+        String subCommand = args[1].toLowerCase();
+
+        if (subCommand.equals("on") || subCommand.equals("off")) {
+            // /entreprise service on/off <NomEntreprise>
+            if (args.length < 3) {
+                player.sendMessage(ChatColor.RED + "Usage: /entreprise service on/off <NomEntreprise>");
+                return;
+            }
+
+            String nomEntreprise = joinArguments(args, 2, args.length);
+            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+
+            if (entreprise == null) {
+                player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
+                return;
+            }
+
+            if (subCommand.equals("on")) {
+                plugin.getServiceModeManager().activateService(player, nomEntreprise);
+            } else {
+                plugin.getServiceModeManager().deactivateService(player);
+            }
+        } else {
+            // Nom d'entreprise directement
+            String nomEntreprise = joinArguments(args, 1, args.length);
+            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+
+            if (entreprise == null) {
+                player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
+                return;
+            }
+
+            // Toggle service pour cette entreprise
+            plugin.getServiceModeManager().toggleService(player, nomEntreprise);
         }
     }
 
@@ -663,7 +741,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "7j": case "semaine": start = end.minusWeeks(1); break;
             case "30j": case "mois": start = end.minusMonths(1); break;
             case "total":
-                if (globalStats) start = ent.getGlobalProductionLog().stream().min(Comparator.comparing(r -> r.timestamp)).map(r -> r.timestamp).orElse(end);
+                if (globalStats) start = ent.getGlobalProductionLog().stream().min(Comparator.comparing(r -> r.timestamp())).map(r -> r.timestamp()).orElse(end);
                 else { EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(targetEmpUUID); start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN; }
                 break;
             default: player.sendMessage(ChatColor.RED + "Période invalide: '" + periodeStr + "'."); return;

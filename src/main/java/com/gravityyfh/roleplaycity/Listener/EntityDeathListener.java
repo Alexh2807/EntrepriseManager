@@ -29,11 +29,9 @@ public class EntityDeathListener implements Listener {
         LivingEntity killerEntity = entity.getKiller();
 
         // On s'intéresse seulement aux morts causées par un joueur pour l'enregistrement
-        if (!(killerEntity instanceof Player)) {
+        if (!(killerEntity instanceof Player killer)) {
             return;
         }
-
-        Player killer = (Player) killerEntity;
 
         // Ignorer si le joueur était en créatif au moment du kill
         // Note: Techniquement, le GameMode pourrait changer entre le coup fatal et la mort,
@@ -46,16 +44,12 @@ public class EntityDeathListener implements Listener {
         EntityType entityType = event.getEntityType();
         String entityTypeName = entityType.name();
 
-        // --- Suppression de la vérification de restriction ici ---
-        // La vérification et le blocage se font maintenant dans EntityDamageListener
+        // NOTE: La vérification de quota est faite dans EntityDamageListener AVANT la mort
+        // Si le quota était atteint, l'entité ne serait PAS morte (coup fatal annulé)
+        // Donc ici, si on arrive dans EntityDeathEvent, c'est que le quota était OK
 
         // Enregistrer l'action productive (uniquement si elle est valorisée dans la config pour l'entreprise du joueur)
-        // Cette méthode ne fera rien si le joueur n'est pas dans une entreprise pertinente
-        // ou si le kill de cette entité n'est pas dans 'activites-payantes'.
-        plugin.getLogger().log(Level.INFO, "[DEBUG Kill] Enregistrement action pour " + killer.getName() + " tuant " + entityTypeName);
+        plugin.getLogger().log(Level.FINE, "[DEBUG Kill] Enregistrement action pour " + killer.getName() + " tuant " + entityTypeName);
         entrepriseLogic.enregistrerActionProductive(killer, "ENTITY_KILL", entityTypeName, 1);
-
-        // Note : Les drops et l'XP ne sont plus annulés ici car si l'action
-        // devait être bloquée, l'entité n'aurait pas dû mourir grâce à EntityDamageListener.
     }
 }

@@ -39,10 +39,10 @@ public class EntrepriseManagerLogic {
     // FIX CRITIQUE: Retirer 'static' pour éviter race conditions et problèmes de synchronisation
     // Le plugin reste statique pour être accessible aux classes internes
     public static RoleplayCity plugin;
-    private Map<String, Entreprise> entreprises;
+    private final Map<String, Entreprise> entreprises;
     // FIX PERFORMANCE HAUTE: Index SIRET pour recherche O(1) au lieu de O(n)
-    private Map<String, Entreprise> entreprisesBySiret;
-    private File entrepriseFile;
+    private final Map<String, Entreprise> entreprisesBySiret;
+    private final File entrepriseFile;
 
     private BukkitTask activityCheckTask;
     private BukkitTask inactivityKickTask; // FIX MOYENNE: Task pour vérifier les employés inactifs
@@ -67,6 +67,9 @@ public class EntrepriseManagerLogic {
     private final Map<String, String> invitations = new ConcurrentHashMap<>();
     private final Map<UUID, DemandeCreation> demandesEnAttente = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, ActionInfo>> joueurActivitesRestrictions = new ConcurrentHashMap<>();
+
+    // BossBars temporaires pour afficher le quota aux joueurs hors service
+    private final Map<UUID, org.bukkit.boss.BossBar> temporaryQuotaBossBars = new ConcurrentHashMap<>();
 
     // FIX HAUTE: Système de confirmation pour suppression d'entreprise
     // Map: UUID joueur -> Nom entreprise à supprimer
@@ -121,16 +124,7 @@ public class EntrepriseManagerLogic {
     private static final long CONFIRMATION_TIMEOUT_TICKS = 600L; // 30 secondes (20 ticks/sec * 30)
 
     // Classe pour stocker les infos de restriction (pour le cache)
-    private static class RestrictionInfo {
-        final String entrepriseType;
-        final int limiteNonMembre;
-        final List<String> messagesErreur;
-
-        RestrictionInfo(String entrepriseType, int limiteNonMembre, List<String> messagesErreur) {
-            this.entrepriseType = entrepriseType;
-            this.limiteNonMembre = limiteNonMembre;
-            this.messagesErreur = messagesErreur;
-        }
+        private record RestrictionInfo(String entrepriseType, int limiteNonMembre, List<String> messagesErreur) {
     }
 
 
@@ -190,17 +184,41 @@ public class EntrepriseManagerLogic {
     public enum DetailedActionType { BLOCK_BROKEN("Bloc Cassé"), ITEM_CRAFTED("Item Crafté"), BLOCK_PLACED("Bloc Posé");
         private final String displayName; DetailedActionType(String displayName) { this.displayName = displayName; } public String getDisplayName() { return displayName; }
     }
-    public static class DetailedProductionRecord {
-        public final LocalDateTime timestamp; public final DetailedActionType actionType;
-        public final Material material; public final int quantity;
-        public DetailedProductionRecord(DetailedActionType actionType, Material material, int quantity) { this.timestamp = LocalDateTime.now(); this.actionType = actionType; this.material = material; this.quantity = quantity; }
-        public DetailedProductionRecord(LocalDateTime timestamp, DetailedActionType actionType, Material material, int quantity) { this.timestamp = timestamp; this.actionType = actionType; this.material = material; this.quantity = quantity; }
-        public Map<String, Object> serialize() { Map<String, Object> map = new HashMap<>(); map.put("timestamp", timestamp.toString()); map.put("actionType", actionType.name()); map.put("material", material.name()); map.put("quantity", quantity); return map; }
-        public static DetailedProductionRecord deserialize(Map<String, Object> map) {
-            try { LocalDateTime ts = LocalDateTime.parse((String) map.get("timestamp")); DetailedActionType dat = DetailedActionType.valueOf((String) map.get("actionType")); Material mat = Material.matchMaterial((String) map.get("material")); int qty = ((Number) map.get("quantity")).intValue(); if (mat == null) { if (plugin != null) plugin.getLogger().warning("Material null désérialisation DPR: " + map.get("material")); return null; } return new DetailedProductionRecord(ts, dat, mat, qty); }
-            catch (Exception e) { if (plugin != null) plugin.getLogger().warning("Erreur désérialisation DPR: " + e.getMessage() + " pour map: " + map); return null; }
+
+    public record DetailedProductionRecord(LocalDateTime timestamp, DetailedActionType actionType, Material material,
+                                           int quantity) {
+            public DetailedProductionRecord(DetailedActionType actionType, Material material, int quantity) {
+                this(LocalDateTime.now(), actionType, material, quantity);
+            }
+
+        public Map<String, Object> serialize() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("timestamp", timestamp.toString());
+            map.put("actionType", actionType.name());
+            map.put("material", material.name());
+            map.put("quantity", quantity);
+            return map;
         }
-    }
+
+        public static DetailedProductionRecord deserialize(Map<String, Object> map) {
+                try {
+                    LocalDateTime ts = LocalDateTime.parse((String) map.get("timestamp"));
+                    DetailedActionType dat = DetailedActionType.valueOf((String) map.get("actionType"));
+                    Material mat = Material.matchMaterial((String) map.get("material"));
+                    int qty = ((Number) map.get("quantity")).intValue();
+                    if (mat == null) {
+                        if (plugin != null)
+                            plugin.getLogger().warning("Material null désérialisation DPR: " + map.get("material"));
+                        return null;
+                    }
+                    return new DetailedProductionRecord(ts, dat, mat, qty);
+                } catch (Exception e) {
+                    if (plugin != null)
+                        plugin.getLogger().warning("Erreur désérialisation DPR: " + e.getMessage() + " pour map: " + map);
+                    return null;
+                }
+            }
+        }
     public static class EmployeeActivityRecord {
         public final UUID employeeId; public String employeeName;
         public LocalDateTime currentSessionStartTime; public LocalDateTime lastActivityTime;
@@ -227,7 +245,8 @@ public class EntrepriseManagerLogic {
         public String getFormattedSeniority() { if (joinDate == null) return "N/A"; Duration seniority = Duration.between(joinDate, LocalDateTime.now()); long days = seniority.toDays(); long hours = seniority.toHours() % 24; long minutes = seniority.toMinutes() % 60; if (days > 365) return String.format("%d an(s)", days / 365); if (days > 30) return String.format("%d mois", days / 30); if (days > 0) return String.format("%d j, %dh", days, hours); if (hours > 0) return String.format("%dh, %dmin", hours, minutes); return String.format("%d min", Math.max(0, minutes)); }
         public Map<String, Object> serialize() { Map<String, Object> map = new HashMap<>(); map.put("employeeId", employeeId.toString()); map.put("employeeName", employeeName); map.put("currentSessionStartTime", currentSessionStartTime != null ? currentSessionStartTime.toString() : null); map.put("lastActivityTime", lastActivityTime != null ? lastActivityTime.toString() : null); map.put("actionsPerformedCount", actionsPerformedCount); map.put("totalValueGenerated", totalValueGenerated); map.put("joinDate", joinDate != null ? joinDate.toString() : null); synchronized(detailedProductionLog){ map.put("detailedProductionLog", detailedProductionLog.stream().map(DetailedProductionRecord::serialize).collect(Collectors.toList())); } return map; }
         public static EmployeeActivityRecord deserialize(Map<String, Object> map) {
-            try { UUID id = UUID.fromString((String) map.get("employeeId")); String name = (String) map.get("employeeName"); EmployeeActivityRecord record = new EmployeeActivityRecord(id, name); if (map.get("currentSessionStartTime") != null) record.currentSessionStartTime = LocalDateTime.parse((String) map.get("currentSessionStartTime")); if (map.get("lastActivityTime") != null) record.lastActivityTime = LocalDateTime.parse((String) map.get("lastActivityTime")); if (map.get("actionsPerformedCount") instanceof Map) { Map<?,?> rawMap = (Map<?,?>) map.get("actionsPerformedCount"); rawMap.forEach((key, value) -> { if (key instanceof String && value instanceof Number) record.actionsPerformedCount.put((String) key, ((Number)value).longValue()); }); } record.totalValueGenerated = ((Number) map.getOrDefault("totalValueGenerated", 0.0)).doubleValue(); if (map.get("joinDate") != null) record.joinDate = LocalDateTime.parse((String) map.get("joinDate")); else record.joinDate = null; if (map.containsKey("detailedProductionLog")) { List<?> rawList = (List<?>) map.get("detailedProductionLog"); if(rawList != null) synchronized(record.detailedProductionLog){ record.detailedProductionLog.clear(); for (Object item : rawList) { if (item instanceof Map) { @SuppressWarnings("unchecked") DetailedProductionRecord prodRecord = DetailedProductionRecord.deserialize((Map<String, Object>) item); if (prodRecord != null) record.detailedProductionLog.add(prodRecord); } } } } return record; }
+            try { UUID id = UUID.fromString((String) map.get("employeeId")); String name = (String) map.get("employeeName"); EmployeeActivityRecord record = new EmployeeActivityRecord(id, name); if (map.get("currentSessionStartTime") != null) record.currentSessionStartTime = LocalDateTime.parse((String) map.get("currentSessionStartTime")); if (map.get("lastActivityTime") != null) record.lastActivityTime = LocalDateTime.parse((String) map.get("lastActivityTime")); if (map.get("actionsPerformedCount") instanceof Map<?, ?> rawMap) {
+                rawMap.forEach((key, value) -> { if (key instanceof String && value instanceof Number) record.actionsPerformedCount.put((String) key, ((Number)value).longValue()); }); } record.totalValueGenerated = ((Number) map.getOrDefault("totalValueGenerated", 0.0)).doubleValue(); if (map.get("joinDate") != null) record.joinDate = LocalDateTime.parse((String) map.get("joinDate")); else record.joinDate = null; if (map.containsKey("detailedProductionLog")) { List<?> rawList = (List<?>) map.get("detailedProductionLog"); if(rawList != null) synchronized(record.detailedProductionLog){ record.detailedProductionLog.clear(); for (Object item : rawList) { if (item instanceof Map) { @SuppressWarnings("unchecked") DetailedProductionRecord prodRecord = DetailedProductionRecord.deserialize((Map<String, Object>) item); if (prodRecord != null) record.detailedProductionLog.add(prodRecord); } } } } return record; }
             catch (Exception e) { if (plugin != null) plugin.getLogger().log(Level.WARNING, "Erreur désérialisation EAR pour map: " + map, e); return null; }
         }
     }
@@ -369,7 +388,7 @@ public class EntrepriseManagerLogic {
                             // Message différé au gérant
                             String messageGerant = ChatColor.YELLOW + "L'employé " + record.employeeName +
                                 " a été automatiquement licencié pour inactivité (" + daysSinceLastActivity + " jours sans activité).";
-                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom(), 0);
+                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom());
 
                             plugin.getLogger().info("[Inactivité] " + record.employeeName + " licencié de '" +
                                 entreprise.getNom() + "' après " + daysSinceLastActivity + " jours d'inactivité");
@@ -388,7 +407,7 @@ public class EntrepriseManagerLogic {
                             // Message au gérant
                             String messageGerant = ChatColor.YELLOW + "Votre employé " + record.employeeName +
                                 " est inactif depuis " + daysSinceLastActivity + " jours.";
-                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom(), 0);
+                            ajouterMessageGerantDifferre(entreprise.getGerantUUID(), messageGerant, entreprise.getNom());
                         }
                     }
 
@@ -454,6 +473,37 @@ public class EntrepriseManagerLogic {
     // --- Gestion Entreprises ---
     public String getNomEntrepriseDuMembre(String nomJoueur) { if (nomJoueur == null) return null; for (Entreprise entreprise : entreprises.values()) { if (entreprise.getGerant() != null && entreprise.getGerant().equalsIgnoreCase(nomJoueur) || entreprise.getEmployes().contains(nomJoueur)) return entreprise.getNom(); } return null; }
     public Entreprise getEntrepriseDuJoueur(Player player) { if (player == null) return null; String nomEnt = getNomEntrepriseDuMembre(player.getName()); return (nomEnt != null) ? getEntreprise(nomEnt) : null; }
+
+    /**
+     * FIX MULTI-ENTREPRISES: Retourne TOUTES les entreprises où le joueur est membre (gérant ou employé)
+     */
+    public java.util.List<String> getNomsEntreprisesDuMembre(String nomJoueur) {
+        java.util.List<String> nomsEntreprises = new java.util.ArrayList<>();
+        if (nomJoueur == null) return nomsEntreprises;
+        for (Entreprise entreprise : entreprises.values()) {
+            if (entreprise.getGerant() != null && entreprise.getGerant().equalsIgnoreCase(nomJoueur) ||
+                entreprise.getEmployes().contains(nomJoueur)) {
+                nomsEntreprises.add(entreprise.getNom());
+            }
+        }
+        return nomsEntreprises;
+    }
+
+    /**
+     * FIX MULTI-ENTREPRISES: Retourne TOUTES les entreprises où le joueur est membre
+     */
+    public java.util.List<Entreprise> getEntreprisesDuJoueur(Player player) {
+        java.util.List<Entreprise> listeEntreprises = new java.util.ArrayList<>();
+        if (player == null) return listeEntreprises;
+        java.util.List<String> noms = getNomsEntreprisesDuMembre(player.getName());
+        for (String nom : noms) {
+            Entreprise ent = getEntreprise(nom);
+            if (ent != null) {
+                listeEntreprises.add(ent);
+            }
+        }
+        return listeEntreprises;
+    }
     // --- Fin Gestion Entreprises ---
 
     // --- Tâches Horaires ---
@@ -495,6 +545,23 @@ public class EntrepriseManagerLogic {
         joueurActivitesRestrictions.clear();
         plugin.getLogger().info("Les limites d'actions horaires pour les non-membres ont été réinitialisées globalement.");
     }
+
+    /**
+     * Récupère le nombre total d'actions effectuées par un joueur pour un type d'entreprise
+     * @param playerUUID UUID du joueur
+     * @param typeEntreprise Type de l'entreprise (ex: "Minage", "Styliste")
+     * @return Nombre total d'actions effectuées
+     */
+    public int getQuotaUtilisePourEntreprise(UUID playerUUID, String typeEntreprise) {
+        Map<String, ActionInfo> actions = joueurActivitesRestrictions.get(playerUUID);
+        if (actions == null) {
+            return 0;
+        }
+
+        // Quota global: l'actionId est simplement le nom du type d'entreprise
+        ActionInfo info = actions.get(typeEntreprise);
+        return info != null ? info.getNombreActions() : 0;
+    }
     // --- Fin Tâches Horaires ---
 
     public void enregistrerActionProductive(Player player, String actionTypeString, Material material, int quantite, Block block) {
@@ -515,7 +582,7 @@ public class EntrepriseManagerLogic {
             if (block == null) {
                 plugin.getLogger().warning("BLOCK_BREAK enregistré sans référence de bloc pour " + player.getName() + " sur " + material.name());
             } else {
-                if (!canPlayerBreakBlock(player, block.getLocation(), material)) {
+                if (!canPlayerBreakBlock(player, block.getLocation())) {
                     plugin.getLogger().fine("Action BLOCK_BREAK sur ("+ material.name() +") annulée par protection de Plot pour " + player.getName());
                     return;
                 }
@@ -524,7 +591,7 @@ public class EntrepriseManagerLogic {
             if (block == null) {
                 plugin.getLogger().warning("BLOCK_PLACE enregistré sans référence de bloc pour " + player.getName() + " sur " + material.name());
             } else {
-                if (!canPlayerPlaceBlock(player, block.getLocation(), material)) {
+                if (!canPlayerPlaceBlock(player, block.getLocation())) {
                     plugin.getLogger().fine("Action BLOCK_PLACE de ("+ material.name() +") annulée par protection de Plot pour " + player.getName());
                     return;
                 }
@@ -565,10 +632,20 @@ public class EntrepriseManagerLogic {
         }
 
         if (valeurTotaleAction > 0) {
-            // --- MODIFICATION: Use the correct map ---
-            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
-            // --- END MODIFICATION ---
-            plugin.getLogger().fine("CA Productif Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (" + actionTypeString + ": " + material.name() + ")");
+            // Vérifier si le joueur est en mode service
+            boolean isInService = plugin.getServiceModeManager() != null &&
+                                 plugin.getServiceModeManager().isInService(player.getUniqueId());
+
+            if (isInService) {
+                // Mode service: split 50/50 (joueur accumule 50%, entreprise gagne 50%)
+                double companyShare = plugin.getServiceModeManager().processServiceEarnings(player, valeurTotaleAction);
+                activiteProductiveHoraireValeur.merge(entreprise.getNom(), companyShare, Double::sum);
+                plugin.getLogger().fine("CA Productif Horaire (MODE SERVICE) pour '" + entreprise.getNom() +
+                    "' augmenté de " + companyShare + "€ (50% de " + valeurTotaleAction + "€)");
+            } else {
+                // Hors service: AUCUN gain (le joueur ne travaille pas pour l'entreprise)
+                plugin.getLogger().fine("Joueur " + player.getName() + " hors service - Aucun gain enregistré pour '" + entreprise.getNom() + "'");
+            }
         }
 
         if (detailedActionType != null) {
@@ -638,10 +715,20 @@ public class EntrepriseManagerLogic {
         }
 
         if (valeurTotaleAction > 0) {
-            // --- MODIFICATION: Use the correct map ---
-            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurTotaleAction, Double::sum);
-            // --- END MODIFICATION ---
-            plugin.getLogger().fine("CA Productif Horaire pour '" + entreprise.getNom() + "' augmenté de " + valeurTotaleAction + " (Action: " + actionType + ", Cible: " + entityTypeName + ")");
+            // Vérifier si le joueur est en mode service
+            boolean isInService = plugin.getServiceModeManager() != null &&
+                                 plugin.getServiceModeManager().isInService(player.getUniqueId());
+
+            if (isInService) {
+                // Mode service: split 50/50 (joueur accumule 50%, entreprise gagne 50%)
+                double companyShare = plugin.getServiceModeManager().processServiceEarnings(player, valeurTotaleAction);
+                activiteProductiveHoraireValeur.merge(entreprise.getNom(), companyShare, Double::sum);
+                plugin.getLogger().fine("CA Productif Horaire (MODE SERVICE) pour '" + entreprise.getNom() +
+                    "' augmenté de " + companyShare + "€ (50% de " + valeurTotaleAction + "€)");
+            } else {
+                // Hors service: AUCUN gain (le joueur ne travaille pas pour l'entreprise)
+                plugin.getLogger().fine("Joueur " + player.getName() + " hors service - Aucun gain enregistré pour '" + entreprise.getNom() + "' (Action: " + actionType + ", Cible: " + entityTypeName + ")");
+            }
         }
 
         if (materialEquivalentPourLogDetaille != null) {
@@ -698,19 +785,30 @@ public class EntrepriseManagerLogic {
             );
 
             // Ajouter au chiffre d'affaires productif horaire
-            activiteProductiveHoraireValeur.merge(entreprise.getNom(), valeurBackpack, Double::sum);
+            // Vérifier si le joueur est en mode service
+            boolean isInService = plugin.getServiceModeManager() != null &&
+                                 plugin.getServiceModeManager().isInService(player.getUniqueId());
 
-            // Ajouter au log global de production de l'entreprise
-            entreprise.addGlobalProductionRecord(
-                LocalDateTime.now(),
-                backpackMaterial,
-                1,
-                player.getUniqueId().toString(),
-                DetailedActionType.ITEM_CRAFTED
-            );
+            if (isInService) {
+                // Mode service: split 50/50 (joueur accumule 50%, entreprise gagne 50%)
+                double companyShare = plugin.getServiceModeManager().processServiceEarnings(player, valeurBackpack);
+                activiteProductiveHoraireValeur.merge(entreprise.getNom(), companyShare, Double::sum);
 
-            plugin.getLogger().fine("Craft de backpack '" + backpackType + "' enregistré pour " + player.getName() +
-                    " (Entreprise: " + entreprise.getNom() + ", Type: " + typeEntreprise + ", Valeur: " + valeurBackpack + "€)");
+                // Ajouter au log global de production de l'entreprise
+                entreprise.addGlobalProductionRecord(
+                    LocalDateTime.now(),
+                    backpackMaterial,
+                    1,
+                    player.getUniqueId().toString(),
+                    DetailedActionType.ITEM_CRAFTED
+                );
+
+                plugin.getLogger().fine("Craft de backpack '" + backpackType + "' enregistré pour " + player.getName() +
+                        " (MODE SERVICE - Entreprise: " + entreprise.getNom() + ", Type: " + typeEntreprise + ", Valeur: " + valeurBackpack + "€)");
+            } else {
+                // Hors service: AUCUN gain (le joueur ne travaille pas pour l'entreprise)
+                plugin.getLogger().fine("Joueur " + player.getName() + " hors service - Backpack '" + backpackType + "' non enregistré pour '" + entreprise.getNom() + "'");
+            }
         } else {
             plugin.getLogger().fine("Backpack '" + backpackType + "' n'a pas de valeur configurée dans activites-payantes.CRAFT_BACKPACK pour " + typeEntreprise);
         }
@@ -793,10 +891,12 @@ public class EntrepriseManagerLogic {
      */
     private double payerPrimesPourEntreprise(Entreprise entreprise) {
         double totalPrimesPayees = 0;
-        Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
-        OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
 
-        for (String employeNom : new HashSet<>(entreprise.getEmployes())) {
+        // Créer une liste incluant les employés ET le gérant
+        Set<String> membresAPayer = new HashSet<>(entreprise.getEmployes());
+        membresAPayer.add(entreprise.getGerant()); // Ajouter le gérant
+
+        for (String employeNom : membresAPayer) {
             OfflinePlayer employeOffline = Bukkit.getOfflinePlayer(employeNom);
             UUID employeUUID;
             try {
@@ -804,10 +904,47 @@ public class EntrepriseManagerLogic {
             } catch (Exception ignored) { continue; }
 
             double primeConfigurée = entreprise.getPrimePourEmploye(employeUUID.toString());
-            if (primeConfigurée <= 0) continue;
 
+            // Récupérer les gains accumulés en mode service
+            double gainsService = 0.0;
+            if (plugin.getServiceModeManager() != null) {
+                gainsService = plugin.getServiceModeManager().getAndResetAccumulatedEarnings(employeUUID);
+            }
+
+            // Ne payer que si actif OU s'il y a des gains service à payer
             EmployeeActivityRecord activity = entreprise.getEmployeeActivityRecord(employeUUID);
-            if (activity == null || !activity.isActive()) continue; // Only active employees get primes
+            boolean hasActivity = (activity != null && activity.isActive());
+            boolean hasServiceEarnings = gainsService > 0;
+
+            // Payer les gains service (générés par le système, PAS par l'entreprise)
+            if (hasServiceEarnings) {
+                plugin.getLogger().fine("[Vault] DEPOSIT (Gains Service): " + employeNom + " ← " + String.format("%.2f€", gainsService) +
+                    " (Entreprise: " + entreprise.getNom() + ")");
+
+                EconomyResponse erService = RoleplayCity.getEconomy().depositPlayer(employeOffline, gainsService);
+
+                if (erService.transactionSuccess()) {
+                    plugin.getLogger().fine("[Vault] DEPOSIT SUCCESS (Gains Service): " + employeNom + " ← " + String.format("%.2f€", gainsService));
+
+                    // NE PAS déduire du solde de l'entreprise!
+                    // Les gains service sont générés par le système
+
+                    Player onlineEmp = employeOffline.getPlayer();
+                    if (onlineEmp != null) {
+                        onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&aPaiement horaire - Gains service: &e+" + String.format("%.2f€", gainsService)));
+                    } else {
+                        ajouterMessageEmployeDifferre(employeUUID.toString(),
+                            ChatColor.translateAlternateColorCodes('&', "&aPaiement horaire - Gains service: &e+" + String.format("%.2f€", gainsService)),
+                            entreprise.getNom(), gainsService);
+                    }
+                } else {
+                    plugin.getLogger().severe("[Vault] DEPOSIT FAILED (Gains Service): " + employeNom + " ← " + gainsService + "€ - Reason: " + erService.errorMessage);
+                }
+            }
+
+            // Payer la prime (payée par l'entreprise)
+            if (!hasActivity || primeConfigurée <= 0) continue;
 
             if (entreprise.getSolde() >= primeConfigurée) {
                 // FIX MOYENNE: Log détaillé transaction Vault
@@ -818,14 +955,23 @@ public class EntrepriseManagerLogic {
 
                 if (er.transactionSuccess()) {
                     plugin.getLogger().fine("[Vault] DEPOSIT SUCCESS (Prime): " + employeNom + " ← " + String.format("%.2f€", primeConfigurée));
-                    entreprise.setSolde(entreprise.getSolde() - primeConfigurée);
+                    entreprise.setSolde(entreprise.getSolde() - primeConfigurée); // Seulement la prime est déduite!
+
+                    // Enregistrer la transaction de prime
                     entreprise.addTransaction(new Transaction(TransactionType.PRIMES, primeConfigurée, "Prime horaire: " + employeNom, "System"));
+
                     totalPrimesPayees += primeConfigurée;
 
-                    String msgEmploye = String.format("&aPrime horaire reçue: &e+%.2f€&a de '&6%s&a'.", primeConfigurée, entreprise.getNom());
+                    // Message pour la prime
+                    String msgPrime = String.format("&aPrime horaire reçue: &e+%.2f€&a de '&6%s&a'.", primeConfigurée, entreprise.getNom());
                     Player onlineEmp = employeOffline.getPlayer();
-                    if (onlineEmp != null) onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&', msgEmploye));
-                    else ajouterMessageEmployeDifferre(employeUUID.toString(), ChatColor.translateAlternateColorCodes('&', msgEmploye), entreprise.getNom(), primeConfigurée);
+                    if (onlineEmp != null) {
+                        onlineEmp.sendMessage(ChatColor.translateAlternateColorCodes('&', msgPrime));
+                    } else {
+                        ajouterMessageEmployeDifferre(employeUUID.toString(),
+                            ChatColor.translateAlternateColorCodes('&', msgPrime),
+                            entreprise.getNom(), primeConfigurée);
+                    }
 
                 } else {
                     // FIX MOYENNE: Log détaillé échec transaction Vault
@@ -891,7 +1037,7 @@ public class EntrepriseManagerLogic {
 
         List<String> report = new ArrayList<>();
         report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
-        report.add(" " + ChatColor.GOLD + "" + ChatColor.BOLD + "Entreprise : " + ChatColor.YELLOW + entreprise.getNom() + ChatColor.GRAY + " (" + typeEntreprise + ")");
+        report.add(" " + ChatColor.GOLD + ChatColor.BOLD + "Entreprise : " + ChatColor.YELLOW + entreprise.getNom() + ChatColor.GRAY + " (" + typeEntreprise + ")");
         report.add(" " + ChatColor.GOLD + "Rapport Financier Horaire");
         report.add("");
         report.add(ChatColor.AQUA + "  Chiffre d'Affaires Brut");
@@ -913,7 +1059,7 @@ public class EntrepriseManagerLogic {
         report.add("");
         report.add(ChatColor.DARK_AQUA + "  Solde de l'entreprise :");
         report.add(String.format(ChatColor.GRAY + "    Ancien solde : " + ChatColor.WHITE + "%,.2f €", ancienSolde));
-        report.add(String.format(ChatColor.GRAY + "    Nouveau solde : " + ChatColor.WHITE + "" + ChatColor.BOLD + "%,.2f €", nouveauSolde));
+        report.add(String.format(ChatColor.GRAY + "    Nouveau solde : " + ChatColor.WHITE + ChatColor.BOLD + "%,.2f €", nouveauSolde));
 
         report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
 
@@ -926,7 +1072,7 @@ public class EntrepriseManagerLogic {
             OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
             if(offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()){
                 String resume = String.format("Rapport Horaire '%s': Bénéfice/Perte de %.2f€. Nouveau solde: %.2f€.", entreprise.getNom(), benefice, nouveauSolde);
-                ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.GREEN + resume, entreprise.getNom(), benefice);
+                ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.GREEN + resume, entreprise.getNom());
             }
         }
     }
@@ -950,9 +1096,27 @@ public class EntrepriseManagerLogic {
     /**
      * FIX PERFORMANCE HAUTE: Version optimisée avec cache O(1) au lieu de O(n)
      * FIX MOYENNE: Le cache expire après 5 minutes et se recharge automatiquement
+     * NOUVEAU: Support du mode service et des niveaux de restrictions d'entreprise
      */
     public boolean verifierEtGererRestrictionAction(Player player, String actionTypeString, String targetName, int quantite) {
-        Entreprise entrepriseJoueurObj = getEntrepriseDuJoueur(player);
+        // FIX BUG MULTI-ENTREPRISES: Vérifier d'abord si le joueur est en service et récupérer l'entreprise active
+        // Au lieu de prendre la première entreprise trouvée, on priorise l'entreprise active en mode service
+        Entreprise entrepriseJoueurObj = null;
+        String activeEnterpriseName = null;
+        boolean isInService = false;
+
+        if (plugin.getServiceModeManager() != null) {
+            activeEnterpriseName = plugin.getServiceModeManager().getActiveEnterprise(player.getUniqueId());
+            if (activeEnterpriseName != null) {
+                entrepriseJoueurObj = getEntreprise(activeEnterpriseName);
+                isInService = true;
+            }
+        }
+
+        // Si pas en service ou entreprise non trouvée, utiliser la méthode classique
+        if (entrepriseJoueurObj == null) {
+            entrepriseJoueurObj = getEntrepriseDuJoueur(player);
+        }
 
         // FIX MOYENNE: Vérifier si le cache a expiré et le recharger si nécessaire
         long currentTime = System.currentTimeMillis();
@@ -969,49 +1133,176 @@ public class EntrepriseManagerLogic {
             return false; // Aucune restriction pour cette action
         }
 
-        // Vérifier chaque restriction trouvée
-        for (RestrictionInfo restriction : restrictions) {
-            boolean estMembreDeCeTypeSpecialise = (entrepriseJoueurObj != null &&
-                entrepriseJoueurObj.getType().equals(restriction.entrepriseType));
+        // PRIORISER la restriction qui correspond au type d'entreprise du joueur
+        RestrictionInfo restrictionApplicable = null;
+        if (entrepriseJoueurObj != null) {
+            // Chercher une restriction qui correspond au type d'entreprise du joueur
+            for (RestrictionInfo restriction : restrictions) {
+                if (restriction.entrepriseType.equals(entrepriseJoueurObj.getType())) {
+                    restrictionApplicable = restriction;
+                    break;
+                }
+            }
+        }
+        // Si pas trouvé (non-membre ou type différent), prendre la première restriction
+        if (restrictionApplicable == null && !restrictions.isEmpty()) {
+            restrictionApplicable = restrictions.get(0);
+        }
+        // Aucune restriction applicable
+        if (restrictionApplicable == null) {
+            return false;
+        }
 
-            if (estMembreDeCeTypeSpecialise) {
-                return false; // Les membres de ce type ne sont pas restreints
+        // Vérifier si le joueur est EN SERVICE pour cette entreprise
+        // On utilise maintenant la variable isInService déterminée au début
+        boolean estEnServicePourCetteEntreprise = (isInService &&
+            entrepriseJoueurObj != null &&
+            entrepriseJoueurObj.getType().equals(restrictionApplicable.entrepriseType));
+
+        // Déterminer la limite applicable
+        int limiteApplicable;
+        if (estEnServicePourCetteEntreprise) {
+            // EN SERVICE: utiliser le niveau de restrictions de l'entreprise (améliorable)
+            limiteApplicable = getLimiteRestrictionActuelle(entrepriseJoueurObj, restrictionApplicable.entrepriseType);
+        } else {
+            // HORS SERVICE ou non-membre: utiliser la limite non-membre (stricte)
+            limiteApplicable = restrictionApplicable.limiteNonMembre;
+        }
+
+        // Pas de limite
+        if (limiteApplicable == -1) {
+            return false;
+        }
+
+        // Limite = 0, blocage total
+        if (limiteApplicable == 0) {
+            // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises du joueur
+            java.util.List<Entreprise> allEnterprises = getEntreprisesDuJoueur(player);
+            java.util.List<String> enterpriseInfos = new java.util.ArrayList<>();
+            for (Entreprise ent : allEnterprises) {
+                enterpriseInfos.add(ent.getNom() + " (" + ent.getType() + ")");
             }
 
-            // Le joueur n'est pas membre, appliquer la limite
-            if (restriction.limiteNonMembre == -1) {
-                continue; // Pas de limite pour ce type
-            }
+            com.gravityyfh.roleplaycity.util.RestrictionMessageBuilder.sendTotallyBlocked(
+                player,
+                restrictionApplicable.entrepriseType,
+                enterpriseInfos
+            );
+            return true; // Action bloquée
+        }
 
-            if (restriction.limiteNonMembre == 0) {
-                restriction.messagesErreur.forEach(msg ->
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg.replace("%limite%", "0"))));
+        // QUOTA GLOBAL par type d'entreprise (pas par matériau spécifique)
+        // Exemple: "Agriculture" compte TOUS les blocs agricoles (wheat, melon, carrot, etc.)
+        String actionIdPourRestriction = restrictionApplicable.entrepriseType;
+
+        ActionInfo info = joueurActivitesRestrictions
+            .computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
+            .computeIfAbsent(actionIdPourRestriction, k -> new ActionInfo());
+
+        synchronized(info) {
+            if (info.getNombreActions() + quantite > limiteApplicable) {
+                final int currentCount = info.getNombreActions();
+
+                // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises du joueur
+                java.util.List<Entreprise> allEnterprises = getEntreprisesDuJoueur(player);
+                java.util.List<String> enterpriseInfos = new java.util.ArrayList<>();
+                for (Entreprise ent : allEnterprises) {
+                    enterpriseInfos.add(ent.getNom() + " (" + ent.getType() + ")");
+                }
+
+                // Utiliser le nouveau système de messages contextuels
+                com.gravityyfh.roleplaycity.util.RestrictionMessageBuilder.sendContextualMessage(
+                    player,
+                    entrepriseJoueurObj != null ? entrepriseJoueurObj.getType() : null,
+                    entrepriseJoueurObj != null ? entrepriseJoueurObj.getNom() : null,
+                    estEnServicePourCetteEntreprise,
+                    restrictionApplicable.entrepriseType,
+                    currentCount,
+                    limiteApplicable,
+                    actionTypeString,
+                    enterpriseInfos
+                );
+
                 return true; // Action bloquée
-            }
+            } else {
+                info.incrementerActions(quantite);
 
-            String actionIdPourRestriction = restriction.entrepriseType + "_" +
-                actionTypeString.toUpperCase() + "_" + targetName.toUpperCase();
-
-            ActionInfo info = joueurActivitesRestrictions
-                .computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(actionIdPourRestriction, k -> new ActionInfo());
-
-            synchronized(info) {
-                if (info.getNombreActions() + quantite > restriction.limiteNonMembre) {
-                    final int currentCount = info.getNombreActions();
-                    restriction.messagesErreur.forEach(msg ->
-                        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                            msg.replace("%limite%", String.valueOf(restriction.limiteNonMembre)))));
-                    player.sendMessage(ChatColor.GRAY + "(Limite atteinte: " + currentCount + "/" + restriction.limiteNonMembre + ")");
-                    return true; // Action bloquée
-                } else {
-                    info.incrementerActions(quantite);
+                // Afficher BossBar temporaire pour les joueurs HORS SERVICE
+                if (!estEnServicePourCetteEntreprise && limiteApplicable > 0) {
+                    int currentQuota = info.getNombreActions();
+                    showTemporaryQuotaBossBar(player, restrictionApplicable.entrepriseType, currentQuota, limiteApplicable);
                 }
             }
         }
 
         return false; // Aucune restriction bloquante
     }
+
+    /**
+     * Nettoie la BossBar temporaire d'un joueur (appelé à la déconnexion)
+     */
+    public void cleanupTemporaryQuotaBossBar(UUID playerUUID) {
+        org.bukkit.boss.BossBar bar = temporaryQuotaBossBars.remove(playerUUID);
+        if (bar != null) {
+            bar.removeAll();
+        }
+    }
+
+    /**
+     * Affiche une BossBar temporaire (5 secondes) montrant le quota utilisé
+     * pour les joueurs qui ne sont pas en mode service
+     */
+    private void showTemporaryQuotaBossBar(Player player, String typeEntreprise, int quotaUtilise, int quotaLimite) {
+        UUID uuid = player.getUniqueId();
+
+        // Retirer l'ancienne BossBar si elle existe
+        org.bukkit.boss.BossBar oldBar = temporaryQuotaBossBars.remove(uuid);
+        if (oldBar != null) {
+            oldBar.removePlayer(player);
+        }
+
+        // Calculer le pourcentage
+        double percentage = (double) quotaUtilise / quotaLimite;
+        int percentageInt = (int) (percentage * 100);
+
+        // Choisir la couleur selon le %
+        org.bukkit.boss.BarColor color;
+        if (percentage >= 0.81) {
+            color = org.bukkit.boss.BarColor.RED;
+        } else if (percentage >= 0.51) {
+            color = org.bukkit.boss.BarColor.YELLOW;
+        } else {
+            color = org.bukkit.boss.BarColor.GREEN;
+        }
+
+        // Créer la BossBar
+        String title = ChatColor.GRAY + "⚠ Quota Non-Membre " + ChatColor.WHITE + "| " +
+                      ChatColor.GOLD + typeEntreprise + ChatColor.WHITE + " | " +
+                      ChatColor.GRAY + "Quota: " + ChatColor.WHITE + quotaUtilise + "/" + quotaLimite +
+                      ChatColor.GRAY + " (" + percentageInt + "%)";
+
+        org.bukkit.boss.BossBar bossBar = Bukkit.createBossBar(
+            title,
+            color,
+            org.bukkit.boss.BarStyle.SOLID
+        );
+        bossBar.addPlayer(player);
+        bossBar.setProgress(Math.min(1.0, percentage));
+
+        temporaryQuotaBossBars.put(uuid, bossBar);
+
+        // Supprimer la BossBar après 5 secondes
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                org.bukkit.boss.BossBar bar = temporaryQuotaBossBars.remove(uuid);
+                if (bar != null) {
+                    bar.removePlayer(player);
+                }
+            }
+        }.runTaskLater(plugin, 100L); // 5 secondes (100 ticks)
+    }
+
     public LocalDateTime getNextPaymentTime() {
         return nextPaymentTime;
     }
@@ -1606,8 +1897,8 @@ public class EntrepriseManagerLogic {
         com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation =
             plugin.getNameValidator().validateEntrepriseName(name);
 
-        if (!validation.isValid()) {
-            player.sendMessage(ChatColor.RED + "❌ " + validation.getError());
+        if (!validation.valid()) {
+            player.sendMessage(ChatColor.RED + "❌ " + validation.error());
             return false;
         }
 
@@ -1655,7 +1946,7 @@ public class EntrepriseManagerLogic {
 
         DemandeCreation demande = new DemandeCreation(maire, gerantCible, type, ville, siret, nomEntreprisePropose, coutCreation, plugin.getConfig().getLong("creation.delai-validation-ms", 60000L));
         demandesEnAttente.put(gerantCible.getUniqueId(), demande);
-        maire.sendMessage(ChatColor.GREEN + "Proposition de création d'entreprise envoyée à " + gerantCible.getName() + " (Type: " + type + ", Nom: " + nomEntreprisePropose + "). Délai: " + (demande.getExpirationTimeMillis() - System.currentTimeMillis())/1000 + "s.");
+        maire.sendMessage(ChatColor.GREEN + "Proposition de création d'entreprise envoyée à " + gerantCible.getName() + " (Type: " + type + ", Nom: " + nomEntreprisePropose + "). Délai: " + (demande.expirationTimeMillis() - System.currentTimeMillis())/1000 + "s.");
         envoyerInvitationVisuelleContrat(gerantCible, demande);
         plugin.getLogger().log(Level.INFO, "[DEBUG CREATION] Proposition envoyée avec succès pour " + nomEntreprisePropose + " à " + gerantCible.getName());
     }
@@ -1664,13 +1955,13 @@ public class EntrepriseManagerLogic {
         gerantCible.sendMessage(ChatColor.AQUA + "Maire: " + ChatColor.WHITE + demande.maire.getName()); gerantCible.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + demande.ville);
         gerantCible.sendMessage(ChatColor.AQUA + "Type: " + ChatColor.WHITE + demande.type); gerantCible.sendMessage(ChatColor.AQUA + "Nom: " + ChatColor.WHITE + demande.nomEntreprise);
         gerantCible.sendMessage(ChatColor.AQUA + "SIRET: " + ChatColor.WHITE + demande.siret); gerantCible.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GREEN + String.format("%,.2f€", demande.cout));
-        long remainingSeconds = (demande.getExpirationTimeMillis() - System.currentTimeMillis()) / 1000; gerantCible.sendMessage(ChatColor.YELLOW + "Délai: " + remainingSeconds + "s.");
+        long remainingSeconds = (demande.expirationTimeMillis() - System.currentTimeMillis()) / 1000; gerantCible.sendMessage(ChatColor.YELLOW + "Délai: " + remainingSeconds + "s.");
         TextComponent accepterMsg = new TextComponent("        [VALIDER CONTRAT]"); accepterMsg.setColor(net.md_5.bungee.api.ChatColor.GREEN); accepterMsg.setBold(true); accepterMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise validercreation")); accepterMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Accepter (coût: " + String.format("%,.2f€", demande.cout) + ")").create()));
         TextComponent refuserMsg = new TextComponent("   [REFUSER CONTRAT]"); refuserMsg.setColor(net.md_5.bungee.api.ChatColor.RED); refuserMsg.setBold(true); refuserMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise annulercreation")); refuserMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Refuser").create()));
         TextComponent ligneActions = new TextComponent(""); ligneActions.addExtra(accepterMsg); ligneActions.addExtra(refuserMsg);
         gerantCible.spigot().sendMessage(ligneActions); gerantCible.sendMessage(ChatColor.GOLD + "--------------------------------------------------");
         UUID gerantUUID = gerantCible.getUniqueId();
-        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (demandesEnAttente.containsKey(gerantUUID) && demandesEnAttente.get(gerantUUID).equals(demande)) { demandesEnAttente.remove(gerantUUID); Player gOnline = Bukkit.getPlayer(gerantUUID); if (gOnline != null) gOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise + "' expirée."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise + "' (à " + demande.gerant.getName() + ") expirée."); } }, (demande.getExpirationTimeMillis() - System.currentTimeMillis()) / 50);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (demandesEnAttente.containsKey(gerantUUID) && demandesEnAttente.get(gerantUUID).equals(demande)) { demandesEnAttente.remove(gerantUUID); Player gOnline = Bukkit.getPlayer(gerantUUID); if (gOnline != null) gOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise + "' expirée."); Player mOnline = Bukkit.getPlayer(demande.maire.getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise + "' (à " + demande.gerant.getName() + ") expirée."); } }, (demande.expirationTimeMillis() - System.currentTimeMillis()) / 50);
     }
     public void validerCreationEntreprise(Player gerantSignataire) {
         DemandeCreation demande = demandesEnAttente.remove(gerantSignataire.getUniqueId());
@@ -1962,6 +2253,7 @@ public class EntrepriseManagerLogic {
                 double caMagasinHoraire = currentConfig.getDouble(path + "activiteMagasinHoraireValeur", 0.0);
                 int niveauMaxEmployes = currentConfig.getInt(path + "niveauMaxEmployes", 0);
                 int niveauMaxSolde = currentConfig.getInt(path + "niveauMaxSolde", 0);
+                int niveauRestrictions = currentConfig.getInt(path + "niveauRestrictions", 0);
 
                 // FIX MOYENNE: Validation robuste des données lors de la désérialisation
                 if (gerantNom == null || gerantUUIDStr == null || type == null || ville == null) {
@@ -1999,6 +2291,10 @@ public class EntrepriseManagerLogic {
                 if (niveauMaxSolde < 0) {
                     plugin.getLogger().warning("Niveau max solde invalide pour l'entreprise '" + nomEnt + "': " + niveauMaxSolde + ". Réinitialisé à 0.");
                     niveauMaxSolde = 0;
+                }
+                if (niveauRestrictions < 0 || niveauRestrictions > 4) {
+                    plugin.getLogger().warning("Niveau restrictions invalide pour l'entreprise '" + nomEnt + "': " + niveauRestrictions + ". Réinitialisé à 0.");
+                    niveauRestrictions = 0;
                 }
 
                 // Valider le SIRET (doit être hexadécimal de longueur configurée)
@@ -2102,6 +2398,7 @@ public class EntrepriseManagerLogic {
                 ent.setGlobalProductionLog(globalProductionLogList);
                 ent.setNiveauMaxEmployes(niveauMaxEmployes);
                 ent.setNiveauMaxSolde(niveauMaxSolde);
+                ent.setNiveauRestrictions(niveauRestrictions);
 
                 // FIX MOYENNE: Valider et nettoyer la cohérence des données après chargement
                 validateAndCleanEntrepriseData(ent);
@@ -2315,6 +2612,7 @@ public class EntrepriseManagerLogic {
             entreprisesSection.set(path + "activiteMagasinHoraireValeur", activiteMagasinHoraireValeur.getOrDefault(nomEnt, 0.0));
             entreprisesSection.set(path + "niveauMaxEmployes", ent.getNiveauMaxEmployes());
             entreprisesSection.set(path + "niveauMaxSolde", ent.getNiveauMaxSolde());
+            entreprisesSection.set(path + "niveauRestrictions", ent.getNiveauRestrictions());
 
             ConfigurationSection employesSect = entreprisesSection.createSection(path + "employes");
             ent.getPrimes().forEach((uuidStr, primeVal) -> employesSect.set(uuidStr + ".prime", primeVal));
@@ -2431,7 +2729,7 @@ public class EntrepriseManagerLogic {
     // --- Messages Différés ---
     public void ajouterMessageEmployeDifferre(String joueurUUID, String message, String entrepriseNom, double montantPrime) { File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + joueurUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); if (montantPrime > 0) { String totalPrimePath = "messages." + joueurUUID + "." + entrepriseNom + ".totalPrime"; messagesConfig.set(totalPrimePath, messagesConfig.getDouble(totalPrimePath, 0.0) + montantPrime); } try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé employé " + joueurUUID + ": " + e.getMessage()); } }
     public void envoyerPrimesDifferreesEmployes(Player player) { String playerUUID = player.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + playerUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); double totalPrime = entreprisesSect.getDouble(nomEnt + ".totalPrime", 0.0); if (!messages.isEmpty()) { player.sendMessage(ChatColor.GOLD + "--- Primes/Messages de '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> player.sendMessage(ChatColor.AQUA + "- " + msg)); if (totalPrime > 0) player.sendMessage(ChatColor.GREEN + "Total primes période: " + String.format("%,.2f€", totalPrime)); player.sendMessage(ChatColor.GOLD + "--------------------------------------------------------"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés employé " + playerUUID + ": " + e.getMessage()); } } }
-    public void ajouterMessageGerantDifferre(String gerantUUID, String message, String entrepriseNom, double montantConcerne) { File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + gerantUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé gérant " + gerantUUID + ": " + e.getMessage()); } }
+    public void ajouterMessageGerantDifferre(String gerantUUID, String message, String entrepriseNom) { File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + gerantUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé gérant " + gerantUUID + ": " + e.getMessage()); } }
     public void envoyerPrimesDifferreesGerants(Player playerGerant) { String gerantUUID = playerGerant.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + gerantUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); if (!messages.isEmpty()) { playerGerant.sendMessage(ChatColor.BLUE + "--- Notifications Gérance '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> playerGerant.sendMessage(ChatColor.AQUA + "- " + msg)); playerGerant.sendMessage(ChatColor.BLUE + "----------------------------------------------------------------"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés gérant " + gerantUUID + ": " + e.getMessage()); } } }
     // --- Fin Messages Différés ---
 
@@ -2462,7 +2760,7 @@ public class EntrepriseManagerLogic {
     public void listEntreprises(Player player, String ville) { List<Entreprise> entreprisesDansVille = getEntreprisesByVille(ville); if (entreprisesDansVille.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune entreprise à " + ville + "."); return; } TextComponent msg = new TextComponent(ChatColor.GOLD + "=== Entreprises à " + ChatColor.AQUA + ville + ChatColor.GOLD + " ===\n"); for (Entreprise e : entreprisesDansVille) { TextComponent ligne = new TextComponent(ChatColor.AQUA + e.getNom() + ChatColor.GRAY + " (Type: " + e.getType() + ", Gérant: " + e.getGerant() + ")"); ligne.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise info " + e.getNom())); ligne.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Infos '" + e.getNom() + "'").create())); msg.addExtra(ligne); msg.addExtra("\n"); } player.spigot().sendMessage(msg); }
     public Map<Material, Integer> getEmployeeProductionStatsForPeriod(String nomEntreprise, UUID employeeUUID, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter) { Entreprise ent = getEntreprise(nomEntreprise); if (ent == null) return Collections.emptyMap(); Set<Material> relevant = ent.getTrackedProductionMaterials(); return ent.getEmployeeProductionStatsForPeriod(employeeUUID, start, end, actionTypeFilter, relevant); }
     public Map<Material, Integer> getCompanyProductionStatsForPeriod(String nomEntreprise, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter) { Entreprise ent = getEntreprise(nomEntreprise); if (ent == null) return Collections.emptyMap(); Set<Material> relevant = ent.getTrackedProductionMaterials(); return ent.getAggregatedProductionStatsForPeriod(start, end, actionTypeFilter, relevant); }
-    public boolean canPlayerBreakBlock(Player player, Location location, Material material) {
+    public boolean canPlayerBreakBlock(Player player, Location location) {
         // Utilise notre système de Plot au lieu de Towny
         com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager = plugin.getClaimManager();
         if (claimManager == null) {
@@ -2483,7 +2781,7 @@ public class EntrepriseManagerLogic {
         // Vérifier les permissions de BUILD (qui incluent break)
         return plot.canBuild(player.getUniqueId(), town);
     }
-    public boolean canPlayerPlaceBlock(Player player, Location location, Material material) {
+    public boolean canPlayerPlaceBlock(Player player, Location location) {
         // Utilise notre système de Plot au lieu de Towny
         com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager = plugin.getClaimManager();
         if (claimManager == null) {
@@ -2528,7 +2826,7 @@ public class EntrepriseManagerLogic {
                         if (obj instanceof Map) { @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) obj; PastExperience exp = PastExperience.deserialize(map); if (exp != null) { experiences.add(exp); count++; } }
                         else if (obj != null) { plugin.getLogger().warning("Objet inattendu historique " + uuidStr + ": " + obj.getClass().getName()); }
                     }
-                    experiences.sort(Comparator.comparing(PastExperience::getDateSortie, Comparator.nullsLast(Comparator.reverseOrder())));
+                    experiences.sort(Comparator.comparing(PastExperience::dateSortie, Comparator.nullsLast(Comparator.reverseOrder())));
                     playerHistoryCache.put(playerUUID, experiences);
                 }
             } catch (IllegalArgumentException e) { plugin.getLogger().warning("UUID invalide historique: " + uuidStr); }
@@ -2559,7 +2857,7 @@ public class EntrepriseManagerLogic {
         synchronized (history) {
             if (!history.contains(newEntry)) {
                 history.add(newEntry);
-                history.sort(Comparator.comparing(PastExperience::getDateSortie, Comparator.nullsLast(Comparator.reverseOrder())));
+                history.sort(Comparator.comparing(PastExperience::dateSortie, Comparator.nullsLast(Comparator.reverseOrder())));
                 plugin.getLogger().fine("Historique enregistré pour " + playerUUID + ": " + newEntry);
                 int maxHistorySize = plugin.getConfig().getInt("cv.max-history-entries", 20);
                 if (history.size() > maxHistorySize) { history.subList(maxHistorySize, history.size()).clear(); }
@@ -2671,6 +2969,84 @@ public class EntrepriseManagerLogic {
 
         return ChatColor.GREEN + "Solde maximum amélioré au niveau " + (niveauActuel + 1) + " ("+ String.format("%,.2f", getLimiteMaxSoldeActuelle(entreprise)) +"€ max) ! Coût : " + String.format("%,.2f", cout) + "€.";
     }
+
+    // --- Méthodes pour les Niveaux de Restrictions ---
+
+    /**
+     * Récupère la limite horaire actuelle d'une entreprise pour un type de restriction spécifique
+     * basé sur son niveau de restrictions
+     */
+    public int getLimiteRestrictionActuelle(Entreprise entreprise, String typeEntreprise) {
+        if (entreprise == null) return 0;
+
+        int niveau = entreprise.getNiveauRestrictions();
+        String configPath = "types-entreprise." + typeEntreprise + ".restriction-levels." + niveau + ".limite-par-heure";
+
+        // Si le chemin n'existe pas, utiliser l'ancienne configuration
+        if (!plugin.getConfig().contains(configPath)) {
+            return plugin.getConfig().getInt("types-entreprise." + typeEntreprise + ".limite-non-membre-par-heure", 0);
+        }
+
+        return plugin.getConfig().getInt(configPath, 0);
+    }
+
+    /**
+     * Récupère le coût d'amélioration au niveau suivant de restrictions
+     */
+    public double getCoutAmeliorationRestrictions(Entreprise entreprise) {
+        if (entreprise == null) return -1;
+
+        int niveauActuel = entreprise.getNiveauRestrictions();
+        if (niveauActuel >= 4) return -1; // Niveau max atteint
+
+        int niveauSuivant = niveauActuel + 1;
+        String configPath = "types-entreprise." + entreprise.getType() + ".restriction-levels." + niveauSuivant + ".cout-amelioration";
+
+        return plugin.getConfig().getDouble(configPath, -1);
+    }
+
+    /**
+     * Tente d'améliorer le niveau de restrictions d'une entreprise
+     */
+    public String tenterAmeliorationNiveauRestrictions(Entreprise entreprise, Player gerant) {
+        if (entreprise == null) return ChatColor.RED + "Entreprise non trouvée.";
+        if (!entreprise.getGerant().equalsIgnoreCase(gerant.getName())) {
+            return ChatColor.RED + "Seul le gérant peut effectuer cette action.";
+        }
+
+        int niveauActuel = entreprise.getNiveauRestrictions();
+        if (niveauActuel >= 4) {
+            return ChatColor.YELLOW + "Votre entreprise a déjà atteint le niveau maximum de restrictions (Niveau 4).";
+        }
+
+        double cout = getCoutAmeliorationRestrictions(entreprise);
+        if (cout < 0) {
+            return ChatColor.RED + "Impossible de déterminer le coût de l'amélioration ou niveau max atteint.";
+        }
+
+        if (entreprise.getSolde() < cout) {
+            return ChatColor.RED + "Solde insuffisant (" + String.format("%,.2f", entreprise.getSolde()) +
+                "€). Requis : " + String.format("%,.2f", cout) + "€.";
+        }
+
+        // Récupérer les quotas avant et après
+        int quotaAvant = getLimiteRestrictionActuelle(entreprise, entreprise.getType());
+
+        // Effectuer l'amélioration
+        entreprise.setSolde(entreprise.getSolde() - cout);
+        entreprise.setNiveauRestrictions(niveauActuel + 1);
+        entreprise.addTransaction(new Transaction(TransactionType.OTHER_EXPENSE, cout,
+            "Amélioration niveau restrictions (Niv. " + (niveauActuel + 1) + ")", gerant.getName()));
+        saveEntreprises();
+
+        int quotaApres = getLimiteRestrictionActuelle(entreprise, entreprise.getType());
+
+        return ChatColor.GREEN + "✓ Niveau de restrictions amélioré au niveau " + (niveauActuel + 1) + " !\n" +
+               ChatColor.GRAY + "Quota horaire: " + ChatColor.WHITE + quotaAvant + "/h" +
+               ChatColor.GRAY + " → " + ChatColor.GREEN + quotaApres + "/h\n" +
+               ChatColor.GRAY + "Coût: " + ChatColor.YELLOW + String.format("%,.2f€", cout);
+    }
+
     // --- Fin Méthodes pour les Niveaux ---
 
 
@@ -2680,14 +3056,15 @@ public class EntrepriseManagerLogic {
         private final String gerantNom; private final String gerantUUID;
         private final Set<String> employesNoms; private final Map<String, Double> primes;
         private double solde; private final String siret; private double chiffreAffairesTotal;
-        private List<Transaction> transactionLog; private Map<UUID, EmployeeActivityRecord> employeeActivityRecords;
-        private List<ProductionRecord> globalProductionLog;
+        private final List<Transaction> transactionLog; private final Map<UUID, EmployeeActivityRecord> employeeActivityRecords;
+        private final List<ProductionRecord> globalProductionLog;
         private int niveauMaxEmployes; // Nouveau champ
         private int niveauMaxSolde;    // Nouveau champ
+        private int niveauRestrictions; // Niveau de restrictions (0-4)
 
         public Entreprise(String nom, String ville, String type, String gerantNom, String gerantUUID, Set<String> employesNoms, double solde, String siret) {
             this.nom = nom; this.ville = ville; this.type = type; this.gerantNom = gerantNom; this.gerantUUID = gerantUUID;
-            this.employesNoms = (employesNoms != null) ? ConcurrentHashMap.newKeySet() : ConcurrentHashMap.newKeySet();
+            this.employesNoms = ConcurrentHashMap.newKeySet();
             if (employesNoms != null) this.employesNoms.addAll(employesNoms);
             this.solde = solde; this.siret = siret; this.chiffreAffairesTotal = 0.0;
             this.primes = new ConcurrentHashMap<>();
@@ -2702,6 +3079,7 @@ public class EntrepriseManagerLogic {
             this.globalProductionLog = Collections.synchronizedList(new ArrayList<>());
             this.niveauMaxEmployes = 0; // Valeur par défaut à la création
             this.niveauMaxSolde = 0;    // Valeur par défaut à la création
+            this.niveauRestrictions = 0; // Niveau 0 par défaut (le plus restrictif)
         }
 
         public String getNom() { return nom; }
@@ -2720,6 +3098,7 @@ public class EntrepriseManagerLogic {
 
         public int getNiveauMaxEmployes() { return niveauMaxEmployes; } // Nouveau getter
         public int getNiveauMaxSolde() { return niveauMaxSolde; }       // Nouveau getter
+        public int getNiveauRestrictions() { return niveauRestrictions; } // Getter niveau restrictions
 
         public void setNom(String nom) { this.nom = nom; }
         protected Set<String> getEmployesInternal() { return this.employesNoms; }
@@ -2748,6 +3127,7 @@ public class EntrepriseManagerLogic {
 
         public void setNiveauMaxEmployes(int niveau) { this.niveauMaxEmployes = niveau; } // Nouveau setter
         public void setNiveauMaxSolde(int niveau) { this.niveauMaxSolde = niveau; }       // Nouveau setter
+        public void setNiveauRestrictions(int niveau) { this.niveauRestrictions = Math.max(0, Math.min(4, niveau)); } // Setter niveau restrictions (0-4)
 
         public double calculateProfitLoss(LocalDateTime start, LocalDateTime end) { synchronized(transactionLog) { double income = 0; double expense = 0; for (Transaction tx : transactionLog) { if (!tx.timestamp.isBefore(start) && tx.timestamp.isBefore(end)) { if (tx.type.isOperationalIncome()) income += tx.amount; else if (tx.type.isOperationalExpense()) expense += Math.abs(tx.amount); } } return income - expense; } }
         public Map<Material, Integer> getEmployeeProductionStatsForPeriod(UUID employeeUUID, LocalDateTime start, LocalDateTime end, DetailedActionType actionTypeFilter, Set<Material> relevantMaterials) { EmployeeActivityRecord record = getEmployeeActivityRecord(employeeUUID); if (record == null) return Collections.emptyMap(); return record.getDetailedStatsForPeriod(actionTypeFilter, start, end, relevantMaterials); }
@@ -2768,21 +3148,57 @@ public class EntrepriseManagerLogic {
         public void reinitialiserActions(LocalDateTime maintenant) { this.nombreActions = 0; this.dernierActionHeure = maintenant.truncatedTo(ChronoUnit.HOURS); }
         @Override public String toString() { return "ActionInfo{nActions=" + nombreActions + ", heure=" + dernierActionHeure.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "}"; }
     }
-    public static class DemandeCreation {
-        public final Player maire; public final Player gerant;
-        public final String type; public final String ville; public final String siret;
-        public final String nomEntreprise; public final double cout; private final long expirationTimeMillis;
-        public DemandeCreation(Player maire, Player gerant, String type, String ville, String siret, String nomEntreprise, double cout, long dureeValiditeMillis) { this.maire = maire; this.gerant = gerant; this.type = type; this.ville = ville; this.siret = siret; this.nomEntreprise = nomEntreprise; this.cout = cout; this.expirationTimeMillis = System.currentTimeMillis() + dureeValiditeMillis; }
-        public boolean isExpired() { return System.currentTimeMillis() > expirationTimeMillis; }
-        public long getExpirationTimeMillis() { return expirationTimeMillis; }
-    }
-    public static class ProductionRecord {
-        public final LocalDateTime timestamp; public final Material material; public final int quantity;
-        public final String recordedByEmployeeUUID; public final DetailedActionType actionType;
-        public ProductionRecord(LocalDateTime timestamp, Material material, int quantity, String recordedByEmployeeUUID, DetailedActionType actionType) { this.timestamp = timestamp; this.material = material; this.quantity = quantity; this.recordedByEmployeeUUID = recordedByEmployeeUUID; this.actionType = actionType; }
-        public Map<String, Object> serialize() { Map<String, Object> map = new HashMap<>(); map.put("timestamp", timestamp.toString()); map.put("material", material.name()); map.put("quantity", quantity); map.put("recordedByEmployeeUUID", recordedByEmployeeUUID); map.put("actionType", actionType.name()); return map; }
-        public static ProductionRecord deserialize(Map<String, Object> map) { try { LocalDateTime ts = LocalDateTime.parse((String) map.get("timestamp")); Material mat = Material.matchMaterial((String) map.get("material")); int qty = ((Number) map.get("quantity")).intValue(); String uuid = (String) map.get("recordedByEmployeeUUID"); DetailedActionType at = DetailedActionType.valueOf((String) map.getOrDefault("actionType", DetailedActionType.BLOCK_BROKEN.name())); if (mat == null) { if (plugin != null) plugin.getLogger().warning("Material null désérialisation PR (global): " + map.get("material")); return null; } return new ProductionRecord(ts, mat, qty, uuid, at); } catch (Exception e) { if (plugin != null) plugin.getLogger().warning("Erreur désérialisation PR (global): " + e.getMessage() + " pour map: " + map); return null; } }
-    }
+
+    public record DemandeCreation(Player maire, Player gerant, String type, String ville, String siret,
+                                  String nomEntreprise, double cout, long expirationTimeMillis) {
+            public DemandeCreation(Player maire, Player gerant, String type, String ville, String siret, String nomEntreprise, double cout, long expirationTimeMillis) {
+                this.maire = maire;
+                this.gerant = gerant;
+                this.type = type;
+                this.ville = ville;
+                this.siret = siret;
+                this.nomEntreprise = nomEntreprise;
+                this.cout = cout;
+                this.expirationTimeMillis = System.currentTimeMillis() + expirationTimeMillis;
+            }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expirationTimeMillis;
+        }
+        }
+
+    public record ProductionRecord(LocalDateTime timestamp, Material material, int quantity,
+                                   String recordedByEmployeeUUID, DetailedActionType actionType) {
+        public Map<String, Object> serialize() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("timestamp", timestamp.toString());
+            map.put("material", material.name());
+            map.put("quantity", quantity);
+            map.put("recordedByEmployeeUUID", recordedByEmployeeUUID);
+            map.put("actionType", actionType.name());
+            return map;
+        }
+
+        public static ProductionRecord deserialize(Map<String, Object> map) {
+            try {
+                LocalDateTime ts = LocalDateTime.parse((String) map.get("timestamp"));
+                Material mat = Material.matchMaterial((String) map.get("material"));
+                int qty = ((Number) map.get("quantity")).intValue();
+                String uuid = (String) map.get("recordedByEmployeeUUID");
+                DetailedActionType at = DetailedActionType.valueOf((String) map.getOrDefault("actionType", DetailedActionType.BLOCK_BROKEN.name()));
+                if (mat == null) {
+                    if (plugin != null)
+                        plugin.getLogger().warning("Material null désérialisation PR (global): " + map.get("material"));
+                    return null;
+                }
+                return new ProductionRecord(ts, mat, qty, uuid, at);
+            } catch (Exception e) {
+                if (plugin != null)
+                    plugin.getLogger().warning("Erreur désérialisation PR (global): " + e.getMessage() + " pour map: " + map);
+                return null;
+            }
+        }
+        }
     // --- Fin Classes ---
 
 } // Fin de la classe EntrepriseManagerLogic

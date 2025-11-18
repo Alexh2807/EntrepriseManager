@@ -41,6 +41,9 @@ public class TownMainGUI implements Listener {
     private MyPropertyGUI myPropertyGUI;
     private MyCompaniesGUI myCompaniesGUI;
     private DebtManagementGUI debtManagementGUI;
+    private TownListGUI townListGUI;
+    private NoTownGUI noTownGUI;
+    private com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown cooldownManager;
 
     private static final String MENU_TITLE = "Menu Principal";
     private static final String CREATE_TOWN_TITLE = "Creer une Ville";
@@ -95,6 +98,18 @@ public class TownMainGUI implements Listener {
         this.debtManagementGUI = debtManagementGUI;
     }
 
+    public void setTownListGUI(TownListGUI townListGUI) {
+        this.townListGUI = townListGUI;
+    }
+
+    public void setNoTownGUI(NoTownGUI noTownGUI) {
+        this.noTownGUI = noTownGUI;
+    }
+
+    public void setCooldownManager(com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown cooldownManager) {
+        this.cooldownManager = cooldownManager;
+    }
+
     /**
      * Vérifie si le joueur possède ou loue des terrains dans la ville
      * ⚠️ NOUVEAU SYSTÈME : Vérifie plots individuels ET PlotGroups
@@ -143,8 +158,13 @@ public class TownMainGUI implements Listener {
         String townName = townManager.getPlayerTown(player.getUniqueId());
 
         if (townName == null) {
-            // Joueur sans ville : menu de création/join
-            openNoTownMenu(player);
+            // Joueur sans ville : ouvrir le nouveau NoTownGUI
+            if (noTownGUI != null) {
+                noTownGUI.openNoTownMenu(player);
+            } else {
+                // Fallback vers l'ancien menu si NoTownGUI n'est pas initialisé
+                openNoTownMenu(player);
+            }
         } else {
             // Joueur avec ville : menu principal de gestion
             openTownMenu(player, townName);
@@ -223,9 +243,22 @@ public class TownMainGUI implements Listener {
         // BORDURE SUPÉRIEURE (Ligne 0)
         // ═══════════════════════════════════════════════════════════
         ItemStack borderPane = createDecorativePane(Material.BLACK_STAINED_GLASS_PANE, " ");
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 8; i++) {
             inv.setItem(i, borderPane);
         }
+
+        // Bouton "Villes du Serveur" (slot 8 - coin supérieur droit)
+        ItemStack townListItem = new ItemStack(Material.COMPASS);
+        ItemMeta townListMeta = townListItem.getItemMeta();
+        townListMeta.setDisplayName(ChatColor.AQUA + "🌍 Villes du Serveur");
+        List<String> townListLore = new ArrayList<>();
+        townListLore.add(ChatColor.GRAY + "Explorez les villes existantes");
+        townListLore.add(ChatColor.GRAY + "et téléportez-vous !");
+        townListLore.add("");
+        townListLore.add(ChatColor.YELLOW + "▶ Cliquez pour voir la liste");
+        townListMeta.setLore(townListLore);
+        townListItem.setItemMeta(townListMeta);
+        inv.setItem(8, townListItem);
 
         // ═══════════════════════════════════════════════════════════
         // EN-TÊTE - INFORMATIONS DE LA VILLE (Ligne 1)
@@ -360,7 +393,7 @@ public class TownMainGUI implements Listener {
         ItemMeta bankMeta = bankItem.getItemMeta();
         bankMeta.setDisplayName(ChatColor.GOLD + "💰 Banque Municipale");
         List<String> bankLore = new ArrayList<>();
-        bankLore.add(ChatColor.GRAY + "Solde: " + ChatColor.GOLD + "" + ChatColor.BOLD + String.format("%.2f€", town.getBankBalance()));
+        bankLore.add(ChatColor.GRAY + "Solde: " + ChatColor.GOLD + ChatColor.BOLD + String.format("%.2f€", town.getBankBalance()));
         bankLore.add("");
         bankLore.add(ChatColor.GRAY + "▪ Déposer / Retirer");
         bankLore.add(ChatColor.GRAY + "▪ Historique des transactions");
@@ -395,7 +428,8 @@ public class TownMainGUI implements Listener {
         // Compter le nombre d'items admin pour centrer dynamiquement
         int adminItemCount = 0;
         if (role == TownRole.MAIRE) adminItemCount++;
-        if (isAdmin) adminItemCount++;
+        if (isAdmin) adminItemCount++; // Gestion de la Ville
+        if (isAdmin) adminItemCount++; // Définir Spawn
         if (isAdmin || role == TownRole.ARCHITECTE) adminItemCount++;
         boolean canAccessServices = (role == TownRole.POLICIER || role == TownRole.JUGE || isAdmin || hasUnpaidFines(player));
         if (canAccessServices) adminItemCount++;
@@ -425,6 +459,28 @@ public class TownMainGUI implements Listener {
             upgradeMeta.setLore(upgradeLore);
             upgradeItem.setItemMeta(upgradeMeta);
             inv.setItem(adminSlotCounter++, upgradeItem);
+        }
+
+        // Définir Spawn (Maire/Adjoint uniquement)
+        if (isAdmin) {
+            ItemStack spawnItem = new ItemStack(Material.RESPAWN_ANCHOR);
+            ItemMeta spawnMeta = spawnItem.getItemMeta();
+            spawnMeta.setDisplayName(ChatColor.GREEN + "🏠 Definir le Spawn");
+            List<String> spawnLore = new ArrayList<>();
+            if (town.hasSpawnLocation()) {
+                spawnLore.add(ChatColor.GREEN + "✓ Spawn configuré");
+                spawnLore.add("");
+                spawnLore.add(ChatColor.GRAY + "Les joueurs peuvent se");
+                spawnLore.add(ChatColor.GRAY + "téléporter à votre ville");
+            } else {
+                spawnLore.add(ChatColor.GRAY + "Définir le point de spawn");
+                spawnLore.add(ChatColor.GRAY + "pour la téléportation");
+            }
+            spawnLore.add("");
+            spawnLore.add(ChatColor.YELLOW + "▶ Cliquez pour définir ici");
+            spawnMeta.setLore(spawnLore);
+            spawnItem.setItemMeta(spawnMeta);
+            inv.setItem(adminSlotCounter++, spawnItem);
         }
 
         // Gestion de la Ville (Maire/Adjoint uniquement)
@@ -762,6 +818,16 @@ public class TownMainGUI implements Listener {
         } else if (strippedName.contains("Reglements")) {
             player.closeInventory();
             handleShowRules(player);
+        } else if (strippedName.contains("Villes du Serveur")) {
+            player.closeInventory();
+            if (townListGUI != null) {
+                townListGUI.openTownList(player, true); // showBackButton = true
+            } else {
+                NavigationManager.sendError(player, "Le système de liste des villes n'est pas disponible.");
+            }
+        } else if (strippedName.contains("Definir le Spawn")) {
+            player.closeInventory();
+            handleSetSpawn(player);
         } else if (strippedName.contains("Quitter la Ville")) {
             player.closeInventory();
             handleLeaveTown(player);
@@ -1133,5 +1199,51 @@ public class TownMainGUI implements Listener {
 
         // FIX: Ouverture directe de l'inventaire (NavigationManager cause des erreurs de packet)
         player.openInventory(inv);
+    }
+
+    /**
+     * Définit le spawn de la ville à la position actuelle du joueur
+     */
+    private void handleSetSpawn(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
+            return;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            NavigationManager.sendError(player, "Erreur: Ville introuvable.");
+            return;
+        }
+
+        // Vérifier les permissions (maire/adjoint uniquement)
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+            NavigationManager.sendError(player, "Seuls le maire et les adjoints peuvent définir le spawn.");
+            return;
+        }
+
+        // Définir le spawn à la position actuelle du joueur
+        org.bukkit.Location playerLocation = player.getLocation();
+        town.setSpawnLocation(playerLocation);
+
+        // Sauvegarder les données
+        townManager.saveTownsNow();
+
+        // Message de succès
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GREEN + "✓ Spawn de la ville défini avec succès !");
+        player.sendMessage(ChatColor.YELLOW + "Position: " + ChatColor.WHITE +
+            String.format("X: %.1f, Y: %.1f, Z: %.1f",
+                playerLocation.getX(),
+                playerLocation.getY(),
+                playerLocation.getZ()));
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Les joueurs peuvent maintenant se téléporter à votre ville !");
+        player.sendMessage("");
+
+        // Rouvrir le menu après 2 secondes
+        Bukkit.getScheduler().runTaskLater(plugin, () -> openMainMenu(player), 40L);
     }
 }

@@ -49,22 +49,10 @@ public class CompanySelectionGUI implements Listener {
     }
 
     /**
-     * Contexte de sélection stockant les informations de l'opération
-     */
-    private static class SelectionContext {
-        final int chunkX;
-        final int chunkZ;
-        final String worldName;
-        final boolean isGroup;
-        final OperationType operationType;
-
-        SelectionContext(int chunkX, int chunkZ, String worldName, boolean isGroup, OperationType operationType) {
-            this.chunkX = chunkX;
-            this.chunkZ = chunkZ;
-            this.worldName = worldName;
-            this.isGroup = isGroup;
-            this.operationType = operationType;
-        }
+         * Contexte de sélection stockant les informations de l'opération
+         */
+        private record SelectionContext(int chunkX, int chunkZ, String worldName, boolean isGroup,
+                                        OperationType operationType) {
     }
 
     /**
@@ -170,8 +158,7 @@ public class CompanySelectionGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
 
         String title = event.getView().getTitle();
         if (!title.contains("avec quelle entreprise")) return;

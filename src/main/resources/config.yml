@@ -12,6 +12,16 @@
 # Configuration complète des types d'entreprises,
 # restrictions d'activités, et économie des métiers
 
+# ============================================
+#          MODE SERVICE (NOUVEAU)
+# ============================================
+# Configuration du mode service pour les employés
+# En mode service: pas de restrictions, items ne tombent pas, split argent 50/50
+service-mode:
+  revenue-split:
+    employee: 50.0    # Pourcentage pour l'employé (défaut: 50%)
+    company: 50.0     # Pourcentage pour l'entreprise (défaut: 50%)
+
 #--------------------------------------------------------------------------------------------------
 # TYPES D'ENTREPRISES
 #--------------------------------------------------------------------------------------------------
@@ -67,7 +77,29 @@ types-entreprise:
         ANCIENT_DEBRIS: 180.00
     message-erreur-restriction:
       - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
-      - "&eLimite non-membre : %limite% unités par heure. Vous pourrez réessayer à la prochaine heure."
+      - "&eLimite : %limite% unités par heure. Améliorez votre entreprise avec /entreprise gui"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Mine artisanale
+        limite-par-heure: 5
+        cout-amelioration: 8000.0
+        description: "Mine artisanale"
+      1:  # Petite exploitation
+        limite-par-heure: 15
+        cout-amelioration: 20000.0
+        description: "Petite exploitation"
+      2:  # Exploitation moyenne
+        limite-par-heure: 40
+        cout-amelioration: 50000.0
+        description: "Exploitation moyenne"
+      3:  # Grande exploitation
+        limite-par-heure: 100
+        cout-amelioration: 120000.0
+        description: "Grande exploitation"
+      4:  # Complexe minier industriel (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Complexe minier industriel"
     limite-non-membre-par-heure: 3
     cout-creation: 12000.0
 
@@ -77,7 +109,7 @@ types-entreprise:
     action_restrictions:
       BLOCK_BREAK:
         WHEAT: {}
-        CARROT: {}
+        CARROTS: {}
         POTATOES: {}
         BEETROOTS: {}
         NETHER_WART: {}
@@ -91,7 +123,7 @@ types-entreprise:
     activites-payantes:
       BLOCK_BREAK:
         WHEAT: 0.45
-        CARROT: 0.35
+        CARROTS: 0.35
         POTATOES: 0.35
         BEETROOTS: 0.35
         NETHER_WART: 0.10
@@ -103,7 +135,29 @@ types-entreprise:
         CACTUS: 0.28
     message-erreur-restriction:
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
-      - "&eLimite non-membre : %limite% récoltes par heure. Réessayez à la prochaine heure pour plus."
+      - "&eLimite : %limite% récoltes par heure. Améliorez votre entreprise avec /entreprise gui"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Potager
+        limite-par-heure: 10
+        cout-amelioration: 5000.0
+        description: "Potager"
+      1:  # Petite ferme
+        limite-par-heure: 30
+        cout-amelioration: 12000.0
+        description: "Petite ferme"
+      2:  # Ferme moyenne
+        limite-par-heure: 80
+        cout-amelioration: 30000.0
+        description: "Ferme moyenne"
+      3:  # Grande ferme
+        limite-par-heure: 200
+        cout-amelioration: 70000.0
+        description: "Grande ferme"
+      4:  # Exploitation agricole industrielle (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Exploitation agricole industrielle"
     limite-non-membre-par-heure: 6
     cout-creation: 6000.0
     aide-etat-horaire: 150.0
@@ -210,7 +264,29 @@ types-entreprise:
         STRIPPED_BAMBOO_BLOCK: 0.65
     message-erreur-restriction:
       - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
-      - "&eLimite non-membre : %limite% bûches par heure. Réessayez à la prochaine heure."
+      - "&eLimite : %limite% bûches par heure. Améliorez votre entreprise avec /entreprise gui"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Bûcheron artisan
+        limite-par-heure: 10
+        cout-amelioration: 6000.0
+        description: "Bûcheron artisan"
+      1:  # Petite scierie
+        limite-par-heure: 35
+        cout-amelioration: 15000.0
+        description: "Petite scierie"
+      2:  # Scierie moyenne
+        limite-par-heure: 90
+        cout-amelioration: 35000.0
+        description: "Scierie moyenne"
+      3:  # Grande scierie
+        limite-par-heure: 220
+        cout-amelioration: 80000.0
+        description: "Grande scierie"
+      4:  # Complexe forestier industriel (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Complexe forestier industriel"
     limite-non-membre-par-heure: 8
     cout-creation: 7000.0
 
@@ -276,8 +352,30 @@ types-entreprise:
         LEAD: 0.08
     message-erreur-restriction:
       - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
-      - "&eLimite non-membre : %limite% abattages/crafts par heure. Réessayez à la prochaine heure."
+      - "&eLimite : %limite% abattages/crafts par heure. Améliorez votre entreprise avec /entreprise gui"
       - "&fRejoignez une Boucherie ou créez-en une pour exceller dans l'élevage et l'abattage."
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Boucher artisan
+        limite-par-heure: 5
+        cout-amelioration: 7000.0
+        description: "Boucher artisan"
+      1:  # Petite boucherie
+        limite-par-heure: 18
+        cout-amelioration: 18000.0
+        description: "Petite boucherie"
+      2:  # Boucherie établie
+        limite-par-heure: 50
+        cout-amelioration: 45000.0
+        description: "Boucherie établie"
+      3:  # Grande boucherie
+        limite-par-heure: 130
+        cout-amelioration: 100000.0
+        description: "Grande boucherie"
+      4:  # Abattoir industriel (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Abattoir industriel"
     limite-non-membre-par-heure: 2
     cout-creation: 7500.0
 
@@ -346,7 +444,29 @@ types-entreprise:
         CROSSBOW: 30.0
     message-erreur-restriction:
       - "&cLa forge de cet équipement requiert une expertise d'&5Armurier&c."
-      - "&eLimite non-membre : %limite% fabrications par heure. Réessayez à la prochaine heure."
+      - "&eLimite : %limite% fabrications par heure. Améliorez votre entreprise avec /entreprise gui"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Atelier débutant
+        limite-par-heure: 1
+        cout-amelioration: 5000.0
+        description: "Atelier débutant"
+      1:  # Atelier apprenti
+        limite-par-heure: 3
+        cout-amelioration: 15000.0
+        description: "Atelier apprenti"
+      2:  # Atelier compagnon
+        limite-par-heure: 8
+        cout-amelioration: 35000.0
+        description: "Atelier compagnon"
+      3:  # Atelier expert
+        limite-par-heure: 20
+        cout-amelioration: 75000.0
+        description: "Atelier expert"
+      4:  # Forge de maître (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Forge de maître"
     limite-non-membre-par-heure: 0
     cout-creation: 18000.0
 
@@ -371,7 +491,29 @@ types-entreprise:
         RABBIT_STEW: 7.00
     message-erreur-restriction:
       - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
-      - "&eLimite non-membre : %limite% produits par heure. Réessayez à la prochaine heure."
+      - "&eLimite : %limite% produits par heure. Améliorez votre entreprise avec /entreprise gui"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Fournil artisan
+        limite-par-heure: 8
+        cout-amelioration: 7000.0
+        description: "Fournil artisan"
+      1:  # Petite boulangerie
+        limite-par-heure: 25
+        cout-amelioration: 17000.0
+        description: "Petite boulangerie"
+      2:  # Boulangerie établie
+        limite-par-heure: 65
+        cout-amelioration: 40000.0
+        description: "Boulangerie établie"
+      3:  # Grande boulangerie
+        limite-par-heure: 160
+        cout-amelioration: 90000.0
+        description: "Grande boulangerie"
+      4:  # Boulangerie industrielle (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Boulangerie industrielle"
     limite-non-membre-par-heure: 2
     cout-creation: 8000.0
 
@@ -401,8 +543,30 @@ types-entreprise:
         valise_voyage: 50.00
     message-erreur-restriction:
       - "&cLa confection de sacs et accessoires est réservée aux &dStylistes&c."
-      - "&eSeuls les membres d'un atelier Styliste peuvent créer ces articles de mode."
+      - "&eLimite : %limite% créations par heure. Améliorez votre entreprise avec /entreprise gui"
       - "&7Créez ou rejoignez un atelier Styliste pour débloquer ces crafts !"
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Atelier artisan
+        limite-par-heure: 2
+        cout-amelioration: 10000.0
+        description: "Atelier artisan"
+      1:  # Petit atelier
+        limite-par-heure: 6
+        cout-amelioration: 25000.0
+        description: "Petit atelier"
+      2:  # Atelier établi
+        limite-par-heure: 15
+        cout-amelioration: 60000.0
+        description: "Atelier établi"
+      3:  # Grand atelier
+        limite-par-heure: 35
+        cout-amelioration: 130000.0
+        description: "Grand atelier"
+      4:  # Manufacture de luxe (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Manufacture de luxe"
     limite-non-membre-par-heure: 0
     cout-creation: 12000.0
 
@@ -881,8 +1045,30 @@ types-entreprise:
         BLACK_CONCRETE_POWDER: 0.01
     message-erreur-restriction:
       - "&cL'utilisation massive de cet item est réservée aux entreprises de &3Construction&c."
-      - "&eLimite non-membre : %limite% crafts de ce type par heure. Réessayez à la prochaine heure !"
+      - "&eLimite : %limite% crafts par heure. Améliorez votre entreprise avec /entreprise gui"
       - "&fRejoignez une entreprise de Construction ou créez-en une pour débloquer ces restrictions."
+    # Niveaux de restrictions (quotas horaires pour les membres)
+    restriction-levels:
+      0:  # Petit atelier
+        limite-par-heure: 25
+        cout-amelioration: 7000.0
+        description: "Petit atelier"
+      1:  # Atelier moyen
+        limite-par-heure: 70
+        cout-amelioration: 18000.0
+        description: "Atelier moyen"
+      2:  # Grand atelier
+        limite-par-heure: 180
+        cout-amelioration: 42000.0
+        description: "Grand atelier"
+      3:  # Usine de fabrication
+        limite-par-heure: 450
+        cout-amelioration: 95000.0
+        description: "Usine de fabrication"
+      4:  # Complexe industriel (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Complexe industriel"
     limite-non-membre-par-heure: 16
     cout-creation: 8000.0
 
@@ -898,6 +1084,28 @@ types-entreprise:
     activites-payantes: {}
     message-erreur-restriction:
       - "&cCette action n'est pas restreinte pour les Supermarchés."
+    # Niveaux de restrictions (peu de restrictions car type commercial)
+    restriction-levels:
+      0:  # Épicerie de quartier
+        limite-par-heure: -1
+        cout-amelioration: 15000.0
+        description: "Épicerie de quartier"
+      1:  # Superette
+        limite-par-heure: -1
+        cout-amelioration: 35000.0
+        description: "Superette"
+      2:  # Supermarché
+        limite-par-heure: -1
+        cout-amelioration: 75000.0
+        description: "Supermarché"
+      3:  # Hypermarché
+        limite-par-heure: -1
+        cout-amelioration: 150000.0
+        description: "Hypermarché"
+      4:  # Centre commercial (max)
+        limite-par-heure: -1
+        cout-amelioration: 0
+        description: "Centre commercial"
     limite-non-membre-par-heure: 0
     cout-creation: 20000.0
 

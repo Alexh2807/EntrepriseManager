@@ -20,7 +20,6 @@ import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -280,7 +279,7 @@ public class TownMembersGUI implements Listener {
                 player.closeInventory();
             } else if (strippedName.contains("Inviter")) {
                 player.closeInventory();
-                openInvitePlayerMenu(player, townName);
+                openInvitePlayerMenu(player);
             } else if (clicked.getType() == Material.PLAYER_HEAD) {
                 // Clic sur un membre
                 if (playerRole != TownRole.MAIRE) {
@@ -329,7 +328,6 @@ public class TownMembersGUI implements Listener {
             } else if (strippedName.contains("Indisponible")) {
                 // Rôle indisponible - ne rien faire
                 player.sendMessage(ChatColor.RED + "Ce rôle n'est pas disponible pour votre ville.");
-                return;
             } else {
                 // Changer le rôle (UN SEUL RÔLE À LA FOIS)
                 TownRole selectedRole = null;
@@ -365,7 +363,7 @@ public class TownMembersGUI implements Listener {
                     if (!assignmentResult.canAssign()) {
                         player.closeInventory();
                         player.sendMessage("");
-                        player.sendMessage(assignmentResult.getMessage());
+                        player.sendMessage(assignmentResult.message());
                         player.sendMessage("");
                         return;
                     }
@@ -428,7 +426,7 @@ public class TownMembersGUI implements Listener {
         }
     }
 
-    private void openInvitePlayerMenu(Player inviter, String townName) {
+    private void openInvitePlayerMenu(Player inviter) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.GREEN + "Inviter un joueur");
 
         // Liste des joueurs en ligne dans un rayon de 50 blocs

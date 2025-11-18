@@ -1,0 +1,109 @@
+# FIX BASSE #20: English messages for RoleplayCity
+# i18n system with unified formatting
+# Placeholders: {0}, {1}, {2}, etc.
+
+# === PREFIXES ===
+prefixes:
+  info: "&7[&bInfo&7]&f"
+  success: "&7[&a✓&7]&f"
+  warning: "&7[&e⚠&7]&f"
+  error: "&7[&c✗&7]&f"
+  debug: "&7[&dDebug&7]&f"
+
+# === GENERIC MESSAGES ===
+general:
+  no-permission: "You don't have permission to perform this action."
+  player-only: "This command can only be executed by a player."
+  invalid-player: "Player &e{0}&f not found or offline."
+  invalid-number: "&e{0}&f is not a valid number."
+  invalid-amount: "Amount must be between &e{0}&f and &e{1}&f."
+  too-far: "You are too far away. Maximum distance: &e{0}&f blocks."
+  cooldown: "Please wait &e{0}&f seconds before using this command again."
+  command-usage: "Usage: &e{0}"
+
+# === COMPANIES ===
+entreprise:
+  created: "Company &e{0}&f created successfully! SIRET: &e{1}"
+  deleted: "Company &e{0}&f deleted."
+  renamed: "Company renamed to &e{0}&f. Cost: &e{1}"
+  not-found: "No company named &e{0}&f found."
+  already-exists: "A company named &e{0}&f already exists."
+
+  error:
+    insufficient-funds: "Insufficient funds. Required: &e{0}&f, Available: &e{1}"
+    max-entreprises: "You have reached the limit of &e{0}&f company(ies)."
+    max-employees: "Employee limit reached (&e{0}/{1}&f)."
+    not-owner: "You must be the manager of &e{0}&f to perform this action."
+    invalid-name: "Invalid name. Must be between &e{0}&f and &e{1}&f characters."
+
+  confirm:
+    delete: "Are you sure you want to delete company &e{0}&f? This action is irreversible and will remove:\n&7• All employees\n&7• All shops\n&7• Transaction history"
+    fire-employee: "Are you sure you want to fire &e{0}&f from company &e{1}&f?"
+
+  employee-hired: "&e{0}&f has been hired at company &e{1}&f."
+  employee-fired: "&e{0}&f has been fired from company &e{1}&f."
+  salary-set: "Salary for &e{0}&f set to &e{1}&f per hour."
+  deposit-success: "&e{0}&f deposited to company. New balance: &e{1}"
+  withdraw-success: "&e{0}&f withdrawn from company. New balance: &e{1}"
+
+# === TOWNS ===
+town:
+  created: "Town &e{0}&f founded successfully! You are the mayor."
+  deleted: "Town &e{0}&f dissolved."
+  joined: "You have joined the town of &e{0}&f."
+  left: "You have left the town of &e{0}&f."
+  not-found: "Town &e{0}&f doesn't exist."
+  already-exists: "A town named &e{0}&f already exists."
+
+  error:
+    not-member: "You are not a member of town &e{0}&f."
+    not-mayor: "Only the mayor can perform this action."
+    insufficient-bank: "Town bank doesn't have enough funds. Required: &e{0}&f, Available: &e{1}"
+    max-claims: "Claim limit reached (&e{0}/{1}&f). Upgrade your town for more."
+    chunk-already-claimed: "This chunk is already claimed by &e{0}&f."
+
+  confirm:
+    delete-town: "Are you sure you want to dissolve town &e{0}&f? This will remove:\n&7• All members ({1})\n&7• All plots ({2})\n&7• Bank balance ({3})"
+    kick-member: "Are you sure you want to kick &e{0}&f from the town?"
+
+  plot:
+    claimed: "Chunk claimed for town &e{0}&f. Remaining claims: &e{1}"
+    unclaimed: "Chunk released. Claims used: &e{0}/{1}"
+    sold: "Plot &e{0}&f sold for &e{1}&f."
+    rented: "Plot &e{0}&f rented for &e{1}&f/day for &e{2}&f days."
+    type-changed: "Plot type changed to &e{0}&f."
+
+  member:
+    invited: "&e{0}&f has been invited to join the town."
+    role-changed: "Role of &e{0}&f changed to &e{1}&f."
+    kicked: "&e{0}&f has been kicked from the town."
+
+# === GUI TITLES ===
+gui:
+  titles:
+    main-menu: "&6&l⚙ RoleplayCity"
+    entreprise-list: "&6&l📋 My Companies"
+    entreprise-manage: "&6&l⚙ Management - {0}"
+    employee-list: "&6&l👥 Employees ({0}/{1})"
+    shop-list: "&6&l🏪 Shops"
+    town-main: "&6&l🏛 Town of {0}"
+    town-members: "&6&l👥 Members ({0})"
+    town-plots: "&6&l📍 Plots ({0})"
+    town-bank: "&6&l💰 Bank - {0}"
+    police-menu: "&6&l👮 Police Menu"
+    medical-menu: "&6&l⚕ Medical Menu"
+    mailbox: "&6&l📬 Mailbox"
+
+  buttons:
+    back: "&7← Back"
+    close: "&cClose"
+    confirm: "&a✓ Confirm"
+    cancel: "&c✗ Cancel"
+    next-page: "&7Next page →"
+    prev-page: "&7← Previous page"
+    info: "&bℹ Information"
+
+# === RELOAD ===
+reload:
+  success: "Configuration reloaded successfully."
+  messages-reloaded: "Messages reloaded. Language: &e{0}"

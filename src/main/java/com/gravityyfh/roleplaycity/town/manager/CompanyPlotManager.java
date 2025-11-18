@@ -11,7 +11,6 @@ import org.bukkit.entity.Player;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -226,12 +225,8 @@ public class CompanyPlotManager {
         // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
         long daysPassed = ChronoUnit.DAYS.between(warningDate.toLocalDate(), now.toLocalDate());
 
-        if (daysPassed >= DEBT_GRACE_PERIOD_DAYS) {
-            // Délai dépassé - saisie automatique
-            return true;
-        }
-
-        return false;
+        // Délai dépassé - saisie automatique
+        return daysPassed >= DEBT_GRACE_PERIOD_DAYS;
     }
 
     /**
@@ -289,7 +284,7 @@ public class CompanyPlotManager {
     /**
      * Saisit un terrain pour dette impayée
      */
-    public void seizePlotForDebt(Plot plot, String townName) {
+    public void seizePlotForDebt(Plot plot) {
         if (plot == null) {
             return;
         }

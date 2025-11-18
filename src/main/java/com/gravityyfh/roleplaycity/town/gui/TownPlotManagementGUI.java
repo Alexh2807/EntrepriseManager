@@ -466,7 +466,6 @@ public class TownPlotManagementGUI implements Listener {
                 if (selectedType != null && player.hasMetadata("plot_type_change_town")) {
                     // FIX UX P2.7: Utiliser le Plot stocké
                     Plot plot = currentMenuPlots.get(player.getUniqueId());
-                    String townName = player.getMetadata("plot_type_change_town").get(0).asString();
                     player.removeMetadata("plot_type_change_town", plugin);
 
                     if (plot != null) {
@@ -610,7 +609,6 @@ public class TownPlotManagementGUI implements Listener {
 
                 if (selectedSubtype != null && player.hasMetadata("plot_subtype_change_town")) {
                     Plot plot = currentMenuPlots.get(player.getUniqueId());
-                    String townName = player.getMetadata("plot_subtype_change_town").get(0).asString();
                     player.removeMetadata("plot_subtype_change_town", plugin);
 
                     if (plot != null) {
@@ -672,7 +670,7 @@ public class TownPlotManagementGUI implements Listener {
         } else if (displayName.contains("Dégrouper ce Terrain")) {
             handleUngroupPlot(player, plot, townName);
         } else if (displayName.contains("Retourner à la Ville")) {
-            handleUnclaimPlot(player, plot, townName);
+            handleUnclaimPlot(player, plot);
         } else if (displayName.contains("Expulser Propriétaire/Locataire")) {
             handleEvictOwnerOrRenter(player, plot, townName);
         } else if (displayName.contains("Retour à Mes Propriétés")) {
@@ -798,7 +796,7 @@ public class TownPlotManagementGUI implements Listener {
         plugin.getPlotGroupManagementGUI().ungroupPlot(player, plot, townName);
     }
 
-    private void handleUnclaimPlot(Player player, Plot plot, String townName) {
+    private void handleUnclaimPlot(Player player, Plot plot) {
         player.closeInventory();
 
         // SÉCURITÉ : Vérifier que la parcelle n'est pas louée
@@ -1249,21 +1247,10 @@ public class TownPlotManagementGUI implements Listener {
         RECHARGE_RENT_DAYS
     }
 
-    private static class PlotActionContext {
-        final ActionType actionType;
-        final Plot plot;
-        final String townName;
-        final double tempPrice;
+    private record PlotActionContext(ActionType actionType, Plot plot, String townName, double tempPrice) {
+            PlotActionContext(ActionType actionType, Plot plot, String townName) {
+                this(actionType, plot, townName, 0);
+            }
 
-        PlotActionContext(ActionType actionType, Plot plot, String townName) {
-            this(actionType, plot, townName, 0);
-        }
-
-        PlotActionContext(ActionType actionType, Plot plot, String townName, double tempPrice) {
-            this.actionType = actionType;
-            this.plot = plot;
-            this.townName = townName;
-            this.tempPrice = tempPrice;
-        }
     }
 }

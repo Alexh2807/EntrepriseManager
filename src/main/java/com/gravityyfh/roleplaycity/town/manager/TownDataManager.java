@@ -73,6 +73,17 @@ public class TownDataManager {
             // Niveau de la ville
             townsConfig.set(path + ".level", town.getLevel().name());
 
+            // Spawn de la ville
+            if (town.hasSpawnLocation()) {
+                org.bukkit.Location spawn = town.getSpawnLocation();
+                townsConfig.set(path + ".spawn.world", spawn.getWorld().getName());
+                townsConfig.set(path + ".spawn.x", spawn.getX());
+                townsConfig.set(path + ".spawn.y", spawn.getY());
+                townsConfig.set(path + ".spawn.z", spawn.getZ());
+                townsConfig.set(path + ".spawn.yaw", spawn.getYaw());
+                townsConfig.set(path + ".spawn.pitch", spawn.getPitch());
+            }
+
             // Membres
             int memberIndex = 0;
             for (TownMember member : town.getMembers().values()) {
@@ -262,17 +273,17 @@ public class TownDataManager {
                     com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox = plot.getMailbox();
                     String mailboxPath = plotPath + ".mailbox";
 
-                    townsConfig.set(mailboxPath + ".type", mailbox.getType().name());
+                    townsConfig.set(mailboxPath + ".type", mailbox.type().name());
 
                     // Sauvegarder la position de la tête
-                    Location headLoc = mailbox.getHeadLocation();
+                    Location headLoc = mailbox.headLocation();
                     townsConfig.set(mailboxPath + ".head-location.world", headLoc.getWorld().getName());
                     townsConfig.set(mailboxPath + ".head-location.x", headLoc.getX());
                     townsConfig.set(mailboxPath + ".head-location.y", headLoc.getY());
                     townsConfig.set(mailboxPath + ".head-location.z", headLoc.getZ());
 
                     // Sauvegarder l'inventaire virtuel (items)
-                    Map<Integer, org.bukkit.inventory.ItemStack> items = mailbox.getItems();
+                    Map<Integer, org.bukkit.inventory.ItemStack> items = mailbox.items();
                     if (!items.isEmpty()) {
                         for (Map.Entry<Integer, org.bukkit.inventory.ItemStack> itemEntry : items.entrySet()) {
                             townsConfig.set(mailboxPath + ".items." + itemEntry.getKey(), itemEntry.getValue());
@@ -395,8 +406,6 @@ public class TownDataManager {
         // Charger les infos de base
         UUID mayorUuid = UUID.fromString(section.getString("mayor-uuid"));
         String description = section.getString("description", "");
-        LocalDateTime foundationDate = LocalDateTime.parse(
-            section.getString("foundation-date"), DATE_FORMAT);
 
         // Note: On ne peut pas utiliser le constructeur normal car il initialise des valeurs
         // On doit créer la ville puis charger les données
@@ -444,6 +453,29 @@ public class TownDataManager {
         } else {
             // Rétrocompatibilité : si le niveau n'est pas défini, on met CAMPEMENT
             town.setLevel(TownLevel.CAMPEMENT);
+        }
+
+        // Charger le spawn de la ville
+        if (section.contains("spawn")) {
+            try {
+                String worldName = section.getString("spawn.world");
+                org.bukkit.World world = plugin.getServer().getWorld(worldName);
+
+                if (world != null) {
+                    double x = section.getDouble("spawn.x");
+                    double y = section.getDouble("spawn.y");
+                    double z = section.getDouble("spawn.z");
+                    float yaw = (float) section.getDouble("spawn.yaw", 0.0);
+                    float pitch = (float) section.getDouble("spawn.pitch", 0.0);
+
+                    org.bukkit.Location spawnLoc = new org.bukkit.Location(world, x, y, z, yaw, pitch);
+                    town.setSpawnLocation(spawnLoc);
+                } else {
+                    plugin.getLogger().warning("Monde introuvable pour spawn de ville " + townName + ": " + worldName);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Erreur lors du chargement du spawn de ville " + townName + ": " + e.getMessage());
+            }
         }
 
         // Charger les membres (sauf le maire déjà ajouté)
