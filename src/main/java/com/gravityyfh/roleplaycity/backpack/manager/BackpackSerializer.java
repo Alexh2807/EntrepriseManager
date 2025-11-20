@@ -81,7 +81,7 @@ public class BackpackSerializer {
      * @param defaultSize La taille par défaut si la désérialisation échoue
      * @return Le tableau d'items, ou un tableau vide en cas d'erreur
      */
-    public static ItemStack[] deserialize(String data, int defaultSize) {
+    public static ItemStack[] deserializeData(String data, int defaultSize) {
         if (data == null || data.isEmpty()) {
             return new ItemStack[defaultSize];
         }

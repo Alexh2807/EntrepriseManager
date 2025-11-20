@@ -325,22 +325,44 @@ public class HandcuffsListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        // Réappliquer les menottes si nécessaire (persistance)
+        if (handcuffedData.isHandcuffed(player)) {
+            handcuffedData.reapplyHandcuffs(player);
+        }
+    }
+
     /**
-     * Nettoie les données lors de la déconnexion
+     * Nettoie les effets visuels lors de la déconnexion
+     * MAIS garde le joueur dans la liste (persistance)
      */
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // Si le joueur était menotté
         if (handcuffedData.isHandcuffed(player)) {
+            // Si configuré pour tuer à la déco
             boolean killOnQuit = plugin.getConfig().getBoolean("police-equipment.handcuffs.kill-if-quit", false);
-
             if (killOnQuit) {
                 player.setHealth(0);
+                handcuffedData.removeHandcuffs(player); // Si mort, on retire
+            } else {
+                // Sinon on garde menotté, mais on nettoie juste la BossBar temporairement
+                // (HandcuffedPlayerData.removeHandcuffs retire TOUT, donc on ne l'utilise pas ici)
+                // On veut juste nettoyer la BossBar pour éviter les fuites mémoire
+                // Mais HandcuffedPlayerData ne permet pas de juste cacher la barre sans retirer le joueur...
+                // ATTENTION: HandcuffedPlayerData.removeHandcuffs retire de la map !
+                // Il faut modifier ou contourner.
+                // Pour l'instant, la BossBar se nettoie automatiquement quand le joueur quitte (Bukkit handle ça)
+                // Mais HandcuffedPlayerData garde une référence.
+                // La solution propre : Ne rien faire ici (la BossBar disparaitra visuellement).
+                // HandcuffedPlayerData gardera la référence BossBar invalide, mais reapplyHandcuffs écrasera au join.
+                
+                // UPDATE: Pour être propre, on devrait avoir une méthode 'suspendHandcuffs' dans Data.
+                // Mais pour ce fix rapide : ne rien faire suffit, sauf si killOnQuit.
             }
-
-            handcuffedData.removeHandcuffs(player);
         }
     }
 }

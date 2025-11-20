@@ -115,7 +115,8 @@ public class TownUpgradeGUI implements Listener {
         lore.add(ChatColor.AQUA + "📊 Statistiques actuelles:");
         lore.add(ChatColor.GRAY + "  • Population: " + ChatColor.WHITE + town.getMemberCount() + " joueur(s)");
         lore.add(ChatColor.GRAY + "  • Claims utilisés: " + ChatColor.WHITE + town.getRealChunkCount() + "/" + config.getMaxClaims());
-        lore.add(ChatColor.GRAY + "  • Solde banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()));
+        lore.add(ChatColor.GRAY + "  • Solde banque: " + ChatColor.GOLD + String.format("%.2f€", town.getBankBalance()) + 
+                 ChatColor.GRAY + " / " + ChatColor.YELLOW + String.format("%.2f€", config.getBankLimit()));
         lore.add("");
         lore.add(ChatColor.AQUA + "👮 Personnel municipal:");
         lore.add(ChatColor.GRAY + "  • Policiers: " + ChatColor.WHITE +
@@ -148,6 +149,7 @@ public class TownUpgradeGUI implements Listener {
         lore.add(ChatColor.GRAY + "  • Population: " + ChatColor.WHITE + config.getMinPopulation() + "-" +
             (config.getMaxPopulation() == Integer.MAX_VALUE ? "∞" : config.getMaxPopulation()) + " joueur(s)");
         lore.add(ChatColor.GRAY + "  • Claims max: " + ChatColor.WHITE + config.getMaxClaims());
+        lore.add(ChatColor.GRAY + "  • Banque max: " + ChatColor.WHITE + String.format("%,.0f€", config.getBankLimit()));
         lore.add("");
         lore.add(ChatColor.AQUA + "👮 Personnel autorisé:");
         lore.add(ChatColor.GRAY + "  • Policiers: " + ChatColor.WHITE + config.getMaxPoliciers());

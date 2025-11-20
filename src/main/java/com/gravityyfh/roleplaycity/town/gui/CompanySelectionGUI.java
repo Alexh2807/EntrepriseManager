@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager;
 import com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager;
@@ -66,7 +67,7 @@ public class CompanySelectionGUI implements Listener {
      */
     public void open(Player player, int chunkX, int chunkZ, String worldName, boolean isGroup, OperationType operationType) {
         // Utiliser EnterpriseContextManager si disponible, sinon fallback
-        List<EntrepriseManagerLogic.Entreprise> playerCompanies;
+        List<Entreprise> playerCompanies;
         if (enterpriseContextManager != null) {
             playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
         } else {
@@ -87,7 +88,7 @@ public class CompanySelectionGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, size, ChatColor.GOLD + actionName + " avec quelle entreprise?");
 
         int slot = 0;
-        for (EntrepriseManagerLogic.Entreprise company : playerCompanies) {
+        for (Entreprise company : playerCompanies) {
             ItemStack item = createCompanyItem(company, operationType);
             inv.setItem(slot++, item);
 
@@ -109,10 +110,10 @@ public class CompanySelectionGUI implements Listener {
     /**
      * Récupère toutes les entreprises d'un joueur (en tant que gérant)
      */
-    private List<EntrepriseManagerLogic.Entreprise> getPlayerCompanies(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> companies = new ArrayList<>();
+    private List<Entreprise> getPlayerCompanies(Player player) {
+        List<Entreprise> companies = new ArrayList<>();
 
-        for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+        for (Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
             String gerantUuidStr = entreprise.getGerantUUID();
             if (gerantUuidStr != null) {
                 try {
@@ -132,7 +133,7 @@ public class CompanySelectionGUI implements Listener {
     /**
      * Crée l'item représentant une entreprise dans le GUI
      */
-    private ItemStack createCompanyItem(EntrepriseManagerLogic.Entreprise company, OperationType operationType) {
+    private ItemStack createCompanyItem(Entreprise company, OperationType operationType) {
         ItemStack item = new ItemStack(Material.CRAFTING_TABLE);
         ItemMeta meta = item.getItemMeta();
 

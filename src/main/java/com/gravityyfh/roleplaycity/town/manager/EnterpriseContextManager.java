@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import org.bukkit.entity.Player;
 
@@ -69,11 +70,11 @@ public class EnterpriseContextManager {
      * @param player Le joueur
      * @return Liste des entreprises (peut être vide)
      */
-    public List<EntrepriseManagerLogic.Entreprise> getPlayerEnterprises(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> playerCompanies = new ArrayList<>();
+    public List<Entreprise> getPlayerEnterprises(Player player) {
+        List<Entreprise> playerCompanies = new ArrayList<>();
         UUID playerUuid = player.getUniqueId();
 
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+        for (Entreprise entreprise : entrepriseLogic.getEntreprises()) {
             String gerantUuidStr = entreprise.getGerantUUID(); // CORRECTION: getGerantUUID() au lieu de getGerant()
             if (gerantUuidStr == null) continue;
 
@@ -100,7 +101,7 @@ public class EnterpriseContextManager {
      * @return true si le GUI de sélection doit être ouvert
      */
     public boolean needsEnterpriseSelection(Player player, OperationType opType) {
-        List<EntrepriseManagerLogic.Entreprise> companies = getPlayerEnterprises(player);
+        List<Entreprise> companies = getPlayerEnterprises(player);
 
         // Si aucune entreprise, pas besoin de sélection (opération bloquée)
         return !companies.isEmpty();
@@ -169,7 +170,7 @@ public class EnterpriseContextManager {
             return ValidationResult.failure("SIRET null");
         }
 
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntrepriseBySiret(siret);
+        Entreprise entreprise = entrepriseLogic.getEntrepriseBySiret(siret);
         if (entreprise == null) {
             return ValidationResult.failure("Entreprise introuvable (SIRET: " + siret + ")");
         }
@@ -213,15 +214,15 @@ public class EnterpriseContextManager {
     public static class ValidationResult {
         private final boolean success;
         private final String errorMessage;
-        private final EntrepriseManagerLogic.Entreprise entreprise;
+        private final Entreprise entreprise;
 
-        private ValidationResult(boolean success, String errorMessage, EntrepriseManagerLogic.Entreprise entreprise) {
+        private ValidationResult(boolean success, String errorMessage, Entreprise entreprise) {
             this.success = success;
             this.errorMessage = errorMessage;
             this.entreprise = entreprise;
         }
 
-        public static ValidationResult success(EntrepriseManagerLogic.Entreprise entreprise) {
+        public static ValidationResult success(Entreprise entreprise) {
             return new ValidationResult(true, null, entreprise);
         }
 
@@ -237,7 +238,7 @@ public class EnterpriseContextManager {
             return errorMessage;
         }
 
-        public EntrepriseManagerLogic.Entreprise getEntreprise() {
+        public Entreprise getEntreprise() {
             return entreprise;
         }
     }

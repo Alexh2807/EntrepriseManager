@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.listener;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
@@ -177,7 +178,7 @@ public class TownHUDListener implements Listener {
 
                 // Si terrain PROFESSIONNEL avec entreprise : afficher le nom de l'entreprise
                 if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                    EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                    Entreprise ownerCompany = plugin.getCompanyPlotManager()
                         .getCompanyBySiret(plot.getCompanySiret());
                     displayName = (ownerCompany != null) ? ownerCompany.getNom() : (plot.getOwnerName() != null ? plot.getOwnerName() : "Inconnu");
                 } else {
@@ -334,7 +335,7 @@ public class TownHUDListener implements Listener {
         if (plot.getOwnerUuid() != null) {
             // Si terrain PROFESSIONNEL avec entreprise : afficher infos complètes de l'entreprise
             if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                Entreprise ownerCompany = plugin.getCompanyPlotManager()
                     .getCompanyBySiret(plot.getCompanySiret());
 
                 if (ownerCompany != null) {

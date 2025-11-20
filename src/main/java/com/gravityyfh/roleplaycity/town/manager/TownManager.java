@@ -32,12 +32,23 @@ public class TownManager {
         this.playerTowns = new ConcurrentHashMap<>();
     }
 
+    public Map<String, Town> getTowns() {
+        return new HashMap<>(towns);
+    }
+
+    public Town getTown(Player player) {
+        String townName = playerTowns.get(player.getUniqueId());
+        if (townName == null)
+            return null;
+        return towns.get(townName);
+    }
+
     // === CRÉATION ET SUPPRESSION ===
 
     public boolean createTown(String townName, Player mayor, double creationCost) {
         // FIX BASSE #32: Valider le nom avant toute autre vérification
-        com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation =
-            plugin.getNameValidator().validateTownName(townName);
+        com.gravityyfh.roleplaycity.util.NameValidator.ValidationResult validation = plugin.getNameValidator()
+                .validateTownName(townName);
 
         if (!validation.valid()) {
             mayor.sendMessage(ChatColor.RED + "❌ Nom de ville invalide: " + validation.error());
@@ -88,29 +99,39 @@ public class TownManager {
 
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-        mayor.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🏛️ FÉLICITATIONS, MAIRE DE " + townName.toUpperCase() + " !");
+        mayor.sendMessage(
+                ChatColor.GREEN + "" + ChatColor.BOLD + "🏛️ FÉLICITATIONS, MAIRE DE " + townName.toUpperCase() + " !");
         mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "📋 PREMIERS PAS POUR DÉVELOPPER VOTRE VILLE :");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.AQUA + "1. ALIMENTER LA BANQUE DE LA VILLE");
-        mayor.sendMessage(ChatColor.GRAY + "   → Utilisez " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " puis " + ChatColor.WHITE + "Banque de la Ville");
+        mayor.sendMessage(ChatColor.GRAY + "   → Utilisez " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " puis "
+                + ChatColor.WHITE + "Banque de la Ville");
         mayor.sendMessage(ChatColor.GRAY + "   → Déposez de l'argent pour financer les claims");
         mayor.sendMessage(ChatColor.GRAY + "   → Sans argent, impossible de revendiquer du terrain !");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.AQUA + "2. REVENDIQUER VOS PREMIERS TERRAINS (CLAIMS)");
-        mayor.sendMessage(ChatColor.GRAY + "   → Coût : " + ChatColor.GOLD + String.format("%.2f€", claimCost) + ChatColor.GRAY + " par chunk (256m²)");
-        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Claims");
+        mayor.sendMessage(ChatColor.GRAY + "   → Coût : " + ChatColor.GOLD + String.format("%.2f€", claimCost)
+                + ChatColor.GRAY + " par chunk (256m²)");
+        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → "
+                + ChatColor.WHITE + "Gestion des Claims");
         mayor.sendMessage(ChatColor.GRAY + "   → L'argent est prélevé de la banque de ville");
-        mayor.sendMessage(ChatColor.YELLOW + "   ⚠ Important: " + ChatColor.GRAY + "Les claims doivent être adjacents (côte à côte)!");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚠ Important: " + ChatColor.GRAY
+                + "Les claims doivent être adjacents (côte à côte)!");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.AQUA + "3. RECRUTER DES MÉTIERS MUNICIPAUX");
-        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → " + ChatColor.WHITE + "Gestion des Membres");
+        mayor.sendMessage(ChatColor.GRAY + "   → Menu : " + ChatColor.WHITE + "/ville" + ChatColor.GRAY + " → "
+                + ChatColor.WHITE + "Gestion des Membres");
         mayor.sendMessage("");
-        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "ADJOINT" + ChatColor.GRAY + " - Votre bras droit (gestion ville, claims, économie)");
-        mayor.sendMessage(ChatColor.YELLOW + "   👮 " + ChatColor.WHITE + "POLICIER" + ChatColor.GRAY + " - Maintien de l'ordre (amendes, alertes)");
-        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "JUGE" + ChatColor.GRAY + " - Justice (jugement des affaires, relaxes)");
-        mayor.sendMessage(ChatColor.YELLOW + "   🏗️ " + ChatColor.WHITE + "ARCHITECTE" + ChatColor.GRAY + " - Construction (bâtiments municipaux)");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "ADJOINT" + ChatColor.GRAY
+                + " - Votre bras droit (gestion ville, claims, économie)");
+        mayor.sendMessage(ChatColor.YELLOW + "   👮 " + ChatColor.WHITE + "POLICIER" + ChatColor.GRAY
+                + " - Maintien de l'ordre (amendes, alertes)");
+        mayor.sendMessage(ChatColor.YELLOW + "   ⚖️ " + ChatColor.WHITE + "JUGE" + ChatColor.GRAY
+                + " - Justice (jugement des affaires, relaxes)");
+        mayor.sendMessage(ChatColor.YELLOW + "   🏗️ " + ChatColor.WHITE + "ARCHITECTE" + ChatColor.GRAY
+                + " - Construction (bâtiments municipaux)");
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.AQUA + "4. DÉVELOPPER VOTRE ÉCONOMIE");
         mayor.sendMessage(ChatColor.GRAY + "   → Vendez/Louez des terrains aux citoyens");
@@ -119,7 +140,7 @@ public class TownManager {
         mayor.sendMessage("");
         mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage(ChatColor.GREEN + "💡 Conseil : " + ChatColor.GRAY + "Commencez par déposer au minimum " +
-            ChatColor.GOLD + String.format("%.2f€", claimCost * 5) + ChatColor.GRAY + " dans");
+                ChatColor.GOLD + String.format("%.2f€", claimCost * 5) + ChatColor.GRAY + " dans");
         mayor.sendMessage(ChatColor.GRAY + "   la banque pour pouvoir revendiquer 5 chunks de départ.");
         mayor.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         mayor.sendMessage("");
@@ -177,8 +198,10 @@ public class TownManager {
             playerTowns.put(memberUuid, newName);
         }
 
-        // Les données de mailbox sont maintenant dans Plot, pas besoin de mise à jour séparée
-        // Le renommage de la ville mettra automatiquement à jour le townName dans Plot via TownDataManager
+        // Les données de mailbox sont maintenant dans Plot, pas besoin de mise à jour
+        // séparée
+        // Le renommage de la ville mettra automatiquement à jour le townName dans Plot
+        // via TownDataManager
 
         plugin.getLogger().info("Ville renommée: " + oldName + " -> " + newName);
 
@@ -216,12 +239,11 @@ public class TownManager {
 
         // Envoyer notification au joueur invité
         plugin.getNotificationManager().sendNotification(
-            invited.getUniqueId(),
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
-            "Invitation à rejoindre une ville",
-            String.format("%s vous invite à rejoindre la ville de %s. Utilisez /ville join %s pour accepter.",
-                inviter.getName(), townName, townName)
-        );
+                invited.getUniqueId(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
+                "Invitation à rejoindre une ville",
+                String.format("%s vous invite à rejoindre la ville de %s. Utilisez /ville join %s pour accepter.",
+                        inviter.getName(), townName, townName));
 
         return true;
     }
@@ -249,19 +271,17 @@ public class TownManager {
 
         // Notification au nouveau membre
         plugin.getNotificationManager().sendNotification(
-            player.getUniqueId(),
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-            "Bienvenue dans la ville !",
-            String.format("Vous avez rejoint la ville de %s en tant que Citoyen.", townName)
-        );
+                player.getUniqueId(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Bienvenue dans la ville !",
+                String.format("Vous avez rejoint la ville de %s en tant que Citoyen.", townName));
 
         // Notification au Maire
         plugin.getNotificationManager().sendNotification(
-            town.getMayorUuid(),
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
-            "Nouveau membre",
-            String.format("%s a rejoint votre ville !", player.getName())
-        );
+                town.getMayorUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.SOCIAL,
+                "Nouveau membre",
+                String.format("%s a rejoint votre ville !", player.getName()));
 
         return true;
     }
@@ -334,19 +354,17 @@ public class TownManager {
 
         // Notification au joueur qui quitte
         plugin.getNotificationManager().sendNotification(
-            player.getUniqueId(),
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-            "Vous avez quitté la ville",
-            String.format("Vous avez quitté la ville de %s.", townName)
-        );
+                player.getUniqueId(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Vous avez quitté la ville",
+                String.format("Vous avez quitté la ville de %s.", townName));
 
         // Notification au Maire
         plugin.getNotificationManager().sendNotification(
-            town.getMayorUuid(),
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-            "Membre parti",
-            String.format("%s a quitté votre ville.", player.getName())
-        );
+                town.getMayorUuid(),
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                "Membre parti",
+                String.format("%s a quitté votre ville.", player.getName()));
 
         // Sauvegarder immédiatement
         saveTownsNow();
@@ -386,10 +404,8 @@ public class TownManager {
         Bukkit.getPluginManager().callEvent(leaveEvent);
 
         // Déclencher l'événement spécifique au kick
-        com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent kickEvent =
-            new com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent(
-                townName, kickedUuid, kickedName, kicker.getUniqueId(), kicker.getName()
-            );
+        com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent kickEvent = new com.gravityyfh.roleplaycity.town.event.TownMemberKickEvent(
+                townName, kickedUuid, kickedName, kicker.getUniqueId(), kicker.getName());
         Bukkit.getPluginManager().callEvent(kickEvent);
 
         // Retirer le joueur
@@ -398,20 +414,18 @@ public class TownManager {
 
         // Notification au joueur expulsé
         plugin.getNotificationManager().sendNotification(
-            kickedUuid,
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
-            "Vous avez été expulsé !",
-            String.format("Vous avez été expulsé de la ville de %s par %s.", townName, kicker.getName())
-        );
+                kickedUuid,
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.WARNING,
+                "Vous avez été expulsé !",
+                String.format("Vous avez été expulsé de la ville de %s par %s.", townName, kicker.getName()));
 
         // Notification au Maire si ce n'est pas lui qui a kick
         if (!town.isMayor(kicker.getUniqueId())) {
             plugin.getNotificationManager().sendNotification(
-                town.getMayorUuid(),
-                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
-                "Membre expulsé",
-                String.format("%s a expulsé %s de la ville.", kicker.getName(), kickedName)
-            );
+                    town.getMayorUuid(),
+                    com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.INFO,
+                    "Membre expulsé",
+                    String.format("%s a expulsé %s de la ville.", kicker.getName(), kickedName));
         }
 
         // Sauvegarder immédiatement
@@ -444,13 +458,14 @@ public class TownManager {
         TownRole oldRole = member.getRole();
         String targetName = member.getPlayerName();
 
-        // Vérifier les restrictions de niveau pour les rôles municipaux (Policier, Juge, Médecin)
+        // Vérifier les restrictions de niveau pour les rôles municipaux (Policier,
+        // Juge, Médecin)
         if (newRole == com.gravityyfh.roleplaycity.town.data.TownRole.POLICIER ||
-            newRole == com.gravityyfh.roleplaycity.town.data.TownRole.JUGE ||
-            newRole == com.gravityyfh.roleplaycity.town.data.TownRole.MEDECIN) {
+                newRole == com.gravityyfh.roleplaycity.town.data.TownRole.JUGE ||
+                newRole == com.gravityyfh.roleplaycity.town.data.TownRole.MEDECIN) {
 
-            com.gravityyfh.roleplaycity.town.manager.TownLevelManager.RoleAssignmentResult result =
-                plugin.getTownLevelManager().canAssignRole(town, newRole);
+            com.gravityyfh.roleplaycity.town.manager.TownLevelManager.RoleAssignmentResult result = plugin
+                    .getTownLevelManager().canAssignRole(town, newRole);
 
             if (!result.canAssign()) {
                 changer.sendMessage(result.message());
@@ -463,12 +478,11 @@ public class TownManager {
 
         // Notification au membre concerné
         plugin.getNotificationManager().sendNotification(
-            targetUuid,
-            com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.IMPORTANT,
-            "Changement de rôle",
-            String.format("Votre rôle dans %s a été changé de %s à %s par le Maire.",
-                townName, oldRole.getDisplayName(), newRole.getDisplayName())
-        );
+                targetUuid,
+                com.gravityyfh.roleplaycity.town.manager.NotificationManager.NotificationType.IMPORTANT,
+                "Changement de rôle",
+                String.format("Votre rôle dans %s a été changé de %s à %s par le Maire.",
+                        townName, oldRole.getDisplayName(), newRole.getDisplayName()));
 
         // Sauvegarder immédiatement
         saveTownsNow();
@@ -581,7 +595,8 @@ public class TownManager {
 
     /**
      * Sauvegarde asynchrone avec debouncing
-     * Si plusieurs modifications arrivent rapidement, on attend avant de sauvegarder
+     * Si plusieurs modifications arrivent rapidement, on attend avant de
+     * sauvegarder
      * pour éviter d'écrire 10 fois en 1 seconde
      */
     public void saveTownsNow() {
@@ -686,15 +701,14 @@ public class TownManager {
         // Les terrains groupés sont gérés directement via Plot.isGrouped()
 
         plugin.getLogger().info(String.format(
-            "[TownManager] Terrain %s:%d,%d retourné à la ville. Raison: %s. Ancien propriétaire: %s, Entreprise: %s",
-            plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), reason,
-            previousOwner != null ? previousOwner : "Aucun",
-            previousCompany != null ? previousCompany : "Aucune"
-        ));
+                "[TownManager] Terrain %s:%d,%d retourné à la ville. Raison: %s. Ancien propriétaire: %s, Entreprise: %s",
+                plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), reason,
+                previousOwner != null ? previousOwner : "Aucun",
+                previousCompany != null ? previousCompany : "Aucune"));
 
         // Fire event
-        com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent event =
-            new com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent(plot, oldOwnerUuid, oldCompanySiret, reason);
+        com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent event = new com.gravityyfh.roleplaycity.town.event.PlotTransferToTownEvent(
+                plot, oldOwnerUuid, oldCompanySiret, reason);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
     }
 
@@ -713,10 +727,11 @@ public class TownManager {
 
         // 📬 Supprimer la boîte aux lettres si le terrain devient public/municipal
         if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC ||
-            plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
+                plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
             if (plot.hasMailbox()) {
                 plugin.getMailboxManager().removeMailbox(plot);
-                plugin.getLogger().info("Mailbox supprimée du plot " + plot.getIdentifier() + " (type: " + plot.getType() + ")");
+                plugin.getLogger()
+                        .info("Mailbox supprimée du plot " + plot.getIdentifier() + " (type: " + plot.getType() + ")");
             }
         }
     }

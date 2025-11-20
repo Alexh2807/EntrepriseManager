@@ -160,6 +160,9 @@ public class ShopValidator {
             }
         }
 
+        // Mettre à jour le cache
+        shop.setCachedStock(count);
+
         // Retourner le nombre de ventes possibles
         return count / shop.getQuantityPerSale();
     }
@@ -183,6 +186,9 @@ public class ShopValidator {
                 count += item.getAmount();
             }
         }
+
+        // Mettre à jour le cache
+        shop.setCachedStock(count);
 
         return count;
     }

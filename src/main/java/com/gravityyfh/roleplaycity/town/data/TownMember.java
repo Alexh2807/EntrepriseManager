@@ -22,7 +22,8 @@ public class TownMember {
     }
 
     // Constructor pour le chargement depuis la BDD
-    public TownMember(UUID playerUuid, String playerName, TownRole role, LocalDateTime joinDate, LocalDateTime lastOnline) {
+    public TownMember(UUID playerUuid, String playerName, TownRole role, LocalDateTime joinDate,
+            LocalDateTime lastOnline) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.roles = new HashSet<>();
@@ -32,7 +33,8 @@ public class TownMember {
     }
 
     // Nouveau constructeur pour multi-rôles
-    public TownMember(UUID playerUuid, String playerName, Set<TownRole> roles, LocalDateTime joinDate, LocalDateTime lastOnline) {
+    public TownMember(UUID playerUuid, String playerName, Set<TownRole> roles, LocalDateTime joinDate,
+            LocalDateTime lastOnline) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.roles = new HashSet<>(roles);
@@ -45,6 +47,10 @@ public class TownMember {
     }
 
     public String getPlayerName() {
+        return playerName;
+    }
+
+    public String getName() {
         return playerName;
     }
 
@@ -80,7 +86,8 @@ public class TownMember {
         }
     }
 
-    // FIX BASSE #6: Méthode setRole() deprecated supprimée - utiliser setRoles(), addRole() ou removeRole()
+    // FIX BASSE #6: Méthode setRole() deprecated supprimée - utiliser setRoles(),
+    // addRole() ou removeRole()
 
     public void setRoles(Set<TownRole> newRoles) {
         roles.clear();
@@ -117,7 +124,8 @@ public class TownMember {
     }
 
     public boolean canManage(TownMember other) {
-        // Peut gérer si le pouvoir maximum de ses rôles est supérieur au pouvoir maximum de l'autre
+        // Peut gérer si le pouvoir maximum de ses rôles est supérieur au pouvoir
+        // maximum de l'autre
         int thisMaxPower = roles.stream()
                 .mapToInt(TownRole::getPower)
                 .max()

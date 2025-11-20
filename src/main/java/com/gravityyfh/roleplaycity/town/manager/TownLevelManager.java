@@ -53,6 +53,7 @@ public class TownLevelManager {
             TownLevelConfig.Builder builder = new TownLevelConfig.Builder(level)
                 .creationCost(config.getDouble("creation-cost", 5000.0))
                 .upgradeCost(config.getDouble("upgrade-cost", 0))
+                .bankLimit(config.getDouble("bank-limit", Double.MAX_VALUE)) // Chargement de la limite bancaire
                 .minPopulation(config.getInt("min-population", 1))
                 .maxPopulation(config.getInt("max-population", Integer.MAX_VALUE))
                 .maxClaims(config.getInt("max-claims", 10))

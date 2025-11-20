@@ -1,7 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.listener;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
-import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.ComponentType;
 import com.gravityyfh.roleplaycity.shop.PurchaseResult;

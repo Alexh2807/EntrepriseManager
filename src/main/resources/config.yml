@@ -2,8 +2,8 @@
 # ROLEPLAYCITY - CONFIGURATION PRINCIPALE
 # ============================================
 # Plugin de gestion d'entreprises et de villes roleplay
-# Dernière mise à jour: 2025-11-13
-# Version: 1.06.25
+# Dernière mise à jour: 2025-11-19
+# Version: 1.06.30
 
 
 # ============================================
@@ -11,6 +11,13 @@
 # ============================================
 # Configuration complète des types d'entreprises,
 # restrictions d'activités, et économie des métiers
+
+# ============================================
+#          OPTIONS DE DEBUG
+# ============================================
+# Active les logs de debug pour diagnostiquer les problèmes
+debug:
+  restrictions: false  # Affiche les entreprises du joueur lors des vérifications de restrictions
 
 # ============================================
 #          MODE SERVICE (NOUVEAU)
@@ -1202,6 +1209,7 @@ town:
       min-population: 1
       max-population: 4
       max-claims: 10
+      bank-limit: 5000.0          # Limite de solde bancaire
       max-policiers: 0
       max-juges: 0
       max-medecins: 0
@@ -1217,6 +1225,7 @@ town:
       min-population: 5
       max-population: 14
       max-claims: 130
+      bank-limit: 20000.0         # Limite de solde bancaire
       max-policiers: 1
       max-juges: 1
       max-medecins: 2
@@ -1232,6 +1241,7 @@ town:
       min-population: 15
       max-population: 999999
       max-claims: 250
+      bank-limit: 50000.0         # Limite de solde bancaire
       max-policiers: 5
       max-juges: 5
       max-medecins: 10
@@ -1500,3 +1510,45 @@ shop-holograms:
 # Gain de performance: 500x plus rapide (50-200ms → <1ms)
 block-place-cache:
   expiration-hours: 48        # Durée de conservation dans le cache
+
+
+# ============================================
+#          SYSTÈME DE LOTO HORAIRE
+# ============================================
+lotto-system:
+  enabled: true
+  ticket-price: 20.0
+  
+  # Minutes de l'heure pour chaque étape
+  # Exemple: start=15 ouvre à H:15, end=30 ferme à H:30, draw=45 tire à H:45
+  schedule:
+    start-minute: 15
+    end-minute: 30
+    draw-minute: 45
+    
+  messages:
+    broadcast-start:
+      - "&6&l▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+      - "&e&l   🎲 LOTO HORAIRE OUVERT ! 🎲"
+      - ""
+      - "&e  Le guichet est ouvert jusqu'à %end_time% !"
+      - "&e  Prix du ticket : &a%price%€"
+      - ""
+      - "&6&l▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    broadcast-end:
+      - "&c&l   🛑 VENTE DE TICKETS TERMINÉE ! 🛑"
+      - ""
+      - "&e  Cagnotte finale : &6&l%pot%€"
+      - "&7  Tirage au sort dans quelques minutes..."
+    broadcast-draw:
+      - "&6&l▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+      - "&e&l     ★ RÉSULTATS DU LOTO ★"
+      - ""
+      - "&e  Vainqueur : &b&l%winner%"
+      - "&e  Gain remporté : &a&l%prize%€"
+      - ""
+      - "&7  Félicitations ! Prochain tirage : %next_draw%"
+      - "&6&l▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    broadcast-no-winner:
+      - "&c      TIRAGE DU LOTO ANNULÉ"
+      - "&7  Aucun ticket vendu cette heure-ci."

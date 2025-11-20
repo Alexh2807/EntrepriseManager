@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Bukkit;
@@ -105,7 +106,7 @@ public class TownEconomyManager {
 
         // NOUVEAU : Gestion différente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
-        EntrepriseManagerLogic.Entreprise buyerCompany = null;
+        Entreprise buyerCompany = null;
 
         if (isProfessional) {
             // Terrain PROFESSIONNEL : Acheter avec l'entreprise
@@ -180,7 +181,7 @@ public class TownEconomyManager {
 
             if (plot.getCompanySiret() != null) {
                 // Ancien terrain PRO - argent va à l'ancienne entreprise
-                EntrepriseManagerLogic.Entreprise previousCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                Entreprise previousCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (previousCompany != null) {
                     previousCompany.setSolde(previousCompany.getSolde() + price);
 
@@ -346,7 +347,7 @@ public class TownEconomyManager {
 
         // NOUVEAU : Validation entreprise pour terrain PROFESSIONNEL
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-        EntrepriseManagerLogic.Entreprise renterCompany = null; // Déclaration ici pour portée plus large
+        Entreprise renterCompany = null; // Déclaration ici pour portée plus large
 
         if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
             if (!companyManager.validateCompanyOwnership(renter, plot)) {
@@ -443,7 +444,7 @@ public class TownEconomyManager {
         if (plot.getOwnerUuid() != null) {
             if (isProfessional && plot.getCompanySiret() != null) {
                 // Terrain PRO - argent va à l'entreprise du propriétaire
-                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
@@ -532,7 +533,7 @@ public class TownEconomyManager {
         // NOUVEAU : Gestion différente selon le type de terrain
         boolean isProfessional = (plot.getType() == PlotType.PROFESSIONNEL);
         CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-        EntrepriseManagerLogic.Entreprise renterCompany = null;
+        Entreprise renterCompany = null;
 
         if (isProfessional) {
             // Terrain PROFESSIONNEL : Recharger avec l'entreprise qui a fait la location initiale
@@ -580,7 +581,7 @@ public class TownEconomyManager {
         if (plot.getOwnerUuid() != null) {
             if (isProfessional && plot.getCompanySiret() != null) {
                 // Terrain PRO - argent va à l'entreprise du propriétaire
-                EntrepriseManagerLogic.Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                Entreprise ownerCompany = companyManager.getCompanyBySiret(plot.getCompanySiret());
                 if (ownerCompany != null) {
                     ownerCompany.setSolde(ownerCompany.getSolde() + totalCost);
 
@@ -689,7 +690,7 @@ public class TownEconomyManager {
 
             if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
                 CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                EntrepriseManagerLogic.Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
 
                 if (company != null) {
                     if (company.getSolde() >= tax) {
@@ -841,7 +842,7 @@ public class TownEconomyManager {
             // === Gestion des terrains PROFESSIONNEL avec entreprise ===
             if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
                 CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-                EntrepriseManagerLogic.Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
+                Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
 
                 if (company != null) {
                     if (company.getSolde() >= hourlyTax) {

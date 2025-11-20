@@ -21,7 +21,8 @@ public class ClaimManager {
     // Cache: ChunkCoordinate -> TownName pour recherche ultra-rapide
     private final Map<ChunkCoordinate, String> chunkOwners;
 
-    // Cache: ChunkCoordinate -> Plot pour récupération directe du plot (groupés ou non)
+    // Cache: ChunkCoordinate -> Plot pour récupération directe du plot (groupés ou
+    // non)
     private final Map<ChunkCoordinate, Plot> chunkToPlot;
 
     public ClaimManager(RoleplayCity plugin, TownManager townManager) {
@@ -49,9 +50,9 @@ public class ClaimManager {
                     String[] parts = chunkKey.split(":");
                     if (parts.length == 3) {
                         ChunkCoordinate coord = new ChunkCoordinate(
-                            parts[0],  // world
-                            Integer.parseInt(parts[1]),  // chunkX
-                            Integer.parseInt(parts[2])   // chunkZ
+                                parts[0], // world
+                                Integer.parseInt(parts[1]), // chunkX
+                                Integer.parseInt(parts[2]) // chunkZ
                         );
                         chunkOwners.put(coord, town.getName());
                         chunkToPlot.put(coord, plot); // Cache direct vers le plot !
@@ -63,7 +64,7 @@ public class ClaimManager {
         }
 
         plugin.getLogger().info("Cache de claims reconstruit: " + totalChunkCount + " chunks total dans " +
-                               plotCount + " parcelles (simples et groupées).");
+                plotCount + " parcelles (simples et groupées).");
     }
 
     /**
@@ -83,6 +84,7 @@ public class ClaimManager {
 
     /**
      * Récupère le nom de la ville qui possède ce chunk
+     * 
      * @return Le nom de la ville, ou null si non claimé
      */
     public String getClaimOwner(ChunkCoordinate coord) {
@@ -130,10 +132,10 @@ public class ClaimManager {
 
         // Vérifier les 4 directions (Nord, Sud, Est, Ouest)
         int[][] directions = {
-            {0, -1},  // Nord (Z-)
-            {0, 1},   // Sud (Z+)
-            {-1, 0},  // Ouest (X-)
-            {1, 0}    // Est (X+)
+                { 0, -1 }, // Nord (Z-)
+                { 0, 1 }, // Sud (Z+)
+                { -1, 0 }, // Ouest (X-)
+                { 1, 0 } // Est (X+)
         };
 
         for (int[] dir : directions) {
@@ -152,6 +154,7 @@ public class ClaimManager {
 
     /**
      * Claim un chunk pour une ville
+     * 
      * @return true si le claim a réussi, false sinon
      */
     public boolean claimChunk(String townName, Chunk chunk, double cost) {
@@ -197,6 +200,7 @@ public class ClaimManager {
 
     /**
      * Unclaim un chunk
+     * 
      * @return Le montant remboursé, ou 0 si échec
      */
     public double unclaimChunk(String townName, Chunk chunk, double refundPercentage) {
@@ -223,9 +227,8 @@ public class ClaimManager {
         // Empêcher unclaim si le terrain est groupé (multi-chunks)
         if (plot.isGrouped()) {
             plugin.getLogger().warning(String.format(
-                "Tentative d'unclaim d'un chunk faisant partie du terrain groupé '%s' (ville: %s)",
-                plot.getGroupName(), townName
-            ));
+                    "Tentative d'unclaim d'un chunk faisant partie du terrain groupé '%s' (ville: %s)",
+                    plot.getGroupName(), townName));
             return -1.0; // Code d'erreur spécial pour indiquer "chunk dans un groupe"
         }
 
@@ -239,10 +242,8 @@ public class ClaimManager {
         }
 
         // Fire event AVANT de supprimer la parcelle
-        com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent event =
-            new com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent(
-                townName, plot, coord.worldName(), coord.x(), coord.z()
-            );
+        com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent event = new com.gravityyfh.roleplaycity.town.event.TownUnclaimPlotEvent(
+                townName, plot, coord.worldName(), coord.x(), coord.z());
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
 
         // Supprimer la parcelle
@@ -263,11 +264,31 @@ public class ClaimManager {
     }
 
     /**
-     * Supprime tous les claims d'une ville (utilisé lors de la suppression d'une ville)
+     * Supprime tous les claims d'une ville (utilisé lors de la suppression d'une
+     * ville)
+     */
+    /**
+     * Supprime tous les claims d'une ville (utilisé lors de la suppression d'une
+     * ville)
      */
     public void removeAllClaims(String townName) {
-        chunkOwners.entrySet().removeIf(entry -> entry.getValue().equals(townName));
-        plugin.getLogger().info("Tous les claims de " + townName + " ont été supprimés.");
+        // Identifier les chunks à supprimer pour éviter ConcurrentModificationException
+        java.util.List<ChunkCoordinate> toRemove = new java.util.ArrayList<>();
+
+        for (Map.Entry<ChunkCoordinate, String> entry : chunkOwners.entrySet()) {
+            if (entry.getValue().equals(townName)) {
+                toRemove.add(entry.getKey());
+            }
+        }
+
+        // Supprimer des deux caches
+        for (ChunkCoordinate coord : toRemove) {
+            chunkOwners.remove(coord);
+            chunkToPlot.remove(coord);
+        }
+
+        plugin.getLogger().info(
+                "Tous les claims de " + townName + " ont été supprimés du cache (" + toRemove.size() + " chunks).");
     }
 
     /**
@@ -282,7 +303,7 @@ public class ClaimManager {
      */
     public int getClaimCount(String townName) {
         return (int) chunkOwners.values().stream()
-            .filter(name -> name.equals(townName))
-            .count();
+                .filter(name -> name.equals(townName))
+                .count();
     }
 }

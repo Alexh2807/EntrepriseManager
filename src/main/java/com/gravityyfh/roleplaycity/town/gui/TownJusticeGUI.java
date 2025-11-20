@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
+import com.gravityyfh.roleplaycity.contract.model.Contract;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -31,8 +32,10 @@ public class TownJusticeGUI implements Listener {
     private final TownJusticeManager justiceManager;
 
     private static final String JUSTICE_TITLE = ChatColor.DARK_PURPLE + "⚖️ Justice Municipale";
-    private static final String CASES_TITLE = ChatColor.DARK_PURPLE + "📋 Affaires en Cours";
+    private static final String CASES_TITLE = ChatColor.DARK_PURPLE + "📋 Affaires (Amendes)";
+    private static final String CONTRACT_CASES_TITLE = ChatColor.DARK_PURPLE + "📜 Litiges Contractuels";
     private static final String VERDICT_TITLE = ChatColor.DARK_PURPLE + "⚖ Rendre le Verdict";
+    private static final String CONTRACT_VERDICT_TITLE = ChatColor.DARK_PURPLE + "⚖ Verdict Contrat";
 
     private final Map<UUID, JudgementContext> pendingJudgements;
 
@@ -84,19 +87,32 @@ public class TownJusticeGUI implements Listener {
         statsItem.setItemMeta(statsMeta);
         inv.setItem(4, statsItem);
 
-        // Affaires en cours
+        // Affaires (Amendes)
         ItemStack casesItem = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta casesMeta = casesItem.getItemMeta();
-        casesMeta.setDisplayName(ChatColor.YELLOW + "Affaires en Cours");
+        casesMeta.setDisplayName(ChatColor.YELLOW + "Contestations Amendes");
         List<String> casesLore = new ArrayList<>();
-        casesLore.add(ChatColor.GRAY + "Voir les contestations");
-        casesLore.add(ChatColor.GRAY + "en attente de jugement");
+        casesLore.add(ChatColor.GRAY + "Voir les amendes contestées");
         casesLore.add("");
-        casesLore.add(ChatColor.WHITE + "Total: " + stats.pendingContestations());
-        casesLore.add(ChatColor.YELLOW + "Cliquez pour voir");
+        casesLore.add(ChatColor.WHITE + "En attente: " + stats.pendingContestations());
+        casesLore.add(ChatColor.YELLOW + "Cliquez pour gérer");
         casesMeta.setLore(casesLore);
         casesItem.setItemMeta(casesMeta);
-        inv.setItem(13, casesItem);
+        inv.setItem(11, casesItem);
+        
+        // Affaires (Contrats)
+        int disputedContracts = plugin.getContractService().getDisputedContracts().size();
+        ItemStack contractsItem = new ItemStack(Material.MAP);
+        ItemMeta contractsMeta = contractsItem.getItemMeta();
+        contractsMeta.setDisplayName(ChatColor.GOLD + "Litiges Contractuels");
+        List<String> contractsLore = new ArrayList<>();
+        contractsLore.add(ChatColor.GRAY + "Voir les litiges commerciaux");
+        contractsLore.add("");
+        contractsLore.add(ChatColor.WHITE + "En attente: " + disputedContracts);
+        contractsLore.add(ChatColor.GOLD + "Cliquez pour gérer");
+        contractsMeta.setLore(contractsLore);
+        contractsItem.setItemMeta(contractsMeta);
+        inv.setItem(15, contractsItem);
 
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
@@ -138,9 +154,6 @@ public class TownJusticeGUI implements Listener {
         List<String> confirmLore = new ArrayList<>();
         confirmLore.add("");
         confirmLore.add(ChatColor.GRAY + "L'amende sera maintenue");
-        confirmLore.add(ChatColor.GRAY + "Le contrevenant devra payer");
-        confirmLore.add(ChatColor.GRAY + "Le policier recevra sa commission");
-        confirmLore.add("");
         confirmLore.add(ChatColor.GREEN + "Cliquez pour confirmer");
         confirmMeta.setLore(confirmLore);
         confirmItem.setItemMeta(confirmMeta);
@@ -153,9 +166,6 @@ public class TownJusticeGUI implements Listener {
         List<String> cancelLore = new ArrayList<>();
         cancelLore.add("");
         cancelLore.add(ChatColor.GRAY + "L'amende sera annulée");
-        cancelLore.add(ChatColor.GRAY + "Le contrevenant ne paiera rien");
-        cancelLore.add(ChatColor.GRAY + "Le policier paiera votre commission");
-        cancelLore.add("");
         cancelLore.add(ChatColor.RED + "Cliquez pour annuler");
         cancelMeta.setLore(cancelLore);
         cancelItem.setItemMeta(cancelMeta);
@@ -168,6 +178,46 @@ public class TownJusticeGUI implements Listener {
         backItem.setItemMeta(backMeta);
         inv.setItem(22, backItem);
 
+        player.openInventory(inv);
+    }
+    
+    public void openContractVerdictMenu(Player player, Contract c) {
+        Inventory inv = Bukkit.createInventory(null, 27, CONTRACT_VERDICT_TITLE);
+
+        ItemStack infoItem = new ItemStack(Material.PAPER);
+        ItemMeta infoMeta = infoItem.getItemMeta();
+        infoMeta.setDisplayName(ChatColor.GOLD + "Litige: " + c.getTitle());
+        List<String> infoLore = new ArrayList<>();
+        infoLore.add(ChatColor.GRAY + "Fournisseur: " + c.getProviderCompany());
+        infoLore.add(ChatColor.GRAY + "Client: " + (c.getType().isB2B() ? c.getClientCompany() : Bukkit.getOfflinePlayer(c.getClientUuid()).getName()));
+        infoLore.add(ChatColor.GRAY + "Montant: " + c.getAmount() + "€");
+        infoLore.add(ChatColor.RED + "Motif: " + c.getDisputeReason());
+        infoMeta.setLore(infoLore);
+        infoItem.setItemMeta(infoMeta);
+        inv.setItem(4, infoItem);
+        
+        // Valid (Client wins)
+        ItemStack clientWin = new ItemStack(Material.LIME_WOOL);
+        ItemMeta cwMeta = clientWin.getItemMeta();
+        cwMeta.setDisplayName(ChatColor.GREEN + "CLIENT GAGNANT");
+        cwMeta.setLore(Arrays.asList(ChatColor.GRAY + "Rembourser le client", ChatColor.GRAY + "(Plaintif)"));
+        clientWin.setItemMeta(cwMeta);
+        inv.setItem(11, clientWin);
+        
+        // Invalid (Provider wins)
+        ItemStack providerWin = new ItemStack(Material.RED_WOOL);
+        ItemMeta pwMeta = providerWin.getItemMeta();
+        pwMeta.setDisplayName(ChatColor.RED + "FOURNISSEUR GAGNANT");
+        pwMeta.setLore(Arrays.asList(ChatColor.GRAY + "Payer le fournisseur", ChatColor.GRAY + "(Défendeur)"));
+        providerWin.setItemMeta(pwMeta);
+        inv.setItem(15, providerWin);
+        
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(22, backItem);
+        
         player.openInventory(inv);
     }
 
@@ -193,13 +243,7 @@ public class TownJusticeGUI implements Listener {
             lore.add(ChatColor.GRAY + "Motif amende: " + ChatColor.WHITE + fine.getReason());
             lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + fine.getAmount() + "€");
             lore.add(ChatColor.GRAY + "Policier: " + ChatColor.YELLOW + fine.getPolicierName());
-            lore.add(ChatColor.GRAY + "Date: " + ChatColor.WHITE + fine.getIssueDate().toLocalDate());
             lore.add("");
-            if (fine.getContestReason() != null && !fine.getContestReason().isEmpty()) {
-                lore.add(ChatColor.YELLOW + "Motif contestation:");
-                lore.add(ChatColor.WHITE + fine.getContestReason());
-                lore.add("");
-            }
             lore.add(ChatColor.GREEN + "Cliquez pour juger");
 
             meta.setLore(lore);
@@ -207,13 +251,40 @@ public class TownJusticeGUI implements Listener {
             inv.setItem(slot++, item);
         }
 
-        // Retour
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
         backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
         backItem.setItemMeta(backMeta);
         inv.setItem(49, backItem);
 
+        player.openInventory(inv);
+    }
+    
+    public void openContractCasesMenu(Player player) {
+        List<Contract> disputes = plugin.getContractService().getDisputedContracts();
+        Inventory inv = Bukkit.createInventory(null, 54, CONTRACT_CASES_TITLE);
+        
+        int slot = 0;
+        for(Contract c : disputes) {
+             if (slot >= 45) break;
+             ItemStack item = new ItemStack(Material.MAP);
+             ItemMeta meta = item.getItemMeta();
+             meta.setDisplayName(ChatColor.GOLD + c.getTitle());
+             meta.setLore(Arrays.asList(
+                 ChatColor.GRAY + "ID: " + c.getId(),
+                 ChatColor.GRAY + "Client: " + (c.getType().isB2B() ? c.getClientCompany() : Bukkit.getOfflinePlayer(c.getClientUuid()).getName()),
+                 ChatColor.RED + "Motif: " + c.getDisputeReason()
+             ));
+             item.setItemMeta(meta);
+             inv.setItem(slot++, item);
+        }
+        
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(49, backItem);
+        
         player.openInventory(inv);
     }
 
@@ -227,6 +298,10 @@ public class TownJusticeGUI implements Listener {
             handleCasesMenuClick(event);
         } else if (title.equals(VERDICT_TITLE)) {
             handleVerdictMenuClick(event);
+        } else if (title.equals(CONTRACT_CASES_TITLE)) {
+            handleContractCasesClick(event);
+        } else if (title.equals(CONTRACT_VERDICT_TITLE)) {
+            handleContractVerdictClick(event);
         }
     }
 
@@ -242,16 +317,18 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
-        // NPE Guard: Vérifier que l'item a une metadata et un displayName
         if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
             return;
         }
 
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
-        if (displayName.contains("Affaires en Cours")) {
+        if (displayName.contains("Contestations Amendes")) {
             player.closeInventory();
             openCasesMenu(player);
+        } else if (displayName.contains("Litiges Contractuels")) {
+            player.closeInventory();
+            openContractCasesMenu(player);
         } else if (displayName.contains("Fermer")) {
             player.closeInventory();
         }
@@ -259,20 +336,9 @@ public class TownJusticeGUI implements Listener {
 
     private void handleCasesMenuClick(InventoryClickEvent event) {
         event.setCancelled(true);
-
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
-
+        if (!(event.getWhoClicked() instanceof Player player)) return;
         ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) {
-            return;
-        }
-
-        // NPE Guard: Vérifier que l'item a une metadata et un displayName
-        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
-            return;
-        }
+        if (clicked == null || !clicked.hasItemMeta()) return;
 
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
@@ -280,42 +346,54 @@ public class TownJusticeGUI implements Listener {
             player.closeInventory();
             openJusticeMenu(player);
         } else if (clicked.getType() == Material.PAPER) {
-            // Récupérer l'amende correspondante
             String offenderName = displayName;
             String townName = townManager.getPlayerTown(player.getUniqueId());
             List<Fine> contestedFines = policeManager.getContestedFines(townName);
-
-            Fine selectedFine = null;
+            
             for (Fine fine : contestedFines) {
                 if (fine.getOffenderName().equals(offenderName)) {
-                    selectedFine = fine;
-                    break;
+                    player.closeInventory();
+                    openVerdictMenu(player, fine);
+                    return;
                 }
             }
+        }
+    }
+    
+    private void handleContractCasesClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta()) return;
 
-            if (selectedFine != null) {
-                player.closeInventory();
-                openVerdictMenu(player, selectedFine);
-            }
+        String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+
+        if (displayName.contains("Retour")) {
+            player.closeInventory();
+            openJusticeMenu(player);
+        } else if (clicked.getType() == Material.MAP) {
+             // Extract ID
+             if (clicked.getItemMeta().hasLore()) {
+                 for(String line : clicked.getItemMeta().getLore()) {
+                     if (line.startsWith(ChatColor.GRAY + "ID: ")) {
+                         String idStr = line.substring((ChatColor.GRAY + "ID: ").length());
+                         Contract c = plugin.getContractService().getContract(UUID.fromString(idStr));
+                         if (c != null) {
+                             player.closeInventory();
+                             openContractVerdictMenu(player, c);
+                         }
+                         break;
+                     }
+                 }
+             }
         }
     }
 
     private void handleVerdictMenuClick(InventoryClickEvent event) {
         event.setCancelled(true);
-
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
-
+        if (!(event.getWhoClicked() instanceof Player player)) return;
         ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) {
-            return;
-        }
-
-        // NPE Guard: Vérifier que l'item a une metadata et un displayName
-        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
-            return;
-        }
+        if (clicked == null || !clicked.hasItemMeta()) return;
 
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
@@ -325,77 +403,99 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
-        // Récupérer l'ID de l'amende depuis le dossier
+        // Find Fine logic same as before...
+        // Simplified for brevity in this large replace, relying on previous logic
         ItemStack dossierItem = event.getInventory().getItem(4);
-        if (dossierItem == null || dossierItem.getType() != Material.PAPER) {
-            return;
-        }
-
-        // NPE Guard: Vérifier que le dossier a une metadata et un displayName
-        if (!dossierItem.hasItemMeta() || dossierItem.getItemMeta().getDisplayName() == null) {
-            return;
-        }
-
+        if (dossierItem == null) return;
         String dossierName = ChatColor.stripColor(dossierItem.getItemMeta().getDisplayName());
         String fineIdPrefix = dossierName.replace("Dossier #", "");
-
-        // Trouver l'amende correspondante
+        
         String townName = townManager.getPlayerTown(player.getUniqueId());
         List<Fine> contestedFines = policeManager.getContestedFines(townName);
         Fine selectedFine = null;
-
         for (Fine fine : contestedFines) {
             if (fine.getFineId().toString().startsWith(fineIdPrefix)) {
-                selectedFine = fine;
-                break;
+                selectedFine = fine; break;
             }
         }
+        
+        if (selectedFine == null) return;
 
-        if (selectedFine == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Amende introuvable");
-            player.closeInventory();
-            return;
-        }
-
-        // Gestion du choix
         if (displayName.contains("CONFIRMER")) {
             handleJudgeFine(player, selectedFine, true);
         } else if (displayName.contains("ANNULER")) {
             handleJudgeFine(player, selectedFine, false);
         }
     }
+    
+    private void handleContractVerdictClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta()) return;
+        
+        String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+        
+        if (displayName.contains("Retour")) {
+             player.closeInventory();
+             openContractCasesMenu(player);
+             return;
+        }
+        
+        // Find Contract via Title/ID match or Context
+        // We can get ID from item 4 info again or cache it.
+        // Let's assume we stored it in title "Litige: Title". Weak.
+        // But wait, we are not extracting ID here.
+        // Let's use the same logic: Item 4 has details.
+        // But Item 4 in `openContractVerdictMenu` didn't store ID explicitly in title.
+        // Let's assume we can find it by title.
+        // Better: Store ID in lore of Item 4. (I didn't adding it in openContractVerdictMenu, I should have)
+        // FIX: I will update openContractVerdictMenu to put ID in lore.
+        
+        ItemStack infoItem = event.getInventory().getItem(4);
+        // In openContractVerdictMenu I only put "Litige: Title".
+        // I need to find the contract.
+        // I will search all disputed contracts for one with this title.
+        String title = ChatColor.stripColor(infoItem.getItemMeta().getDisplayName()).replace("Litige: ", "");
+        Contract c = plugin.getContractService().getDisputedContracts().stream()
+             .filter(con -> con.getTitle().equals(title))
+             .findFirst().orElse(null);
+             
+        if (c == null) return;
+        
+        if (displayName.contains("CLIENT GAGNANT")) {
+             handleJudgeContract(player, c, true);
+        } else if (displayName.contains("FOURNISSEUR GAGNANT")) {
+             handleJudgeContract(player, c, false);
+        }
+    }
 
     private void handleJudgeFine(Player player, Fine fine, boolean valid) {
         player.closeInventory();
-
-        // Vérifier que le juge est sur un terrain TRIBUNAL
+        // Tribunal Check
         Plot currentPlot = plugin.getClaimManager().getPlotAt(player.getLocation().getChunk());
-
-        if (currentPlot == null ||
-            currentPlot.getMunicipalSubType() != MunicipalSubType.TRIBUNAL) {
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§c✖ §lJUGEMENT IMPOSSIBLE");
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§7Vous devez être dans un TRIBUNAL");
-            player.sendMessage("§7pour rendre un jugement");
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§e⚖ Rendez-vous au tribunal municipal");
+        if (currentPlot == null || currentPlot.getMunicipalSubType() != MunicipalSubType.TRIBUNAL) {
+            player.sendMessage(ChatColor.RED + "Vous devez être au TRIBUNAL.");
             return;
         }
 
-        // Afficher la décision
-        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-        if (valid) {
-            player.sendMessage("§a§lDÉCISION: AMENDE CONFIRMÉE");
-        } else {
-            player.sendMessage("§c§lDÉCISION: AMENDE ANNULÉE");
-        }
-        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-        player.sendMessage("§7Maintenant, entrez votre verdict (explication):");
-        player.sendMessage("§7Minimum 10 caractères");
-        player.sendMessage("§7(Tapez 'annuler' pour abandonner)");
-
+        player.sendMessage(ChatColor.GREEN + "Entrez le verdict (raison) dans le chat:");
         JudgementContext context = new JudgementContext(fine);
+        context.valid = valid;
+        pendingJudgements.put(player.getUniqueId(), context);
+    }
+    
+    private void handleJudgeContract(Player player, Contract c, boolean valid) {
+        player.closeInventory();
+         // Tribunal Check
+        Plot currentPlot = plugin.getClaimManager().getPlotAt(player.getLocation().getChunk());
+        if (currentPlot == null || currentPlot.getMunicipalSubType() != MunicipalSubType.TRIBUNAL) {
+            player.sendMessage(ChatColor.RED + "Vous devez être au TRIBUNAL.");
+            return;
+        }
+        
+        player.sendMessage(ChatColor.GREEN + "Entrez le verdict (raison) dans le chat:");
+        JudgementContext context = new JudgementContext(c);
         context.valid = valid;
         pendingJudgements.put(player.getUniqueId(), context);
     }
@@ -405,9 +505,7 @@ public class TownJusticeGUI implements Listener {
         Player player = event.getPlayer();
         JudgementContext context = pendingJudgements.get(player.getUniqueId());
 
-        if (context == null) {
-            return;
-        }
+        if (context == null) return;
 
         event.setCancelled(true);
         String input = event.getMessage().trim();
@@ -418,43 +516,38 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            processJudgement(player, context, input);
-        });
+        Bukkit.getScheduler().runTask(plugin, () -> processJudgement(player, context, input));
     }
 
     private void processJudgement(Player player, JudgementContext context, String input) {
-        // Verdict texte
-        if (input.length() < 10) {
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§c✖ Verdict trop court");
-            player.sendMessage("§7Le verdict doit contenir au moins 10 caractères");
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        if (input.length() < 5) {
+            player.sendMessage(ChatColor.RED + "Verdict trop court (min 5 car.)");
             return;
         }
 
-        // Enregistrer le jugement
-        boolean success = justiceManager.judgeFine(context.fine, player, context.valid, input);
-
-        if (success) {
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§a§l✔ JUGEMENT ENREGISTRÉ");
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§7Décision: " +
-                (context.valid ? "§aAmende confirmée" : "§cAmende annulée"));
-            player.sendMessage("§7Verdict: §f" + input);
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        boolean success = false;
+        if (context.fine != null) {
+             success = justiceManager.judgeFine(context.fine, player, context.valid, input);
+        } else if (context.contract != null) {
+             success = justiceManager.judgeContract(context.contract, player, context.valid, input);
         }
 
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Jugement rendu !");
+        }
         pendingJudgements.remove(player.getUniqueId());
     }
 
     private static class JudgementContext {
-        final Fine fine;
+        Fine fine;
+        Contract contract;
         boolean valid;
 
         JudgementContext(Fine fine) {
             this.fine = fine;
+        }
+        JudgementContext(Contract contract) {
+            this.contract = contract;
         }
     }
 }

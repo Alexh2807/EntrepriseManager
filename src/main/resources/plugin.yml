@@ -34,6 +34,12 @@ commands:
     description: Système de backpacks physiques - Gérer les backpacks
     usage: /<command> [give|reload|info|help]
     aliases: [bp, sac]
+  loto:
+    description: Ouvre le menu du Loto Horaire
+    usage: /<command>
+  lotoadmin:
+    description: Administration du système de Loto
+    usage: /<command> <start|stop|draw|reset|reload>
 
 permissions:
   roleplaycity.use:
@@ -41,6 +47,12 @@ permissions:
     default: true
   roleplaycity.admin:
     description: Permet l'utilisation des fonctionnalités administratives de RoleplayCity
+    default: op
+  lotto.use:
+    description: Permet de participer au Loto
+    default: true
+  lotto.admin:
+    description: Permet de gérer le Loto (start/stop/draw)
     default: op
   roleplaycity.admin.reload:
     description: Permet de recharger la configuration du plugin avec /roleplaycity reload

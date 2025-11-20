@@ -40,16 +40,6 @@ public class CraftItemListener implements Listener {
 
         ItemStack resultItem = recipe.getResult();
 
-        // FIX: Ignorer les backpacks - ils sont gérés par BackpackCraftListener
-        // Vérifier si c'est un backpack en regardant le NBT/ItemMeta
-        if (plugin.getBackpackItemManager() != null &&
-            plugin.getBackpackItemManager().isBackpack(resultItem)) {
-            return;
-        }
-
-        Material itemType = resultItem.getType();
-        String itemTypeName = itemType.name();
-
         int amountPerSingleCraftExecution = resultItem.getAmount();
         int actualCraftedAmount = amountPerSingleCraftExecution;
 
@@ -60,6 +50,38 @@ public class CraftItemListener implements Listener {
                 actualCraftedAmount = amountPerSingleCraftExecution;
             }
         }
+
+        // Gestion des Backpacks
+        if (plugin.getBackpackItemManager() != null && plugin.getBackpackItemManager().isBackpack(resultItem)) {
+            com.gravityyfh.roleplaycity.backpack.model.BackpackType backpackType = plugin.getBackpackItemManager().getBackpackType(resultItem);
+            if (backpackType != null) {
+                String backpackId = backpackType.getId();
+
+                // Vérifier les restrictions pour CRAFT_BACKPACK
+                boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(
+                    player,
+                    "CRAFT_BACKPACK",
+                    backpackId,
+                    actualCraftedAmount
+                );
+
+                if (isBlocked) {
+                    event.setCancelled(true);
+                    return;
+                }
+
+                // Enregistrer l'action (loop pour la quantité car enregistrerCraftBackpack ne prend pas de quantité)
+                for (int i = 0; i < actualCraftedAmount; i++) {
+                    entrepriseLogic.enregistrerCraftBackpack(player, backpackId);
+                }
+                // NE PAS RETURN ICI - Laisser le craft se finaliser normalement
+                // Le BackpackCraftListener a déjà créé l'item avec UUID unique
+                // return; ← SUPPRIMÉ pour permettre la récupération de l'item
+            }
+        }
+
+        Material itemType = resultItem.getType();
+        String itemTypeName = itemType.name();
 
         boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, actualCraftedAmount);
 

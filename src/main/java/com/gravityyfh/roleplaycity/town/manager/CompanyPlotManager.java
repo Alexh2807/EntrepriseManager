@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.*;
 import org.bukkit.Bukkit;
@@ -63,7 +64,7 @@ public class CompanyPlotManager {
      */
     public String getPlayerCompanyName(Player player) {
         // Parcourir toutes les entreprises pour trouver celle dont le joueur est gérant
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+        for (Entreprise entreprise : entrepriseLogic.getEntreprises()) {
             String gerantUuidStr = entreprise.getGerantUUID();
             if (gerantUuidStr != null) {
                 try {
@@ -95,11 +96,11 @@ public class CompanyPlotManager {
      * @return La première entreprise trouvée, ou null si aucune
      */
     @Deprecated
-    public EntrepriseManagerLogic.Entreprise getPlayerCompany(Player player) {
+    public Entreprise getPlayerCompany(Player player) {
         plugin.getLogger().warning("[DEPRECATED] getPlayerCompany() appelé pour " + player.getName() +
             ". Utilisez EnterpriseContextManager.getPlayerEnterprises() à la place.");
 
-        for (EntrepriseManagerLogic.Entreprise entreprise : entrepriseLogic.getEntreprises()) {
+        for (Entreprise entreprise : entrepriseLogic.getEntreprises()) {
             String gerantUuidStr = entreprise.getGerantUUID();
             if (gerantUuidStr != null) {
                 try {
@@ -119,7 +120,7 @@ public class CompanyPlotManager {
     /**
      * Récupère une entreprise par son SIRET
      */
-    public EntrepriseManagerLogic.Entreprise getCompanyBySiret(String siret) {
+    public Entreprise getCompanyBySiret(String siret) {
         return entrepriseLogic.getEntrepriseBySiret(siret);
     }
 
@@ -232,7 +233,7 @@ public class CompanyPlotManager {
     /**
      * Gère le manque de fonds d'une entreprise pour payer les taxes
      */
-    public void handleInsufficientFunds(Plot plot, EntrepriseManagerLogic.Entreprise entreprise, double taxAmount) {
+    public void handleInsufficientFunds(Plot plot, Entreprise entreprise, double taxAmount) {
         if (plot == null || entreprise == null) {
             return;
         }

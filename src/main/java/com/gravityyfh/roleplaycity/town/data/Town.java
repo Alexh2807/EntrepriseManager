@@ -275,6 +275,13 @@ public class Town {
         if (amount < 0) {
             throw new IllegalArgumentException("Le montant déposé doit être positif.");
         }
+
+        // Vérifier la limite bancaire
+        double limit = com.gravityyfh.roleplaycity.RoleplayCity.getInstance().getTownLevelManager().getConfig(level).getBankLimit();
+        if (bankBalance + amount > limit) {
+            throw new IllegalStateException("La banque est pleine ! Limite pour " + level.getDisplayName() + " : " + String.format("%,.2f€", limit));
+        }
+
         bankBalance += amount;
     }
 

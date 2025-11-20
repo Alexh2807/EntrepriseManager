@@ -17,9 +17,30 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class RoleplayCity extends JavaPlugin implements Listener {
     private static RoleplayCity instance;
+    private Economy econ;
+    private TownManager townManager;
+    private com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager;
+    private TownDataManager townDataManager;
+    private com.gravityyfh.roleplaycity.town.manager.TownEconomyManager townEconomyManager;
+    private TownMainGUI townMainGUI;
+    private com.gravityyfh.roleplaycity.Listener.TownEventListener townEventListener;
+    private com.gravityyfh.roleplaycity.town.manager.TownLevelManager townLevelManager;
+    // Listeners
+    private com.gravityyfh.roleplaycity.Listener.BlockPlaceListener blockPlaceListener;
+    private com.gravityyfh.roleplaycity.Listener.CraftItemListener craftItemListener;
+    private com.gravityyfh.roleplaycity.Listener.SmithItemListener smithItemListener;
+    private com.gravityyfh.roleplaycity.Listener.EntityDamageListener entityDamageListener;
+    private com.gravityyfh.roleplaycity.Listener.EntityDeathListener entityDeathListener;
+    private com.gravityyfh.roleplaycity.Listener.TreeCutListener treeCutListener;
     private EntrepriseManagerLogic entrepriseLogic;
     private ChatListener chatListener;
     private EntrepriseGUI entrepriseGUI;
+    // Système de contrats
+    private com.gravityyfh.roleplaycity.contract.service.ContractService contractService;
+    private com.gravityyfh.roleplaycity.contract.gui.ContractManagementGUI contractManagementGUI;
+    private com.gravityyfh.roleplaycity.contract.gui.ContractCreationGUI contractCreationGUI;
+    private com.gravityyfh.roleplaycity.contract.gui.ContractDetailsGUI contractDetailsGUI;
+    private com.gravityyfh.roleplaycity.contract.listener.ContractChatListener contractChatListener;
     private PlayerCVGUI playerCVGUI;
     private CVManager cvManager;
     private com.gravityyfh.roleplaycity.shop.manager.ShopManager shopManager; // Nouveau système de boutiques
@@ -27,31 +48,15 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.shop.gui.ShopManagementGUI shopManagementGUI;
     private com.gravityyfh.roleplaycity.shop.gui.ShopCreationGUI shopCreationGUI;
     private com.gravityyfh.roleplaycity.shop.listener.ShopPlacementListener shopPlacementListener;
-    private static Economy econ = null;
-    private BlockPlaceListener blockPlaceListener;
-    private CraftItemListener craftItemListener;
-    private SmithItemListener smithItemListener;
-    private EntityDamageListener entityDamageListener;
-    private EntityDeathListener entityDeathListener;
-    private TreeCutListener treeCutListener;
-    private TownEventListener townEventListener;
-
-    // Système de Ville
-    private TownManager townManager;
-    private TownDataManager townDataManager;
-    private TownMainGUI townMainGUI;
-    private com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager;
-    private com.gravityyfh.roleplaycity.town.manager.TownLevelManager townLevelManager;
-    private com.gravityyfh.roleplaycity.town.manager.TownEconomyManager townEconomyManager;
     private com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager companyPlotManager;
     private com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager;
     private com.gravityyfh.roleplaycity.town.manager.TownPoliceManager townPoliceManager;
-    private com.gravityyfh.roleplaycity.town.manager.TownJusticeManager townJusticeManager;
     private com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager townFinesDataManager;
     private com.gravityyfh.roleplaycity.town.manager.FineExpirationManager fineExpirationManager;
+    private com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI townPlotManagementGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownClaimsGUI townClaimsGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownBankGUI townBankGUI;
-    private com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI townPlotManagementGUI;
+    private com.gravityyfh.roleplaycity.town.manager.TownJusticeManager townJusticeManager;
     private com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI plotOwnerGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownPoliceGUI townPoliceGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI townJusticeGUI;
@@ -106,7 +111,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // FIX BASSE #10: Gestionnaire de pool de threads pour les tâches asynchrones
     private com.gravityyfh.roleplaycity.util.AsyncTaskManager asyncTaskManager;
 
-    // FIX PERFORMANCES: Cache des blocs placés pour éviter les lookups CoreProtect synchrones
+    // FIX PERFORMANCES: Cache des blocs placés pour éviter les lookups CoreProtect
+    // synchrones
     private com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache blockPlaceCache;
 
     // Système de messages interactifs (remplacement des commandes à taper)
@@ -143,6 +149,35 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // Système de Mode Service
     private com.gravityyfh.roleplaycity.service.ServiceModeManager serviceModeManager;
     private com.gravityyfh.roleplaycity.service.ServiceModeListener serviceModeListener;
+    
+    // Système de Stockage d'Entreprise
+    private com.gravityyfh.roleplaycity.entreprise.storage.CompanyStorageManager companyStorageManager;
+    
+    // Système de Loto
+    private com.gravityyfh.roleplaycity.lotto.LottoManager lottoManager;
+    private com.gravityyfh.roleplaycity.lotto.LottoGUI lottoGUI;
+
+    // PHASE 6: Service Layer (SQLite)
+    private com.gravityyfh.roleplaycity.entreprise.service.ServiceFactory serviceFactory;
+    private com.gravityyfh.roleplaycity.entreprise.service.AsyncEntrepriseService asyncEntrepriseService;
+    private boolean usingSQLiteServices = false;
+
+    // PHASE 7: Global SQLite Migration (roleplaycity.db)
+    private com.gravityyfh.roleplaycity.database.ConnectionManager connectionManager;
+
+    public com.gravityyfh.roleplaycity.database.ConnectionManager getConnectionManager() {
+        return connectionManager;
+    }
+
+    private com.gravityyfh.roleplaycity.database.YAMLMigrationManager yamlMigrationManager;
+    private com.gravityyfh.roleplaycity.town.service.TownPersistenceService townPersistenceService;
+    private com.gravityyfh.roleplaycity.shop.service.ShopPersistenceService shopPersistenceService;
+    private com.gravityyfh.roleplaycity.service.ServicePersistenceService servicePersistenceService;
+    private com.gravityyfh.roleplaycity.medical.service.MedicalPersistenceService medicalPersistenceService;
+    private com.gravityyfh.roleplaycity.town.service.FinesPersistenceService finesPersistenceService;
+    private com.gravityyfh.roleplaycity.town.service.NotificationPersistenceService notificationPersistenceService;
+    private com.gravityyfh.roleplaycity.backpack.service.BackpackPersistenceService backpackPersistenceService;
+    private com.gravityyfh.roleplaycity.police.service.PrisonPersistenceService prisonPersistenceService;
 
     public void onEnable() {
         instance = this;
@@ -202,7 +237,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         asyncTaskManager = new com.gravityyfh.roleplaycity.util.AsyncTaskManager(this);
         debugLogger.debug("STARTUP", "AsyncTaskManager initialisé");
 
-        // FIX PERFORMANCES: Initialiser cache de blocs placés (évite lookups CoreProtect)
+        // FIX PERFORMANCES: Initialiser cache de blocs placés (évite lookups
+        // CoreProtect)
         blockPlaceCache = new com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache(this);
         debugLogger.debug("STARTUP", "PlayerBlockPlaceCache initialisé (optimisation CoreProtect)");
 
@@ -211,18 +247,74 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         chatInputListener = new com.gravityyfh.roleplaycity.util.ChatInputListener(this);
         debugLogger.debug("STARTUP", "Systèmes interactifs initialisés (ConfirmationManager, ChatInputListener)");
 
+        // PHASE 7: Initialiser ConnectionManager GLOBAL (roleplaycity.db)
+        getLogger().info("========================================");
+        getLogger().info("  INITIALISATION SQLite GLOBALE");
+        getLogger().info("========================================");
+        connectionManager = new com.gravityyfh.roleplaycity.database.ConnectionManager(this);
+        connectionManager.initialize();
+
+        // Migrer depuis YAML si nécessaire
+        yamlMigrationManager = new com.gravityyfh.roleplaycity.database.YAMLMigrationManager(this, connectionManager);
+        boolean migrationPerformed = yamlMigrationManager.checkAndMigrate();
+        if (migrationPerformed) {
+            yamlMigrationManager.generateMigrationReport();
+        }
+
+        // Initialiser TOUS les services de persistance
+        initializeAllPersistenceServices();
+
+        // FIX BUG: Initialiser les managers manquants (Town & Police System)
+        townDataManager = new com.gravityyfh.roleplaycity.town.manager.TownDataManager(this, townPersistenceService);
+        townFinesDataManager = new com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager(this, finesPersistenceService);
+        notificationDataManager = new com.gravityyfh.roleplaycity.town.manager.NotificationDataManager(this, notificationPersistenceService);
+        
+        townLevelManager = new com.gravityyfh.roleplaycity.town.manager.TownLevelManager(this);
+        townManager = new com.gravityyfh.roleplaycity.town.manager.TownManager(this);
+        claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
+        
+        notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this, notificationDataManager, townManager);
+        
+        townPoliceManager = new com.gravityyfh.roleplaycity.town.manager.TownPoliceManager(this, townManager);
+        townJusticeManager = new com.gravityyfh.roleplaycity.town.manager.TownJusticeManager(this, townManager, townPoliceManager);
+        fineExpirationManager = new com.gravityyfh.roleplaycity.town.manager.FineExpirationManager(this, townPoliceManager, townManager);
+
+        // PHASE 6: Initialiser Service Layer (SQLite ou fallback YAML)
+        initializeEntrepriseServices();
+
         // Système d'entreprises
         entrepriseLogic = new EntrepriseManagerLogic(this);
+        
+        // Initialisation CVManager et PlayerCVGUI (avec injection de dépendance croisée)
+        cvManager = new CVManager(this, entrepriseLogic);
+        playerCVGUI = new PlayerCVGUI(this, entrepriseLogic, cvManager);
+        cvManager.setPlayerCVGUI(playerCVGUI);
+        
+        // Initialisation EntrepriseGUI
+        entrepriseGUI = new EntrepriseGUI(this, entrepriseLogic);
+        
+        // Initialisation du système de stockage d'entreprise
+        companyStorageManager = new com.gravityyfh.roleplaycity.entreprise.storage.CompanyStorageManager(this);
+        
+        // Initialisation du système de Loto
+        lottoManager = new com.gravityyfh.roleplaycity.lotto.LottoManager(this);
+        lottoGUI = new com.gravityyfh.roleplaycity.lotto.LottoGUI(this, lottoManager);
+
+        // Initialisation ChatListener pour les saisies via chat
+        chatListener = new ChatListener(this, entrepriseGUI);
 
         // Système de Mode Service
-        serviceModeManager = new com.gravityyfh.roleplaycity.service.ServiceModeManager(this, entrepriseLogic, econ);
-        serviceModeListener = new com.gravityyfh.roleplaycity.service.ServiceModeListener(this, serviceModeManager, entrepriseLogic);
+        serviceModeManager = new com.gravityyfh.roleplaycity.service.ServiceModeManager(this, entrepriseLogic, econ,
+                servicePersistenceService);
+        serviceModeListener = new com.gravityyfh.roleplaycity.service.ServiceModeListener(this, serviceModeManager,
+                entrepriseLogic);
         getServer().getPluginManager().registerEvents(serviceModeListener, this);
         debugLogger.debug("STARTUP", "ServiceModeManager et ServiceModeListener initialisés");
 
         // Système de boutiques moderne
         try {
-            shopManager = new com.gravityyfh.roleplaycity.shop.manager.ShopManager(this, entrepriseLogic, econ);
+            shopManager = new com.gravityyfh.roleplaycity.shop.manager.ShopManager(this, entrepriseLogic, econ,
+                    shopPersistenceService);
             debugLogger.debug("STARTUP", "ShopManager initialisé");
 
             // Initialiser les GUIs et listeners de boutiques
@@ -230,61 +322,54 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             shopManagementGUI = new com.gravityyfh.roleplaycity.shop.gui.ShopManagementGUI(this, shopManager);
             shopCreationGUI = new com.gravityyfh.roleplaycity.shop.gui.ShopCreationGUI(this, shopManager);
             shopPlacementListener = new com.gravityyfh.roleplaycity.shop.listener.ShopPlacementListener(this, shopManager);
-            debugLogger.debug("STARTUP", "GUIs et listeners de boutiques initialisés");
         } catch (Exception e) {
-            getLogger().severe("[ShopSystem] ERREUR lors de l'initialisation du ShopManager: " + e.getMessage());
+            getLogger().severe("Erreur lors de l'initialisation du ShopManager: " + e.getMessage());
             e.printStackTrace();
-            shopManager = null;
         }
 
-        entrepriseGUI = new EntrepriseGUI(this, entrepriseLogic);
-        chatListener = new ChatListener(this, entrepriseGUI);
-        cvManager = new CVManager(this, entrepriseLogic);
-        playerCVGUI = new PlayerCVGUI(this, entrepriseLogic, cvManager);
-        cvManager.setPlayerCVGUI(playerCVGUI);
-
-        // Système de ville
-        townDataManager = new TownDataManager(this);
-        townManager = new TownManager(this);
-        townLevelManager = new com.gravityyfh.roleplaycity.town.manager.TownLevelManager(this);
-        claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
-
-        // Système de notifications (DOIT être créé AVANT TownEconomyManager)
-        notificationDataManager = new com.gravityyfh.roleplaycity.town.manager.NotificationDataManager(this);
-        notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this, notificationDataManager, townManager);
-        notificationManager.loadNotifications();
-        notificationManager.scheduleAutomaticNotifications();
-
-        debtNotificationService = new com.gravityyfh.roleplaycity.town.manager.DebtNotificationService(this, townManager);
+        debtNotificationService = new com.gravityyfh.roleplaycity.town.manager.DebtNotificationService(this,
+                townManager);
         debtNotificationService.start();
 
         // Managers qui dépendent du NotificationManager
-        townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager, claimManager);
-        companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager, entrepriseLogic, debtNotificationService);
+        townEconomyManager = new com.gravityyfh.roleplaycity.town.manager.TownEconomyManager(this, townManager,
+                claimManager);
+        companyPlotManager = new com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager(this, townManager,
+                entrepriseLogic, debtNotificationService);
 
         // EnterpriseContextManager (gestion centralisée de la sélection d'entreprise)
-        enterpriseContextManager = new com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager(this, entrepriseLogic);
-        getLogger().info("[RoleplayCity] EnterpriseContextManager initialisé");
-
-        // Police et Justice
-        townFinesDataManager = new com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager(this);
-        townPoliceManager = new com.gravityyfh.roleplaycity.town.manager.TownPoliceManager(this, townManager);
-        townJusticeManager = new com.gravityyfh.roleplaycity.town.manager.TownJusticeManager(this, townManager, townPoliceManager);
-        fineExpirationManager = new com.gravityyfh.roleplaycity.town.manager.FineExpirationManager(this, townPoliceManager, townManager);
-
-        // FIX BASSE #9: GUIs initialisés en lazy loading (voir getters ci-dessous)
-        // Les GUIs ne seront créés qu'à la première utilisation pour améliorer le temps de démarrage
+        enterpriseContextManager = new com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager(this,
+                entrepriseLogic);
+        // Les GUIs ne seront créés qu'à la première utilisation pour améliorer le temps
+        // de démarrage
         debugLogger.debug("STARTUP", "GUIs configurés en lazy loading (seront initialisés à la demande)");
+        // Initialise l'ancien ContractManager (deprecated - à supprimer)
+        // contractManager = new com.gravityyfh.roleplaycity.manager.ContractManager(this);
+        // contractGUI = new com.gravityyfh.roleplaycity.gui.ContractGUI(this);
+
+        // Initialise le nouveau système de contrats
+        contractService = new com.gravityyfh.roleplaycity.contract.service.ContractService(this);
+        contractManagementGUI = new com.gravityyfh.roleplaycity.contract.gui.ContractManagementGUI(this, contractService);
+        contractCreationGUI = new com.gravityyfh.roleplaycity.contract.gui.ContractCreationGUI(this, contractService);
+        contractDetailsGUI = new com.gravityyfh.roleplaycity.contract.gui.ContractDetailsGUI(this, contractService);
+        contractChatListener = new com.gravityyfh.roleplaycity.contract.listener.ContractChatListener(this, contractService);
 
         // Listeners
-        townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager, claimManager);
-        plotGroupingListener = new com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener(this, townManager, claimManager);
+        townProtectionListener = new com.gravityyfh.roleplaycity.town.listener.TownProtectionListener(this, townManager,
+                claimManager);
+        plotGroupingListener = new com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener(this, townManager,
+                claimManager);
 
         // Charger les villes
         townManager.loadTowns(townDataManager.loadTowns());
 
         // Charger les amendes
         townPoliceManager.loadFines(townFinesDataManager.loadFines());
+
+        // Charger les notifications
+        if (notificationManager != null) {
+            notificationManager.loadNotifications();
+        }
 
         // Démarrer la vérification automatique des amendes expirées
         fineExpirationManager.startAutomaticChecks();
@@ -293,41 +378,63 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         claimManager.rebuildCache();
 
         // FIX BUG: Liaison des GUIs supprimée car ils sont maintenant en lazy loading
-        // Les liaisons entre GUIs se feront automatiquement lors de leur première création
+        // Les liaisons entre GUIs se feront automatiquement lors de leur première
+        // création
         // (voir les getters getTownMainGUI(), etc.)
 
         // Démarrer la tâche économique récurrente
-        townEconomyTask = new com.gravityyfh.roleplaycity.town.task.TownEconomyTask(this, townManager, townEconomyManager);
+        townEconomyTask = new com.gravityyfh.roleplaycity.town.task.TownEconomyTask(this, townManager,
+                townEconomyManager);
         townEconomyTask.start();
 
         // Système Médical
-        medicalSystemManager = new com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager(this);
+        medicalSystemManager = new com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager(this,
+                medicalPersistenceService);
         medicalListener = new com.gravityyfh.roleplaycity.medical.listener.MedicalListener(this);
         healingMiniGameListener = new com.gravityyfh.roleplaycity.medical.listener.HealingMiniGameListener(this);
 
         // Système Postal (La Poste)
         mailboxManager = new com.gravityyfh.roleplaycity.postal.manager.MailboxManager(this);
         mailboxPlacementGUI = new com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI(this, mailboxManager);
-        mailboxVisualPlacement = new com.gravityyfh.roleplaycity.postal.gui.MailboxVisualPlacement(this, mailboxManager);
+        mailboxVisualPlacement = new com.gravityyfh.roleplaycity.postal.gui.MailboxVisualPlacement(this,
+                mailboxManager);
         laPosteGUI = new com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI(this, townManager, mailboxManager, econ);
-        mailboxInteractionListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxInteractionListener(this, mailboxManager, claimManager);
-        mailboxNotificationListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxNotificationListener(this, mailboxManager, claimManager);
-        plotGroupMailboxListener = new com.gravityyfh.roleplaycity.postal.listener.PlotGroupMailboxListener(this, mailboxManager);
+        mailboxInteractionListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxInteractionListener(this,
+                mailboxManager, claimManager);
+        mailboxNotificationListener = new com.gravityyfh.roleplaycity.postal.listener.MailboxNotificationListener(this,
+                mailboxManager, claimManager);
+        plotGroupMailboxListener = new com.gravityyfh.roleplaycity.postal.listener.PlotGroupMailboxListener(this,
+                mailboxManager);
 
         // Système de Police (Taser & Menottes)
         if (getConfig().getBoolean("police-equipment.taser.enabled", true) ||
-            getConfig().getBoolean("police-equipment.handcuffs.enabled", true)) {
+                getConfig().getBoolean("police-equipment.handcuffs.enabled", true)) {
             debugLogger.debug("STARTUP", "Initialisation du système de police...");
 
             policeItemManager = new com.gravityyfh.roleplaycity.police.items.PoliceItemManager(this);
             tasedPlayerData = new com.gravityyfh.roleplaycity.police.data.TasedPlayerData();
             handcuffedPlayerData = new com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData();
 
-            policeCraftListener = new com.gravityyfh.roleplaycity.police.listeners.PoliceCraftListener(this, policeItemManager);
-            taserListener = new com.gravityyfh.roleplaycity.police.listeners.TaserListener(this, policeItemManager, tasedPlayerData);
-            handcuffsListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsListener(this, policeItemManager, handcuffedPlayerData);
-            handcuffsBreakListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsBreakListener(this, handcuffedPlayerData);
-            handcuffsFollowListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsFollowListener(this, handcuffedPlayerData);
+            policeCraftListener = new com.gravityyfh.roleplaycity.police.listeners.PoliceCraftListener(this,
+                    policeItemManager);
+            taserListener = new com.gravityyfh.roleplaycity.police.listeners.TaserListener(this, policeItemManager,
+                    tasedPlayerData);
+            handcuffsListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsListener(this,
+                    policeItemManager, handcuffedPlayerData);
+            handcuffsBreakListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsBreakListener(this,
+                    handcuffedPlayerData);
+            handcuffsFollowListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsFollowListener(this,
+                    handcuffedPlayerData);
+
+            // Charger les joueurs menottés (Persistance)
+            if (prisonPersistenceService != null) {
+                java.util.Map<java.util.UUID, Double> handcuffed = prisonPersistenceService.loadHandcuffedPlayers();
+                handcuffed.forEach((uuid, health) -> handcuffedPlayerData.loadHandcuffed(uuid, health));
+
+                // Charger les joueurs tasés (Persistance)
+                java.util.Map<java.util.UUID, Long> tased = prisonPersistenceService.loadTasedPlayers();
+                tased.forEach((uuid, expiration) -> tasedPlayerData.loadTased(uuid, expiration));
+            }
 
             debugLogger.debug("STARTUP", "Système de police initialisé (Taser & Menottes)");
         }
@@ -336,11 +443,16 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (getConfig().getBoolean("prison-system.enabled", true)) {
             debugLogger.debug("STARTUP", "Initialisation du système de prison...");
 
-            prisonManager = new com.gravityyfh.roleplaycity.police.manager.PrisonManager(this, townManager, handcuffedPlayerData);
-            townPrisonManagementGUI = new com.gravityyfh.roleplaycity.police.gui.TownPrisonManagementGUI(this, townManager, prisonManager);
-            imprisonmentWorkflowGUI = new com.gravityyfh.roleplaycity.police.gui.ImprisonmentWorkflowGUI(this, townManager, prisonManager, handcuffedPlayerData);
-            prisonRestrictionListener = new com.gravityyfh.roleplaycity.police.listeners.PrisonRestrictionListener(this, prisonManager.getImprisonedData());
-            prisonBoundaryListener = new com.gravityyfh.roleplaycity.police.listeners.PrisonBoundaryListener(this, townManager, prisonManager.getImprisonedData());
+            prisonManager = new com.gravityyfh.roleplaycity.police.manager.PrisonManager(this, townManager,
+                    handcuffedPlayerData);
+            townPrisonManagementGUI = new com.gravityyfh.roleplaycity.police.gui.TownPrisonManagementGUI(this,
+                    townManager, prisonManager);
+            imprisonmentWorkflowGUI = new com.gravityyfh.roleplaycity.police.gui.ImprisonmentWorkflowGUI(this,
+                    townManager, prisonManager, handcuffedPlayerData);
+            prisonRestrictionListener = new com.gravityyfh.roleplaycity.police.listeners.PrisonRestrictionListener(this,
+                    prisonManager.getImprisonedData());
+            prisonBoundaryListener = new com.gravityyfh.roleplaycity.police.listeners.PrisonBoundaryListener(this,
+                    townManager, prisonManager.getImprisonedData());
 
             // Démarrer le scheduler de vérification des expirations
             prisonManager.startExpirationChecker();
@@ -355,22 +467,30 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
             backpackItemManager = new com.gravityyfh.roleplaycity.backpack.manager.BackpackItemManager(this);
             backpackUtil = new com.gravityyfh.roleplaycity.backpack.util.BackpackUtil(this);
-            backpackManager = new com.gravityyfh.roleplaycity.backpack.manager.BackpackManager(this, backpackItemManager);
-            backpackGUI = new com.gravityyfh.roleplaycity.backpack.gui.BackpackGUI(this, backpackManager, backpackItemManager, backpackUtil);
-            backpackInteractionListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackInteractionListener(this, backpackItemManager, backpackGUI);
-            backpackProtectionListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackProtectionListener(this, backpackItemManager);
-            backpackCraftListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackCraftListener(this, backpackItemManager, entrepriseLogic);
-            backpackCommandHandler = new com.gravityyfh.roleplaycity.backpack.command.BackpackCommandHandler(this, backpackItemManager, backpackManager, backpackUtil);
+            backpackManager = new com.gravityyfh.roleplaycity.backpack.manager.BackpackManager(this,
+                    backpackItemManager);
+            backpackGUI = new com.gravityyfh.roleplaycity.backpack.gui.BackpackGUI(this, backpackManager,
+                    backpackItemManager, backpackUtil);
+            backpackInteractionListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackInteractionListener(
+                    this, backpackItemManager, backpackGUI);
+            backpackProtectionListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackProtectionListener(
+                    this, backpackItemManager);
+            backpackCraftListener = new com.gravityyfh.roleplaycity.backpack.listener.BackpackCraftListener(this,
+                    backpackItemManager, entrepriseLogic);
+            backpackCommandHandler = new com.gravityyfh.roleplaycity.backpack.command.BackpackCommandHandler(this,
+                    backpackItemManager, backpackManager, backpackUtil);
 
             // Enregistrer les recettes natives Bukkit pour les backpacks
             backpackCraftListener.registerRecipes();
 
             // ⚡ OPTIMISATION: Activer la compression si configurée
-            boolean compressionEnabled = backpackItemManager.getBackpacksConfig().getBoolean("global_settings.performance.compression_enabled", false);
+            boolean compressionEnabled = backpackItemManager.getBackpacksConfig()
+                    .getBoolean("global_settings.performance.compression_enabled", false);
             com.gravityyfh.roleplaycity.backpack.manager.BackpackSerializer.setCompressionEnabled(compressionEnabled);
 
             debugLogger.debug("STARTUP", "Système de backpacks initialisé avec succès");
-            getLogger().info("Système de backpacks activé avec " + backpackItemManager.getBackpackTypes().size() + " types");
+            getLogger().info(
+                    "Système de backpacks activé avec " + backpackItemManager.getBackpackTypes().size() + " types");
             if (compressionEnabled) {
                 getLogger().info("⚡ Compression GZIP activée (économie mémoire ~50-70%)");
             }
@@ -475,54 +595,173 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             entrepriseLogic.cleanup();
         }
 
-        if (shopManager != null) {
-            // FIX BUG: Sauvegarder les shops lors du disable
-            shopManager.saveShops();
+        // Nettoyer le mode service pour tous les joueurs
+        if (serviceModeManager != null) {
+            for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+                if (serviceModeManager.isInService(player.getUniqueId())) {
+                    serviceModeManager.deactivateService(player);
+                }
+            }
         }
-        if (entrepriseLogic != null) {
-            entrepriseLogic.saveEntreprises();
+
+        // ====================================================================
+        // ÉTAPE 1: SAUVEGARDER TOUTES LES DONNÉES AVANT DE FERMER LA BDD
+        // ====================================================================
+
+        getLogger().info("============================================");
+        getLogger().info("Sauvegarde finale de toutes les données...");
+        getLogger().info("============================================");
+
+        java.util.List<java.util.concurrent.CompletableFuture<Void>> futures = new java.util.ArrayList<>();
+
+        // Sauvegarder les entreprises (SQLite)
+        if (usingSQLiteServices && asyncEntrepriseService != null) {
+            getLogger().info("[Entreprises] Sauvegarde finale des données SQLite...");
+            try {
+                asyncEntrepriseService.saveAll().join();
+                getLogger().info("[Entreprises] Données SQLite sauvegardées");
+            } catch (Exception e) {
+                getLogger().severe("[Entreprises] Erreur sauvegarde finale: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else if (entrepriseLogic != null) {
+            entrepriseLogic.saveEntreprisesSync();
         }
+
+        // Sauvegarder les villes (SQLite)
         if (townManager != null) {
-            // Utiliser saveTownsSync() pour une sauvegarde synchrone lors de l'arrêt
+            getLogger().info("[Towns] Sauvegarde finale...");
             townManager.saveTownsSync();
         }
+
+        // Sauvegarder les notifications (SQLite)
         if (notificationManager != null) {
-            // Sauvegarder les notifications de manière synchrone
+            getLogger().info("[Notifications] Sauvegarde finale...");
             notificationManager.saveNotificationsSync();
         }
+
+        // Sauvegarder les amendes (SQLite)
         if (townPoliceManager != null && townFinesDataManager != null) {
+            getLogger().info("[Fines] Sauvegarde finale...");
             townFinesDataManager.saveFines(townPoliceManager.getFinesForSave());
         }
-        // Les données de mailbox sont maintenant sauvegardées dans towns.yml via TownDataManager
+
+        // Sauvegarder les menottes (SQLite)
+        if (handcuffedPlayerData != null && prisonPersistenceService != null) {
+            getLogger().info("[Police] Sauvegarde des menottes...");
+            prisonPersistenceService.saveHandcuffedPlayers(handcuffedPlayerData.getAllHandcuffedData());
+        }
+
+        // Sauvegarder les joueurs tasés (SQLite)
+        if (tasedPlayerData != null && prisonPersistenceService != null) {
+            getLogger().info("[Police] Sauvegarde des joueurs tasés...");
+            prisonPersistenceService.saveTasedPlayers(tasedPlayerData.getAllTasedData());
+        }
+
+        // Sauvegarder les boutiques (async)
+        if (shopManager != null) {
+            getLogger().info("[Shops] Sauvegarde finale...");
+            futures.add(shopManager.saveShops());
+        }
+        
+        // Sauvegarder les coffres d'entreprise
+        if (companyStorageManager != null) {
+            getLogger().info("[Storage] Sauvegarde des coffres...");
+            companyStorageManager.saveAll();
+        }
+
+        // Attendre toutes les sauvegardes asynchrones
+        if (!futures.isEmpty()) {
+            try {
+                java.util.concurrent.CompletableFuture
+                        .allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+            } catch (Exception e) {
+                getLogger().severe("Erreur lors de l'attente des sauvegardes: " + e.getMessage());
+            }
+        }
+
+        getLogger().info("✓ Toutes les données ont été sauvegardées");
+
+        // ====================================================================
+        // ÉTAPE 2: FERMER LES SERVICES ET LA BASE DE DONNÉES
+        // ====================================================================
+
+        if (serviceFactory != null) {
+            serviceFactory.shutdown();
+        }
+
+        // PHASE 7: Fermer le ConnectionManager global (APRÈS toutes les sauvegardes)
+        if (connectionManager != null) {
+            getLogger().info("[SQLite] Fermeture de la base de données...");
+            connectionManager.shutdown();
+            getLogger().info("[SQLite] Base de données fermée");
+        }
+        // Les données de mailbox sont maintenant sauvegardées dans towns.yml via
+        // TownDataManager
         // Plus besoin de sauvegarder mailboxes.yml séparément
         getLogger().info("RoleplayCity désactivé. Données sauvegardées.");
+    }
+
+    // Getters for Contract System
+    public com.gravityyfh.roleplaycity.contract.service.ContractService getContractService() {
+        return contractService;
+    }
+
+    public com.gravityyfh.roleplaycity.contract.gui.ContractManagementGUI getContractManagementGUI() {
+        return contractManagementGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.contract.gui.ContractCreationGUI getContractCreationGUI() {
+        return contractCreationGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.contract.gui.ContractDetailsGUI getContractDetailsGUI() {
+        return contractDetailsGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.contract.listener.ContractChatListener getContractChatListener() {
+        return contractChatListener;
     }
 
     private void registerAllListeners() {
         var pm = getServer().getPluginManager();
         var listeners = new Listener[] {
-            this, chatListener, entrepriseGUI, playerCVGUI,
-            shopListGUI, shopManagementGUI, shopCreationGUI, shopPlacementListener, // Système de boutiques
-            blockPlaceListener, craftItemListener, smithItemListener,
-            entityDamageListener, entityDeathListener, treeCutListener,
-            // NOTE: Les GUIs en lazy loading (townMainGUI, myPropertyGUI, etc.) s'enregistrent automatiquement lors de leur création
-            // Ne PAS les inclure ici pour éviter les doublons de listeners qui causent des bugs de "session expirée"
-            plotGroupingListener, // Listener pour groupement de terrains
-            townProtectionListener, // Protection des territoires de ville
-            new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD pour afficher les infos de territoire
-            townEventListener, // Événements de ville (suppression, départ membres)
-            medicalListener, // Système médical (Revive intégré)
-            healingMiniGameListener, // Mini-jeu de suture pour les soins médicaux
-            mailboxPlacementGUI, mailboxVisualPlacement, mailboxInteractionListener, mailboxNotificationListener, // Système Postal (La Poste)
-            laPosteGUI, // GUI La Poste
-            policeCraftListener, taserListener, handcuffsListener, // Système de Police (Taser & Menottes)
-            handcuffsBreakListener, handcuffsFollowListener, // Système de Police (suite)
-            townPrisonManagementGUI, imprisonmentWorkflowGUI, // Système de Prison (GUIs)
-            prisonRestrictionListener, prisonBoundaryListener, // Système de Prison (Restrictions & Limites)
-            backpackInteractionListener, backpackProtectionListener, backpackCraftListener, // Système de Backpacks
-            new EventListener(this, entrepriseLogic),
-            new PlayerConnectionListener(this, entrepriseLogic),
-            new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les notifications
+                this, chatListener, entrepriseGUI, playerCVGUI,
+                shopListGUI, shopManagementGUI, shopCreationGUI, shopPlacementListener, // Système de boutiques
+                contractManagementGUI, contractCreationGUI, contractDetailsGUI, contractChatListener, // Système de contrats
+                blockPlaceListener, craftItemListener, smithItemListener,
+                entityDamageListener, entityDeathListener, treeCutListener,
+                // NOTE: Les GUIs en lazy loading (townMainGUI, myPropertyGUI, etc.)
+                // s'enregistrent automatiquement lors de leur création
+                // Ne PAS les inclure ici pour éviter les doublons de listeners qui causent des
+                // bugs de "session expirée"
+                plotGroupingListener, // Listener pour groupement de terrains
+                townProtectionListener, // Protection des territoires de ville
+                new com.gravityyfh.roleplaycity.town.listener.TownHUDListener(this, townManager, claimManager), // HUD
+                                                                                                                // pour
+                                                                                                                // afficher
+                                                                                                                // les
+                                                                                                                // infos
+                                                                                                                // de
+                                                                                                                // territoire
+                townEventListener, // Événements de ville (suppression, départ membres)
+                medicalListener, // Système médical (Revive intégré)
+                healingMiniGameListener, // Mini-jeu de suture pour les soins médicaux
+                mailboxPlacementGUI, mailboxVisualPlacement, mailboxInteractionListener, mailboxNotificationListener, // Système
+                                                                                                                      // Postal
+                                                                                                                      // (La
+                                                                                                                      // Poste)
+                laPosteGUI, // GUI La Poste
+                policeCraftListener, taserListener, handcuffsListener, // Système de Police (Taser & Menottes)
+                handcuffsBreakListener, handcuffsFollowListener, // Système de Police (suite)
+                townPrisonManagementGUI, imprisonmentWorkflowGUI, // Système de Prison (GUIs)
+                prisonRestrictionListener, prisonBoundaryListener, // Système de Prison (Restrictions & Limites)
+                backpackInteractionListener, backpackProtectionListener, backpackCraftListener, // Système de Backpacks
+                new EventListener(this, entrepriseLogic),
+                new PlayerConnectionListener(this, entrepriseLogic),
+                new com.gravityyfh.roleplaycity.entreprise.storage.ServiceDropListener(this, companyStorageManager, serviceModeManager, entrepriseLogic),
+                new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les
+                                                                                             // notifications
         };
 
         for (Listener listener : listeners) {
@@ -535,19 +774,19 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (shopManager != null) {
             try {
                 Listener shopListener = new com.gravityyfh.roleplaycity.shop.listener.ShopInteractionHandler(
-                    this, shopManager, entrepriseLogic);
+                        this, shopManager, entrepriseLogic);
                 pm.registerEvents(shopListener, this);
                 getLogger().info("Listener du système de boutiques enregistré.");
 
                 // Enregistrer le listener de chargement automatique des hologrammes
                 Listener hologramLoader = new com.gravityyfh.roleplaycity.shop.listener.ShopHologramLoader(
-                    this, shopManager);
+                        this, shopManager);
                 pm.registerEvents(hologramLoader, this);
                 getLogger().info("Listener de chargement automatique des hologrammes enregistré.");
 
                 // Enregistrer le listener de suppression automatique des shops
                 Listener shopDeletionListener = new com.gravityyfh.roleplaycity.shop.listener.ShopDeletionListener(
-                    this, shopManager);
+                        this, shopManager);
                 pm.registerEvents(shopDeletionListener, this);
                 getLogger().info("Listener de suppression automatique des shops enregistré.");
             } catch (Exception e) {
@@ -557,14 +796,15 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
 
         getLogger().info("Tous les listeners ont été enregistrés avec succès.");
-        getLogger().info("NOTE: Les GUIs en lazy loading s'enregistreront automatiquement lors de leur première utilisation.");
+        getLogger().info(
+                "NOTE: Les GUIs en lazy loading s'enregistreront automatiquement lors de leur première utilisation.");
     }
 
     private void setupCommands() {
         var roleplaycityCmd = getCommand("roleplaycity");
         if (roleplaycityCmd != null) {
-            com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler handler =
-                new com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler(this);
+            com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler handler = new com.gravityyfh.roleplaycity.command.RoleplayCityCommandHandler(
+                    this);
             roleplaycityCmd.setExecutor(handler);
             roleplaycityCmd.setTabCompleter(handler);
             getLogger().info("Gestionnaire de commandes pour /roleplaycity enregistré.");
@@ -606,7 +846,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
         var laposteCmd = getCommand("laposte");
         if (laposteCmd != null) {
-            laposteCmd.setExecutor(new com.gravityyfh.roleplaycity.postal.command.LaPosteCommand(this, claimManager, laPosteGUI));
+            laposteCmd.setExecutor(
+                    new com.gravityyfh.roleplaycity.postal.command.LaPosteCommand(this, claimManager, laPosteGUI));
             getLogger().info("Gestionnaire de commandes pour /laposte enregistré.");
         } else {
             getLogger().severe("ERREUR: La commande 'laposte' n'est pas définie dans plugin.yml !");
@@ -620,6 +861,25 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         } else if (backpackCmd == null) {
             getLogger().severe("ERREUR: La commande 'backpack' n'est pas définie dans plugin.yml !");
         }
+        
+        var lotoCmd = getCommand("loto");
+        if (lotoCmd != null) {
+            lotoCmd.setExecutor(new com.gravityyfh.roleplaycity.lotto.LottoCommand(lottoGUI));
+        }
+        
+        var lotoAdminCmd = getCommand("lotoadmin");
+        if (lotoAdminCmd != null) {
+            lotoAdminCmd.setExecutor(new com.gravityyfh.roleplaycity.lotto.LottoAdminCommand(lottoManager));
+        }
+        
+        // Ancien système de contrats supprimé - voir nouveau système intégré dans EntrepriseGUI
+        // var contractCmd = getCommand("contract");
+        // if (contractCmd != null) {
+        //     contractCmd.setExecutor(new com.gravityyfh.roleplaycity.command.ContractCommandHandler(this));
+        //     getLogger().info("Gestionnaire de commandes pour /contract enregistré.");
+        // } else {
+        //     getLogger().severe("ERREUR: La commande 'contract' n'est pas définie dans plugin.yml !");
+        // }
     }
 
     /**
@@ -627,8 +887,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
      * Vérifie toutes les valeurs de configuration et affiche les erreurs/warnings
      */
     private void validateConfiguration() {
-        com.gravityyfh.roleplaycity.util.ConfigValidator validator =
-            new com.gravityyfh.roleplaycity.util.ConfigValidator(this);
+        com.gravityyfh.roleplaycity.util.ConfigValidator validator = new com.gravityyfh.roleplaycity.util.ConfigValidator(
+                this);
 
         boolean isValid = validator.validate();
 
@@ -644,7 +904,101 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     }
 
     /**
-     * FIX BASSE #34-35: Vérification robuste de Vault avec version et graceful degradation
+     * PHASE 6: Initialise les services entreprise (SQLite ou YAML)
+     */
+    private void initializeEntrepriseServices() {
+        serviceFactory = new com.gravityyfh.roleplaycity.entreprise.service.ServiceFactory(this);
+
+        // Utiliser le ConnectionManager global s'il est disponible
+        if (connectionManager != null && connectionManager.isInitialized()) {
+            try {
+                getLogger().info("[Entreprises] Initialisation via ConnectionManager Global...");
+                serviceFactory.initializeWithSQLite(connectionManager);
+
+                // Créer le wrapper async avec cache
+                asyncEntrepriseService = new com.gravityyfh.roleplaycity.entreprise.service.AsyncEntrepriseService(
+                        this,
+                        serviceFactory.getEntrepriseService());
+
+                // Scheduler pour sauvegarder les entreprises modifiées toutes les 5 minutes
+                org.bukkit.scheduler.BukkitRunnable saveDirtyTask = new org.bukkit.scheduler.BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (asyncEntrepriseService != null) {
+                            asyncEntrepriseService.saveDirtyEntreprises()
+                                    .thenAccept(saved -> {
+                                        if (saved > 0) {
+                                            debugLogger.debug("AUTOSAVE", saved + " entreprises sauvegardées");
+                                        }
+                                    });
+                        }
+                    }
+                };
+                saveDirtyTask.runTaskTimerAsynchronously(this, 6000L, 6000L); // 5 minutes
+
+                usingSQLiteServices = true;
+                getLogger().info("[Entreprises] Service Layer SQLite activé avec succès");
+
+            } catch (Exception e) {
+                getLogger().severe("[Entreprises] Erreur initialisation SQLite - Fallback vers YAML:");
+                getLogger().severe("[Entreprises] " + e.getMessage());
+                e.printStackTrace();
+
+                serviceFactory.initializeWithYAML();
+                usingSQLiteServices = false;
+                getLogger().warning("[Entreprises] Mode YAML legacy activé (fallback)");
+            }
+        } else {
+            serviceFactory.initializeWithYAML();
+            usingSQLiteServices = false;
+            getLogger().info("[Entreprises] Mode YAML legacy (ConnectionManager non dispo)");
+        }
+    }
+
+    /**
+     * PHASE 7: Initialise tous les services de persistance SQLite
+     */
+    private void initializeAllPersistenceServices() {
+        getLogger().info("[SQLite] Initialisation des services de persistance...");
+
+        // Towns
+        townPersistenceService = new com.gravityyfh.roleplaycity.town.service.TownPersistenceService(
+                this, connectionManager);
+
+        // Shops
+        shopPersistenceService = new com.gravityyfh.roleplaycity.shop.service.ShopPersistenceService(
+                this, connectionManager);
+
+        // Service Mode
+        servicePersistenceService = new com.gravityyfh.roleplaycity.service.ServicePersistenceService(
+                this, connectionManager);
+
+        // Medical
+        medicalPersistenceService = new com.gravityyfh.roleplaycity.medical.service.MedicalPersistenceService(
+                this, connectionManager);
+
+        // Fines
+        finesPersistenceService = new com.gravityyfh.roleplaycity.town.service.FinesPersistenceService(
+                this, connectionManager);
+
+        // Notifications
+        notificationPersistenceService = new com.gravityyfh.roleplaycity.town.service.NotificationPersistenceService(
+                this, connectionManager);
+
+        // Backpacks
+        backpackPersistenceService = new com.gravityyfh.roleplaycity.backpack.service.BackpackPersistenceService(
+                this, connectionManager);
+
+        // Prison
+        prisonPersistenceService = new com.gravityyfh.roleplaycity.police.service.PrisonPersistenceService(
+                this, connectionManager);
+
+        getLogger().info("[SQLite] Tous les services de persistance initialisés avec succès");
+    }
+
+    /**
+     * FIX BASSE #34-35: Vérification robuste de Vault avec version et graceful
+     * degradation
      */
     private boolean setupEconomy() {
         org.bukkit.plugin.Plugin vaultPlugin = getServer().getPluginManager().getPlugin("Vault");
@@ -828,10 +1182,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
     }
 
-    // FIX BASSE #4: Méthode deprecated supprimée - utiliser reloadPluginConfig() directement
+    // FIX BASSE #4: Méthode deprecated supprimée - utiliser reloadPluginConfig()
+    // directement
 
     /**
-     * Intercepte les commandes avec le préfixe "ville:" pour les rediriger vers "/ville"
+     * Intercepte les commandes avec le préfixe "ville:" pour les rediriger vers
+     * "/ville"
      * Permet aux boutons cliquables de fonctionner correctement
      */
     @EventHandler
@@ -846,32 +1202,121 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     }
 
     // Getters
-    public static RoleplayCity getInstance() { return instance; }
-    public EntrepriseManagerLogic getEntrepriseManagerLogic() { return entrepriseLogic; }
-    public ChatListener getChatListener() { return chatListener; }
-    public com.gravityyfh.roleplaycity.service.ServiceModeManager getServiceModeManager() { return serviceModeManager; }
-    public EntrepriseGUI getEntrepriseGUI() { return entrepriseGUI; }
-    public PlayerCVGUI getPlayerCVGUI() { return playerCVGUI; }
-    public static Economy getEconomy() { return econ; }
-    public com.gravityyfh.roleplaycity.shop.manager.ShopManager getShopManager() { return shopManager; }
-    public com.gravityyfh.roleplaycity.shop.gui.ShopListGUI getShopListGUI() { return shopListGUI; }
-    public com.gravityyfh.roleplaycity.shop.gui.ShopManagementGUI getShopManagementGUI() { return shopManagementGUI; }
-    public com.gravityyfh.roleplaycity.shop.gui.ShopCreationGUI getShopCreationGUI() { return shopCreationGUI; }
-    public com.gravityyfh.roleplaycity.shop.listener.ShopPlacementListener getShopPlacementListener() { return shopPlacementListener; }
-    public TownManager getTownManager() { return townManager; }
-    public com.gravityyfh.roleplaycity.town.manager.TownDataManager getTownDataManager() { return townDataManager; }
-    public com.gravityyfh.roleplaycity.town.manager.ClaimManager getClaimManager() { return claimManager; }
-    public com.gravityyfh.roleplaycity.town.manager.TownLevelManager getTownLevelManager() { return townLevelManager; }
-    public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() { return townEconomyManager; }
-    public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() { return companyPlotManager; }
-    public com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager getEnterpriseContextManager() { return enterpriseContextManager; }
-    public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() { return townPoliceManager; }
-    public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() { return townFinesDataManager; }
-    public com.gravityyfh.roleplaycity.town.manager.FineExpirationManager getFineExpirationManager() { return fineExpirationManager; }
+    public static RoleplayCity getInstance() {
+        return instance;
+    }
+
+    public EntrepriseManagerLogic getEntrepriseManagerLogic() {
+        return entrepriseLogic;
+    }
+
+    // PHASE 6: Getters pour les nouveaux services
+    public com.gravityyfh.roleplaycity.entreprise.service.ServiceFactory getServiceFactory() {
+        return serviceFactory;
+    }
+
+    public com.gravityyfh.roleplaycity.entreprise.service.AsyncEntrepriseService getAsyncEntrepriseService() {
+        return asyncEntrepriseService;
+    }
+
+    public boolean isUsingSQLiteServices() {
+        return usingSQLiteServices;
+    }
+
+    public ChatListener getChatListener() {
+        return chatListener;
+    }
+
+    // Ancien système de contrats (deprecated) - utiliser getContractService() instead
+    // public com.gravityyfh.roleplaycity.manager.ContractManager getContractManager() {
+    //     return contractManager;
+    // }
+
+    public com.gravityyfh.roleplaycity.service.ServiceModeManager getServiceModeManager() {
+        return serviceModeManager;
+    }
+    
+    public com.gravityyfh.roleplaycity.entreprise.storage.CompanyStorageManager getCompanyStorageManager() {
+        return companyStorageManager;
+    }
+
+    public EntrepriseGUI getEntrepriseGUI() {
+        return entrepriseGUI;
+    }
+
+    public PlayerCVGUI getPlayerCVGUI() {
+        return playerCVGUI;
+    }
+
+    public static Economy getEconomy() {
+        return instance.econ;
+    }
+
+    public com.gravityyfh.roleplaycity.shop.manager.ShopManager getShopManager() {
+        return shopManager;
+    }
+
+    public com.gravityyfh.roleplaycity.shop.gui.ShopListGUI getShopListGUI() {
+        return shopListGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.shop.gui.ShopManagementGUI getShopManagementGUI() {
+        return shopManagementGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.shop.gui.ShopCreationGUI getShopCreationGUI() {
+        return shopCreationGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.shop.listener.ShopPlacementListener getShopPlacementListener() {
+        return shopPlacementListener;
+    }
+
+    public TownManager getTownManager() {
+        return townManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.TownDataManager getTownDataManager() {
+        return townDataManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.ClaimManager getClaimManager() {
+        return claimManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.TownLevelManager getTownLevelManager() {
+        return townLevelManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.TownEconomyManager getTownEconomyManager() {
+        return townEconomyManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.CompanyPlotManager getCompanyPlotManager() {
+        return companyPlotManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager getEnterpriseContextManager() {
+        return enterpriseContextManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.TownPoliceManager getTownPoliceManager() {
+        return townPoliceManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.TownFinesDataManager getTownFinesDataManager() {
+        return townFinesDataManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.FineExpirationManager getFineExpirationManager() {
+        return fineExpirationManager;
+    }
+
     // FIX BASSE #9: Lazy loading pour GUIs
     public com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI getTownPlotManagementGUI() {
         if (townPlotManagementGUI == null) {
-            // IMPORTANT: Toujours créer via getTownMainGUI() pour éviter les doublons d'instances
+            // IMPORTANT: Toujours créer via getTownMainGUI() pour éviter les doublons
+            // d'instances
             // getTownMainGUI() créera et enregistrera TownPlotManagementGUI correctement
             getTownMainGUI();
         }
@@ -880,9 +1325,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI getPlotOwnerGUI() {
         if (plotOwnerGUI == null) {
-            synchronized(this) {
+            synchronized (this) {
                 if (plotOwnerGUI == null) {
-                    plotOwnerGUI = new com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI(this, townManager, claimManager);
+                    plotOwnerGUI = new com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI(this, townManager,
+                            claimManager);
                     getServer().getPluginManager().registerEvents(plotOwnerGUI, this);
                     debugLogger.debug("LAZY_LOAD", "PlotOwnerGUI initialisé et enregistré");
                 }
@@ -893,7 +1339,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI getMyPropertyGUI() {
         if (myPropertyGUI == null) {
-            // IMPORTANT: Toujours créer via getTownMainGUI() pour éviter les doublons d'instances
+            // IMPORTANT: Toujours créer via getTownMainGUI() pour éviter les doublons
+            // d'instances
             // getTownMainGUI() créera et enregistrera MyPropertyGUI correctement
             getTownMainGUI();
         }
@@ -902,9 +1349,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI getRentedPropertyGUI() {
         if (rentedPropertyGUI == null) {
-            synchronized(this) {
+            synchronized (this) {
                 if (rentedPropertyGUI == null) {
-                    rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager, getMyPropertyGUI());
+                    rentedPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI(this, townManager,
+                            getMyPropertyGUI());
                     getServer().getPluginManager().registerEvents(rentedPropertyGUI, this);
                     debugLogger.debug("LAZY_LOAD", "RentedPropertyGUI initialisé et enregistré");
                 }
@@ -915,7 +1363,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI getCompanySelectionGUI() {
         if (companySelectionGUI == null) {
-            synchronized(this) {
+            synchronized (this) {
                 if (companySelectionGUI == null) {
                     companySelectionGUI = new com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI(this);
                     // Injecter EnterpriseContextManager
@@ -930,14 +1378,20 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return companySelectionGUI;
     }
 
-    public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() { return notificationManager; }
-    public com.gravityyfh.roleplaycity.town.manager.DebtNotificationService getDebtNotificationService() { return debtNotificationService; }
+    public com.gravityyfh.roleplaycity.town.manager.NotificationManager getNotificationManager() {
+        return notificationManager;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.DebtNotificationService getDebtNotificationService() {
+        return debtNotificationService;
+    }
 
     public com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI getPlotGroupManagementGUI() {
         if (plotGroupManagementGUI == null) {
-            synchronized(this) {
+            synchronized (this) {
                 if (plotGroupManagementGUI == null) {
-                    plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this, townManager, claimManager);
+                    plotGroupManagementGUI = new com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI(this,
+                            townManager, claimManager);
                     getServer().getPluginManager().registerEvents(plotGroupManagementGUI, this);
                     debugLogger.debug("LAZY_LOAD", "PlotGroupManagementGUI initialisé et enregistré");
                 }
@@ -946,21 +1400,45 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return plotGroupManagementGUI;
     }
 
-    public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() { return plotGroupingListener; }
+    public com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener getPlotGroupingListener() {
+        return plotGroupingListener;
+    }
+
     // FIX BASSE #28: Getter pour métriques de performance
-    public com.gravityyfh.roleplaycity.util.PerformanceMetrics getPerformanceMetrics() { return performanceMetrics; }
+    public com.gravityyfh.roleplaycity.util.PerformanceMetrics getPerformanceMetrics() {
+        return performanceMetrics;
+    }
+
     // FIX BASSE #29: Getter pour debug logger
-    public com.gravityyfh.roleplaycity.util.DebugLogger getDebugLogger() { return debugLogger; }
+    public com.gravityyfh.roleplaycity.util.DebugLogger getDebugLogger() {
+        return debugLogger;
+    }
+
     // FIX BASSE #20-24: Getter pour message manager
-    public com.gravityyfh.roleplaycity.util.MessageManager getMessageManager() { return messageManager; }
+    public com.gravityyfh.roleplaycity.util.MessageManager getMessageManager() {
+        return messageManager;
+    }
+
     // FIX BASSE #31-33: Getter pour name validator
-    public com.gravityyfh.roleplaycity.util.NameValidator getNameValidator() { return nameValidator; }
+    public com.gravityyfh.roleplaycity.util.NameValidator getNameValidator() {
+        return nameValidator;
+    }
+
     // FIX BASSE #8: Getter pour player cache
-    public com.gravityyfh.roleplaycity.util.PlayerCache getPlayerCache() { return playerCache; }
+    public com.gravityyfh.roleplaycity.util.PlayerCache getPlayerCache() {
+        return playerCache;
+    }
+
     // FIX BASSE #10: Getter pour async task manager
-    public com.gravityyfh.roleplaycity.util.AsyncTaskManager getAsyncTaskManager() { return asyncTaskManager; }
+    public com.gravityyfh.roleplaycity.util.AsyncTaskManager getAsyncTaskManager() {
+        return asyncTaskManager;
+    }
+
     // FIX PERFORMANCES: Getter pour block place cache
-    public com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache getBlockPlaceCache() { return blockPlaceCache; }
+    public com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache getBlockPlaceCache() {
+        return blockPlaceCache;
+    }
+
     public TownCommandHandler getTownCommandHandler() {
         return (TownCommandHandler) getCommand("ville").getExecutor();
     }
@@ -968,7 +1446,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // FIX BASSE #9: Lazy loading pour TownMainGUI
     public com.gravityyfh.roleplaycity.town.gui.TownMainGUI getTownMainGUI() {
         if (townMainGUI == null) {
-            synchronized(this) {
+            synchronized (this) {
                 if (townMainGUI == null) {
                     // Étape 1: Créer TownMainGUI d'abord (sans liaisons)
                     townMainGUI = new com.gravityyfh.roleplaycity.town.gui.TownMainGUI(this, townManager);
@@ -976,25 +1454,35 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     // Étape 2: Créer les GUIs qui en ont besoin (certains dépendent de townMainGUI)
                     // Note: Ne pas enregistrer ici, l'enregistrement se fait groupé à la fin
                     if (townPlotManagementGUI == null) {
-                        townPlotManagementGUI = new com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI(this, townManager, claimManager, townEconomyManager);
+                        townPlotManagementGUI = new com.gravityyfh.roleplaycity.town.gui.TownPlotManagementGUI(this,
+                                townManager, claimManager, townEconomyManager);
                     }
                     if (myPropertyGUI == null) {
-                        myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager, townMainGUI);
+                        myPropertyGUI = new com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI(this, townManager,
+                                townMainGUI);
                     }
 
-                    townClaimsGUI = new com.gravityyfh.roleplaycity.town.gui.TownClaimsGUI(this, townManager, claimManager);
-                    townBankGUI = new com.gravityyfh.roleplaycity.town.gui.TownBankGUI(this, townManager, townEconomyManager);
-                    townPoliceGUI = new com.gravityyfh.roleplaycity.town.gui.TownPoliceGUI(this, townManager, townPoliceManager);
-                    townJusticeGUI = new com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI(this, townManager, townPoliceManager, townJusticeManager);
-                    townCitizenFinesGUI = new com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI(this, townPoliceManager);
+                    townClaimsGUI = new com.gravityyfh.roleplaycity.town.gui.TownClaimsGUI(this, townManager,
+                            claimManager);
+                    townBankGUI = new com.gravityyfh.roleplaycity.town.gui.TownBankGUI(this, townManager,
+                            townEconomyManager);
+                    townPoliceGUI = new com.gravityyfh.roleplaycity.town.gui.TownPoliceGUI(this, townManager,
+                            townPoliceManager);
+                    townJusticeGUI = new com.gravityyfh.roleplaycity.town.gui.TownJusticeGUI(this, townManager,
+                            townPoliceManager, townJusticeManager);
+                    townCitizenFinesGUI = new com.gravityyfh.roleplaycity.town.gui.TownCitizenFinesGUI(this,
+                            townPoliceManager);
                     townMembersGUI = new com.gravityyfh.roleplaycity.town.gui.TownMembersGUI(this, townManager);
                     townUpgradeGUI = new com.gravityyfh.roleplaycity.town.gui.TownUpgradeGUI(this, townManager);
-                    myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager, townMainGUI);
-                    debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager, townMainGUI, debtNotificationService);
+                    myCompaniesGUI = new com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI(this, townManager,
+                            townMainGUI);
+                    debtManagementGUI = new com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI(this, townManager,
+                            townMainGUI, debtNotificationService);
 
                     // Système de téléportation et liste des villes
                     townTeleportCooldown = new com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown(this);
-                    townListGUI = new com.gravityyfh.roleplaycity.town.gui.TownListGUI(this, townManager, townTeleportCooldown);
+                    townListGUI = new com.gravityyfh.roleplaycity.town.gui.TownListGUI(this, townManager,
+                            townTeleportCooldown);
                     noTownGUI = new com.gravityyfh.roleplaycity.town.gui.NoTownGUI(this, townManager, townListGUI);
 
                     debugLogger.debug("LAZY_LOAD", "TownMainGUI et GUIs liés initialisés");
@@ -1042,33 +1530,79 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
         return townMainGUI;
     }
-    public com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager getMedicalSystemManager() { return medicalSystemManager; }
+
+    public com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager getMedicalSystemManager() {
+        return medicalSystemManager;
+    }
 
     // Système Postal (La Poste)
-    public com.gravityyfh.roleplaycity.postal.manager.MailboxManager getMailboxManager() { return mailboxManager; }
-    public com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI getMailboxPlacementGUI() { return mailboxPlacementGUI; }
-    public com.gravityyfh.roleplaycity.postal.gui.MailboxVisualPlacement getMailboxVisualPlacement() { return mailboxVisualPlacement; }
-    public com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI getLaPosteGUI() { return laPosteGUI; }
+    public com.gravityyfh.roleplaycity.postal.manager.MailboxManager getMailboxManager() {
+        return mailboxManager;
+    }
+
+    public com.gravityyfh.roleplaycity.postal.gui.MailboxPlacementGUI getMailboxPlacementGUI() {
+        return mailboxPlacementGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.postal.gui.MailboxVisualPlacement getMailboxVisualPlacement() {
+        return mailboxVisualPlacement;
+    }
+
+    public com.gravityyfh.roleplaycity.postal.gui.LaPosteGUI getLaPosteGUI() {
+        return laPosteGUI;
+    }
 
     // Système de Police (Taser & Menottes)
-    public com.gravityyfh.roleplaycity.police.items.PoliceItemManager getPoliceItemManager() { return policeItemManager; }
-    public com.gravityyfh.roleplaycity.police.data.TasedPlayerData getTasedPlayerData() { return tasedPlayerData; }
-    public com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData getHandcuffedPlayerData() { return handcuffedPlayerData; }
+    public com.gravityyfh.roleplaycity.police.items.PoliceItemManager getPoliceItemManager() {
+        return policeItemManager;
+    }
+
+    public com.gravityyfh.roleplaycity.police.data.TasedPlayerData getTasedPlayerData() {
+        return tasedPlayerData;
+    }
+
+    public com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData getHandcuffedPlayerData() {
+        return handcuffedPlayerData;
+    }
 
     // Système de Prison
-    public com.gravityyfh.roleplaycity.police.manager.PrisonManager getPrisonManager() { return prisonManager; }
-    public com.gravityyfh.roleplaycity.police.gui.TownPrisonManagementGUI getTownPrisonManagementGUI() { return townPrisonManagementGUI; }
-    public com.gravityyfh.roleplaycity.police.gui.ImprisonmentWorkflowGUI getImprisonmentWorkflowGUI() { return imprisonmentWorkflowGUI; }
+    public com.gravityyfh.roleplaycity.police.manager.PrisonManager getPrisonManager() {
+        return prisonManager;
+    }
+
+    public com.gravityyfh.roleplaycity.police.gui.TownPrisonManagementGUI getTownPrisonManagementGUI() {
+        return townPrisonManagementGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.police.gui.ImprisonmentWorkflowGUI getImprisonmentWorkflowGUI() {
+        return imprisonmentWorkflowGUI;
+    }
 
     // Système de Backpacks
-    public com.gravityyfh.roleplaycity.backpack.manager.BackpackItemManager getBackpackItemManager() { return backpackItemManager; }
-    public com.gravityyfh.roleplaycity.backpack.manager.BackpackManager getBackpackManager() { return backpackManager; }
-    public com.gravityyfh.roleplaycity.backpack.util.BackpackUtil getBackpackUtil() { return backpackUtil; }
-    public com.gravityyfh.roleplaycity.backpack.gui.BackpackGUI getBackpackGUI() { return backpackGUI; }
+    public com.gravityyfh.roleplaycity.backpack.manager.BackpackItemManager getBackpackItemManager() {
+        return backpackItemManager;
+    }
+
+    public com.gravityyfh.roleplaycity.backpack.manager.BackpackManager getBackpackManager() {
+        return backpackManager;
+    }
+
+    public com.gravityyfh.roleplaycity.backpack.util.BackpackUtil getBackpackUtil() {
+        return backpackUtil;
+    }
+
+    public com.gravityyfh.roleplaycity.backpack.gui.BackpackGUI getBackpackGUI() {
+        return backpackGUI;
+    }
 
     // Systèmes de messages interactifs
-    public com.gravityyfh.roleplaycity.util.ConfirmationManager getConfirmationManager() { return confirmationManager; }
-    public com.gravityyfh.roleplaycity.util.ChatInputListener getChatInputListener() { return chatInputListener; }
+    public com.gravityyfh.roleplaycity.util.ConfirmationManager getConfirmationManager() {
+        return confirmationManager;
+    }
+
+    public com.gravityyfh.roleplaycity.util.ChatInputListener getChatInputListener() {
+        return chatInputListener;
+    }
 
     /**
      * Intercepte les commandes internes utilisées par les messages interactifs
@@ -1085,8 +1619,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 boolean success = confirmationManager.confirm(player.getUniqueId());
                 if (!success) {
                     com.gravityyfh.roleplaycity.util.InteractiveMessage.error(
-                        "Aucune confirmation en attente."
-                    ).send(player);
+                            "Aucune confirmation en attente.").send(player);
                 }
             }
         } else if (message.equals("/rc:cancel")) {
@@ -1095,8 +1628,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 boolean success = confirmationManager.cancel(player.getUniqueId());
                 if (!success) {
                     com.gravityyfh.roleplaycity.util.InteractiveMessage.error(
-                        "Aucune confirmation en attente."
-                    ).send(player);
+                            "Aucune confirmation en attente.").send(player);
                 }
             }
         } else if (message.equals("/rc:cancelinput")) {
@@ -1106,8 +1638,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     chatInputListener.cancelInput(player.getUniqueId());
                 } else {
                     com.gravityyfh.roleplaycity.util.InteractiveMessage.error(
-                        "Aucune saisie en attente."
-                    ).send(player);
+                            "Aucune saisie en attente.").send(player);
                 }
             }
         }

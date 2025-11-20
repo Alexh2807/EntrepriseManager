@@ -132,49 +132,17 @@ public class BackpackCraftListener implements Listener {
     }
 
     /**
-     * CraftItemEvent - Vérifie les restrictions d'entreprise avant d'autoriser le craft
-     * et enregistre l'activité productive si autorisé.
-     * Utilise le système de restrictions générique pour s'adapter automatiquement à toute
-     * entreprise définie dans config.yml avec CRAFT_BACKPACK dans action_restrictions.
+     * CraftItemEvent - DÉSACTIVÉ
+     * La gestion du craft des backpacks est maintenant centralisée dans CraftItemListener
+     * pour bénéficier de la gestion unifiée des restrictions et des quotas (verifierEtGererRestrictionAction).
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    // @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCraftBackpack(CraftItemEvent event) {
+        /* LOGIQUE DÉPLACÉE DANS CraftItemListener
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-
-        // Vérifier si c'est un craft de backpack
-        if (event.getRecipe() == null) {
-            return;
-        }
-
-        ItemStack result = event.getRecipe().getResult();
-        if (!itemManager.isBackpack(result)) {
-            return;
-        }
-
-        // Récupérer le type de backpack
-        BackpackType backpackType = itemManager.getBackpackType(result);
-        if (backpackType == null) {
-            plugin.getLogger().warning("[Backpack] Type de backpack introuvable lors du craft par " + player.getName());
-            event.setCancelled(true);
-            return;
-        }
-
-        String backpackId = backpackType.getId();
-
-        // Vérifier les restrictions d'entreprise (utilise le système générique)
-        // Cela s'adapte automatiquement à tout type d'entreprise défini dans config.yml
-        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_BACKPACK", backpackId, 1);
-
-        if (isBlocked) {
-            // Le joueur n'a pas le droit de crafter ce backpack
-            event.setCancelled(true);
-            plugin.getLogger().fine("[Backpack] Craft de " + backpackId + " refusé pour " + player.getName() + " (restriction d'entreprise)");
-        } else {
-            // Le craft est autorisé, enregistrer l'activité productive
-            entrepriseLogic.enregistrerCraftBackpack(player, backpackId);
-            plugin.getLogger().fine("[Backpack] Craft de " + backpackId + " autorisé pour " + player.getName());
-        }
+        // ...
+        */
     }
 }

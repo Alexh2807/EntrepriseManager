@@ -3,9 +3,9 @@ package com.gravityyfh.roleplaycity.medical.manager;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.medical.data.HealingProcess;
 import com.gravityyfh.roleplaycity.medical.data.InjuredPlayer;
-import com.gravityyfh.roleplaycity.medical.data.InjuredPlayerData;
 import com.gravityyfh.roleplaycity.medical.data.MedicalMission;
 import com.gravityyfh.roleplaycity.medical.gui.HealingMiniGameGUI;
+import com.gravityyfh.roleplaycity.medical.service.MedicalPersistenceService;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -13,10 +13,9 @@ import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import net.md_5.bungee.api.ChatMessageType;
 import net.milkbowl.vault.economy.Economy;
 import net.md_5.bungee.api.chat.ClickEvent;
-import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
+import net.md_5.bungee.api.chat.HoverEvent;
 import org.bukkit.*;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -30,7 +29,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Score;
 import org.bukkit.scoreboard.Scoreboard;
 
 import java.util.*;
@@ -40,7 +38,7 @@ public class MedicalSystemManager {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final Economy economy;
-    private final InjuredPlayerData persistentData;
+    private final MedicalPersistenceService persistenceService;
 
     // Stockage des joueurs blessés et missions
     private final Map<UUID, InjuredPlayer> injuredPlayers = new ConcurrentHashMap<>();
@@ -52,16 +50,19 @@ public class MedicalSystemManager {
 
     // Configuration
     private int medicalCost = 250;
-    private double medicShare = 0.80; // 80% pour le médecin
-    private double townShare = 0.20;  // 20% pour la ville
-    private int acceptanceTimeout = 30; // 30 secondes pour accepter
-    private int interventionTimeout = 300; // 5 minutes pour intervenir
+    private double medicShare = 0.80; 
+    private double townShare = 0.20;  
+    private int acceptanceTimeout = 30; 
+    private int interventionTimeout = 300; 
 
-    public MedicalSystemManager(RoleplayCity plugin) {
+    public MedicalSystemManager(RoleplayCity plugin, MedicalPersistenceService persistenceService) {
         this.plugin = plugin;
         this.townManager = plugin.getTownManager();
         this.economy = RoleplayCity.getEconomy();
-        this.persistentData = new InjuredPlayerData(plugin.getDataFolder());
+        this.persistenceService = persistenceService;
+
+        // Charger les blessés depuis la DB
+        injuredPlayers.putAll(persistenceService.loadInjuredPlayers());
 
         // Vérifier s'il y a des joueurs à restaurer après redémarrage
         handleServerRestart();
@@ -71,19 +72,21 @@ public class MedicalSystemManager {
      * Gère la restauration des joueurs après un redémarrage serveur
      */
     private void handleServerRestart() {
-        if (persistentData.wasServerRestart()) {
+        if (persistenceService.wasServerRestart()) {
             // C'était un redémarrage serveur
             // On va attendre que les joueurs se reconnectent pour les nettoyer
             plugin.getLogger().info("Détection d'un redémarrage serveur - Les joueurs blessés seront relevés automatiquement");
 
             // Nettoyer le flag après 5 secondes (laisser le temps au serveur de charger)
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                persistentData.clearServerRestartFlag();
+                persistenceService.clearServerRestartFlag();
             }, 100L); // 5 secondes
         } else {
             // C'était un démarrage normal ou crash
-            // Nettoyer toutes les données obsolètes
-            persistentData.clearAll();
+            // Nettoyer toutes les données obsolètes (si ce n'était pas un arrêt propre)
+            // Note: loadInjuredPlayers a déjà chargé les "treated=0".
+            // Si on veut forcer le nettoyage si crash:
+            // persistenceService.clearAllInjured(); // Risqué si crash et joueurs reviennent
         }
     }
 
@@ -94,16 +97,19 @@ public class MedicalSystemManager {
     public void onPlayerJoin(Player player) {
         UUID playerUuid = player.getUniqueId();
 
-        // Vérifier si le joueur était blessé lors d'un redémarrage serveur
-        if (persistentData.wasInjured(playerUuid) && persistentData.wasServerRestart()) {
-            // Le serveur a redémarré : relever le joueur proprement
+        // Vérifier si le joueur était blessé
+        if (injuredPlayers.containsKey(playerUuid)) {
+            // Si le serveur a redémarré proprement (flag actif au début, puis clear)
+            // Ou si on décide de toujours relever à la connexion:
+            
+            // Logique: Si le joueur est dans la DB comme blessé, c'est qu'il a quitté blessé ou crash.
+            // On le relève pour éviter les bugs de death loop.
             restorePlayerAfterRestart(player);
 
             // Nettoyer la persistance
-            persistentData.removeInjuredPlayer(playerUuid);
+            persistenceService.deleteInjuredPlayer(playerUuid);
+            injuredPlayers.remove(playerUuid);
         }
-        // Si déconnexion normale : tout a déjà été nettoyé dans handlePlayerDisconnect()
-        // Le joueur respawn normalement sans intervention
     }
 
     /**
@@ -123,9 +129,9 @@ public class MedicalSystemManager {
         player.setFlySpeed(0.1f);
 
         // Message d'information
-        player.sendMessage(ChatColor.GREEN + "✓ Vous avez été automatiquement relevé suite au redémarrage du serveur.");
+        player.sendMessage(ChatColor.GREEN + "✓ Vous avez été automatiquement relevé.");
 
-        plugin.getLogger().info("Joueur " + player.getName() + " relevé automatiquement après redémarrage");
+        plugin.getLogger().info("Joueur " + player.getName() + " relevé automatiquement");
     }
 
     /**
@@ -143,8 +149,8 @@ public class MedicalSystemManager {
         InjuredPlayer injured = new InjuredPlayer(player, cause, canAfford);
         injuredPlayers.put(player.getUniqueId(), injured);
 
-        // Sauvegarder dans le fichier de persistance
-        persistentData.saveInjuredPlayer(player.getUniqueId(), cause, System.currentTimeMillis());
+        // Sauvegarder dans la DB
+        persistenceService.saveInjuredPlayer(injured);
 
         // Mettre le joueur au sol
         makePlayerDowned(injured);
@@ -842,6 +848,18 @@ public class MedicalSystemManager {
         // Soigner le patient
         revivePlayer(injured);
 
+        // Enregistrer le traitement en base
+        Town medicTown = townManager.getPlayerTownObject(medic.getUniqueId());
+        String townName = medicTown != null ? medicTown.getName() : null;
+        persistenceService.recordTreatment(
+            patient.getUniqueId(), patient.getName(),
+            medic.getUniqueId(), medic.getName(),
+            medicalCost, townName
+        );
+        
+        // Marquer comme traité en base (pour ne pas le recharger au redémarrage)
+        persistenceService.markTreated(injured.getPlayerUuid(), medic.getUniqueId(), medic.getName());
+
         // Facturation
         handlePayment(medic, patient);
 
@@ -922,6 +940,9 @@ public class MedicalSystemManager {
         Bukkit.broadcastMessage(ChatColor.RED + "Le joueur " + ChatColor.GRAY + player.getName() +
                 ChatColor.RED + " est mort après avoir été blessé.");
 
+        // Supprimer de la DB
+        persistenceService.deleteInjuredPlayer(injured.getPlayerUuid());
+
         cleanup(injured);
         player.setHealth(0.0);
     }
@@ -972,10 +993,7 @@ public class MedicalSystemManager {
         // Retirer les armor stands
         injured.clearArmorStands();
 
-        // Retirer de la persistance
-        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
-
-        // Retirer de la map
+        // Retirer de la map (Déjà retiré de la DB par l'appelant si nécessaire)
         injuredPlayers.remove(injured.getPlayerUuid());
     }
 
@@ -1069,7 +1087,7 @@ public class MedicalSystemManager {
         }
 
         // Nettoyer la persistance et les maps
-        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
+        persistenceService.deleteInjuredPlayer(injured.getPlayerUuid());
         injuredPlayers.remove(injured.getPlayerUuid());
 
         // Message au joueur
@@ -1132,7 +1150,7 @@ public class MedicalSystemManager {
         }
 
         // ÉTAPE 7 : Nettoyer de la persistance et des maps
-        persistentData.removeInjuredPlayer(injured.getPlayerUuid());
+        persistenceService.deleteInjuredPlayer(injured.getPlayerUuid());
         injuredPlayers.remove(injured.getPlayerUuid());
 
         // ÉTAPE 8 : Maintenant que tout est nettoyé et qu'il peut bouger, le tuer
@@ -1160,6 +1178,9 @@ public class MedicalSystemManager {
      * IMPORTANT: Relève automatiquement tous les joueurs blessés avant de nettoyer
      */
     public void cleanup() {
+        // Marquer l'arrêt serveur pour restauration au reboot si crash (optionnel car on relève ici)
+        persistenceService.markServerShutdown();
+
         // Nettoyer tous les processus de soin en cours
         for (HealingProcess healing : new ArrayList<>(activeHealings.values())) {
             if (healing.getTaskId() != -1) {

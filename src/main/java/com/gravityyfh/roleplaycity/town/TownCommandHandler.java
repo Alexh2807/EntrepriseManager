@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.ChunkCoordinate;
 import com.gravityyfh.roleplaycity.town.data.Plot;
@@ -306,13 +307,13 @@ public class TownCommandHandler implements CommandExecutor {
                     com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
                         plugin.getEnterpriseContextManager();
 
-                    List<EntrepriseManagerLogic.Entreprise> playerCompanies;
+                    List<Entreprise> playerCompanies;
                     if (enterpriseContextManager != null) {
                         playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
                     } else {
                         // Fallback si pas encore initialisé
                         playerCompanies = new ArrayList<>();
-                        for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+                        for (Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
                             String gerantUuidStr = entreprise.getGerantUUID();
                             if (gerantUuidStr != null) {
                                 try {
@@ -459,13 +460,13 @@ public class TownCommandHandler implements CommandExecutor {
                         com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
                             plugin.getEnterpriseContextManager();
 
-                        List<EntrepriseManagerLogic.Entreprise> playerCompanies;
+                        List<Entreprise> playerCompanies;
                         if (enterpriseContextManager != null) {
                             playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
                         } else {
                             // Fallback si pas encore initialisé
                             playerCompanies = new ArrayList<>();
-                            for (EntrepriseManagerLogic.Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
+                            for (Entreprise entreprise : plugin.getEntrepriseManagerLogic().getEntreprises()) {
                                 String gerantUuidStr = entreprise.getGerantUUID();
                                 if (gerantUuidStr != null) {
                                     try {

@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.manager.ShopManager;
 import com.gravityyfh.roleplaycity.shop.model.Shop;
@@ -40,7 +41,7 @@ public class ShopListGUI implements Listener {
     /**
      * Ouvre le menu de liste des boutiques pour une entreprise
      */
-    public void openShopList(Player player, EntrepriseManagerLogic.Entreprise entreprise, int page) {
+    public void openShopList(Player player, Entreprise entreprise, int page) {
         List<Shop> shops = shopManager.getShopsBySiret(entreprise.getSiret());
 
         int totalPages = (int) Math.ceil(shops.size() / (double) ITEMS_PER_PAGE);
@@ -259,6 +260,6 @@ public class ShopListGUI implements Listener {
     /**
          * Contexte de navigation pour un joueur
          */
-        private record ShopListContext(EntrepriseManagerLogic.Entreprise entreprise, int page) {
+        private record ShopListContext(Entreprise entreprise, int page) {
     }
 }

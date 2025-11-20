@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui.scoreboard;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Plot;
@@ -131,7 +132,7 @@ public class ScoreboardContentProvider {
 
             if (plot.getCompanySiret() != null) {
                 // Afficher le nom de l'entreprise uniquement
-                EntrepriseManagerLogic.Entreprise company = plugin.getCompanyPlotManager()
+                Entreprise company = plugin.getCompanyPlotManager()
                     .getCompanyBySiret(plot.getCompanySiret());
 
                 if (company != null) {
@@ -156,7 +157,7 @@ public class ScoreboardContentProvider {
 
             if (plot.getRenterCompanySiret() != null) {
                 // Afficher le nom de l'entreprise locataire
-                EntrepriseManagerLogic.Entreprise renterCompany = plugin.getCompanyPlotManager()
+                Entreprise renterCompany = plugin.getCompanyPlotManager()
                     .getCompanyBySiret(plot.getRenterCompanySiret());
 
                 if (renterCompany != null) {

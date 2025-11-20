@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
@@ -131,7 +132,7 @@ public class TownMainGUI implements Listener {
      * Vérifie si le joueur gère au moins une entreprise
      */
     private boolean hasCompanies(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> companies =
+        List<Entreprise> companies =
             plugin.getEntrepriseManagerLogic().getEntreprisesGereesPar(player.getName());
         return !companies.isEmpty();
     }

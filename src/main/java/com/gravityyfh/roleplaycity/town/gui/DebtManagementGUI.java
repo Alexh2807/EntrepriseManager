@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -228,7 +229,7 @@ public class DebtManagementGUI implements Listener {
             }
 
             CompanyPlotManager companyManager = plugin.getCompanyPlotManager();
-            EntrepriseManagerLogic.Entreprise company = companyManager.getCompanyBySiret(companySiret);
+            Entreprise company = companyManager.getCompanyBySiret(companySiret);
 
             if (company == null) {
                 player.sendMessage(ChatColor.RED + "❌ Erreur: Entreprise introuvable.");

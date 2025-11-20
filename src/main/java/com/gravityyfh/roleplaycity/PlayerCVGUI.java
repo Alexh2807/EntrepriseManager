@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.logging.Level; // Pour les logs
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 
 public class PlayerCVGUI implements Listener {
 
@@ -249,7 +250,7 @@ public class PlayerCVGUI implements Listener {
      */
     public void openCV(Player viewer, Player cvOwner, EntrepriseManagerLogic logic) {
         // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises actuelles
-        java.util.List<EntrepriseManagerLogic.Entreprise> entreprisesActuelles = logic.getEntreprisesDuJoueur(cvOwner);
+        java.util.List<Entreprise> entreprisesActuelles = logic.getEntreprisesDuJoueur(cvOwner);
         List<PastExperience> historique = logic.getPlayerHistory(cvOwner.getUniqueId());
 
         String cvTitle = TITLE_CV_VIEW_PREFIX + cvOwner.getName();
@@ -262,8 +263,8 @@ public class PlayerCVGUI implements Listener {
         if (!entreprisesActuelles.isEmpty()) {
             if (entreprisesActuelles.size() == 1) {
                 // Une seule entreprise : affichage classique
-                EntrepriseManagerLogic.Entreprise entrepriseActuelle = entreprisesActuelles.get(0);
-                EntrepriseManagerLogic.EmployeeActivityRecord record = entrepriseActuelle.getEmployeeActivityRecord(cvOwner.getUniqueId());
+                Entreprise entrepriseActuelle = entreprisesActuelles.get(0);
+                EmployeeActivityRecord record = entrepriseActuelle.getEmployeeActivityRecord(cvOwner.getUniqueId());
                 String role = entrepriseActuelle.getGerant().equalsIgnoreCase(cvOwner.getName()) ? "Gérant" : "Employé";
                 inv.setItem(10, createMenuItem(Material.EMERALD_BLOCK, ChatColor.AQUA + "Emploi Actuel", List.of(
                         ChatColor.WHITE + entrepriseActuelle.getNom(),
@@ -284,7 +285,7 @@ public class PlayerCVGUI implements Listener {
                 List<String> entreprisesLore = new ArrayList<>();
                 entreprisesLore.add(ChatColor.GRAY + "Possède " + ChatColor.AQUA + entreprisesActuelles.size() + ChatColor.GRAY + " entreprises");
                 entreprisesLore.add("");
-                for (EntrepriseManagerLogic.Entreprise ent : entreprisesActuelles) {
+                for (Entreprise ent : entreprisesActuelles) {
                     String role = ent.getGerant().equalsIgnoreCase(cvOwner.getName()) ? "Gérant" : "Employé";
                     entreprisesLore.add(ChatColor.YELLOW + "• " + ChatColor.WHITE + ent.getNom());
                     entreprisesLore.add(ChatColor.GRAY + "  Type: " + ent.getType() + " | Poste: " + role);

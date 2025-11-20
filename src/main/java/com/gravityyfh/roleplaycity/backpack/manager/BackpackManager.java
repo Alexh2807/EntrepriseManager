@@ -92,7 +92,7 @@ public class BackpackManager {
         var type = itemManager.getBackpackType(item);
         int size = type != null ? type.getSize() : 27; // Défaut: 3 lignes
 
-        ItemStack[] contents = BackpackSerializer.deserialize(serializedContent, size);
+        ItemStack[] contents = BackpackSerializer.deserializeData(serializedContent, size);
         BackpackData data = new BackpackData(backpackId, contents, System.currentTimeMillis(), size);
 
         // Mettre en cache

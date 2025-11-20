@@ -74,6 +74,20 @@ public class TasedPlayerData {
     }
 
     /**
+     * Charge un joueur tasé (Persistence)
+     */
+    public void loadTased(UUID uuid, long expirationTime) {
+        tasedPlayers.put(uuid, expirationTime);
+    }
+
+    /**
+     * Récupère toutes les données pour la sauvegarde
+     */
+    public Map<UUID, Long> getAllTasedData() {
+        return new HashMap<>(tasedPlayers);
+    }
+
+    /**
      * Enregistre une tâche de suppression automatique
      */
     public void setTasedTask(UUID uuid, BukkitTask task) {

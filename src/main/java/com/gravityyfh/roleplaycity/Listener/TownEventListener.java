@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.Listener;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.event.TownDeleteEvent;
 import com.gravityyfh.roleplaycity.town.event.TownMemberLeaveEvent;
@@ -13,7 +14,8 @@ import java.util.logging.Level;
 
 /**
  * Listener pour les événements du système de ville intégré
- * Remplace TownyListener pour gérer les entreprises lors de suppressions de villes
+ * Remplace TownyListener pour gérer les entreprises lors de suppressions de
+ * villes
  */
 public class TownEventListener implements Listener {
 
@@ -27,7 +29,8 @@ public class TownEventListener implements Listener {
 
     /**
      * Gère la suppression d'une ville.
-     * Si une ville est supprimée, toutes les entreprises et leurs boutiques situées dans cette ville sont également supprimées.
+     * Si une ville est supprimée, toutes les entreprises et leurs boutiques situées
+     * dans cette ville sont également supprimées.
      */
     @EventHandler
     public void onTownDelete(TownDeleteEvent event) {
@@ -38,41 +41,51 @@ public class TownEventListener implements Listener {
             return;
         }
 
-        plugin.getLogger().log(Level.INFO, "La ville '" + deletedTownName + "' est en cours de suppression. Nettoyage des entreprises et boutiques associées...");
+        plugin.getLogger().log(Level.INFO, "La ville '" + deletedTownName
+                + "' est en cours de suppression. Nettoyage des entreprises et boutiques associées...");
 
         // 1. Supprimer toutes les boutiques de la ville
         int shopsSupprimees = 0;
         if (plugin.getShopManager() != null) {
             shopsSupprimees = plugin.getShopManager().deleteShopsInTown(
-                deletedTownName,
-                "Ville '" + deletedTownName + "' supprimée"
-            );
+                    deletedTownName,
+                    "Ville '" + deletedTownName + "' supprimée");
+        }
+
+        // FIX CRITIQUE: Supprimer les claims du cache
+        if (plugin.getClaimManager() != null) {
+            plugin.getClaimManager().removeAllClaims(deletedTownName);
         }
 
         // 2. Supprimer toutes les entreprises de la ville
-        List<EntrepriseManagerLogic.Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());
+        List<Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());
         int entreprisesSupprimees = 0;
-        for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesAConsiderer) {
+        for (Entreprise entreprise : entreprisesAConsiderer) {
             if (deletedTownName.equalsIgnoreCase(entreprise.getVille())) {
-                entrepriseLogic.handleEntrepriseRemoval(entreprise, "La ville '" + deletedTownName + "' a été supprimée.");
+                entrepriseLogic.handleEntrepriseRemoval(entreprise,
+                        "La ville '" + deletedTownName + "' a été supprimée.");
                 entreprisesSupprimees++;
             }
         }
 
         if (shopsSupprimees > 0) {
-            plugin.getLogger().log(Level.INFO, shopsSupprimees + " boutique(s) supprimée(s) suite à la suppression de la ville '" + deletedTownName + "'.");
+            plugin.getLogger().log(Level.INFO, shopsSupprimees
+                    + " boutique(s) supprimée(s) suite à la suppression de la ville '" + deletedTownName + "'.");
         }
 
         if (entreprisesSupprimees > 0) {
-            plugin.getLogger().log(Level.INFO, entreprisesSupprimees + " entreprise(s) supprimée(s) suite à la suppression de la ville '" + deletedTownName + "'.");
+            plugin.getLogger().log(Level.INFO, entreprisesSupprimees
+                    + " entreprise(s) supprimée(s) suite à la suppression de la ville '" + deletedTownName + "'.");
         } else {
-            plugin.getLogger().log(Level.INFO, "Aucune entreprise n'était associée à la ville supprimée '" + deletedTownName + "'.");
+            plugin.getLogger().log(Level.INFO,
+                    "Aucune entreprise n'était associée à la ville supprimée '" + deletedTownName + "'.");
         }
     }
 
     /**
      * Gère le départ d'un membre d'une ville.
-     * Si le membre qui quitte la ville est le gérant d'une entreprise située dans cette même ville,
+     * Si le membre qui quitte la ville est le gérant d'une entreprise située dans
+     * cette même ville,
      * l'entreprise est supprimée.
      */
     @EventHandler
@@ -86,25 +99,33 @@ public class TownEventListener implements Listener {
             return;
         }
 
-        plugin.getLogger().log(Level.INFO, "Le membre '" + playerName + "' quitte/est retiré de la ville '" + townName + "'. Vérification des entreprises gérées...");
+        plugin.getLogger().log(Level.INFO, "Le membre '" + playerName + "' quitte/est retiré de la ville '" + townName
+                + "'. Vérification des entreprises gérées...");
 
         // Copie de la liste pour éviter ConcurrentModificationException
-        List<EntrepriseManagerLogic.Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());
+        List<Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());
         int entreprisesSupprimees = 0;
 
-        for (EntrepriseManagerLogic.Entreprise entreprise : entreprisesAConsiderer) {
-            // Vérifier si le membre est le gérant de cette entreprise ET si l'entreprise est bien dans la ville qu'il quitte
-            if (entreprise.getGerant().equalsIgnoreCase(playerName) && entreprise.getVille().equalsIgnoreCase(townName)) {
-                plugin.getLogger().log(Level.INFO, "Le gérant '" + playerName + "' de l'entreprise '" + entreprise.getNom() + "' a quitté sa ville d'attache ('" + townName + "'). Suppression de l'entreprise.");
-                entrepriseLogic.handleEntrepriseRemoval(entreprise, "Le gérant '" + playerName + "' a quitté la ville '" + townName + "'.");
+        for (Entreprise entreprise : entreprisesAConsiderer) {
+            // Vérifier si le membre est le gérant de cette entreprise ET si l'entreprise
+            // est bien dans la ville qu'il quitte
+            if (entreprise.getGerant().equalsIgnoreCase(playerName)
+                    && entreprise.getVille().equalsIgnoreCase(townName)) {
+                plugin.getLogger().log(Level.INFO,
+                        "Le gérant '" + playerName + "' de l'entreprise '" + entreprise.getNom()
+                                + "' a quitté sa ville d'attache ('" + townName + "'). Suppression de l'entreprise.");
+                entrepriseLogic.handleEntrepriseRemoval(entreprise,
+                        "Le gérant '" + playerName + "' a quitté la ville '" + townName + "'.");
                 entreprisesSupprimees++;
             }
         }
 
         if (entreprisesSupprimees > 0) {
-            plugin.getLogger().log(Level.INFO, entreprisesSupprimees + " entreprise(s) gérée(s) par '" + playerName + "' dans la ville '" + townName + "' ont été supprimée(s) suite à son départ.");
+            plugin.getLogger().log(Level.INFO, entreprisesSupprimees + " entreprise(s) gérée(s) par '" + playerName
+                    + "' dans la ville '" + townName + "' ont été supprimée(s) suite à son départ.");
         } else {
-            plugin.getLogger().log(Level.INFO, "Le départ de '" + playerName + "' de la ville '" + townName + "' n'a affecté aucune entreprise qu'il gérait dans cette ville.");
+            plugin.getLogger().log(Level.INFO, "Le départ de '" + playerName + "' de la ville '" + townName
+                    + "' n'a affecté aucune entreprise qu'il gérait dans cette ville.");
         }
 
         // === NOUVEAU : Gestion des terrains du joueur qui quitte ===
@@ -133,29 +154,26 @@ public class TownEventListener implements Listener {
                         plugin.getTownManager().transferPlotToTown(plot, "Propriétaire a quitté la ville");
                         particulierSold++;
                         plugin.getLogger().info(String.format(
-                            "[TownEventListener] Terrain PARTICULIER %s:%d,%d vendu (propriétaire %s a quitté)",
-                            plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), playerName
-                        ));
+                                "[TownEventListener] Terrain PARTICULIER %s:%d,%d vendu (propriétaire %s a quitté)",
+                                plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), playerName));
                     } else if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PROFESSIONNEL) {
                         // Terrain PROFESSIONNEL → Vérifier si l'entreprise existe toujours
                         String companySiret = plot.getCompanySiret();
                         if (companySiret != null) {
-                            EntrepriseManagerLogic.Entreprise company = plugin.getCompanyPlotManager().getCompanyBySiret(companySiret);
+                            Entreprise company = plugin.getCompanyPlotManager().getCompanyBySiret(companySiret);
                             if (company != null) {
                                 // Entreprise existe → Garder le terrain
                                 professionnelKept++;
                                 plugin.getLogger().info(String.format(
-                                    "[TownEventListener] Terrain PROFESSIONNEL %s:%d,%d conservé (entreprise %s existe)",
-                                    plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), company.getNom()
-                                ));
+                                        "[TownEventListener] Terrain PROFESSIONNEL %s:%d,%d conservé (entreprise %s existe)",
+                                        plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), company.getNom()));
                             } else {
                                 // Entreprise n'existe plus → Vendre
                                 plugin.getTownManager().transferPlotToTown(plot, "Entreprise propriétaire supprimée");
                                 professionnelSold++;
                                 plugin.getLogger().info(String.format(
-                                    "[TownEventListener] Terrain PROFESSIONNEL %s:%d,%d vendu (entreprise disparue)",
-                                    plot.getWorldName(), plot.getChunkX(), plot.getChunkZ()
-                                ));
+                                        "[TownEventListener] Terrain PROFESSIONNEL %s:%d,%d vendu (entreprise disparue)",
+                                        plot.getWorldName(), plot.getChunkX(), plot.getChunkZ()));
                             }
                         } else {
                             // Pas de SIRET → Vendre
@@ -166,9 +184,8 @@ public class TownEventListener implements Listener {
                 }
 
                 plugin.getLogger().log(Level.INFO, String.format(
-                    "[TownEventListener] Bilan terrains de %s: %d PARTICULIER vendus, %d PROFESSIONNEL conservés, %d PROFESSIONNEL vendus",
-                    playerName, particulierSold, professionnelKept, professionnelSold
-                ));
+                        "[TownEventListener] Bilan terrains de %s: %d PARTICULIER vendus, %d PROFESSIONNEL conservés, %d PROFESSIONNEL vendus",
+                        playerName, particulierSold, professionnelKept, professionnelSold));
             }
         }
     }

@@ -61,9 +61,13 @@ public class TownBankGUI implements Listener {
         ItemStack balanceItem = new ItemStack(Material.GOLD_BLOCK);
         ItemMeta balanceMeta = balanceItem.getItemMeta();
         balanceMeta.setDisplayName(ChatColor.GOLD + "Solde de la Banque");
+        
+        double limit = plugin.getTownLevelManager().getConfig(town.getLevel()).getBankLimit();
+        
         List<String> balanceLore = new ArrayList<>();
         balanceLore.add(ChatColor.GRAY + "Solde actuel:");
         balanceLore.add(ChatColor.GOLD + "" + ChatColor.BOLD + String.format("%.2f€", town.getBankBalance()));
+        balanceLore.add(ChatColor.GRAY + "Limite: " + ChatColor.YELLOW + String.format("%.2f€", limit));
         balanceLore.add("");
         balanceLore.add(ChatColor.GRAY + "Cette banque finance:");
         balanceLore.add(ChatColor.GRAY + "• Claims de territoires");
@@ -354,13 +358,16 @@ public class TownBankGUI implements Listener {
                     return;
                 }
 
-                RoleplayCity.getEconomy().withdrawPlayer(player, amount);
-                town.deposit(amount);
-
-                player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + amount + "€ dans la banque !");
-
-                // Sauvegarder immédiatement pour éviter perte de données
-                townManager.saveTownsNow();
+                try {
+                    town.deposit(amount);
+                    RoleplayCity.getEconomy().withdrawPlayer(player, amount);
+                    player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + amount + "€ dans la banque !");
+                    
+                    // Sauvegarder immédiatement pour éviter perte de données
+                    townManager.saveTownsNow();
+                } catch (IllegalStateException e) {
+                    player.sendMessage(ChatColor.RED + "Erreur: " + e.getMessage());
+                }
 
             } else if (context.actionType == ActionType.WITHDRAW) {
                 TownRole role = town.getMemberRole(player.getUniqueId());

@@ -1,7 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.manager;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
-import com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.*;
 import com.gravityyfh.roleplaycity.shop.components.ShopComponents;
@@ -51,10 +51,14 @@ public class ShopManager {
     private final boolean autoRepairEnabled;
     private final boolean autoDeleteBrokenShops;
 
-    public ShopManager(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic, Economy economy) {
+    private final com.gravityyfh.roleplaycity.shop.service.ShopPersistenceService sqlitePersistence;
+
+    public ShopManager(RoleplayCity plugin, EntrepriseManagerLogic entrepriseLogic, Economy economy, 
+                       com.gravityyfh.roleplaycity.shop.service.ShopPersistenceService sqlitePersistence) {
         this.plugin = plugin;
         this.entrepriseLogic = entrepriseLogic;
         this.economy = economy;
+        this.sqlitePersistence = sqlitePersistence;
 
         // Initialiser les composants
         this.validator = new ShopValidator(plugin);
@@ -77,20 +81,34 @@ public class ShopManager {
     // ===== INITIALISATION =====
 
     /**
-     * Charge les boutiques depuis le fichier
+     * Charge les boutiques depuis le fichier ou SQLite
      */
     public void loadShops() {
-        ShopPersistence.LoadResult result = persistence.loadShops();
-
-        for (Shop shop : result.shops()) {
-            registerShop(shop);
-        }
-
-        if (result.hasErrors()) {
-            plugin.getLogger().warning("[ShopSystem] " + result.errors().size() +
-                " erreur(s) lors du chargement:");
-            for (ShopPersistence.LoadError error : result.errors()) {
-                plugin.getLogger().warning("[ShopSystem] - " + error.toString());
+        if (sqlitePersistence != null) {
+            // Mode SQLite
+            plugin.getLogger().info("[ShopSystem] Chargement depuis SQLite...");
+            Map<String, Shop> shops = sqlitePersistence.loadShops();
+            
+            for (Shop shop : shops.values()) {
+                registerShop(shop);
+            }
+            
+            plugin.getLogger().info("[ShopSystem] " + shops.size() + " boutiques chargées (SQLite)");
+            
+        } else {
+            // Mode YAML Legacy
+            ShopPersistence.LoadResult result = persistence.loadShops();
+    
+            for (Shop shop : result.shops()) {
+                registerShop(shop);
+            }
+    
+            if (result.hasErrors()) {
+                plugin.getLogger().warning("[ShopSystem] " + result.errors().size() +
+                    " erreur(s) lors du chargement:");
+                for (ShopPersistence.LoadError error : result.errors()) {
+                    plugin.getLogger().warning("[ShopSystem] - " + error.toString());
+                }
             }
         }
 
@@ -129,8 +147,13 @@ public class ShopManager {
     /**
      * Sauvegarde toutes les boutiques
      */
-    public void saveShops() {
-        persistence.saveShops(shopsById.values());
+    public java.util.concurrent.CompletableFuture<Void> saveShops() {
+        if (sqlitePersistence != null) {
+            return sqlitePersistence.saveShops(shopsById.values());
+        } else {
+            persistence.saveShops(shopsById.values());
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        }
     }
 
     /**

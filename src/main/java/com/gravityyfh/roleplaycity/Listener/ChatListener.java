@@ -3,6 +3,7 @@ package com.gravityyfh.roleplaycity.Listener;// Dans ton fichier ChatListener.ja
 import com.gravityyfh.roleplaycity.EntrepriseGUI;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.shop.model.Shop;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -78,7 +79,7 @@ public class ChatListener implements Listener {
         player.sendMessage(ChatColor.GOLD + "Entrez le nouveau nom de l'entreprise. Tapez 'annuler' pour annuler.");
     }
 
-    public void requestShopCreationDetails(Player player, EntrepriseManagerLogic.Entreprise company, Location loc, ItemStack item) {
+    public void requestShopCreationDetails(Player player, Entreprise company, Location loc, ItemStack item) {
         playersWaitingForInput.put(player.getUniqueId(), new PlayerInputContext(InputType.SHOP_CREATION_DETAILS, company, loc, item));
         player.sendMessage(ChatColor.GOLD + "Veuillez entrer la QUANTITÉ par vente, suivie du PRIX total pour cette quantité.");
         player.sendMessage(ChatColor.GRAY + "Exemple : " + ChatColor.YELLOW + "16 350.50" + ChatColor.GRAY + " (pour vendre 16 objets à 350.50€)");
@@ -204,7 +205,7 @@ public class ChatListener implements Listener {
     }
 
     private void handleShopCreationDetails(Player player, PlayerInputContext context, String message) {
-        EntrepriseManagerLogic.Entreprise entreprise = (EntrepriseManagerLogic.Entreprise) context.data;
+        Entreprise entreprise = (Entreprise) context.data;
         Location location = (Location) context.secondaryData;
         ItemStack itemStack = (ItemStack) context.tertiaryData;
 
@@ -291,7 +292,7 @@ public class ChatListener implements Listener {
         // Par exemple, pour la gestion d'entreprise
         else if (context.inputType == InputType.DEPOSIT_AMOUNT || context.inputType == InputType.WITHDRAW_AMOUNT || context.inputType == InputType.RENAME_ENTREPRISE_NEW_NAME) {
             String nomEntreprise = (String) context.data;
-            EntrepriseManagerLogic.Entreprise entreprise = plugin.getEntrepriseManagerLogic().getEntreprise(nomEntreprise);
+            Entreprise entreprise = plugin.getEntrepriseManagerLogic().getEntreprise(nomEntreprise);
             if (entreprise != null) {
                 entrepriseGUI.openManageSpecificEntrepriseMenu(player, entreprise);
             }

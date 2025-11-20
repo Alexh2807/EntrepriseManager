@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.gui.NavigationManager;
 import com.gravityyfh.roleplaycity.town.data.Plot;
@@ -93,7 +94,7 @@ public class TownPlotManagementGUI implements Listener {
         if (plot.getOwnerName() != null) {
             // Si terrain PROFESSIONNEL avec entreprise : afficher entreprise
             if (plot.getType() == PlotType.PROFESSIONNEL && plot.getCompanySiret() != null) {
-                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise ownerCompany = plugin.getCompanyPlotManager()
+                Entreprise ownerCompany = plugin.getCompanyPlotManager()
                     .getCompanyBySiret(plot.getCompanySiret());
                 if (ownerCompany != null) {
                     infoLore.add(ChatColor.GRAY + "Entreprise: " + ChatColor.YELLOW + ownerCompany.getNom() + ChatColor.GRAY + " (" + ownerCompany.getType() + ")");

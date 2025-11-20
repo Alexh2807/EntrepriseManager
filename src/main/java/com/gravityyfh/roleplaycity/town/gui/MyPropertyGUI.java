@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
@@ -200,7 +201,7 @@ public class MyPropertyGUI implements Listener {
                 com.gravityyfh.roleplaycity.EntrepriseManagerLogic entrepriseLogic =
                     ((com.gravityyfh.roleplaycity.RoleplayCity) org.bukkit.Bukkit.getPluginManager().getPlugin("RoleplayCity"))
                     .getEntrepriseManagerLogic();
-                com.gravityyfh.roleplaycity.EntrepriseManagerLogic.Entreprise entreprise =
+                Entreprise entreprise =
                     entrepriseLogic.getEntrepriseBySiret(plot.getRenterCompanySiret());
                 if (entreprise != null) {
                     lore.add(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + entreprise.getNom());

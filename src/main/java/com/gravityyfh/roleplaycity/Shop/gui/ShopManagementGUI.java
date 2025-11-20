@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.ShopDeletionResult;
 import com.gravityyfh.roleplaycity.shop.ShopStatus;
@@ -45,7 +46,7 @@ public class ShopManagementGUI implements Listener {
     /**
      * Ouvre le menu de gestion d'une boutique
      */
-    public void openManagementMenu(Player player, Shop shop, EntrepriseManagerLogic.Entreprise entreprise) {
+    public void openManagementMenu(Player player, Shop shop, Entreprise entreprise) {
         String title = TITLE_PREFIX + shop.getShopId().toString().substring(0, 8);
         Inventory inv = Bukkit.createInventory(null, 45, title);
 
@@ -370,6 +371,6 @@ public class ShopManagementGUI implements Listener {
     /**
          * Contexte de gestion pour un joueur
          */
-        private record ShopManagementContext(Shop shop, EntrepriseManagerLogic.Entreprise entreprise) {
+        private record ShopManagementContext(Shop shop, Entreprise entreprise) {
     }
 }

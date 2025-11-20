@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity;
 
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -184,7 +185,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         }
 
         String nomEntreprise = joinArguments(args, 1, args.length);
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
 
         if (entreprise == null) {
             player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'a pas été trouvée.");
@@ -217,7 +218,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         // Si aucun argument: toggle pour l'entreprise actuelle du joueur
         if (args.length == 1) {
             // FIX MULTI-ENTREPRISES: Récupérer toutes les entreprises du joueur
-            java.util.List<EntrepriseManagerLogic.Entreprise> entreprises = entrepriseLogic.getEntreprisesDuJoueur(player);
+            java.util.List<Entreprise> entreprises = entrepriseLogic.getEntreprisesDuJoueur(player);
 
             if (entreprises.isEmpty()) {
                 player.sendMessage(ChatColor.RED + "Vous devez être membre d'une entreprise pour utiliser le mode service.");
@@ -236,7 +237,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             player.sendMessage(ChatColor.GRAY + "Usage: " + ChatColor.WHITE + "/entreprise service <NomEntreprise>");
             player.sendMessage("");
             player.sendMessage(ChatColor.GOLD + "Vos entreprises :");
-            for (EntrepriseManagerLogic.Entreprise ent : entreprises) {
+            for (Entreprise ent : entreprises) {
                 player.sendMessage(ChatColor.GRAY + " • " + ChatColor.YELLOW + ent.getNom() + ChatColor.GRAY + " (" + ent.getType() + ")");
             }
             return;
@@ -253,7 +254,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             }
 
             String nomEntreprise = joinArguments(args, 2, args.length);
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+            Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
 
             if (entreprise == null) {
                 player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
@@ -268,7 +269,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         } else {
             // Nom d'entreprise directement
             String nomEntreprise = joinArguments(args, 1, args.length);
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+            Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
 
             if (entreprise == null) {
                 player.sendMessage(ChatColor.RED + "L'entreprise '" + nomEntreprise + "' n'existe pas.");
@@ -295,7 +296,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
         String nomEntreprise = joinArguments(args, 1, args.length);
-        EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise entreprise = entrepriseLogic.getEntreprise(nomEntreprise);
         if (entreprise == null) {
             player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
             return;
@@ -398,7 +399,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         String ville = args[1];
         if ("*".equals(ville)) {
             Set<String> villes = entrepriseLogic.getEntreprises().stream()
-                    .map(EntrepriseManagerLogic.Entreprise::getVille)
+                    .map(Entreprise::getVille)
                     .filter(v -> v != null && !v.isEmpty())
                     .collect(Collectors.toSet());
 
@@ -435,7 +436,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             String nomJoueurInvite = args[args.length - 1];
             String nomEnt = joinArguments(args, 2, args.length - 1);
             Player joueurInvite = Bukkit.getPlayerExact(nomJoueurInvite);
-            EntrepriseManagerLogic.Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
+            Entreprise entreprise = entrepriseLogic.getEntreprise(nomEnt);
 
             if (entreprise == null || !entreprise.getGerant().equalsIgnoreCase(player.getName())) { player.sendMessage(ChatColor.RED+"Entreprise/Gérant invalide."); return; }
             if (joueurInvite == null || !joueurInvite.isOnline()) { player.sendMessage(ChatColor.RED+"Joueur à inviter non trouvé ou hors ligne."); return; }
@@ -474,7 +475,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin <forcepay|reload|forcesave|cleandisplay>");
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin <forcepay|reload|forcesave|cleandisplay|migrate|rollback|init|status>");
             return;
         }
         String subCmd = args[1].toLowerCase();
@@ -483,6 +484,10 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "reload": adminReloadCommand(player); break;
             case "forcesave": adminForceSaveCommand(player); break;
             case "cleandisplay": adminCleanDisplayCommand(player); break;
+            case "migrate": adminMigrateCommand(player, args); break;
+            case "rollback": adminRollbackCommand(player, args); break;
+            case "init": adminInitSQLiteCommand(player, args); break;
+            case "status": adminStatusCommand(player); break;
             default: player.sendMessage(ChatColor.RED + "Sous-commande admin inconnue: " + subCmd); break;
         }
     }
@@ -534,6 +539,254 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         // } else {
         //     player.sendMessage(ChatColor.RED + "[Erreur] Vous ne visez aucune entité Display.");
         // }
+    }
+
+    private void adminMigrateCommand(Player player, String[] args) {
+        if (!player.hasPermission("entreprisemanager.admin.migrate")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        // Require confirmation
+        if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage(ChatColor.RED + ChatColor.BOLD.toString() + "⚠ MIGRATION YAML → SQLite ⚠");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage(ChatColor.YELLOW + "Cette commande va :");
+            player.sendMessage(ChatColor.YELLOW + "  1. Créer une sauvegarde de entreprises.yml");
+            player.sendMessage(ChatColor.YELLOW + "  2. Charger toutes les données YAML");
+            player.sendMessage(ChatColor.YELLOW + "  3. Migrer vers SQLite (entreprises.db)");
+            player.sendMessage(ChatColor.YELLOW + "  4. Valider l'intégrité des données");
+            player.sendMessage(ChatColor.YELLOW + "  5. Renommer l'ancien fichier YAML");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "⚠ Le serveur sera automatiquement sauvegardé.");
+            player.sendMessage(ChatColor.RED + "⚠ Cette opération peut prendre quelques minutes.");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "Pour confirmer, utilisez :");
+            player.sendMessage(ChatColor.GREEN + "/entreprise admin migrate confirm");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            return;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "Démarrage de la migration YAML → SQLite...");
+
+        // Execute migration asynchronously to avoid blocking the main thread
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                // Delegate to the migration logic in EntrepriseManagerLogic
+                entrepriseLogic.executeMigrationToSQLite(player);
+            } catch (Exception e) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage(ChatColor.RED + "Erreur critique lors de la migration :");
+                    player.sendMessage(ChatColor.RED + e.getMessage());
+                    plugin.getLogger().severe("Erreur de migration : " + e.getMessage());
+                    e.printStackTrace();
+                });
+            }
+        });
+    }
+
+    private void adminRollbackCommand(Player player, String[] args) {
+        if (!player.hasPermission("entreprisemanager.admin.migrate")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /entreprise admin rollback <fichier_backup>");
+            player.sendMessage(ChatColor.YELLOW + "Exemple: /entreprise admin rollback entreprises_backup_2025-01-18_14-30-00.yml");
+            player.sendMessage(ChatColor.YELLOW + "Les backups sont dans: plugins/RoleplayCity/");
+            return;
+        }
+
+        String backupFileName = args[2];
+
+        // Require confirmation
+        if (args.length < 4 || !args[3].equalsIgnoreCase("confirm")) {
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage(ChatColor.RED + ChatColor.BOLD.toString() + "⚠ ROLLBACK DE MIGRATION ⚠");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage(ChatColor.YELLOW + "Cette commande va :");
+            player.sendMessage(ChatColor.YELLOW + "  1. Restaurer le fichier YAML depuis: " + backupFileName);
+            player.sendMessage(ChatColor.YELLOW + "  2. Recharger les données depuis YAML");
+            player.sendMessage(ChatColor.YELLOW + "  3. Conserver la base SQLite pour analyse");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "⚠ Toutes les modifications depuis la migration seront perdues !");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "Pour confirmer, utilisez :");
+            player.sendMessage(ChatColor.GREEN + "/entreprise admin rollback " + backupFileName + " confirm");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            return;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "Démarrage du rollback depuis: " + backupFileName);
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                entrepriseLogic.executeRollbackFromBackup(player, backupFileName);
+            } catch (Exception e) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage(ChatColor.RED + "Erreur critique lors du rollback :");
+                    player.sendMessage(ChatColor.RED + e.getMessage());
+                    plugin.getLogger().severe("Erreur de rollback : " + e.getMessage());
+                    e.printStackTrace();
+                });
+            }
+        });
+    }
+
+    private void adminInitSQLiteCommand(Player player, String[] args) {
+        if (!player.hasPermission("entreprisemanager.admin.init")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        // Vérifier si SQLite existe déjà
+        java.io.File sqliteDb = new java.io.File(plugin.getDataFolder(), "entreprises.db");
+        if (sqliteDb.exists()) {
+            player.sendMessage(ChatColor.RED + "❌ La base SQLite existe déjà !");
+            player.sendMessage(ChatColor.YELLOW + "Fichier: " + sqliteDb.getAbsolutePath());
+            player.sendMessage(ChatColor.YELLOW + "Si vous voulez réinitialiser, supprimez-le manuellement.");
+            return;
+        }
+
+        // Confirmation requise
+        if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage(ChatColor.GREEN + ChatColor.BOLD.toString() + "✓ INITIALISATION SQLite");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.WHITE + "Cette commande va :");
+            player.sendMessage(ChatColor.YELLOW + "  1. Créer une base SQLite vide");
+            player.sendMessage(ChatColor.YELLOW + "  2. Initialiser les tables");
+            player.sendMessage(ChatColor.YELLOW + "  3. Activer le mode SQLite");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "⚠ Utilisez cette commande UNIQUEMENT si :");
+            player.sendMessage(ChatColor.RED + "  - Vous n'avez pas de données YAML à migrer");
+            player.sendMessage(ChatColor.RED + "  - Vous démarrez un nouveau serveur");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "Pour confirmer :");
+            player.sendMessage(ChatColor.AQUA + "  /entreprise admin init confirm");
+            player.sendMessage(ChatColor.GOLD + "========================================");
+            return;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "⏳ Initialisation de SQLite...");
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                // Créer le connection manager et initialiser les tables
+                com.gravityyfh.roleplaycity.entreprise.persistence.SQLiteConnectionManager connManager =
+                    new com.gravityyfh.roleplaycity.entreprise.persistence.SQLiteConnectionManager(plugin);
+
+                connManager.initialize();
+                connManager.close();
+
+                // Retour au thread principal
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage(ChatColor.GOLD + "========================================");
+                    player.sendMessage(ChatColor.GREEN + ChatColor.BOLD.toString() + "✓ INITIALISATION RÉUSSIE");
+                    player.sendMessage(ChatColor.GOLD + "========================================");
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.GREEN + "✓ Base SQLite créée: " + sqliteDb.getName());
+                    player.sendMessage(ChatColor.GREEN + "✓ Tables initialisées (vides)");
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.YELLOW + "📋 Prochaines étapes :");
+                    player.sendMessage(ChatColor.WHITE + "  1. Redémarrez le serveur");
+                    player.sendMessage(ChatColor.WHITE + "  2. Le mode SQLite sera automatiquement activé");
+                    player.sendMessage(ChatColor.WHITE + "  3. Vous pouvez créer vos premières entreprises");
+                    player.sendMessage("");
+                    player.sendMessage(ChatColor.AQUA + "💡 Cache et auto-save actifs");
+                    player.sendMessage(ChatColor.GOLD + "========================================");
+                });
+
+            } catch (Exception e) {
+                plugin.getLogger().severe("Erreur initialisation SQLite: " + e.getMessage());
+                e.printStackTrace();
+
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage(ChatColor.RED + "❌ ÉCHEC DE L'INITIALISATION");
+                    player.sendMessage(ChatColor.RED + "Erreur: " + e.getMessage());
+                    player.sendMessage(ChatColor.YELLOW + "Consultez les logs pour plus de détails");
+                });
+            }
+        });
+    }
+
+    private void adminStatusCommand(Player player) {
+        if (!player.hasPermission("entreprisemanager.admin.status")) {
+            player.sendMessage(ChatColor.RED + "Permission refusée.");
+            return;
+        }
+
+        player.sendMessage(ChatColor.GOLD + "========================================");
+        player.sendMessage(ChatColor.YELLOW + ChatColor.BOLD.toString() + "📊 STATUS SYSTÈME ENTREPRISES");
+        player.sendMessage(ChatColor.GOLD + "========================================");
+        player.sendMessage("");
+
+        // Vérifier si SQLite est activé
+        boolean usingSQLite = plugin.isUsingSQLiteServices();
+
+        if (usingSQLite) {
+            player.sendMessage(ChatColor.GREEN + "✓ Mode: " + ChatColor.WHITE + "SQLite (Nouveau système)");
+
+            // Stats du cache
+            com.gravityyfh.roleplaycity.entreprise.service.AsyncEntrepriseService asyncService =
+                plugin.getAsyncEntrepriseService();
+
+            if (asyncService != null) {
+                java.util.Map<String, Object> stats = asyncService.getCacheStats();
+                player.sendMessage(ChatColor.AQUA + "Cache:");
+                player.sendMessage(ChatColor.WHITE + "  • Entreprises en cache: " + stats.get("cached_entries"));
+                player.sendMessage(ChatColor.WHITE + "  • Modifications en attente: " + stats.get("dirty_entries"));
+            }
+
+            // Fichier SQLite
+            java.io.File dbFile = new java.io.File(plugin.getDataFolder(), "entreprises.db");
+            if (dbFile.exists()) {
+                long sizeKB = dbFile.length() / 1024;
+                player.sendMessage(ChatColor.AQUA + "Base de données:");
+                player.sendMessage(ChatColor.WHITE + "  • Fichier: entreprises.db");
+                player.sendMessage(ChatColor.WHITE + "  • Taille: " + sizeKB + " Ko");
+            }
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "⚠ Mode: " + ChatColor.WHITE + "YAML (Ancien système)");
+            player.sendMessage(ChatColor.GRAY + "Le système SQLite n'est pas actif.");
+
+            // Vérifier si entreprises.db existe
+            java.io.File dbFile = new java.io.File(plugin.getDataFolder(), "entreprises.db");
+            java.io.File yamlFile = new java.io.File(plugin.getDataFolder(), "entreprise.yml");
+
+            player.sendMessage("");
+            player.sendMessage(ChatColor.AQUA + "Fichiers détectés:");
+            player.sendMessage(ChatColor.WHITE + "  • entreprise.yml: " +
+                (yamlFile.exists() ? ChatColor.GREEN + "✓ Existe" : ChatColor.RED + "✗ Absent"));
+            player.sendMessage(ChatColor.WHITE + "  • entreprises.db: " +
+                (dbFile.exists() ? ChatColor.GREEN + "✓ Existe (" + (dbFile.length() / 1024) + " Ko)"
+                                 : ChatColor.RED + "✗ Absent"));
+
+            if (dbFile.exists()) {
+                player.sendMessage("");
+                player.sendMessage(ChatColor.YELLOW + "⚠ SQLite existe mais n'est pas utilisé!");
+                player.sendMessage(ChatColor.YELLOW + "Le plugin utilise encore le YAML.");
+                player.sendMessage("");
+                player.sendMessage(ChatColor.WHITE + "Raisons possibles:");
+                player.sendMessage(ChatColor.GRAY + "  1. Migration pas encore effectuée");
+                player.sendMessage(ChatColor.GRAY + "  2. Code pas encore adapté (Phase 6.2+)");
+            } else if (yamlFile.exists()) {
+                player.sendMessage("");
+                player.sendMessage(ChatColor.AQUA + "💡 Pour migrer vers SQLite:");
+                player.sendMessage(ChatColor.WHITE + "  /entreprise admin migrate confirm");
+            }
+        }
+
+        // Nombre d'entreprises actuelles
+        int nbEntreprises = entrepriseLogic.getEntreprises().size();
+        player.sendMessage("");
+        player.sendMessage(ChatColor.AQUA + "Statistiques:");
+        player.sendMessage(ChatColor.WHITE + "  • Entreprises actives: " + nbEntreprises);
+
+        player.sendMessage(ChatColor.GOLD + "========================================");
     }
 
     private void handleStatsCommand(Player player, String[] args) {
@@ -588,7 +841,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleStatsInfoCommand(Player player, String nomEntreprise) {
-        EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) {
             player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée.");
             return;
@@ -621,19 +874,19 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
     private void handleStatsTransactionsCommand(Player player, String nomEntreprise, int limit) {
         limit = Math.max(1, Math.min(limit, 50)); // Clamp value
-        EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
         boolean isMember = ent.getGerant().equalsIgnoreCase(player.getName()) || ent.getEmployes().contains(player.getName());
         if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
 
-        List<EntrepriseManagerLogic.Transaction> txs = entrepriseLogic.getTransactionsPourEntreprise(nomEntreprise, limit);
+        List<Transaction> txs = entrepriseLogic.getTransactionsPourEntreprise(nomEntreprise, limit);
         if (txs.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune transaction enregistrée pour " + nomEntreprise + "."); return; }
         player.sendMessage(ChatColor.GOLD + "--- " + txs.size() + " Dernières Transactions: " + ChatColor.AQUA + ent.getNom() + ChatColor.GOLD + " ---");
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM HH:mm");
-        for (EntrepriseManagerLogic.Transaction tx : txs) {
+        for (Transaction tx : txs) {
             ChatColor amountColor; String amountPrefix = "";
-            if (tx.type == EntrepriseManagerLogic.TransactionType.DEPOSIT || tx.type.isOperationalIncome()) { amountColor = ChatColor.GREEN; amountPrefix = "+"; }
-            else if (tx.type == EntrepriseManagerLogic.TransactionType.WITHDRAWAL || tx.type.isOperationalExpense()) { amountColor = ChatColor.RED; }
+            if (tx.type == TransactionType.DEPOSIT || tx.type.isOperationalIncome()) { amountColor = ChatColor.GREEN; amountPrefix = "+"; }
+            else if (tx.type == TransactionType.WITHDRAWAL || tx.type.isOperationalExpense()) { amountColor = ChatColor.RED; }
             else { amountColor = ChatColor.YELLOW; }
             if (Math.abs(tx.amount) < 0.01) amountColor = ChatColor.GRAY;
             String amountStr = String.format("%s%s%.2f€", amountColor, (tx.amount >= 0 ? amountPrefix : ""), tx.amount);
@@ -643,12 +896,12 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void handleStatsListEmployesCommand(Player player, String nomEntreprise) {
-        EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
         boolean isMember = ent.getGerant().equalsIgnoreCase(player.getName()) || ent.getEmployes().contains(player.getName());
         if (!isMember && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
 
-        Collection<EntrepriseManagerLogic.EmployeeActivityRecord> records = ent.getEmployeeActivityRecords().values();
+        Collection<EmployeeActivityRecord> records = ent.getEmployeeActivityRecords().values();
         if (records.isEmpty()) { player.sendMessage(ChatColor.YELLOW + "Aucune donnée d'employé à afficher pour " + nomEntreprise + "."); return; }
         player.sendMessage(ChatColor.GOLD + "--- Aperçu Stats Employés: " + ChatColor.AQUA + ent.getNom() + ChatColor.GOLD + " ---");
         records.stream()
@@ -664,14 +917,14 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
 
     private void handleStatsEmployeDetailCommand(Player player, String nomEntreprise, String nomEmploye) {
-        EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
         OfflinePlayer offlineEmp = Bukkit.getOfflinePlayer(nomEmploye);
         if (!offlineEmp.hasPlayedBefore() && !offlineEmp.isOnline() && ent.getEmployeeActivityRecord(offlineEmp.getUniqueId()) == null ) {
             player.sendMessage(ChatColor.RED + "Employé '" + nomEmploye + "' introuvable ou jamais enregistré dans cette entreprise."); return;
         }
         UUID empUUID = offlineEmp.getUniqueId();
-        EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(empUUID);
+        EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(empUUID);
         boolean isOwn = player.getUniqueId().equals(empUUID);
         boolean isGerant = ent.getGerant().equalsIgnoreCase(player.getName());
         if (!isOwn && !isGerant && !player.hasPermission("entreprisemanager.admin.viewallstats")) { player.sendMessage(ChatColor.RED + "Permission refusée."); return; }
@@ -707,17 +960,17 @@ public class EntrepriseCommandHandler implements CommandExecutor {
 
     private void handleStatsProductionCommand(Player player, String[] args) {
         String nomEntreprise = args[2];
-        EntrepriseManagerLogic.Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
+        Entreprise ent = entrepriseLogic.getEntreprise(nomEntreprise);
         if (ent == null) { player.sendMessage(ChatColor.RED + "Entreprise '" + nomEntreprise + "' non trouvée."); return; }
 
         String cibleArg = args[3]; String actionTypeArg = args[4].toLowerCase();
         String periodeStr = (args.length > 5) ? args[5].toLowerCase() : "24h";
 
-        EntrepriseManagerLogic.DetailedActionType actionTypeFilter;
+        DetailedActionType actionTypeFilter;
         switch (actionTypeArg) {
-            case "broken": case "break": case "cassé": case "casses": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.BLOCK_BROKEN; break;
-            case "crafted": case "craft": case "fabriqué": case "fabriques": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.ITEM_CRAFTED; break;
-            case "placed": case "place": case "posé": case "poses": actionTypeFilter = EntrepriseManagerLogic.DetailedActionType.BLOCK_PLACED; break;
+            case "broken": case "break": case "cassé": case "casses": actionTypeFilter = DetailedActionType.BLOCK_BROKEN; break;
+            case "crafted": case "craft": case "fabriqué": case "fabriques": actionTypeFilter = DetailedActionType.ITEM_CRAFTED; break;
+            case "placed": case "place": case "posé": case "poses": actionTypeFilter = DetailedActionType.BLOCK_PLACED; break;
             default: player.sendMessage(ChatColor.RED + "Type d'action invalide: '" + actionTypeArg + "'."); return;
         }
 
@@ -742,7 +995,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             case "30j": case "mois": start = end.minusMonths(1); break;
             case "total":
                 if (globalStats) start = ent.getGlobalProductionLog().stream().min(Comparator.comparing(r -> r.timestamp())).map(r -> r.timestamp()).orElse(end);
-                else { EntrepriseManagerLogic.EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(targetEmpUUID); start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN; }
+                else { EmployeeActivityRecord rec = ent.getEmployeeActivityRecord(targetEmpUUID); start = (rec != null && rec.joinDate != null) ? rec.joinDate : LocalDateTime.MIN; }
                 break;
             default: player.sendMessage(ChatColor.RED + "Période invalide: '" + periodeStr + "'."); return;
         }

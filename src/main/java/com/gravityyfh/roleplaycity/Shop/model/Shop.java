@@ -47,6 +47,7 @@ public class Shop {
 
     // === STATUT ===
     private ShopStatus status;
+    private int cachedStock;
 
     // === COMPOSANTS (IDs pour traçabilité) ===
     private UUID displayItemEntityId;
@@ -80,6 +81,7 @@ public class Shop {
         this.creationDate = LocalDateTime.now();
         this.lastStockCheck = LocalDateTime.now();
         this.status = ShopStatus.ACTIVE;
+        this.cachedStock = 0;
 
         this.totalSales = 0;
         this.totalRevenue = 0.0;
@@ -201,11 +203,19 @@ public class Shop {
         return new HashMap<>(topBuyers);
     }
 
+    public int getCachedStock() {
+        return cachedStock;
+    }
+
     // ===== SETTERS =====
 
     public void setItemTemplate(ItemStack itemTemplate) {
         this.itemTemplate = itemTemplate.clone();
         this.itemTemplate.setAmount(1);
+    }
+
+    public void setCachedStock(int cachedStock) {
+        this.cachedStock = cachedStock;
     }
 
     public void setQuantityPerSale(int quantityPerSale) {
@@ -297,6 +307,7 @@ public class Shop {
 
         // Statut
         map.put("status", status.name());
+        map.put("cachedStock", cachedStock);
 
         // Composants
         if (displayItemEntityId != null) {
@@ -358,6 +369,7 @@ public class Shop {
 
             // Statut
             ShopStatus status = ShopStatus.valueOf((String) map.getOrDefault("status", "ACTIVE"));
+            int cachedStock = ((Number) map.getOrDefault("cachedStock", 0)).intValue();
 
             // Composants
             UUID displayItemId = map.containsKey("displayItemEntityId")
@@ -384,11 +396,13 @@ public class Shop {
             }
 
             if (siret != null && chestLoc != null && signLoc != null && item != null) {
-                return new Shop(id, entrepriseName, siret, ownerId, ownerName,
+                Shop shop = new Shop(id, entrepriseName, siret, ownerId, ownerName,
                     chestLoc, signLoc, hologramLoc, item, quantity, price,
                     creationDate, lastStockCheck, lastPurchase,
                     totalSales, totalRevenue, status,
                     displayItemId, hologramIds, topBuyers);
+                shop.setCachedStock(cachedStock);
+                return shop;
             }
 
             return null;

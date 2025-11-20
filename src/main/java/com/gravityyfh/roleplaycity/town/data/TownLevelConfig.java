@@ -11,6 +11,7 @@ public class TownLevelConfig {
     private final TownLevel level;
     private final double creationCost;
     private final double upgradeCost;
+    private final double bankLimit; // NOUVEAU: Limite de solde bancaire
     private final int minPopulation;
     private final int maxPopulation;
     private final int maxClaims;
@@ -29,6 +30,7 @@ public class TownLevelConfig {
         this.level = builder.level;
         this.creationCost = builder.creationCost;
         this.upgradeCost = builder.upgradeCost;
+        this.bankLimit = builder.bankLimit;
         this.minPopulation = builder.minPopulation;
         this.maxPopulation = builder.maxPopulation;
         this.maxClaims = builder.maxClaims;
@@ -44,6 +46,7 @@ public class TownLevelConfig {
     public TownLevel getLevel() { return level; }
     public double getCreationCost() { return creationCost; }
     public double getUpgradeCost() { return upgradeCost; }
+    public double getBankLimit() { return bankLimit; } // Getter pour la limite bancaire
     public int getMinPopulation() { return minPopulation; }
     public int getMaxPopulation() { return maxPopulation; }
     public int getMaxClaims() { return maxClaims; }
@@ -150,6 +153,7 @@ public class TownLevelConfig {
         private final TownLevel level;
         private double creationCost = 0;
         private double upgradeCost = 0;
+        private double bankLimit = Double.MAX_VALUE; // Défaut : pas de limite
         private int minPopulation = 1;
         private int maxPopulation = Integer.MAX_VALUE;
         private int maxClaims = 10;
@@ -171,6 +175,11 @@ public class TownLevelConfig {
 
         public Builder upgradeCost(double cost) {
             this.upgradeCost = cost;
+            return this;
+        }
+
+        public Builder bankLimit(double limit) {
+            this.bankLimit = limit;
             return this;
         }
 
@@ -226,8 +235,8 @@ public class TownLevelConfig {
 
     @Override
     public String toString() {
-        return String.format("TownLevelConfig{level=%s, cost=%.2f€, claims=%d, police=%d, judges=%d, medics=%d}",
-            level.getName(), creationCost, maxClaims, maxPoliciers, maxJuges, maxMedecins);
+        return String.format("TownLevelConfig{level=%s, cost=%.2f€, bankLimit=%.2f€, claims=%d, police=%d, judges=%d, medics=%d}",
+            level.getName(), creationCost, bankLimit, maxClaims, maxPoliciers, maxJuges, maxMedecins);
     }
 
     /**
@@ -240,6 +249,7 @@ public class TownLevelConfig {
         configs.put(TownLevel.CAMPEMENT, new Builder(TownLevel.CAMPEMENT)
             .creationCost(5000.0)
             .upgradeCost(0) // Premier niveau, pas d'upgrade
+            .bankLimit(5000.0) // Limite 5k
             .minPopulation(1)
             .maxPopulation(4)
             .maxClaims(10)
@@ -255,6 +265,7 @@ public class TownLevelConfig {
         configs.put(TownLevel.VILLAGE, new Builder(TownLevel.VILLAGE)
             .creationCost(5000.0 + 8000.0) // Coût total depuis le début
             .upgradeCost(8000.0) // Coût pour upgrade depuis Campement
+            .bankLimit(20000.0) // Limite 20k
             .minPopulation(5)
             .maxPopulation(14)
             .maxClaims(130)
@@ -270,6 +281,7 @@ public class TownLevelConfig {
         configs.put(TownLevel.VILLE, new Builder(TownLevel.VILLE)
             .creationCost(5000.0 + 8000.0 + 15000.0) // Coût total depuis le début
             .upgradeCost(15000.0) // Coût pour upgrade depuis Village
+            .bankLimit(50000.0) // Limite 50k
             .minPopulation(15)
             .maxPopulation(Integer.MAX_VALUE)
             .maxClaims(250)

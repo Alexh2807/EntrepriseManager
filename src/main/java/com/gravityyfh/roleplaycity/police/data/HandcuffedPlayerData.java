@@ -68,6 +68,54 @@ public class HandcuffedPlayerData {
     }
 
     /**
+     * Charge un joueur menotté (Persistence)
+     * Ne crée pas de BossBar (sera fait au join)
+     */
+    public void loadHandcuffed(UUID uuid, double health) {
+        handcuffedPlayers.put(uuid, true);
+        handcuffsHealth.put(uuid, health);
+    }
+
+    /**
+     * Récupère toutes les données pour la sauvegarde
+     */
+    public Map<UUID, Double> getAllHandcuffedData() {
+        return new HashMap<>(handcuffsHealth);
+    }
+
+    /**
+     * Réapplique les effets visuels (BossBar, Fly) pour un joueur déjà menotté
+     * Appelé au PlayerJoinEvent
+     */
+    public void reapplyHandcuffs(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (!isHandcuffed(uuid)) return;
+
+        double health = handcuffsHealth.getOrDefault(uuid, 1.0);
+        String bossBarTitle = "§fSanté des Menottes - Shift pour affaiblir"; // TODO: Utiliser config
+
+        // Recréer la BossBar
+        BossBar bossBar = Bukkit.createBossBar(
+            bossBarTitle,
+            BarColor.WHITE,
+            BarStyle.SOLID
+        );
+        bossBar.setProgress(health);
+        
+        // Couleur selon santé
+        if (health <= 0.25) bossBar.setColor(BarColor.RED);
+        else if (health <= 0.5) bossBar.setColor(BarColor.YELLOW);
+        
+        bossBar.addPlayer(player);
+        bossBar.setVisible(true);
+        handcuffsBossBars.put(uuid, bossBar);
+
+        // Réappliquer vol (anti-chute)
+        player.setAllowFlight(true);
+        player.setFlying(false);
+    }
+
+    /**
      * Libère un joueur des menottes
      */
     public void removeHandcuffs(Player player) {

@@ -34,12 +34,27 @@ public class InjuredPlayer {
         this.remainingSeconds = 300; // 5 minutes
     }
 
+    public InjuredPlayer(UUID playerUuid, String playerName, LocalDateTime injuryTime, String injuryCause, Location location) {
+        this.playerUuid = playerUuid;
+        this.player = org.bukkit.Bukkit.getPlayer(playerUuid);
+        this.injuryLocation = location;
+        this.injuryCause = injuryCause;
+        this.injuryTime = injuryTime;
+        this.armorStands = new ArrayList<>();
+        this.canAffordCare = true;
+        this.remainingSeconds = 300;
+    }
+
     public UUID getPlayerUuid() {
         return playerUuid;
     }
 
     public Player getPlayer() {
         return player;
+    }
+
+    public String getPlayerName() {
+        return player != null ? player.getName() : org.bukkit.Bukkit.getOfflinePlayer(playerUuid).getName();
     }
 
     public Location getInjuryLocation() {

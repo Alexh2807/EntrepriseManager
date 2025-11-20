@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.manager;
 
+import com.gravityyfh.roleplaycity.contract.model.Contract;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -182,6 +183,56 @@ public class TownJusticeManager {
         townManager.saveTownsNow();
 
         return true;
+    }
+
+    /**
+     * Juger un litige contractuel
+     */
+    public boolean judgeContract(Contract contrat, Player judge, boolean validDispute, String verdict) {
+        Town town = townManager.getTown(judge);
+        if (town == null) {
+            judge.sendMessage("§cVous devez appartenir à une ville pour juger.");
+            return false;
+        }
+
+        TownRole role = town.getMemberRole(judge.getUniqueId());
+        if (role != TownRole.JUGE && role != TownRole.MAIRE) {
+            judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            judge.sendMessage("§c✖ Accès refusé");
+            judge.sendMessage("§7Vous n'avez pas l'autorité pour juger");
+            judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            return false;
+        }
+
+        if (contrat.getStatus() != com.gravityyfh.roleplaycity.contract.model.ContractStatus.LITIGE) {
+            judge.sendMessage("§cCe contrat n'est pas en litige.");
+            return false;
+        }
+
+        // Résolution via le ContractService
+        plugin.getContractService().resolveDispute(contrat.getId(), judge.getUniqueId(), validDispute, verdict);
+
+        // Notifications
+        judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        judge.sendMessage("§d⚖ §lLITIGE RÉSOLU");
+        judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        judge.sendMessage("§7Verdict: " + (validDispute ? "§aPlaintif (Client) Gagnant" : "§cDéfendeur (Fournisseur) Gagnant"));
+        judge.sendMessage("§7Commentaire: §f" + verdict);
+        judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+        
+        return true;
+    }
+
+    /**
+     * Obtenir un résumé d'un contrat pour le juge
+     */
+    public String getContractReview(Contract c) {
+        return ChatColor.GOLD + "=== DOSSIER LITIGE CONTRACTUEL ===\n" +
+                ChatColor.GRAY + "ID: " + ChatColor.WHITE + c.getId().toString().substring(0, 8) + "\n" +
+                ChatColor.GRAY + "Titre: " + ChatColor.YELLOW + c.getTitle() + "\n" +
+                ChatColor.GRAY + "Fournisseur: " + ChatColor.WHITE + c.getProviderCompany() + "\n" +
+                ChatColor.GRAY + "Montant: " + ChatColor.GOLD + c.getAmount() + "€\n" +
+                ChatColor.GRAY + "Raison du Litige: " + ChatColor.RED + c.getDisputeReason() + "\n";
     }
 
     /**

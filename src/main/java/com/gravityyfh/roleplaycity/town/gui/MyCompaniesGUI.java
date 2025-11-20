@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
@@ -44,7 +45,7 @@ public class MyCompaniesGUI implements Listener {
      * Ouvre le menu "Mes Entreprises" pour le joueur
      */
     public void openCompaniesMenu(Player player) {
-        List<EntrepriseManagerLogic.Entreprise> companies = entrepriseLogic.getEntreprisesGereesPar(player.getName());
+        List<Entreprise> companies = entrepriseLogic.getEntreprisesGereesPar(player.getName());
 
         if (companies.isEmpty()) {
             player.sendMessage(ChatColor.RED + "Vous ne gérez aucune entreprise.");
@@ -59,7 +60,7 @@ public class MyCompaniesGUI implements Listener {
 
         int slot = 0;
 
-        for (EntrepriseManagerLogic.Entreprise company : companies) {
+        for (Entreprise company : companies) {
             if (slot >= invSize - 9) break; // Garder dernière ligne pour boutons
 
             ItemStack item = createCompanyItem(company, player);
@@ -81,7 +82,7 @@ public class MyCompaniesGUI implements Listener {
     /**
      * Crée un ItemStack représentant une entreprise
      */
-    private ItemStack createCompanyItem(EntrepriseManagerLogic.Entreprise company, Player player) {
+    private ItemStack createCompanyItem(Entreprise company, Player player) {
         ItemStack item = new ItemStack(Material.CHEST);
         ItemMeta meta = item.getItemMeta();
 
@@ -204,7 +205,7 @@ public class MyCompaniesGUI implements Listener {
 
         // Clic sur une entreprise
         if (clicked.getType() == Material.CHEST) {
-            EntrepriseManagerLogic.Entreprise company = findCompanyFromItem(clicked, player);
+            Entreprise company = findCompanyFromItem(clicked, player);
             if (company == null) {
                 player.sendMessage(ChatColor.RED + "Erreur: Entreprise introuvable.");
                 return;
@@ -231,13 +232,13 @@ public class MyCompaniesGUI implements Listener {
     /**
      * Trouve l'entreprise correspondant à l'item cliqué
      */
-    private EntrepriseManagerLogic.Entreprise findCompanyFromItem(ItemStack item, Player player) {
+    private Entreprise findCompanyFromItem(ItemStack item, Player player) {
         String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
         // Retirer le préfixe "💼 "
         String companyName = displayName.replace("💼 ", "").trim();
 
-        List<EntrepriseManagerLogic.Entreprise> companies = entrepriseLogic.getEntreprisesGereesPar(player.getName());
-        for (EntrepriseManagerLogic.Entreprise company : companies) {
+        List<Entreprise> companies = entrepriseLogic.getEntreprisesGereesPar(player.getName());
+        for (Entreprise company : companies) {
             if (company.getNom().equals(companyName)) {
                 return company;
             }
@@ -248,7 +249,7 @@ public class MyCompaniesGUI implements Listener {
     /**
      * SYSTÈME UNIFIÉ : Affiche les terrains PROFESSIONNEL de l'entreprise
      */
-    private void showCompanyPlots(Player player, EntrepriseManagerLogic.Entreprise company) {
+    private void showCompanyPlots(Player player, Entreprise company) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
@@ -350,7 +351,7 @@ public class MyCompaniesGUI implements Listener {
     /**
      * SYSTÈME UNIFIÉ : Paye les dettes de l'entreprise
      */
-    private void payCompanyDebts(Player player, EntrepriseManagerLogic.Entreprise company) {
+    private void payCompanyDebts(Player player, Entreprise company) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");

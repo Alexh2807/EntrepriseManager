@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.gui;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.manager.ShopManager;
 import org.bukkit.ChatColor;
@@ -35,7 +36,7 @@ public class ShopCreationGUI implements Listener {
     /**
      * Démarre le processus de création de boutique
      */
-    public void openCreationMenu(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+    public void openCreationMenu(Player player, Entreprise entreprise) {
         // Vérifier le nombre de boutiques
         int currentShops = shopManager.getShopsBySiret(entreprise.getSiret()).size();
         int maxShops = plugin.getConfig().getInt("shop-system.max-shops-per-entreprise", 10);
@@ -319,13 +320,13 @@ public class ShopCreationGUI implements Listener {
      * Contexte de création de boutique
      */
     private static class ShopCreationContext {
-        final EntrepriseManagerLogic.Entreprise entreprise;
+        final Entreprise entreprise;
         CreationStep step;
         ItemStack itemTemplate;
         double price;
         int quantity;
 
-        ShopCreationContext(EntrepriseManagerLogic.Entreprise entreprise) {
+        ShopCreationContext(Entreprise entreprise) {
             this.entreprise = entreprise;
         }
     }
@@ -334,7 +335,7 @@ public class ShopCreationGUI implements Listener {
      * VALIDATION 1: Vérifier le terrain au démarrage
      * Retourne un message d'erreur ou null si valide
      */
-    private String validateTerrainAtStart(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+    private String validateTerrainAtStart(Player player, Entreprise entreprise) {
         Location location = player.getLocation();
 
         // Vérifier le ClaimManager
@@ -382,7 +383,7 @@ public class ShopCreationGUI implements Listener {
      * VALIDATION 2: Vérifier que l'item est autorisé pour cette entreprise
      * Retourne un message d'erreur ou null si valide
      */
-    private String validateItemAllowed(EntrepriseManagerLogic.Entreprise entreprise, ItemStack itemToSell) {
+    private String validateItemAllowed(Entreprise entreprise, ItemStack itemToSell) {
         if (itemToSell == null) {
             return "Item invalide";
         }
@@ -414,7 +415,7 @@ public class ShopCreationGUI implements Listener {
      * VALIDATION 3: Re-vérifier tout avant le placement final
      * Retourne un message d'erreur ou null si valide
      */
-    private String revalidateBeforePlacement(Player player, EntrepriseManagerLogic.Entreprise entreprise) {
+    private String revalidateBeforePlacement(Player player, Entreprise entreprise) {
         // Re-vérifier le terrain (le joueur a pu se déplacer)
         String terrainError = validateTerrainAtStart(player, entreprise);
         if (terrainError != null) {

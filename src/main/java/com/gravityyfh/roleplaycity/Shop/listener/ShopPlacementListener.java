@@ -1,6 +1,7 @@
 package com.gravityyfh.roleplaycity.shop.listener;
 
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.shop.ShopCreationResult;
 import com.gravityyfh.roleplaycity.shop.manager.ShopManager;
@@ -37,7 +38,7 @@ public class ShopPlacementListener implements Listener {
     /**
      * Démarre le processus de placement pour un joueur
      */
-    public void startPlacement(Player player, EntrepriseManagerLogic.Entreprise entreprise,
+    public void startPlacement(Player player, Entreprise entreprise,
                               ItemStack itemTemplate, double price, int quantity) {
         PlacementContext context = new PlacementContext(entreprise, itemTemplate, price, quantity);
         pendingPlacements.put(player.getUniqueId(), context);
@@ -234,14 +235,14 @@ public class ShopPlacementListener implements Listener {
      * Contexte de placement
      */
     private static class PlacementContext {
-        final EntrepriseManagerLogic.Entreprise entreprise;
+        final Entreprise entreprise;
         final ItemStack itemTemplate;
         final double price;
         final int quantity;
         Location chestLocation;
         Location signLocation;
 
-        PlacementContext(EntrepriseManagerLogic.Entreprise entreprise, ItemStack itemTemplate,
+        PlacementContext(Entreprise entreprise, ItemStack itemTemplate,
                         double price, int quantity) {
             this.entreprise = entreprise;
             this.itemTemplate = itemTemplate;
