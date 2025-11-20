@@ -54,6 +54,33 @@ public class TownHUDListener implements Listener {
         this.townManager = townManager;
         this.claimManager = claimManager;
         this.scoreboardProvider = new ScoreboardContentProvider(plugin);
+        startRefreshTask();
+    }
+
+    private void startRefreshTask() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                // Copie des clés pour éviter ConcurrentModificationException
+                for (UUID playerId : new java.util.ArrayList<>(playerScoreboards.keySet())) {
+                    Player player = Bukkit.getPlayer(playerId);
+                    if (player == null || !player.isOnline()) {
+                        playerScoreboards.remove(playerId);
+                        continue;
+                    }
+
+                    // Vérifier la position actuelle
+                    Plot plot = claimManager.getPlotAt(player.getLocation());
+                    if (plot != null) {
+                        Town town = townManager.getTown(plot.getTownName());
+                        if (town != null) {
+                            // Mise à jour silencieuse du scoreboard existant
+                            updateScoreboard(player, town, plot);
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 100L, 100L); // Toutes les 5 secondes
     }
 
     /**

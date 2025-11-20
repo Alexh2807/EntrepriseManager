@@ -175,6 +175,11 @@ public class ClaimManager {
             return false;
         }
 
+        // Vérifier la limite de claims selon le niveau de la ville
+        if (!plugin.getTownLevelManager().canClaimMore(town)) {
+            return false; // Limite atteinte
+        }
+
         // Vérifier le solde de la ville
         if (town.getBankBalance() < cost) {
             return false;

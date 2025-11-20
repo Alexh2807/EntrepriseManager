@@ -358,17 +358,24 @@ public class TownBankGUI implements Listener {
                     return;
                 }
 
-                try {
-                    town.deposit(amount);
-                    RoleplayCity.getEconomy().withdrawPlayer(player, amount);
-                    player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + amount + "€ dans la banque !");
+                // Tenter le dépôt et récupérer le montant réel
+                double actualDeposited = town.deposit(amount);
+                
+                if (actualDeposited > 0) {
+                    // Retirer seulement ce qui a été accepté par la banque
+                    RoleplayCity.getEconomy().withdrawPlayer(player, actualDeposited);
                     
-                    // Sauvegarder immédiatement pour éviter perte de données
+                    if (actualDeposited < amount) {
+                        player.sendMessage(ChatColor.YELLOW + "La banque est pleine ! Seulement " + String.format("%.2f€", actualDeposited) + " ont été déposés.");
+                    } else {
+                        player.sendMessage(ChatColor.GREEN + "Vous avez déposé " + String.format("%.2f€", actualDeposited) + " dans la banque !");
+                    }
+                    
+                    // Sauvegarder immédiatement
                     townManager.saveTownsNow();
-                } catch (IllegalStateException e) {
-                    player.sendMessage(ChatColor.RED + "Erreur: " + e.getMessage());
+                } else {
+                    player.sendMessage(ChatColor.RED + "La banque est pleine ! Impossible de déposer.");
                 }
-
             } else if (context.actionType == ActionType.WITHDRAW) {
                 TownRole role = town.getMemberRole(player.getUniqueId());
                 if (role != TownRole.MAIRE && role != TownRole.ADJOINT) {

@@ -52,6 +52,14 @@ public class TownEventListener implements Listener {
                     "Ville '" + deletedTownName + "' supprimée");
         }
 
+        // FIX CRITIQUE #6: Nettoyage des services Police/Prison
+        if (plugin.getTownPoliceManager() != null) {
+            plugin.getTownPoliceManager().clearTownFines(deletedTownName);
+        }
+        if (plugin.getPrisonManager() != null) {
+            plugin.getPrisonManager().releaseAllFromTown(deletedTownName);
+        }
+
         // FIX CRITIQUE: Supprimer les claims du cache
         if (plugin.getClaimManager() != null) {
             plugin.getClaimManager().removeAllClaims(deletedTownName);
@@ -101,6 +109,11 @@ public class TownEventListener implements Listener {
 
         plugin.getLogger().log(Level.INFO, "Le membre '" + playerName + "' quitte/est retiré de la ville '" + townName
                 + "'. Vérification des entreprises gérées...");
+
+        // FIX CRITIQUE #6: Nettoyer les amendes du joueur dans cette ville
+        if (plugin.getTownPoliceManager() != null) {
+            plugin.getTownPoliceManager().clearPlayerFinesInTown(playerUuid, townName);
+        }
 
         // Copie de la liste pour éviter ConcurrentModificationException
         List<Entreprise> entreprisesAConsiderer = new ArrayList<>(entrepriseLogic.getEntreprises());

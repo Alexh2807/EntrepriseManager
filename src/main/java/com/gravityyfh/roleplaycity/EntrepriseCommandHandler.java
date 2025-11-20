@@ -869,7 +869,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         player.sendMessage(ChatColor.GRAY + " - Dernières 24h: " + c24 + String.format("%+, .2f", pl24h) + "€");
         player.sendMessage(ChatColor.GRAY + " - Dernière semaine: " + c7 + String.format("%+, .2f", pl7d) + "€");
         player.sendMessage(ChatColor.GRAY + " - Dernier mois: " + c30 + String.format("%+, .2f", pl30d) + "€");
-        player.sendMessage(ChatColor.GOLD + "------------------------------------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
     }
 
     private void handleStatsTransactionsCommand(Player player, String nomEntreprise, int limit) {
@@ -892,7 +892,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
             String amountStr = String.format("%s%s%.2f€", amountColor, (tx.amount >= 0 ? amountPrefix : ""), tx.amount);
             player.sendMessage(String.format("%s[%s] %s%s: %s %s(%s) %sPar: %s%s", ChatColor.GRAY, tx.timestamp.format(fmt), ChatColor.YELLOW, tx.type.getDisplayName(), amountStr, ChatColor.DARK_GRAY, tx.description, ChatColor.BLUE, ChatColor.WHITE, tx.initiatedBy));
         }
-        player.sendMessage(ChatColor.GOLD + "---------------------------------------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
     }
 
     private void handleStatsListEmployesCommand(Player player, String nomEntreprise) {
@@ -911,7 +911,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                     String status = rec.isActive() ? ChatColor.GREEN + "Actif" : ChatColor.GRAY + "Inactif";
                     player.sendMessage(String.format("%s- %s%s: %sAncienneté: %s%s, %sPrime: %s%s, %sCA Généré: %s%,.2f€, %sStatut: %s", ChatColor.GRAY, ChatColor.AQUA, rec.employeeName, ChatColor.DARK_GRAY, ChatColor.WHITE, rec.getFormattedSeniority(), ChatColor.DARK_GRAY, ChatColor.YELLOW, primeStr, ChatColor.DARK_GRAY, ChatColor.GREEN, rec.totalValueGenerated, ChatColor.DARK_GRAY, status));
                 });
-        player.sendMessage(ChatColor.GOLD + "---------------------------------------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GRAY + "Pour détails: /entreprise stats employe <NomEnt> <NomEmp>");
     }
 
@@ -954,7 +954,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         if (rec.lastActivityTime != null) {
             player.sendMessage(ChatColor.YELLOW + "Dernière activité enregistrée: " + ChatColor.WHITE + rec.lastActivityTime.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")));
         }
-        player.sendMessage(ChatColor.GOLD + "------------------------------------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         player.sendMessage(ChatColor.GRAY+"Pour les stats de production: /entreprise stats production " + ent.getNom() + " " + rec.employeeName + " <type> [periode]");
     }
 
@@ -1011,7 +1011,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
                     .forEach(entry -> player.sendMessage(ChatColor.GREEN + formatMaterialName(entry.getKey().name()) + ": " + ChatColor.WHITE + String.format("%,d", entry.getValue())));
             if(stats.size() > 20) player.sendMessage(ChatColor.GRAY + "  (et "+(stats.size()-20)+" autres...)");
         }
-        player.sendMessage(ChatColor.GOLD + "-----------------------------------------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
     }
 
     private void handleCVCommand(Player player, String[] args) {
@@ -1035,11 +1035,11 @@ public class EntrepriseCommandHandler implements CommandExecutor {
     }
 
     private void sendCVHelp(Player player){
-        player.sendMessage(ChatColor.YELLOW + "--- Aide CV Entreprise ---");
+        player.sendMessage(ChatColor.YELLOW + "▬▬▬ Aide CV Entreprise ▬▬▬");
         player.sendMessage(ChatColor.AQUA + "/entreprise cv show <joueur>" + ChatColor.GRAY + " - Proposer de montrer votre CV.");
         player.sendMessage(ChatColor.AQUA + "/entreprise cv accepter" + ChatColor.GRAY + " - Accepter une demande de CV.");
         player.sendMessage(ChatColor.AQUA + "/entreprise cv refuser" + ChatColor.GRAY + " - Refuser une demande de CV.");
-        player.sendMessage(ChatColor.YELLOW + "--------------------------");
+        player.sendMessage(ChatColor.YELLOW + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
     }
 
     private String formatActionType(String actionKey) {

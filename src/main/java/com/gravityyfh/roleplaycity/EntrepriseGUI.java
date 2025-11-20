@@ -914,7 +914,7 @@ public class EntrepriseGUI implements Listener {
                     employe.sendMessage(ChatColor.YELLOW + "Dernière activité: " + ChatColor.WHITE
                             + rec.lastActivityTime.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")));
                 }
-                employe.sendMessage(ChatColor.GOLD + "------------------------------------");
+                employe.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             } else {
                 employe.sendMessage(ChatColor.YELLOW + "Aucune donnée d'activité pour vous.");
             }
@@ -1003,7 +1003,7 @@ public class EntrepriseGUI implements Listener {
                     player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GREEN + "Active");
                 else
                     player.sendMessage(ChatColor.YELLOW + "Session: " + ChatColor.GRAY + "Inactive");
-                player.sendMessage(ChatColor.GOLD + "----------------------------------------------------");
+                player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             } else {
                 player.sendMessage(ChatColor.YELLOW + "Aucune donnée d'activité pour vous.");
             }
@@ -1067,8 +1067,8 @@ public class EntrepriseGUI implements Listener {
         player.sendMessage(ChatColor.YELLOW + "Résultat: " + color + prefix + String.format("%,.2f", profitLoss) + "€");
         player.sendMessage(ChatColor.GRAY + "(Période du " + start.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm"))
                 + " au " + end.format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")) + ")");
-        player.sendMessage(ChatColor.GOLD + "------------------------------------------------"
-                + ChatColor.stripColor(ChatColor.GOLD + entreprise.getNom()).replaceAll(".", "-") + "----------------");
+        player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+                + ChatColor.stripColor(ChatColor.GOLD + entreprise.getNom()).replaceAll(".", "-") + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
     }
 
     private void openTransactionHistoryMenu(Player player, PlayerGUIContext context, Entreprise entreprise) {

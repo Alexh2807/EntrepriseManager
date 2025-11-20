@@ -185,7 +185,7 @@ public class HandcuffsFollowListener implements Listener {
         }
 
         // Vérifier si la cible est menottée
-        if (!handcuffedData.isHandcuffed(target)) {
+        if (!handcuffedData.isPlayerHandcuffed(target)) {
             return;
         }
 

@@ -152,6 +152,21 @@ public class TownPoliceGUI implements Listener {
             inv.setItem(21, managePrisonersItem);
         }
 
+        // Fouiller un joueur (slot 23 - système de fouille)
+        if (plugin.getFriskGUI() != null) {
+            ItemStack friskItem = new ItemStack(Material.ENDER_EYE);
+            ItemMeta friskMeta = friskItem.getItemMeta();
+            friskMeta.setDisplayName(ChatColor.DARK_PURPLE + "🔍 Fouiller un joueur");
+            List<String> friskLore = new ArrayList<>();
+            friskLore.add(ChatColor.GRAY + "Fouiller un suspect");
+            friskLore.add(ChatColor.GRAY + "menotté à proximité");
+            friskLore.add("");
+            friskLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
+            friskMeta.setLore(friskLore);
+            friskItem.setItemMeta(friskMeta);
+            inv.setItem(23, friskItem);
+        }
+
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
@@ -289,6 +304,10 @@ public class TownPoliceGUI implements Listener {
                 // Ouvrir le menu de gestion des prisonniers
                 if (plugin.getTownPrisonManagementGUI() != null) {
                     plugin.getTownPrisonManagementGUI().openPrisonManagementMenu(player);
+                }
+            } else if (displayName.contains("Fouiller un joueur")) {
+                if (plugin.getFriskGUI() != null) {
+                    plugin.getFriskGUI().openTargetSelection(player);
                 }
             } else if (displayName.contains("Fermer")) {
                 player.closeInventory();

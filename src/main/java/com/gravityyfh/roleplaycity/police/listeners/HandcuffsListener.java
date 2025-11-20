@@ -89,7 +89,7 @@ public class HandcuffsListener implements Listener {
         }
 
         // Si le joueur est déjà menotté, le libérer
-        if (handcuffedData.isHandcuffed(target)) {
+        if (handcuffedData.isPlayerHandcuffed(target)) {
             removeHandcuffs(handcuffer, target);
             return;
         }
@@ -107,6 +107,12 @@ public class HandcuffsListener implements Listener {
      * Vérifie si une cible peut être menottée
      */
     private boolean canBeHandcuffed(Player handcuffer, Player target) {
+        // Vérifier si le joueur est blessé (système médical)
+        if (plugin.getMedicalSystemManager() != null && plugin.getMedicalSystemManager().isInjured(target)) {
+            handcuffer.sendMessage("§cCette cible est blessée/inconsciente, vous ne pouvez pas la menotter !");
+            return false;
+        }
+
         // Vérifier l'invulnérabilité
         if (target.isInvulnerable()) {
             handcuffer.sendMessage("§cCette cible ne peut pas être menottée!");
@@ -219,7 +225,7 @@ public class HandcuffsListener implements Listener {
     public void onHandcuffedPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        if (!handcuffedData.isHandcuffed(player)) {
+        if (!handcuffedData.isPlayerHandcuffed(player)) {
             return;
         }
 
@@ -239,7 +245,7 @@ public class HandcuffsListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerInteractEntity(PlayerInteractEntityEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
@@ -247,7 +253,7 @@ public class HandcuffsListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            if (handcuffedData.isHandcuffed(player)) {
+            if (handcuffedData.isPlayerHandcuffed(player)) {
                 event.setCancelled(true);
             }
         }
@@ -257,7 +263,7 @@ public class HandcuffsListener implements Listener {
     public void onHandcuffedPlayerCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
 
-        if (!handcuffedData.isHandcuffed(player)) {
+        if (!handcuffedData.isPlayerHandcuffed(player)) {
             return;
         }
 
@@ -283,14 +289,14 @@ public class HandcuffsListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerBreakBlock(BlockBreakEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerPlaceBlock(BlockPlaceEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
@@ -298,7 +304,7 @@ public class HandcuffsListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerDamage(EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Player player) {
-            if (handcuffedData.isHandcuffed(player)) {
+            if (handcuffedData.isPlayerHandcuffed(player)) {
                 event.setCancelled(true);
             }
         }
@@ -306,21 +312,21 @@ public class HandcuffsListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerDropItem(PlayerDropItemEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerSwapHands(PlayerSwapHandItemsEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHandcuffedPlayerInteract(PlayerInteractEvent event) {
-        if (handcuffedData.isHandcuffed(event.getPlayer())) {
+        if (handcuffedData.isPlayerHandcuffed(event.getPlayer())) {
             event.setCancelled(true);
         }
     }
@@ -329,7 +335,7 @@ public class HandcuffsListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         // Réappliquer les menottes si nécessaire (persistance)
-        if (handcuffedData.isHandcuffed(player)) {
+        if (handcuffedData.isPlayerHandcuffed(player)) {
             handcuffedData.reapplyHandcuffs(player);
         }
     }
@@ -342,7 +348,7 @@ public class HandcuffsListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        if (handcuffedData.isHandcuffed(player)) {
+        if (handcuffedData.isPlayerHandcuffed(player)) {
             // Si configuré pour tuer à la déco
             boolean killOnQuit = plugin.getConfig().getBoolean("police-equipment.handcuffs.kill-if-quit", false);
             if (killOnQuit) {

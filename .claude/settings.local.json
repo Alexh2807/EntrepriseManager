@@ -95,7 +95,8 @@
       "Bash(python3:*)",
       "Bash(python fix_entreprise_repo.py:*)",
       "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS\" -Context 0,1)",
-      "Bash(powershell -ExecutionPolicy Bypass -File fix_connections.ps1)"
+      "Bash(powershell -ExecutionPolicy Bypass -File fix_connections.ps1)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" package -DskipTests -q)"
     ],
     "deny": [],
     "ask": []

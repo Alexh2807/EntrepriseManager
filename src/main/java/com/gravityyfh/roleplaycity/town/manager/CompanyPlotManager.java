@@ -132,22 +132,21 @@ public class CompanyPlotManager {
             return;
         }
 
-        // TODO: Supprimer TOUS les shops de cette entreprise (à réimplémenter)
-        // com.gravityyfh.roleplaycity.Shop.ShopManager shopManager = plugin.getShopManager();
-        // if (shopManager != null) {
-        //     int deletedShops = shopManager.deleteAllShopsByCompany(
-        //         siret,
-        //         true, // Notifier
-        //         "Dissolution de l'entreprise"
-        //     );
-        //
-        //     if (deletedShops > 0) {
-        //         plugin.getLogger().info(String.format(
-        //             "[CompanyPlotManager] %d boutique(s) supprimée(s) suite à dissolution entreprise SIRET %s",
-        //             deletedShops, siret
-        //         ));
-        //     }
-        // }
+        // Supprimer TOUS les shops de cette entreprise
+        com.gravityyfh.roleplaycity.shop.manager.ShopManager shopManager = plugin.getShopManager();
+        if (shopManager != null) {
+            int deletedShops = shopManager.deleteShopsBySiret(
+                siret,
+                "Dissolution de l'entreprise"
+            );
+
+            if (deletedShops > 0) {
+                plugin.getLogger().info(String.format(
+                    "[CompanyPlotManager] %d boutique(s) supprimée(s) suite à dissolution entreprise SIRET %s",
+                    deletedShops, siret
+                ));
+            }
+        }
 
         Town town = townManager.getTown(townName);
         if (town == null) {

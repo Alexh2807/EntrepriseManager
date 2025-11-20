@@ -896,21 +896,21 @@ public class EntrepriseManagerLogic {
             com.gravityyfh.roleplaycity.util.ConfigDefaults.FINANCE_POURCENTAGE_TAXES);
 
         List<String> report = new ArrayList<>();
-        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
+        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         report.add(" " + ChatColor.GOLD + ChatColor.BOLD + "Entreprise : " + ChatColor.YELLOW + entreprise.getNom() + ChatColor.GRAY + " (" + typeEntreprise + ")");
         report.add(" " + ChatColor.GOLD + "Rapport Financier Horaire");
         report.add("");
         report.add(ChatColor.AQUA + "  Chiffre d'Affaires Brut");
         report.add(String.format(ChatColor.GRAY + "    - Revenus d'activité : %s+%,.2f €", ChatColor.GREEN, revActivite));
         report.add(String.format(ChatColor.GRAY + "    - Revenus des boutiques : %s+%,.2f €", ChatColor.GREEN, revMagasins));
-        report.add(ChatColor.DARK_AQUA + "    -------------------------------");
+        report.add(ChatColor.DARK_AQUA + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         report.add(String.format(ChatColor.AQUA + "      Total Brut : %s+%,.2f €", ChatColor.GREEN, caBrut));
         report.add("");
         report.add(ChatColor.RED + "  Dépenses Opérationnelles");
         report.add(String.format(ChatColor.GRAY + "    - Impôts sur le CA (%.0f%%) : %s-%,.2f €", taxRate, ChatColor.RED, taxes));
         report.add(String.format(ChatColor.GRAY + "    - Primes versées : %s-%,.2f €", ChatColor.RED, primes));
         report.add(String.format(ChatColor.GRAY + "    - Charges salariales : %s-%,.2f €", ChatColor.RED, charges));
-        report.add(ChatColor.DARK_RED + "    -------------------------------");
+        report.add(ChatColor.DARK_RED + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         report.add(String.format(ChatColor.RED + "      Total Dépenses : %s-%,.2f €", ChatColor.RED, totalDepenses));
         report.add("");
 
@@ -921,7 +921,7 @@ public class EntrepriseManagerLogic {
         report.add(String.format(ChatColor.GRAY + "    Ancien solde : " + ChatColor.WHITE + "%,.2f €", ancienSolde));
         report.add(String.format(ChatColor.GRAY + "    Nouveau solde : " + ChatColor.WHITE + ChatColor.BOLD + "%,.2f €", nouveauSolde));
 
-        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "----------------------------------------------------");
+        report.add(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
 
         Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant());
         String fullReportString = String.join("\n", report);
@@ -1043,10 +1043,10 @@ public class EntrepriseManagerLogic {
         // Determine limit
         int limiteApplicable;
         if (isInService && entreprise != null && entreprise.getType().equals(restrictionApplicable.entrepriseType())) {
+            // En service : Utiliser strictement la limite configurée pour le niveau de l'entreprise
             limiteApplicable = getLimiteRestrictionActuelle(entreprise, restrictionApplicable.entrepriseType());
-        } else if (entreprise != null && entreprise.getType().equals(restrictionApplicable.entrepriseType())) {
-             limiteApplicable = restrictionApplicable.limiteNonMembre();
         } else {
+             // Hors service ou entreprise différente = limite civile (non-membre)
              limiteApplicable = restrictionApplicable.limiteNonMembre();
         }
 
@@ -1586,13 +1586,13 @@ public class EntrepriseManagerLogic {
         plugin.getLogger().log(Level.INFO, "[DEBUG INVITE] Invitation envoyée à " + joueurInvite.getName() + " pour " + nomEntreprise);
     }
     private void envoyerInvitationVisuelle(Player joueurInvite, String nomEntreprise, String nomGerant, String typeEntreprise) {
-        TextComponent msg = new TextComponent("------------------------------------------\n"); msg.setColor(net.md_5.bungee.api.ChatColor.GOLD);
+        TextComponent msg = new TextComponent("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"); msg.setColor(net.md_5.bungee.api.ChatColor.GOLD);
         TextComponent invite = new TextComponent(nomGerant + " (Gérant '" + nomEntreprise + "' - " + typeEntreprise + ") vous invite !"); invite.setColor(net.md_5.bungee.api.ChatColor.YELLOW);
         msg.addExtra(invite); msg.addExtra("\n");
         TextComponent accepter = new TextComponent("[ACCEPTER]"); accepter.setColor(net.md_5.bungee.api.ChatColor.GREEN); accepter.setBold(true); accepter.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise accepter")); accepter.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Rejoindre").create()));
         TextComponent refuser = new TextComponent("   [REFUSER]"); refuser.setColor(net.md_5.bungee.api.ChatColor.RED); refuser.setBold(true); refuser.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise refuser")); refuser.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Refuser").create()));
         TextComponent actions = new TextComponent("        "); actions.addExtra(accepter); actions.addExtra(refuser);
-        msg.addExtra(actions); msg.addExtra("\n------------------------------------------");
+        msg.addExtra(actions); msg.addExtra("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         joueurInvite.spigot().sendMessage(msg);
     }
     public void handleAccepterCommand(Player joueur) {
@@ -1837,7 +1837,7 @@ public class EntrepriseManagerLogic {
         plugin.getLogger().log(Level.INFO, "[DEBUG CREATION] Proposition envoyée avec succès pour " + nomEntreprisePropose + " à " + gerantCible.getName());
     }
     private void envoyerInvitationVisuelleContrat(Player gerantCible, DemandeCreation demande) {
-        gerantCible.sendMessage(ChatColor.GOLD + "---------------- Contrat de Gérance ----------------");
+        gerantCible.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬ Contrat de Gérance ▬▬▬▬▬▬▬");
         gerantCible.sendMessage(ChatColor.AQUA + "Maire: " + ChatColor.WHITE + demande.maire().getName()); gerantCible.sendMessage(ChatColor.AQUA + "Ville: " + ChatColor.WHITE + demande.ville());
         gerantCible.sendMessage(ChatColor.AQUA + "Type: " + ChatColor.WHITE + demande.type()); gerantCible.sendMessage(ChatColor.AQUA + "Nom: " + ChatColor.WHITE + demande.nomEntreprise());
         gerantCible.sendMessage(ChatColor.AQUA + "SIRET: " + ChatColor.WHITE + demande.siret()); gerantCible.sendMessage(ChatColor.YELLOW + "Coût: " + ChatColor.GREEN + String.format("%,.2f€", demande.cout()));
@@ -1845,7 +1845,7 @@ public class EntrepriseManagerLogic {
         TextComponent accepterMsg = new TextComponent("        [VALIDER CONTRAT]"); accepterMsg.setColor(net.md_5.bungee.api.ChatColor.GREEN); accepterMsg.setBold(true); accepterMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise validercreation")); accepterMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Accepter (coût: " + String.format("%,.2f€", demande.cout()) + ")").create()));
         TextComponent refuserMsg = new TextComponent("   [REFUSER CONTRAT]"); refuserMsg.setColor(net.md_5.bungee.api.ChatColor.RED); refuserMsg.setBold(true); refuserMsg.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/entreprise annulercreation")); refuserMsg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Refuser").create()));
         TextComponent ligneActions = new TextComponent(""); ligneActions.addExtra(accepterMsg); ligneActions.addExtra(refuserMsg);
-        gerantCible.spigot().sendMessage(ligneActions); gerantCible.sendMessage(ChatColor.GOLD + "--------------------------------------------------");
+        gerantCible.spigot().sendMessage(ligneActions); gerantCible.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         UUID gerantUUID = gerantCible.getUniqueId();
         Bukkit.getScheduler().runTaskLater(plugin, () -> { if (demandesEnAttente.containsKey(gerantUUID) && demandesEnAttente.get(gerantUUID).equals(demande)) { demandesEnAttente.remove(gerantUUID); Player gOnline = Bukkit.getPlayer(gerantUUID); if (gOnline != null) gOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise() + "' expirée."); Player mOnline = Bukkit.getPlayer(demande.maire().getUniqueId()); if (mOnline != null) mOnline.sendMessage(ChatColor.RED + "Offre pour '" + demande.nomEntreprise() + "' (à " + demande.gerant().getName() + ") expirée."); } }, (demande.expirationTimeMillis() - System.currentTimeMillis()) / 50);
     }
@@ -2496,9 +2496,9 @@ public class EntrepriseManagerLogic {
 
     // --- Messages Différés ---
     public void ajouterMessageEmployeDifferre(String joueurUUID, String message, String entrepriseNom, double montantPrime) { File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + joueurUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); if (montantPrime > 0) { String totalPrimePath = "messages." + joueurUUID + "." + entrepriseNom + ".totalPrime"; messagesConfig.set(totalPrimePath, messagesConfig.getDouble(totalPrimePath, 0.0) + montantPrime); } try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé employé " + joueurUUID + ": " + e.getMessage()); } }
-    public void envoyerPrimesDifferreesEmployes(Player player) { String playerUUID = player.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + playerUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); double totalPrime = entreprisesSect.getDouble(nomEnt + ".totalPrime", 0.0); if (!messages.isEmpty()) { player.sendMessage(ChatColor.GOLD + "--- Primes/Messages de '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> player.sendMessage(ChatColor.AQUA + "- " + msg)); if (totalPrime > 0) player.sendMessage(ChatColor.GREEN + "Total primes période: " + String.format("%,.2f€", totalPrime)); player.sendMessage(ChatColor.GOLD + "--------------------------------------------------------"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés employé " + playerUUID + ": " + e.getMessage()); } } }
+    public void envoyerPrimesDifferreesEmployes(Player player) { String playerUUID = player.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesEmployes.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + playerUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); double totalPrime = entreprisesSect.getDouble(nomEnt + ".totalPrime", 0.0); if (!messages.isEmpty()) { player.sendMessage(ChatColor.GOLD + "--- Primes/Messages de '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> player.sendMessage(ChatColor.AQUA + "- " + msg)); if (totalPrime > 0) player.sendMessage(ChatColor.GREEN + "Total primes période: " + String.format("%,.2f€", totalPrime)); player.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés employé " + playerUUID + ": " + e.getMessage()); } } }
     public void ajouterMessageGerantDifferre(String gerantUUID, String message, String entrepriseNom) { File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile); String listPath = "messages." + gerantUUID + "." + entrepriseNom + ".list"; List<String> messagesActuels = messagesConfig.getStringList(listPath); messagesActuels.add(ChatColor.stripColor(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ": " + message)); messagesConfig.set(listPath, messagesActuels); try { messagesConfig.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur sauvegarde message différé gérant " + gerantUUID + ": " + e.getMessage()); } }
-    public void envoyerPrimesDifferreesGerants(Player playerGerant) { String gerantUUID = playerGerant.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + gerantUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); if (!messages.isEmpty()) { playerGerant.sendMessage(ChatColor.BLUE + "--- Notifications Gérance '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> playerGerant.sendMessage(ChatColor.AQUA + "- " + msg)); playerGerant.sendMessage(ChatColor.BLUE + "----------------------------------------------------------------"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés gérant " + gerantUUID + ": " + e.getMessage()); } } }
+    public void envoyerPrimesDifferreesGerants(Player playerGerant) { String gerantUUID = playerGerant.getUniqueId().toString(); File messagesFile = new File(plugin.getDataFolder(), "messagesGerants.yml"); if (!messagesFile.exists()) return; FileConfiguration msgsCfg = YamlConfiguration.loadConfiguration(messagesFile); String basePath = "messages." + gerantUUID; if (!msgsCfg.contains(basePath)) return; ConfigurationSection entreprisesSect = msgsCfg.getConfigurationSection(basePath); boolean receivedMessage = false; if (entreprisesSect != null) { for (String nomEnt : entreprisesSect.getKeys(false)) { if (entreprisesSect.isConfigurationSection(nomEnt)) { List<String> messages = entreprisesSect.getStringList(nomEnt + ".list"); if (!messages.isEmpty()) { playerGerant.sendMessage(ChatColor.BLUE + "--- Notifications Gérance '" + nomEnt + "' (hors-ligne) ---"); messages.forEach(msg -> playerGerant.sendMessage(ChatColor.AQUA + "- " + msg)); playerGerant.sendMessage(ChatColor.BLUE + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"); receivedMessage = true; } } } } if (receivedMessage) { msgsCfg.set(basePath, null); try { msgsCfg.save(messagesFile); } catch (IOException e) { plugin.getLogger().severe("Erreur suppression messages différés gérant " + gerantUUID + ": " + e.getMessage()); } } }
     // --- Fin Messages Différés ---
 
     // --- Getters et Utilitaires ---

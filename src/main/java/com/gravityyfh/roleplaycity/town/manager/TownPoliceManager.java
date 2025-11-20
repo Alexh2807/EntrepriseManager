@@ -271,6 +271,63 @@ public class TownPoliceManager {
     }
 
     /**
+     * Supprime toutes les amendes d'une ville (lors de la suppression de la ville)
+     */
+    public void clearTownFines(String townName) {
+        List<Fine> finesToRemove = townFines.remove(townName);
+
+        if (finesToRemove != null) {
+            // Nettoyer l'index playerFines
+            for (Fine fine : finesToRemove) {
+                List<Fine> playerList = playerFines.get(fine.getOffenderUuid());
+                if (playerList != null) {
+                    playerList.remove(fine);
+                    if (playerList.isEmpty()) {
+                        playerFines.remove(fine.getOffenderUuid());
+                    }
+                }
+            }
+            
+            plugin.getLogger().info("Suppression de " + finesToRemove.size() + " amendes pour la ville " + townName);
+            
+            // Sauvegarder
+            plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+        }
+    }
+
+    /**
+     * Supprime les amendes d'un joueur dans une ville spécifique (lorsqu'il quitte la ville)
+     */
+    public void clearPlayerFinesInTown(UUID playerUuid, String townName) {
+        List<Fine> fines = playerFines.get(playerUuid);
+        
+        if (fines != null) {
+            List<Fine> toRemove = fines.stream()
+                .filter(f -> f.getTownName().equals(townName))
+                .collect(Collectors.toList());
+                
+            if (!toRemove.isEmpty()) {
+                // Retirer de playerFines
+                fines.removeAll(toRemove);
+                if (fines.isEmpty()) {
+                    playerFines.remove(playerUuid);
+                }
+                
+                // Retirer de townFines
+                List<Fine> townList = townFines.get(townName);
+                if (townList != null) {
+                    townList.removeAll(toRemove);
+                }
+                
+                plugin.getLogger().info("Suppression de " + toRemove.size() + " amendes pour " + playerUuid + " dans " + townName);
+                
+                // Sauvegarder
+                plugin.getTownFinesDataManager().saveFines(getFinesForSave());
+            }
+        }
+    }
+
+    /**
      * Récupérer toutes les amendes d'un joueur
      */
     public List<Fine> getPlayerFines(UUID playerUuid) {

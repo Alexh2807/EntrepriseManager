@@ -32,10 +32,6 @@ public class TownCommandHandler implements CommandExecutor {
     private final RoleplayCity plugin;
     private final TownManager townManager;
 
-    // Cache de sélection d'entreprise pour achats de terrains PROFESSIONNEL
-    // UUID joueur → SIRET entreprise sélectionnée
-    private final Map<UUID, String> selectedCompanyCache = new HashMap<>();
-
     public TownCommandHandler(RoleplayCity plugin, TownManager townManager) {
         this.plugin = plugin;
         this.townManager = townManager;
@@ -44,27 +40,6 @@ public class TownCommandHandler implements CommandExecutor {
     // FIX: Utiliser le lazy getter au lieu de créer une nouvelle instance
     private TownMainGUI getTownGUI() {
         return plugin.getTownMainGUI();
-    }
-
-    /**
-     * Définit l'entreprise sélectionnée par un joueur pour un achat
-     */
-    public void setSelectedCompany(UUID playerUuid, String siret) {
-        selectedCompanyCache.put(playerUuid, siret);
-    }
-
-    /**
-     * Récupère l'entreprise sélectionnée par un joueur, puis la supprime du cache
-     */
-    public String getAndClearSelectedCompany(UUID playerUuid) {
-        return selectedCompanyCache.remove(playerUuid);
-    }
-
-    /**
-     * Vérifie si un joueur a une entreprise sélectionnée dans le cache (sans la supprimer)
-     */
-    public String getSelectedCompany(UUID playerUuid) {
-        return selectedCompanyCache.get(playerUuid);
     }
 
     @Override
@@ -203,7 +178,7 @@ public class TownCommandHandler implements CommandExecutor {
                 // Vérifier si c'est une annulation
                 if (args.length >= 2 && args[1].equalsIgnoreCase("cancel")) {
                     // Nettoyer le cache et afficher message d'annulation
-                    getAndClearSelectedCompany(player.getUniqueId());
+                    if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
                     player.sendMessage("");
                     player.sendMessage(ChatColor.YELLOW + "✗ Achat annulé.");
                     player.sendMessage("");
@@ -222,7 +197,7 @@ public class TownCommandHandler implements CommandExecutor {
                 // Vérifier si c'est une annulation
                 if (args.length >= 2 && args[1].equalsIgnoreCase("cancel")) {
                     // Nettoyer le cache et afficher message d'annulation
-                    getAndClearSelectedCompany(player.getUniqueId());
+                    if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
                     player.sendMessage("");
                     player.sendMessage(ChatColor.YELLOW + "✗ Location annulée.");
                     player.sendMessage("");
@@ -299,14 +274,18 @@ public class TownCommandHandler implements CommandExecutor {
             // NOUVEAU : Si terrain PROFESSIONNEL, gérer sélection d'entreprise
             if (terrainType == PlotType.PROFESSIONNEL) {
                 // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
-                // Cela garantit que le GUI est TOUJOURS ouvert pour une nouvelle transaction
-                String cachedSiret = getAndClearSelectedCompany(player.getUniqueId());
+                String cachedSiret = null;
+                com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager = plugin.getEnterpriseContextManager();
+                
+                if (enterpriseContextManager != null) {
+                    cachedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
+                        player.getUniqueId(), 
+                        com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.PURCHASE
+                    );
+                }
 
                 if (cachedSiret == null) {
                     // Pas de cache → Première fois, ouvrir le GUI
-                    com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
-                        plugin.getEnterpriseContextManager();
-
                     List<Entreprise> playerCompanies;
                     if (enterpriseContextManager != null) {
                         playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
@@ -452,14 +431,18 @@ public class TownCommandHandler implements CommandExecutor {
                 // Seulement demander entreprise pour NOUVELLE location, pas recharge
                 if (!isRecharge) {
                     // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
-                    // Cela garantit que le GUI est TOUJOURS ouvert pour une nouvelle transaction
-                    String cachedSiret = getAndClearSelectedCompany(player.getUniqueId());
+                    String cachedSiret = null;
+                    com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager = plugin.getEnterpriseContextManager();
+                    
+                    if (enterpriseContextManager != null) {
+                        cachedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
+                            player.getUniqueId(),
+                            com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.RENTAL
+                        );
+                    }
 
                     if (cachedSiret == null) {
                         // Pas de cache → Première fois, ouvrir le GUI
-                        com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager =
-                            plugin.getEnterpriseContextManager();
-
                         List<Entreprise> playerCompanies;
                         if (enterpriseContextManager != null) {
                             playerCompanies = enterpriseContextManager.getPlayerEnterprises(player);
@@ -594,7 +577,7 @@ public class TownCommandHandler implements CommandExecutor {
 
             // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
             // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
-            getAndClearSelectedCompany(player.getUniqueId());
+            if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();
@@ -665,7 +648,7 @@ public class TownCommandHandler implements CommandExecutor {
 
             // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
             // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
-            getAndClearSelectedCompany(player.getUniqueId());
+            if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();

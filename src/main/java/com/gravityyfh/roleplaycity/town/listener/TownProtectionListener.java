@@ -155,6 +155,11 @@ public class TownProtectionListener implements Listener {
             return;
         }
 
+        // Autoriser le PvE contre les monstres (Zombies, etc.) partout
+        if (event.getEntity() instanceof Monster) {
+            return;
+        }
+
         Location location = event.getEntity().getLocation();
 
         if (!canDamageEntity(player, location)) {
@@ -282,7 +287,7 @@ public class TownProtectionListener implements Listener {
             return true;
         }
 
-        // Seuls les membres de la ville peuvent attaquer des entités
+        // Seuls les membres de la ville peuvent attaquer des entités (pacifiques)
         return town.isMember(player.getUniqueId());
     }
 

@@ -71,7 +71,7 @@ public class ImprisonmentWorkflowGUI implements Listener {
         List<Player> handcuffedOnCommissariat = new ArrayList<>();
 
         for (Player target : Bukkit.getOnlinePlayers()) {
-            if (!handcuffedData.isHandcuffed(target)) continue;
+            if (!handcuffedData.isPlayerHandcuffed(target)) continue;
 
             // Vérifier si le joueur est sur un COMMISSARIAT de cette ville
             Chunk chunk = target.getLocation().getChunk();
@@ -188,7 +188,7 @@ public class ImprisonmentWorkflowGUI implements Listener {
                 String prisonerName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
                 Player prisoner = Bukkit.getPlayer(prisonerName);
 
-                if (prisoner != null && handcuffedData.isHandcuffed(prisoner)) {
+                if (prisoner != null && handcuffedData.isPlayerHandcuffed(prisoner)) {
                     // Créer le contexte
                     ImprisonmentContext context = new ImprisonmentContext();
                     context.policier = player;

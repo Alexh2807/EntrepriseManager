@@ -34,7 +34,7 @@ public class HandcuffsBreakListener implements Listener {
         Player player = event.getPlayer();
 
         // Vérifier si le joueur est menotté
-        if (!handcuffedData.isHandcuffed(player)) {
+        if (!handcuffedData.isPlayerHandcuffed(player)) {
             return;
         }
 

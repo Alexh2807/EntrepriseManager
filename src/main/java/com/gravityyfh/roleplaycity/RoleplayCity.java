@@ -128,6 +128,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.police.listeners.HandcuffsListener handcuffsListener;
     private com.gravityyfh.roleplaycity.police.listeners.HandcuffsBreakListener handcuffsBreakListener;
     private com.gravityyfh.roleplaycity.police.listeners.HandcuffsFollowListener handcuffsFollowListener;
+    private com.gravityyfh.roleplaycity.police.gui.FriskGUI friskGUI;
+    
+    // Système d'Items Custom
+    private com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager customItemManager;
+    private com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener customItemListener;
 
     // Système de Prison
     private com.gravityyfh.roleplaycity.police.manager.PrisonManager prisonManager;
@@ -178,6 +183,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.service.NotificationPersistenceService notificationPersistenceService;
     private com.gravityyfh.roleplaycity.backpack.service.BackpackPersistenceService backpackPersistenceService;
     private com.gravityyfh.roleplaycity.police.service.PrisonPersistenceService prisonPersistenceService;
+
+    // Système d'Identité & Menu
+    private com.gravityyfh.roleplaycity.identity.manager.IdentityManager identityManager;
+    private com.gravityyfh.roleplaycity.gui.MainMenuGUI mainMenuGUI;
 
     public void onEnable() {
         instance = this;
@@ -253,6 +262,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         getLogger().info("========================================");
         connectionManager = new com.gravityyfh.roleplaycity.database.ConnectionManager(this);
         connectionManager.initialize();
+
+        // Système d'Identité
+        identityManager = new com.gravityyfh.roleplaycity.identity.manager.IdentityManager(this, connectionManager);
+        
+        // Menu Principal
+        mainMenuGUI = new com.gravityyfh.roleplaycity.gui.MainMenuGUI(this);
 
         // Migrer depuis YAML si nécessaire
         yamlMigrationManager = new com.gravityyfh.roleplaycity.database.YAMLMigrationManager(this, connectionManager);
@@ -425,6 +440,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     handcuffedPlayerData);
             handcuffsFollowListener = new com.gravityyfh.roleplaycity.police.listeners.HandcuffsFollowListener(this,
                     handcuffedPlayerData);
+            
+            // GUI de fouille
+            friskGUI = new com.gravityyfh.roleplaycity.police.gui.FriskGUI(this, handcuffedPlayerData);
 
             // Charger les joueurs menottés (Persistance)
             if (prisonPersistenceService != null) {
@@ -438,6 +456,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
             debugLogger.debug("STARTUP", "Système de police initialisé (Taser & Menottes)");
         }
+        
+        // Système d'Items Custom (Global)
+        customItemManager = new com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager(this);
+        customItemListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager);
+        getServer().getPluginManager().registerEvents(customItemListener, this);
+        debugLogger.debug("STARTUP", "CustomItemManager et CustomItemListener initialisés");
 
         // Initialiser le système de prison (si activé)
         if (getConfig().getBoolean("prison-system.enabled", true)) {
@@ -727,6 +751,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         var pm = getServer().getPluginManager();
         var listeners = new Listener[] {
                 this, chatListener, entrepriseGUI, playerCVGUI,
+                mainMenuGUI, mainMenuGUI.getIdentityGUI(),
                 shopListGUI, shopManagementGUI, shopCreationGUI, shopPlacementListener, // Système de boutiques
                 contractManagementGUI, contractCreationGUI, contractDetailsGUI, contractChatListener, // Système de contrats
                 blockPlaceListener, craftItemListener, smithItemListener,
@@ -760,8 +785,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 new EventListener(this, entrepriseLogic),
                 new PlayerConnectionListener(this, entrepriseLogic),
                 new com.gravityyfh.roleplaycity.entreprise.storage.ServiceDropListener(this, companyStorageManager, serviceModeManager, entrepriseLogic),
-                new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les
+                new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this), // Listener pour les
                                                                                              // notifications
+                new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager)
         };
 
         for (Listener listener : listeners) {
@@ -870,6 +896,16 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         var lotoAdminCmd = getCommand("lotoadmin");
         if (lotoAdminCmd != null) {
             lotoAdminCmd.setExecutor(new com.gravityyfh.roleplaycity.lotto.LottoAdminCommand(lottoManager));
+        }
+
+        var menuCmd = getCommand("menu");
+        if (menuCmd != null) {
+            menuCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
+        }
+        
+        var identityCmd = getCommand("identite");
+        if (identityCmd != null) {
+            identityCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
         }
         
         // Ancien système de contrats supprimé - voir nouveau système intégré dans EntrepriseGUI
@@ -1168,6 +1204,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             if (policeCraftListener != null) {
                 policeCraftListener.reloadRecipes();
                 getLogger().info("✓ Système de police rechargé (Taser & Menottes)");
+            }
+
+            // 10. Recharger les items custom
+            if (customItemManager != null) {
+                customItemManager.loadItems();
+                getLogger().info("✓ Système d'items custom rechargé");
             }
 
             getLogger().info("════════════════════════════════════════════════════");
@@ -1595,6 +1637,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return backpackGUI;
     }
 
+    public com.gravityyfh.roleplaycity.identity.manager.IdentityManager getIdentityManager() {
+        return identityManager;
+    }
+
+    public com.gravityyfh.roleplaycity.gui.MainMenuGUI getMainMenuGUI() {
+        return mainMenuGUI;
+    }
+
     // Systèmes de messages interactifs
     public com.gravityyfh.roleplaycity.util.ConfirmationManager getConfirmationManager() {
         return confirmationManager;
@@ -1602,6 +1652,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.util.ChatInputListener getChatInputListener() {
         return chatInputListener;
+    }
+    
+    public com.gravityyfh.roleplaycity.police.gui.FriskGUI getFriskGUI() {
+        return friskGUI;
+    }
+    
+    public com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager getCustomItemManager() {
+        return customItemManager;
     }
 
     /**

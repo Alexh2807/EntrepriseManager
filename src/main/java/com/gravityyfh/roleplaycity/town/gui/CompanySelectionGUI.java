@@ -201,8 +201,6 @@ public class CompanySelectionGUI implements Listener {
         if (enterpriseContextManager != null) {
             enterpriseContextManager.setSelectedEnterprise(player.getUniqueId(), siret, context.operationType);
         }
-        // IMPORTANT: Aussi stocker dans l'ancien cache pour compatibilité avec le système de vérification
-        plugin.getTownCommandHandler().setSelectedCompany(player.getUniqueId(), siret);
 
         String companyName = ChatColor.stripColor(meta.getDisplayName());
         player.sendMessage(ChatColor.GREEN + "✓ Entreprise sélectionnée : " + ChatColor.WHITE + companyName);

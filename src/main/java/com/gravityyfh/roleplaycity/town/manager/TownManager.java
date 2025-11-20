@@ -219,6 +219,13 @@ public class TownManager {
             return false;
         }
 
+        // Vérifier la limite de population
+        int maxPop = plugin.getTownLevelManager().getConfig(town.getLevel()).getMaxPopulation();
+        if (town.getMemberCount() >= maxPop) {
+            inviter.sendMessage(ChatColor.RED + "La ville a atteint sa capacité maximale de citoyens (" + maxPop + ").");
+            return false;
+        }
+
         // Vérifier les permissions
         if (!town.isMember(inviter.getUniqueId())) {
             return false;
@@ -256,6 +263,13 @@ public class TownManager {
 
         // Vérifier l'invitation
         if (!town.hasInvitation(player.getUniqueId())) {
+            return false;
+        }
+
+        // Vérifier la limite de population
+        int maxPop = plugin.getTownLevelManager().getConfig(town.getLevel()).getMaxPopulation();
+        if (town.getMemberCount() >= maxPop) {
+            player.sendMessage(ChatColor.RED + "Impossible de rejoindre : la ville est pleine (" + maxPop + " citoyens).");
             return false;
         }
 
@@ -304,6 +318,12 @@ public class TownManager {
 
         // Vérifier que le joueur n'est pas déjà dans une ville
         if (getPlayerTown(player.getUniqueId()) != null) {
+            return false;
+        }
+
+        // Vérifier la limite de population
+        int maxPop = plugin.getTownLevelManager().getConfig(town.getLevel()).getMaxPopulation();
+        if (town.getMemberCount() >= maxPop) {
             return false;
         }
 
@@ -645,7 +665,7 @@ public class TownManager {
 
         // Sauvegarder immédiatement et de manière synchrone
         if (plugin.getTownDataManager() != null) {
-            plugin.getTownDataManager().saveTowns(getTownsForSave());
+            plugin.getTownDataManager().saveTownsSync(getTownsForSave());
         }
     }
 

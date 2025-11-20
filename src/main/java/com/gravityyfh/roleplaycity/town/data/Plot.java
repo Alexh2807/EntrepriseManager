@@ -378,6 +378,9 @@ public class Plot {
     }
 
     public void clearRenter() {
+        resetDebt();
+        resetParticularDebt();
+
         UUID oldRenter = this.renterUuid;
         String oldRenterSiret = this.renterCompanySiret; // SAUVEGARDER avant de clear
 
@@ -814,7 +817,7 @@ public class Plot {
      * Vérifie si un joueur peut interagir avec les blocs de cette parcelle
      */
     public boolean canInteract(UUID playerUuid, Town town) {
-        // Public : tous les membres de la ville peuvent interagir
+        // Public : infrastructures de ville (routes) - interaction réservée aux membres
         if (isPublic()) {
             return town.isMember(playerUuid);
         }
@@ -1029,6 +1032,10 @@ public class Plot {
         } else {
             this.rentEndDate = null;
         }
+    }
+
+    public void setRentStartDate(LocalDateTime rentStartDate) {
+        this.rentStartDate = rentStartDate;
     }
 
     /**

@@ -181,6 +181,18 @@ public class Town {
         }
     }
 
+    /**
+     * Ajoute une parcelle à des coordonnées spécifiques.
+     * Essentiel pour le chargement des terrains groupés (multi-chunks).
+     */
+    public void addPlotAt(Plot plot, int chunkX, int chunkZ) {
+        String key = getPlotKey(plot.getWorldName(), chunkX, chunkZ);
+        Plot previous = plots.put(key, plot);
+        if (previous == null) {
+            totalClaims++;
+        }
+    }
+
     public void removePlot(String worldName, int chunkX, int chunkZ) {
         String key = getPlotKey(worldName, chunkX, chunkZ);
         Plot removedPlot = plots.remove(key);
@@ -271,18 +283,23 @@ public class Town {
 
     // === GESTION ÉCONOMIQUE ===
 
-    public void deposit(double amount) {
+    public double deposit(double amount) {
         if (amount < 0) {
             throw new IllegalArgumentException("Le montant déposé doit être positif.");
         }
 
         // Vérifier la limite bancaire
         double limit = com.gravityyfh.roleplaycity.RoleplayCity.getInstance().getTownLevelManager().getConfig(level).getBankLimit();
-        if (bankBalance + amount > limit) {
-            throw new IllegalStateException("La banque est pleine ! Limite pour " + level.getDisplayName() + " : " + String.format("%,.2f€", limit));
+        double spaceAvailable = limit - bankBalance;
+        
+        // Déposer seulement ce qui est possible
+        double actualDeposit = Math.min(amount, spaceAvailable);
+        
+        if (actualDeposit > 0) {
+            bankBalance += actualDeposit;
         }
-
-        bankBalance += amount;
+        
+        return actualDeposit; // Retourner ce qui a été réellement déposé
     }
 
     public boolean withdraw(double amount) {

@@ -165,6 +165,15 @@ public class PrisonManager {
     public boolean imprisonPlayer(Player prisoner, Town town, Plot plot, int durationMinutes,
                                   String reason, Player policier) {
 
+        // Vérifier si le joueur est blessé (système médical)
+        if (plugin.getMedicalSystemManager() != null && plugin.getMedicalSystemManager().isInjured(prisoner)) {
+            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            policier.sendMessage("§c✖ Le joueur est blessé/inconscient");
+            policier.sendMessage("§7Il doit être soigné avant d'être emprisonné");
+            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            return false;
+        }
+
         // Vérifier que c'est bien un COMMISSARIAT
         if (plot.getMunicipalSubType() != MunicipalSubType.COMMISSARIAT) {
             policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
@@ -173,13 +182,7 @@ public class PrisonManager {
             return false;
         }
 
-        // Vérifier que le joueur est menotté
-        if (!handcuffedPlayerData.isHandcuffed(prisoner)) {
-            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            policier.sendMessage("§c✖ Le joueur doit être menotté");
-            policier.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            return false;
-        }
+
 
         // Vérifier qu'un spawn prison est défini
         if (!plot.hasPrisonSpawn() || plot.getPrisonSpawn() == null) {
@@ -446,6 +449,29 @@ public class PrisonManager {
         prisonSpawns.remove(townName + ":" + plotIdentifier);
 
         plugin.getLogger().info("Libération de tous les prisonniers du plot " + townName + ":" + plotIdentifier);
+    }
+
+    /**
+     * Libère tous les prisonniers d'une ville (en cas de suppression de la ville)
+     */
+    public void releaseAllFromTown(String townName) {
+        // Identifier les prisonniers de cette ville
+        List<UUID> prisonersToRelease = new ArrayList<>();
+        for (Map.Entry<UUID, PrisonData> entry : imprisonedPlayerData.getAllImprisoned().entrySet()) {
+            if (entry.getValue().getTownName().equals(townName)) {
+                prisonersToRelease.add(entry.getKey());
+            }
+        }
+
+        // Les libérer
+        for (UUID uuid : prisonersToRelease) {
+            releasePrisoner(uuid, true); // True = automated (message "Peine terminée" ou similaire)
+        }
+
+        // Supprimer tous les spawns de prison de cette ville
+        prisonSpawns.keySet().removeIf(key -> key.startsWith(townName + ":"));
+
+        plugin.getLogger().info("Libération de tous les prisonniers de la ville supprimée: " + townName);
     }
 
     /**

@@ -120,9 +120,6 @@ public class TownEconomyManager {
                     buyer.getUniqueId(),
                     com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.PURCHASE
                 );
-            } else {
-                // Fallback vers ancien système
-                selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(buyer.getUniqueId());
             }
 
             if (selectedSiret == null) {
@@ -364,9 +361,6 @@ public class TownEconomyManager {
                     renter.getUniqueId(),
                     com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.RENTAL
                 );
-            } else {
-                // Fallback vers ancien système
-                selectedSiret = plugin.getTownCommandHandler().getAndClearSelectedCompany(renter.getUniqueId());
             }
 
             if (selectedSiret == null) {

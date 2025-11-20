@@ -34,12 +34,15 @@ public class HandcuffedPlayerData {
     /**
      * Vérifie si un joueur est menotté
      */
-    public boolean isHandcuffed(Player player) {
-        return isHandcuffed(player.getUniqueId());
-    }
-
     public boolean isHandcuffed(UUID uuid) {
         return handcuffedPlayers.getOrDefault(uuid, false);
+    }
+
+    /**
+     * Vérifie si un joueur est menotté (helper pour Player)
+     */
+    public boolean isPlayerHandcuffed(Player player) {
+        return isHandcuffed(player.getUniqueId());
     }
 
     /**
