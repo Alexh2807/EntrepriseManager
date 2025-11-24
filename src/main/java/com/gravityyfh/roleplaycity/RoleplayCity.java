@@ -336,11 +336,31 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         connectionManager = new com.gravityyfh.roleplaycity.database.ConnectionManager(this);
         connectionManager.initialize();
 
-        // Système d'Identité
-        identityManager = new com.gravityyfh.roleplaycity.identity.manager.IdentityManager(this, connectionManager);
-        
-        // Menu Principal
-        mainMenuGUI = new com.gravityyfh.roleplaycity.gui.MainMenuGUI(this);
+        // Système d'Identité - TEST DE RÉACTIVATION
+        try {
+            getLogger().info("[DEBUG] Tentative d'initialisation de IdentityManager...");
+            identityManager = new com.gravityyfh.roleplaycity.identity.manager.IdentityManager(this, connectionManager);
+            getLogger().info("[DEBUG] ✓ IdentityManager initialisé avec succès !");
+        } catch (Exception e) {
+            getLogger().severe("[DEBUG] ✗ ERREUR lors de l'initialisation de IdentityManager:");
+            getLogger().severe("[DEBUG] Type: " + e.getClass().getName());
+            getLogger().severe("[DEBUG] Message: " + e.getMessage());
+            e.printStackTrace();
+            identityManager = null; // S'assurer qu'il reste null en cas d'erreur
+        }
+
+        // Menu Principal - TEST DE RÉACTIVATION
+        try {
+            getLogger().info("[DEBUG] Tentative d'initialisation de MainMenuGUI...");
+            mainMenuGUI = new com.gravityyfh.roleplaycity.gui.MainMenuGUI(this);
+            getLogger().info("[DEBUG] ✓ MainMenuGUI initialisé avec succès !");
+        } catch (Exception e) {
+            getLogger().severe("[DEBUG] ✗ ERREUR lors de l'initialisation de MainMenuGUI:");
+            getLogger().severe("[DEBUG] Type: " + e.getClass().getName());
+            getLogger().severe("[DEBUG] Message: " + e.getMessage());
+            e.printStackTrace();
+            mainMenuGUI = null;
+        }
 
         // Migrer depuis YAML si nécessaire
         yamlMigrationManager = new com.gravityyfh.roleplaycity.database.YAMLMigrationManager(this, connectionManager);
@@ -530,33 +550,51 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             debugLogger.debug("STARTUP", "Système de police initialisé (Taser & Menottes)");
         }
         
-        // Système d'Items Custom (Global) - ARCHITECTURE 100% IDENTIQUE AUX BACKPACKS
-        customItemManager = new com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager(this);
-        customItemListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager);
-        
-        // Enregistrer le listener ItemsAdder via Reflection pour éviter VerifyError/NoClassDefFoundError
-        if (getServer().getPluginManager().getPlugin("ItemsAdder") != null) {
-            getLogger().info("[CustomItems] ItemsAdder détecté ! Tentative d'enregistrement du listener spécialisé...");
-            try {
-                Class<?> listenerClass = Class.forName("com.gravityyfh.roleplaycity.customitems.listener.ItemsAdderListener");
-                java.lang.reflect.Constructor<?> constructor = listenerClass.getConstructor(RoleplayCity.class, com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager.class);
-                Listener listener = (Listener) constructor.newInstance(this, customItemManager);
-                getServer().getPluginManager().registerEvents(listener, this);
-                getLogger().info("[CustomItems] Listener ItemsAdder enregistré avec succès.");
-            } catch (Throwable e) {
-                getLogger().warning("[CustomItems] Impossible de charger le listener ItemsAdder: " + e.getMessage());
+        // Système d'Items Custom (Global) - TEST DE RÉACTIVATION
+        try {
+            getLogger().info("[DEBUG] Tentative d'initialisation de CustomItemManager...");
+            customItemManager = new com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager(this);
+            getLogger().info("[DEBUG] ✓ CustomItemManager créé");
+
+            customItemListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager);
+            getLogger().info("[DEBUG] ✓ CustomItemListener créé");
+
+            // Enregistrer le listener ItemsAdder via Reflection pour éviter VerifyError/NoClassDefFoundError
+            if (getServer().getPluginManager().getPlugin("ItemsAdder") != null) {
+                getLogger().info("[CustomItems] ItemsAdder détecté ! Tentative d'enregistrement du listener spécialisé...");
+                try {
+                    Class<?> listenerClass = Class.forName("com.gravityyfh.roleplaycity.customitems.listener.ItemsAdderListener");
+                    java.lang.reflect.Constructor<?> constructor = listenerClass.getConstructor(RoleplayCity.class, com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager.class);
+                    Listener listener = (Listener) constructor.newInstance(this, customItemManager);
+                    getServer().getPluginManager().registerEvents(listener, this);
+                    getLogger().info("[CustomItems] ✓ Listener ItemsAdder enregistré avec succès.");
+                } catch (Throwable e) {
+                    getLogger().warning("[CustomItems] Impossible de charger le listener ItemsAdder: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            } else {
+                getLogger().info("[CustomItems] ItemsAdder non détecté. Le listener spécialisé ne sera pas chargé.");
             }
-        } else {
-            getLogger().info("[CustomItems] ItemsAdder non détecté. Le listener spécialisé ne sera pas chargé.");
+
+            customItemCraftListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemCraftListener(this, customItemManager, entrepriseLogic);
+            getLogger().info("[DEBUG] ✓ CustomItemCraftListener créé");
+
+            // Enregistrer les recettes (après le chargement des items)
+            customItemCraftListener.registerRecipes();
+            getLogger().info("[DEBUG] ✓ Recettes enregistrées");
+
+            debugLogger.debug("STARTUP", "CustomItemManager et listeners initialisés (architecture Backpacks)");
+            getLogger().info("[DEBUG] ✓✓✓ Système CustomItems COMPLÈTEMENT INITIALISÉ (OPEN_MAIRIE compris) ✓✓✓");
+        } catch (Exception e) {
+            getLogger().severe("[DEBUG] ✗✗✗ ERREUR lors de l'initialisation du système CustomItems:");
+            getLogger().severe("[DEBUG] Type: " + e.getClass().getName());
+            getLogger().severe("[DEBUG] Message: " + e.getMessage());
+            getLogger().severe("[DEBUG] Ceci est probablement la cause du crash original !");
+            e.printStackTrace();
+            customItemManager = null;
+            customItemListener = null;
+            customItemCraftListener = null;
         }
-
-        customItemCraftListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemCraftListener(this, customItemManager, entrepriseLogic);
-        // NOTE : customItemListener sera enregistré via le tableau listeners[] plus tard
-
-        // Enregistrer les recettes (après le chargement des items)
-        customItemCraftListener.registerRecipes();
-
-        debugLogger.debug("STARTUP", "CustomItemManager et listeners initialisés (architecture Backpacks)");
 
         // Initialiser le système de prison (si activé)
         if (getConfig().getBoolean("prison-system.enabled", true)) {
@@ -856,7 +894,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         var pm = getServer().getPluginManager();
         var listeners = new Listener[] {
                 this, chatListener, entrepriseGUI, playerCVGUI,
-                mainMenuGUI,
+                mainMenuGUI, // RÉACTIVÉ
                 shopListGUI, shopManagementGUI, shopCreationGUI, shopPlacementListener, // Système de boutiques
                 contractManagementGUI, contractCreationGUI, contractDetailsGUI, contractChatListener, // Système de contrats
                 blockPlaceListener, craftItemListener, smithItemListener,
@@ -887,7 +925,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 townPrisonManagementGUI, imprisonmentWorkflowGUI, // Système de Prison (GUIs)
                 prisonRestrictionListener, prisonBoundaryListener, // Système de Prison (Restrictions & Limites)
                 backpackInteractionListener, backpackProtectionListener, backpackCraftListener, // Système de Backpacks
-                customItemListener, customItemCraftListener, // Système de CustomItems (ALIGNÉ sur architecture Backpacks)
+                customItemListener, customItemCraftListener, // Système de CustomItems - RÉACTIVÉ
                 new EventListener(this, entrepriseLogic),
                 new PlayerConnectionListener(this, entrepriseLogic),
                 new com.gravityyfh.roleplaycity.entreprise.storage.ServiceDropListener(this, companyStorageManager, serviceModeManager, entrepriseLogic),
@@ -1002,14 +1040,17 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             lotoAdminCmd.setExecutor(new com.gravityyfh.roleplaycity.lotto.LottoAdminCommand(lottoManager));
         }
 
+        // Commandes réactivées
         var menuCmd = getCommand("menu");
         if (menuCmd != null) {
             menuCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
+            getLogger().info("[DEBUG] Commande /menu enregistrée");
         }
-        
+
         var identityCmd = getCommand("identite");
         if (identityCmd != null) {
             identityCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
+            getLogger().info("[DEBUG] Commande /identite enregistrée");
         }
 
         // Enregistrement des commandes LightEconomy
