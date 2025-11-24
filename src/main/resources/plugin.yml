@@ -3,7 +3,9 @@ version: '${project.version}'
 main: com.gravityyfh.roleplaycity.RoleplayCity
 api-version: 1.20
 
-softdepend: [QuickShop, CoreProtect, TreeCuter, PlaceholderAPI]
+depend: [Vault, PlaceholderAPI]
+softdepend: [QuickShop, CoreProtect, TreeCuter, ProtocolLib, ItemsAdder]
+loadbefore: [Essentials, Towny]
 
 
 commands:
@@ -40,6 +42,27 @@ commands:
   lotoadmin:
     description: Administration du système de Loto
     usage: /<command> <start|stop|draw|reset|reload>
+  le:
+    description: Commandes d'administration de LightEconomy (système économique)
+    usage: /<command>
+    aliases: [lighteconomy, lighteco, leco]
+  money:
+    description: Commandes économiques pour les joueurs
+    usage: /<command>
+    aliases: [mon]
+  balance:
+    description: Affiche le solde d'un joueur
+    usage: /<command> [joueur]
+    aliases: [bal]
+  eco:
+    description: Commandes économiques pour la console uniquement
+    usage: /<command>
+  pay:
+    description: Envoyer de l'argent à un autre joueur
+    usage: /<command> <joueur> <montant>
+  bank:
+    description: Système bancaire - Gérer votre compte en banque
+    usage: /<command>
 
 permissions:
   roleplaycity.use:
@@ -84,3 +107,65 @@ permissions:
   roleplaycity.backpack.info:
     description: Permet d'afficher les informations d'un backpack avec /backpack info
     default: true
+
+  # Permissions LightEconomy / Banque
+  lighteconomy.admin.command.moneyadd:
+    description: Permet d'ajouter de l'argent à un joueur
+    default: op
+  lighteconomy.admin.command.moneyremove:
+    description: Permet de retirer de l'argent à un joueur
+    default: op
+  lighteconomy.admin.command.moneyset:
+    description: Permet de définir l'argent d'un joueur
+    default: op
+  lighteconomy.admin.command.reload:
+    description: Permet de recharger la configuration de la banque
+    default: op
+  lighteconomy.admin.command.debug:
+    description: Permet d'activer le mode debug de la banque
+    default: op
+  lighteconomy.admin.command.balanceother:
+    description: Permet de voir le solde d'un autre joueur
+    default: op
+  lighteconomy.admin.command.moneyaddall:
+    description: Permet d'ajouter de l'argent à tous les joueurs
+    default: op
+  lighteconomy.admin.command.bankadd:
+    description: Permet d'ajouter de l'argent au compte bancaire d'un joueur
+    default: op
+  lighteconomy.admin.command.bankopenother:
+    description: Permet d'ouvrir le compte bancaire d'un autre joueur
+    default: op
+  lighteconomy.admin.command.bankset:
+    description: Permet de définir le solde bancaire d'un joueur
+    default: op
+  lighteconomy.admin.comand.bankremove:
+    description: Permet de retirer de l'argent du compte bancaire d'un joueur
+    default: op
+  lighteconomy.admin.command.banksetlevel:
+    description: Permet de définir le niveau bancaire d'un joueur
+    default: op
+  lighteconomy.admin.command.bankshow:
+    description: Permet de voir les infos bancaires d'un joueur
+    default: op
+  lighteconomy.admin.command.helpadmin:
+    description: Permet de voir l'aide admin de la banque
+    default: op
+  lighteconomy.admin.command.npc.create:
+    description: Permet de créer un NPC banquier
+    default: op
+  lighteconomy.user.command.pay:
+    description: Permet de payer un autre joueur
+    default: true
+  lighteconomy.user.command.moneytop:
+    description: Permet de voir le top argent
+    default: true
+  lighteconomy.user.command.banktop:
+    description: Permet de voir le top banque
+    default: true
+  lighteconomy.user.command.createvoucher:
+    description: Permet de créer un billet de banque
+    default: true
+  lighteconomy.user.command.bank:
+    description: Permet d'ouvrir sa banque (via commande)
+    default: op

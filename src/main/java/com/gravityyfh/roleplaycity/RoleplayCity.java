@@ -8,15 +8,27 @@ import com.gravityyfh.roleplaycity.town.gui.TownListGUI;
 import com.gravityyfh.roleplaycity.town.gui.TownMainGUI;
 import com.gravityyfh.roleplaycity.town.manager.TownDataManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
+import de.lightplugins.economy.master.Main;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.event.EventHandler;
+
+import java.io.File;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class RoleplayCity extends JavaPlugin implements Listener {
+
+    // DIAGNOSTIC: Vérifier que la classe se charge
+    static {
+        System.out.println("[RPC-STATIC] ============================================");
+        System.out.println("[RPC-STATIC] RoleplayCity class is being loaded");
+        System.out.println("[RPC-STATIC] ============================================");
+    }
+
     private static RoleplayCity instance;
+    private Main lightEconomyMain;
     private Economy econ;
     private TownManager townManager;
     private com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager;
@@ -133,6 +145,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // Système d'Items Custom
     private com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager customItemManager;
     private com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener customItemListener;
+    private com.gravityyfh.roleplaycity.customitems.listener.CustomItemCraftListener customItemCraftListener;
 
     // Système de Prison
     private com.gravityyfh.roleplaycity.police.manager.PrisonManager prisonManager;
@@ -189,16 +202,61 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.gui.MainMenuGUI mainMenuGUI;
 
     public void onEnable() {
-        instance = this;
-        getLogger().info("============================================");
-        getLogger().info("-> Activation de RoleplayCity");
-        getLogger().info("============================================");
+        // Force log via Logger to ensure it appears in console even if stdout is redirected
+        java.util.logging.Logger.getGlobal().info("[RPC-ENABLE] onEnable() method has been called! (Global Logger)");
+        System.out.println("[RPC-ENABLE] ============================================");
+        System.out.println("[RPC-ENABLE] onEnable() method has been called!");
+        System.out.println("[RPC-ENABLE] ============================================");
+
+        try {
+            instance = this;
+            getLogger().info("============================================");
+            getLogger().info("-> Activation de RoleplayCity");
+            getLogger().info("============================================");
+
+        // Initialisation de LightEconomy (Intégré directement dans RoleplayCity)
+        // Créer le sous-dossier LightEconomy pour séparer les fichiers
+        File lightEconomyFolder = new File(getDataFolder(), "LightEconomy");
+        if (!lightEconomyFolder.exists()) {
+            lightEconomyFolder.mkdirs();
+        }
+
+        // Définir le plugin parent et le dataFolder avant l'initialisation
+        Main.parentPlugin = this;
+        Main.customDataFolder = lightEconomyFolder;
+
+        getLogger().info("[RPC-DEBUG] Initializing LightEconomy...");
+        getLogger().info("[RPC-DEBUG] parentPlugin = " + Main.parentPlugin.getName());
+
+        lightEconomyMain = new Main();
+        lightEconomyMain.onLoad(); // Appeler onLoad en premier
+        getLogger().info("[RPC-DEBUG] LightEconomy onLoad() completed");
+
+        lightEconomyMain.onEnable();
+        getLogger().info("[RPC-DEBUG] LightEconomy onEnable() completed");
+
+        // V\u00e9rifier que les commandes sont bien enregistr\u00e9es
+        if (getCommand("money") != null) {
+            getLogger().info("[RPC-DEBUG] Command /money is registered: " + getCommand("money").getExecutor());
+        } else {
+            getLogger().severe("[RPC-DEBUG] Command /money is NULL!");
+        }
+
+        // IMPORTANT: Attendre que LightEconomy s'enregistre avec Vault
+        getLogger().info("[RPC-DEBUG] Waiting for LightEconomy to register with Vault...");
+        try {
+            Thread.sleep(200); // Attendre 200ms pour que le provider s'enregistre
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         if (!setupEconomy()) {
             getLogger().severe("### ERREUR CRITIQUE : Vault non trouvé ou pas de fournisseur d'économie. ###");
+            getLogger().severe("### LightEconomy n'a pas réussi à s'enregistrer avec Vault ! ###");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        getLogger().info("[RPC-DEBUG] Economy setup successful!");
 
         saveDefaultConfig();
         // FIX BASSE #25: Valider la configuration au startup
@@ -221,6 +279,21 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         getLogger().info("============================================");
         getLogger().info("-> RoleplayCity activé avec succès !");
         getLogger().info("============================================");
+
+        } catch (Throwable e) {
+            System.err.println("[RPC-ERROR] ============================================");
+            System.err.println("[RPC-ERROR] EXCEPTION CAUGHT IN onEnable()!");
+            System.err.println("[RPC-ERROR] Exception type: " + e.getClass().getName());
+            System.err.println("[RPC-ERROR] Message: " + e.getMessage());
+            System.err.println("[RPC-ERROR] ============================================");
+            e.printStackTrace();
+            getLogger().severe("############################################");
+            getLogger().severe("# ERREUR CRITIQUE LORS DE L'ACTIVATION");
+            getLogger().severe("# Type: " + e.getClass().getName());
+            getLogger().severe("# Message: " + e.getMessage());
+            getLogger().severe("############################################");
+            getServer().getPluginManager().disablePlugin(this);
+        }
     }
 
     private void initializeComponents() {
@@ -457,11 +530,33 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             debugLogger.debug("STARTUP", "Système de police initialisé (Taser & Menottes)");
         }
         
-        // Système d'Items Custom (Global)
+        // Système d'Items Custom (Global) - ARCHITECTURE 100% IDENTIQUE AUX BACKPACKS
         customItemManager = new com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager(this);
         customItemListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager);
-        getServer().getPluginManager().registerEvents(customItemListener, this);
-        debugLogger.debug("STARTUP", "CustomItemManager et CustomItemListener initialisés");
+        
+        // Enregistrer le listener ItemsAdder via Reflection pour éviter VerifyError/NoClassDefFoundError
+        if (getServer().getPluginManager().getPlugin("ItemsAdder") != null) {
+            getLogger().info("[CustomItems] ItemsAdder détecté ! Tentative d'enregistrement du listener spécialisé...");
+            try {
+                Class<?> listenerClass = Class.forName("com.gravityyfh.roleplaycity.customitems.listener.ItemsAdderListener");
+                java.lang.reflect.Constructor<?> constructor = listenerClass.getConstructor(RoleplayCity.class, com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager.class);
+                Listener listener = (Listener) constructor.newInstance(this, customItemManager);
+                getServer().getPluginManager().registerEvents(listener, this);
+                getLogger().info("[CustomItems] Listener ItemsAdder enregistré avec succès.");
+            } catch (Throwable e) {
+                getLogger().warning("[CustomItems] Impossible de charger le listener ItemsAdder: " + e.getMessage());
+            }
+        } else {
+            getLogger().info("[CustomItems] ItemsAdder non détecté. Le listener spécialisé ne sera pas chargé.");
+        }
+
+        customItemCraftListener = new com.gravityyfh.roleplaycity.customitems.listener.CustomItemCraftListener(this, customItemManager, entrepriseLogic);
+        // NOTE : customItemListener sera enregistré via le tableau listeners[] plus tard
+
+        // Enregistrer les recettes (après le chargement des items)
+        customItemCraftListener.registerRecipes();
+
+        debugLogger.debug("STARTUP", "CustomItemManager et listeners initialisés (architecture Backpacks)");
 
         // Initialiser le système de prison (si activé)
         if (getConfig().getBoolean("prison-system.enabled", true)) {
@@ -546,6 +641,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Nettoyer le système de backpacks
         if (backpackCraftListener != null) {
             backpackCraftListener.unregisterRecipes();
+        }
+
+        // Nettoyer le système de custom items
+        if (customItemCraftListener != null) {
+            customItemCraftListener.unregisterRecipes();
         }
 
         // Nettoyer le système de boutiques
@@ -720,6 +820,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             connectionManager.shutdown();
             getLogger().info("[SQLite] Base de données fermée");
         }
+        
+        if (lightEconomyMain != null) {
+            lightEconomyMain.onDisable();
+        }
+        
         // Les données de mailbox sont maintenant sauvegardées dans towns.yml via
         // TownDataManager
         // Plus besoin de sauvegarder mailboxes.yml séparément
@@ -751,7 +856,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         var pm = getServer().getPluginManager();
         var listeners = new Listener[] {
                 this, chatListener, entrepriseGUI, playerCVGUI,
-                mainMenuGUI, mainMenuGUI.getIdentityGUI(),
+                mainMenuGUI,
                 shopListGUI, shopManagementGUI, shopCreationGUI, shopPlacementListener, // Système de boutiques
                 contractManagementGUI, contractCreationGUI, contractDetailsGUI, contractChatListener, // Système de contrats
                 blockPlaceListener, craftItemListener, smithItemListener,
@@ -782,12 +887,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 townPrisonManagementGUI, imprisonmentWorkflowGUI, // Système de Prison (GUIs)
                 prisonRestrictionListener, prisonBoundaryListener, // Système de Prison (Restrictions & Limites)
                 backpackInteractionListener, backpackProtectionListener, backpackCraftListener, // Système de Backpacks
+                customItemListener, customItemCraftListener, // Système de CustomItems (ALIGNÉ sur architecture Backpacks)
                 new EventListener(this, entrepriseLogic),
                 new PlayerConnectionListener(this, entrepriseLogic),
                 new com.gravityyfh.roleplaycity.entreprise.storage.ServiceDropListener(this, companyStorageManager, serviceModeManager, entrepriseLogic),
-                new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this), // Listener pour les
-                                                                                             // notifications
-                new com.gravityyfh.roleplaycity.customitems.listener.CustomItemListener(this, customItemManager)
+                new com.gravityyfh.roleplaycity.town.listener.PlayerConnectionListener(this) // Listener pour les notifications
         };
 
         for (Listener listener : listeners) {
@@ -907,7 +1011,65 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (identityCmd != null) {
             identityCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
         }
-        
+
+        // Enregistrement des commandes LightEconomy
+        getLogger().info("[RPC-DEBUG] Registering LightEconomy commands...");
+        if (lightEconomyMain != null) {
+            var leCmd = getCommand("le");
+            if (leCmd != null) {
+                leCmd.setExecutor(new de.lightplugins.economy.commands.MainCommandManager(lightEconomyMain));
+                leCmd.setTabCompleter(new de.lightplugins.economy.commands.tabcompletion.MainTabCompletion());
+                getLogger().info("Commande /le enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /le est NULL!");
+            }
+
+            var moneyCmd = getCommand("money");
+            if (moneyCmd != null) {
+                moneyCmd.setExecutor(new de.lightplugins.economy.commands.MoneyCommandManager(lightEconomyMain));
+                moneyCmd.setTabCompleter(new de.lightplugins.economy.commands.tabcompletion.MoneyTabCompletion());
+                getLogger().info("Commande /money enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /money est NULL!");
+            }
+
+            var bankCmd = getCommand("bank");
+            if (bankCmd != null) {
+                bankCmd.setExecutor(new de.lightplugins.economy.commands.BankCommandManager(lightEconomyMain));
+                bankCmd.setTabCompleter(new de.lightplugins.economy.commands.tabcompletion.BankTabCompletion());
+                getLogger().info("Commande /bank enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /bank est NULL!");
+            }
+
+            var ecoCmd = getCommand("eco");
+            if (ecoCmd != null) {
+                ecoCmd.setExecutor(new de.lightplugins.economy.commands.ConsoleCommandManager(lightEconomyMain));
+                getLogger().info("Commande /eco enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /eco est NULL!");
+            }
+
+            var payCmd = getCommand("pay");
+            if (payCmd != null) {
+                payCmd.setExecutor(new de.lightplugins.economy.commands.PayCommandMaster());
+                getLogger().info("Commande /pay enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /pay est NULL!");
+            }
+
+            var balanceCmd = getCommand("balance");
+            if (balanceCmd != null) {
+                balanceCmd.setExecutor(new de.lightplugins.economy.commands.BalanceCommandManager(lightEconomyMain));
+                balanceCmd.setTabCompleter(new de.lightplugins.economy.commands.tabcompletion.BalanceTabCompletion());
+                getLogger().info("Commande /balance enregistr\u00e9e");
+            } else {
+                getLogger().severe("ERREUR: Commande /balance est NULL!");
+            }
+        } else {
+            getLogger().severe("ERREUR: lightEconomyMain est NULL!");
+        }
+
         // Ancien système de contrats supprimé - voir nouveau système intégré dans EntrepriseGUI
         // var contractCmd = getCommand("contract");
         // if (contractCmd != null) {
@@ -929,11 +1091,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         boolean isValid = validator.validate();
 
         if (!isValid) {
-            getLogger().severe("═══════════════════════════════════════════════════════════════");
+            getLogger().severe("══════════════════════════════════════════════════════════════=");
             getLogger().severe("⚠ ATTENTION: Des erreurs critiques ont été détectées dans config.yml");
             getLogger().severe("⚠ Le plugin peut ne pas fonctionner correctement !");
             getLogger().severe("⚠ Corrigez les erreurs avant de déployer en production.");
-            getLogger().severe("═══════════════════════════════════════════════════════════════");
+            getLogger().severe("══════════════════════════════════════════════════════════════=");
         } else {
             getLogger().info("✓ Validation de la configuration réussie");
         }
@@ -961,7 +1123,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     @Override
                     public void run() {
                         if (asyncEntrepriseService != null) {
-                            asyncEntrepriseService.saveDirtyEntreprises()
+                            asyncEntrepriseService.saveDirtyEntreprises() 
                                     .thenAccept(saved -> {
                                         if (saved > 0) {
                                             debugLogger.debug("AUTOSAVE", saved + " entreprises sauvegardées");
@@ -1224,9 +1386,6 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
     }
 
-    // FIX BASSE #4: Méthode deprecated supprimée - utiliser reloadPluginConfig()
-    // directement
-
     /**
      * Intercepte les commandes avec le préfixe "ville:" pour les rediriger vers
      * "/ville"
@@ -1246,6 +1405,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // Getters
     public static RoleplayCity getInstance() {
         return instance;
+    }
+    
+    public Main getLightEconomyMain() {
+        return lightEconomyMain;
     }
 
     public EntrepriseManagerLogic getEntrepriseManagerLogic() {

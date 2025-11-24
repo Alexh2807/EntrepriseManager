@@ -7,16 +7,12 @@ import com.gravityyfh.roleplaycity.backpack.model.BackpackType;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
-import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
-import org.bukkit.inventory.RecipeChoice;
 
 import java.util.HashMap;
 import java.util.List;
@@ -105,12 +101,11 @@ public class BackpackCraftListener implements Listener {
     }
 
     /**
-     * PrepareItemCraftEvent - Génère un nouveau backpack avec UUID unique à chaque fois
-     * IMPORTANT: Ne pas réutiliser/cloner les backpacks pour éviter les duplications
+     * PrepareItemCraftEvent - Affiche l'item ItemsAdder dans la preview
+     * AUCUNE vérification de restrictions ici (serait comptabilisé plusieurs fois)
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onCraftPrepare(PrepareItemCraftEvent event) {
-        // Vérifier si c'est un craft de backpack en regardant la recette
         if (event.getRecipe() == null) {
             return;
         }
@@ -120,29 +115,13 @@ public class BackpackCraftListener implements Listener {
             return;
         }
 
-        // Créer un NOUVEAU backpack avec un UUID unique pour cette preview
-        // Cela évite les problèmes de clonage et de cache
+        // Afficher l'item ItemsAdder tel quel (pas de vérifications)
         BackpackType backpackType = itemManager.getBackpackType(result);
         if (backpackType != null) {
-            ItemStack freshBackpack = itemManager.createBackpack(backpackType.getId());
-            if (freshBackpack != null) {
-                event.getInventory().setResult(freshBackpack);
+            ItemStack itemsAdderItem = itemManager.createBackpack(backpackType.getId());
+            if (itemsAdderItem != null) {
+                event.getInventory().setResult(itemsAdderItem);
             }
         }
-    }
-
-    /**
-     * CraftItemEvent - DÉSACTIVÉ
-     * La gestion du craft des backpacks est maintenant centralisée dans CraftItemListener
-     * pour bénéficier de la gestion unifiée des restrictions et des quotas (verifierEtGererRestrictionAction).
-     */
-    // @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onCraftBackpack(CraftItemEvent event) {
-        /* LOGIQUE DÉPLACÉE DANS CraftItemListener
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
-        // ...
-        */
     }
 }

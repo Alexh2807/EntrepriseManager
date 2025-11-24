@@ -96,7 +96,19 @@
       "Bash(python fix_entreprise_repo.py:*)",
       "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS\" -Context 0,1)",
       "Bash(powershell -ExecutionPolicy Bypass -File fix_connections.ps1)",
-      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" package -DskipTests -q)"
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" package -DskipTests -q)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.spigotmc.org)",
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" clean package -DskipTests -U)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\PluginCreator\\EntrepriseManager\\src\\main\\java\\de\\lightplugins\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\PluginCreator\\EntrepriseManager\\src\\main\\java\\de\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-String -Pattern \"ERROR|BUILD|Compiling\" -Context 0,1)",
+      "Bash(find:*)",
+      "Bash(jar tf:*)",
+      "Bash(cat:*)",
+      "Bash(jar xf:*)"
     ],
     "deny": [],
     "ask": []

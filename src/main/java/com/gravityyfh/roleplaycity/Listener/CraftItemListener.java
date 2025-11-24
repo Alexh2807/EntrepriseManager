@@ -11,10 +11,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.inventory.*;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Level;
-
 public class CraftItemListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;
@@ -40,29 +36,23 @@ public class CraftItemListener implements Listener {
 
         ItemStack resultItem = recipe.getResult();
 
-        int amountPerSingleCraftExecution = resultItem.getAmount();
-        int actualCraftedAmount = amountPerSingleCraftExecution;
+        // SIMPLIFIÉ: Ne plus utiliser calculateMaxCrafts() - cause le bug de désynchronisation
+        // Le shift-click est géré automatiquement par Bukkit qui appelle cet event plusieurs fois
+        int amountPerSingleCraft = resultItem.getAmount();
 
-        if (event.isShiftClick()) {
-            CraftingInventory craftInv = event.getInventory();
-            actualCraftedAmount = calculateMaxCrafts(recipe, craftInv);
-            if (actualCraftedAmount == 0) {
-                actualCraftedAmount = amountPerSingleCraftExecution;
-            }
-        }
-
-        // Gestion des Backpacks
+        // Gestion des Backpacks - Vérifier restrictions + enregistrer
+        // IMPORTANT: Ne PAS utiliser calculateMaxCrafts() - on vérifie pour amountPerSingleCraft uniquement
         if (plugin.getBackpackItemManager() != null && plugin.getBackpackItemManager().isBackpack(resultItem)) {
             com.gravityyfh.roleplaycity.backpack.model.BackpackType backpackType = plugin.getBackpackItemManager().getBackpackType(resultItem);
             if (backpackType != null) {
                 String backpackId = backpackType.getId();
 
-                // Vérifier les restrictions pour CRAFT_BACKPACK
+                // Vérifier les restrictions pour CRAFT_BACKPACK (amountPerSingleCraft uniquement)
                 boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(
                     player,
                     "CRAFT_BACKPACK",
                     backpackId,
-                    actualCraftedAmount
+                    amountPerSingleCraft
                 );
 
                 if (isBlocked) {
@@ -70,90 +60,58 @@ public class CraftItemListener implements Listener {
                     return;
                 }
 
-                // Enregistrer l'action (loop pour la quantité car enregistrerCraftBackpack ne prend pas de quantité)
-                for (int i = 0; i < actualCraftedAmount; i++) {
-                    entrepriseLogic.enregistrerCraftBackpack(player, backpackId);
+                // Enregistrer l'action
+                entrepriseLogic.enregistrerCraftBackpack(player, backpackId);
+
+                // RETURN ICI pour éviter la logique vanilla (sinon ça compte aussi les matériaux LEATHER, etc.)
+                return;
+            }
+        }
+
+        // Gestion des Custom Items - Vérifier restrictions + enregistrer
+        // IMPORTANT: Ne PAS utiliser calculateMaxCrafts() - on vérifie pour amountPerSingleCraft uniquement
+        if (plugin.getCustomItemManager() != null && plugin.getCustomItemManager().isCustomItem(resultItem)) {
+            com.gravityyfh.roleplaycity.customitems.model.CustomItem customItem = plugin.getCustomItemManager().getItemByItemStack(resultItem);
+            if (customItem != null) {
+                String itemId = customItem.getId();
+
+                // Vérifier les restrictions pour CRAFT_CUSTOM_ITEM (amountPerSingleCraft uniquement)
+                boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(
+                    player,
+                    "CRAFT_CUSTOM_ITEM",
+                    itemId,
+                    amountPerSingleCraft
+                );
+
+                if (isBlocked) {
+                    event.setCancelled(true);
+                    return;
                 }
-                // NE PAS RETURN ICI - Laisser le craft se finaliser normalement
-                // Le BackpackCraftListener a déjà créé l'item avec UUID unique
-                // return; ← SUPPRIMÉ pour permettre la récupération de l'item
+
+                // Enregistrer l'action
+                entrepriseLogic.enregistrerActionProductive(player, "CRAFT_CUSTOM_ITEM", itemId, 1);
+
+                // RETURN ICI pour éviter la logique vanilla
+                return;
             }
         }
 
         Material itemType = resultItem.getType();
         String itemTypeName = itemType.name();
 
-        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, actualCraftedAmount);
+        // Vérification et enregistrement pour 1 item à la fois (ou amountPerSingleCraft si recette produit plusieurs)
+        boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(player, "CRAFT_ITEM", itemTypeName, amountPerSingleCraft);
 
         if (isBlocked) {
             event.setCancelled(true);
             return;
         }
 
-        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, actualCraftedAmount);
+        entrepriseLogic.enregistrerActionProductive(player, "CRAFT_ITEM", itemType, amountPerSingleCraft);
     }
 
-    /**
-     * Calcule le nombre maximum d'items qui seront produits lors d'un craft en série (shift-click).
-     * Cette version est corrigée pour agréger correctement les ingrédients requis, que la recette
-     * soit avec ou sans forme, évitant ainsi les erreurs de calcul.
-     * @param recipe La recette exécutée.
-     * @param inventory L'inventaire de craft.
-     * @return Le nombre total d'items qui seront fabriqués.
-     */
-    private int calculateMaxCrafts(Recipe recipe, CraftingInventory inventory) {
-        ItemStack resultItem = recipe.getResult();
-        int amountPerSingleCraft = resultItem.getAmount();
-
-        // Étape 1: Déterminer les ingrédients requis et leurs quantités pour UN SEUL craft.
-        Map<Material, Integer> requiredMaterials = new HashMap<>();
-
-        if (recipe instanceof ShapedRecipe shapedRecipe) {
-            Map<Character, ItemStack> ingredientMap = shapedRecipe.getIngredientMap();
-            for (String row : shapedRecipe.getShape()) {
-                for (char symbol : row.toCharArray()) {
-                    ItemStack requiredIngredient = ingredientMap.get(symbol);
-                    if (requiredIngredient != null && requiredIngredient.getType() != Material.AIR) {
-                        requiredMaterials.merge(requiredIngredient.getType(), 1, Integer::sum);
-                    }
-                }
-            }
-        } else if (recipe instanceof ShapelessRecipe shapelessRecipe) {
-            for (ItemStack requiredIngredient : shapelessRecipe.getIngredientList()) {
-                if (requiredIngredient != null && requiredIngredient.getType() != Material.AIR) {
-                    requiredMaterials.merge(requiredIngredient.getType(), requiredIngredient.getAmount(), Integer::sum);
-                }
-            }
-        } else {
-            // Fallback pour les recettes non standards
-            return amountPerSingleCraft;
-        }
-
-        if (requiredMaterials.isEmpty()) {
-            return amountPerSingleCraft;
-        }
-
-        // Étape 2: Compter les matériaux disponibles dans la grille de craft.
-        Map<Material, Integer> availableMaterials = new HashMap<>();
-        for (ItemStack itemInGrid : inventory.getMatrix()) {
-            if (itemInGrid != null && itemInGrid.getType() != Material.AIR) {
-                availableMaterials.merge(itemInGrid.getType(), itemInGrid.getAmount(), Integer::sum);
-            }
-        }
-
-        // Étape 3: Trouver le facteur limitant (combien de crafts complets sont possibles).
-        int maxCrafts = Integer.MAX_VALUE;
-        for (Map.Entry<Material, Integer> required : requiredMaterials.entrySet()) {
-            Material material = required.getKey();
-            int requiredAmount = required.getValue();
-            int availableAmount = availableMaterials.getOrDefault(material, 0);
-
-            if (availableAmount < requiredAmount) {
-                return 0; // Pas assez d'ingrédients pour un seul craft.
-            }
-            maxCrafts = Math.min(maxCrafts, availableAmount / requiredAmount);
-        }
-
-        return (maxCrafts == Integer.MAX_VALUE ? 0 : maxCrafts) * amountPerSingleCraft;
-    }
+    // NOTE: calculateMaxCrafts() SUPPRIMÉE
+    // Cette méthode causait le bug de désynchronisation client/serveur (30 → 58 → 29)
+    // en lisant inventory.getMatrix() pendant CraftItemEvent.
+    // Solution: Bukkit gère automatiquement le shift-click en appelant cet event plusieurs fois.
 }
