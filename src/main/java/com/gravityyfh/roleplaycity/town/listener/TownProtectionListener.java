@@ -1,6 +1,10 @@
 package com.gravityyfh.roleplaycity.town.listener;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.heist.data.Heist;
+import com.gravityyfh.roleplaycity.heist.data.HeistParticipant;
+import com.gravityyfh.roleplaycity.heist.data.HeistPhase;
+import com.gravityyfh.roleplaycity.heist.manager.HeistManager;
 import com.gravityyfh.roleplaycity.town.data.*;
 import com.gravityyfh.roleplaycity.town.manager.ClaimManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -17,6 +21,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
 
@@ -138,6 +143,11 @@ public class TownProtectionListener implements Listener {
 
         Player player = event.getPlayer();
 
+        // BYPASS: Bombe de cambriolage (furniture ItemsAdder) peut être posée partout
+        if (isHeistBombItem(event.getItem())) {
+            return; // Ne pas bloquer le placement de la bombe
+        }
+
         // Vérifier si c'est un bloc interactif (coffre, four, porte, bouton, etc.)
         if (isInteractiveBlock(block)) {
             if (!canInteract(player, block.getLocation(), block)) {
@@ -177,6 +187,11 @@ public class TownProtectionListener implements Listener {
             return true;
         }
 
+        // HEIST BYPASS: Cambrioleurs peuvent construire pendant la phase de vol
+        if (canBypassForHeist(player, location)) {
+            return true;
+        }
+
         // Récupérer la ville
         String townName = claimManager.getClaimOwner(location);
         if (townName == null) {
@@ -207,6 +222,11 @@ public class TownProtectionListener implements Listener {
     private boolean canInteract(Player player, Location location, Block block) {
         // Admins bypass
         if (player.hasPermission("roleplaycity.town.admin")) {
+            return true;
+        }
+
+        // HEIST BYPASS: Cambrioleurs peuvent interagir pendant la phase de vol
+        if (canBypassForHeist(player, location)) {
             return true;
         }
 
@@ -320,10 +340,54 @@ public class TownProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        event.blockList().removeIf(block -> {
-            Plot plot = claimManager.getPlotAt(block.getLocation());
-            return plot != null && !plot.getFlag(PlotFlag.EXPLOSION);
-        });
+        HeistManager heistManager = plugin.getHeistManager();
+
+        event.blockList().removeIf(block -> shouldProtectFromExplosion(block.getLocation(), heistManager));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        HeistManager heistManager = plugin.getHeistManager();
+
+        event.blockList().removeIf(block -> shouldProtectFromExplosion(block.getLocation(), heistManager));
+    }
+
+    /**
+     * Vérifie si un bloc doit être protégé d'une explosion.
+     * Retourne TRUE si le bloc doit être PROTÉGÉ (retiré de la liste d'explosion).
+     * Retourne FALSE si le bloc peut être CASSÉ.
+     */
+    private boolean shouldProtectFromExplosion(Location blockLocation, HeistManager heistManager) {
+        // 1. HEIST BYPASS: Vérifier si c'est une explosion pendant un cambriolage
+        if (heistManager != null) {
+            Heist heist = heistManager.getActiveHeistAt(blockLocation);
+
+            // DEBUG LOG
+            if (heist != null) {
+                plugin.getLogger().info("[Heist-Debug] Heist trouvé! Phase=" + heist.getPhase() +
+                    ", isExploding=" + heist.isExploding() + ", shouldBreakBlocks=" + heist.shouldBreakBlocks());
+            }
+
+            if (heist != null) {
+                // Phase ROBBERY = accès libre TOTAL (toutes explosions autorisées)
+                // Pendant le vol, N'IMPORTE QUELLE explosion peut casser les blocs
+                if (heist.getPhase() == HeistPhase.ROBBERY) {
+                    plugin.getLogger().info("[Heist-Debug] Phase ROBBERY - Autorisation explosion!");
+                    return false; // NE PAS protéger = autoriser TOUTES les explosions
+                }
+
+                // Explosion initiale de la bombe (si config break-blocks: true)
+                if (heist.isExploding() && heist.shouldBreakBlocks()) {
+                    plugin.getLogger().info("[Heist-Debug] Explosion initiale - Autorisation!");
+                    return false; // Autoriser l'explosion de la bombe
+                }
+            }
+        }
+
+        // 2. Protection standard par Flag
+        Plot plot = claimManager.getPlotAt(blockLocation);
+        // Si plot existe ET flag EXPLOSION est désactivé → protéger le bloc
+        return plot != null && !plot.getFlag(PlotFlag.EXPLOSION);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -492,5 +556,66 @@ public class TownProtectionListener implements Listener {
         if (plot.getOwnerName() != null) {
             player.sendMessage(ChatColor.GRAY + "Propriétaire: " + ChatColor.YELLOW + plot.getOwnerName());
         }
+    }
+
+    /**
+     * Vérifie si un joueur peut bypass les protections à cause d'un cambriolage en cours.
+     *
+     * PENDANT LA PHASE DE VOL (ROBBERY):
+     * - TOUS les joueurs ont accès libre au terrain
+     * - Pas de restrictions: coffres, blocs, shops, explosions, tout est autorisé
+     * - La durée est définie dans cambriolage.yml (robbery-duration)
+     * - Une fois le temps écoulé, les restrictions sont automatiquement restaurées
+     *
+     * @param player Le joueur à vérifier
+     * @param location L'emplacement de l'action
+     * @return true si le joueur peut bypass les protections
+     */
+    private boolean canBypassForHeist(Player player, Location location) {
+        HeistManager heistManager = plugin.getHeistManager();
+        if (heistManager == null) {
+            return false;
+        }
+
+        // Récupérer le heist à cet emplacement
+        Heist heist = heistManager.getActiveHeistAt(location);
+        if (heist == null) {
+            return false;
+        }
+
+        // Pendant la phase de vol: TOUT LE MONDE a accès libre au terrain
+        // Les restrictions de ville sont COMPLÈTEMENT désactivées
+        // La durée est gérée par HeistRobberyTask qui termine le heist automatiquement
+        if (heist.getPhase() == HeistPhase.ROBBERY) {
+            return true; // N'importe qui peut agir sur le terrain
+        }
+
+        return false;
+    }
+
+    /**
+     * Vérifie si l'item est une bombe de cambriolage ItemsAdder.
+     * La bombe peut être posée partout (bypass protection terrain).
+     *
+     * @param item L'item à vérifier
+     * @return true si c'est la bombe de cambriolage
+     */
+    private boolean isHeistBombItem(ItemStack item) {
+        if (item == null) return false;
+
+        try {
+            // Vérifier si ItemsAdder est disponible
+            Class<?> customStackClass = Class.forName("dev.lone.itemsadder.api.CustomStack");
+            Object customStack = customStackClass.getMethod("byItemStack", ItemStack.class).invoke(null, item);
+
+            if (customStack != null) {
+                String namespacedId = (String) customStackClass.getMethod("getNamespacedID").invoke(customStack);
+                return "my_items:bomb".equals(namespacedId);
+            }
+        } catch (Throwable ignored) {
+            // ItemsAdder non disponible ou erreur - ignorer silencieusement
+        }
+
+        return false;
     }
 }

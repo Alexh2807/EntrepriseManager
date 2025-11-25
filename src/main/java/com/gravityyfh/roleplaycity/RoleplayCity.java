@@ -175,6 +175,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.lotto.LottoManager lottoManager;
     private com.gravityyfh.roleplaycity.lotto.LottoGUI lottoGUI;
 
+    // Système de Cambriolage (Heist)
+    private com.gravityyfh.roleplaycity.heist.config.HeistConfig heistConfig;
+    private com.gravityyfh.roleplaycity.heist.manager.HeistManager heistManager;
+    private com.gravityyfh.roleplaycity.heist.listener.HeistProtectionListener heistProtectionListener;
+    private com.gravityyfh.roleplaycity.heist.listener.HeistBombListener heistBombListener;
+    private com.gravityyfh.roleplaycity.heist.listener.HeistFurniturePlaceListener heistFurniturePlaceListener;
+
     // PHASE 6: Service Layer (SQLite)
     private com.gravityyfh.roleplaycity.entreprise.service.ServiceFactory serviceFactory;
     private com.gravityyfh.roleplaycity.entreprise.service.AsyncEntrepriseService asyncEntrepriseService;
@@ -242,21 +249,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().severe("[RPC-DEBUG] Command /money is NULL!");
         }
 
-        // IMPORTANT: Attendre que LightEconomy s'enregistre avec Vault
-        getLogger().info("[RPC-DEBUG] Waiting for LightEconomy to register with Vault...");
-        try {
-            Thread.sleep(200); // Attendre 200ms pour que le provider s'enregistre
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         if (!setupEconomy()) {
             getLogger().severe("### ERREUR CRITIQUE : Vault non trouvé ou pas de fournisseur d'économie. ###");
-            getLogger().severe("### LightEconomy n'a pas réussi à s'enregistrer avec Vault ! ###");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        getLogger().info("[RPC-DEBUG] Economy setup successful!");
 
         saveDefaultConfig();
         // FIX BASSE #25: Valider la configuration au startup
@@ -407,6 +404,23 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Initialisation du système de Loto
         lottoManager = new com.gravityyfh.roleplaycity.lotto.LottoManager(this);
         lottoGUI = new com.gravityyfh.roleplaycity.lotto.LottoGUI(this, lottoManager);
+
+        // Système de Cambriolage (Heist)
+        try {
+            heistConfig = new com.gravityyfh.roleplaycity.heist.config.HeistConfig(this);
+            heistManager = new com.gravityyfh.roleplaycity.heist.manager.HeistManager(this, heistConfig);
+            heistProtectionListener = new com.gravityyfh.roleplaycity.heist.listener.HeistProtectionListener(this, heistManager);
+            heistBombListener = new com.gravityyfh.roleplaycity.heist.listener.HeistBombListener(this, heistManager);
+            heistFurniturePlaceListener = new com.gravityyfh.roleplaycity.heist.listener.HeistFurniturePlaceListener(this, heistManager);
+            getServer().getPluginManager().registerEvents(heistProtectionListener, this);
+            getServer().getPluginManager().registerEvents(heistBombListener, this);
+            getServer().getPluginManager().registerEvents(heistFurniturePlaceListener, this);
+            debugLogger.debug("STARTUP", "HeistManager et listeners initialisés (incluant HeistFurniturePlaceListener)");
+            getLogger().info("[HeistSystem] Système de cambriolage activé");
+        } catch (Exception e) {
+            getLogger().warning("[HeistSystem] Erreur lors de l'initialisation du système de cambriolage: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         // Initialisation ChatListener pour les saisies via chat
         chatListener = new ChatListener(this, entrepriseGUI);
@@ -583,6 +597,9 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             customItemCraftListener.registerRecipes();
             getLogger().info("[DEBUG] ✓ Recettes enregistrées");
 
+            // NOTE: Le listener ItemsAdderLoadListener sera enregistré APRÈS les backpacks
+            // pour pouvoir inclure les deux systèmes (CustomItems + Backpacks)
+
             debugLogger.debug("STARTUP", "CustomItemManager et listeners initialisés (architecture Backpacks)");
             getLogger().info("[DEBUG] ✓✓✓ Système CustomItems COMPLÈTEMENT INITIALISÉ (OPEN_MAIRIE compris) ✓✓✓");
         } catch (Exception e) {
@@ -651,6 +668,36 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             if (compressionEnabled) {
                 getLogger().info("⚡ Compression GZIP activée (économie mémoire ~50-70%)");
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ENREGISTRER LE LISTENER ITEMSADDER UNIFIÉ (après backpacks + custom items)
+        // ═══════════════════════════════════════════════════════════════════════════
+        if (getServer().getPluginManager().getPlugin("ItemsAdder") != null) {
+            try {
+                Class<?> loadListenerClass = Class.forName("com.gravityyfh.roleplaycity.customitems.listener.ItemsAdderLoadListener");
+                java.lang.reflect.Constructor<?> loadConstructor = loadListenerClass.getConstructor(
+                    RoleplayCity.class,
+                    com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager.class,
+                    com.gravityyfh.roleplaycity.customitems.listener.CustomItemCraftListener.class,
+                    com.gravityyfh.roleplaycity.backpack.manager.BackpackItemManager.class,
+                    com.gravityyfh.roleplaycity.backpack.listener.BackpackCraftListener.class
+                );
+                Listener loadListener = (Listener) loadConstructor.newInstance(
+                    this,
+                    customItemManager,
+                    customItemCraftListener,
+                    backpackItemManager,
+                    backpackCraftListener
+                );
+                getServer().getPluginManager().registerEvents(loadListener, this);
+                getLogger().info("[ItemsAdder] ✓ Listener unifié enregistré - CustomItems + Backpacks seront rechargés quand ItemsAdder charge");
+            } catch (Throwable e) {
+                getLogger().warning("[ItemsAdder] Impossible de charger le listener unifié: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            getLogger().info("[ItemsAdder] Plugin non détecté - les items utiliseront le mode vanilla/fallback");
         }
 
         // Activity Listeners
@@ -1409,10 +1456,40 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 getLogger().info("✓ Système de police rechargé (Taser & Menottes)");
             }
 
-            // 10. Recharger les items custom
+            // 10. Recharger les items custom ET les recettes
             if (customItemManager != null) {
+                // Rafraîchir le statut ItemsAdder au cas où il aurait été chargé après
+                customItemManager.refreshItemsAdderAvailability();
+                // Recharger les définitions d'items
                 customItemManager.loadItems();
-                getLogger().info("✓ Système d'items custom rechargé");
+                // Ré-enregistrer les recettes avec les items mis à jour
+                if (customItemCraftListener != null) {
+                    customItemCraftListener.registerRecipes();
+                    getLogger().info("✓ Système d'items custom rechargé (items + recettes)");
+                } else {
+                    getLogger().info("✓ Système d'items custom rechargé (items uniquement)");
+                }
+            }
+
+            // 11. Recharger les backpacks ET leurs recettes
+            if (backpackItemManager != null) {
+                // Rafraîchir le statut ItemsAdder
+                backpackItemManager.refreshItemsAdderAvailability();
+                // Recharger la configuration des backpacks
+                backpackItemManager.loadConfiguration();
+                // Ré-enregistrer les recettes
+                if (backpackCraftListener != null) {
+                    backpackCraftListener.registerRecipes();
+                    getLogger().info("✓ Système de backpacks rechargé (config + recettes)");
+                } else {
+                    getLogger().info("✓ Système de backpacks rechargé (config uniquement)");
+                }
+            }
+
+            // 12. Recharger la configuration des cambriolages (cambriolage.yml)
+            if (heistManager != null && heistManager.getConfig() != null) {
+                heistManager.getConfig().reload();
+                getLogger().info("✓ Configuration des cambriolages rechargée (cambriolage.yml)");
             }
 
             getLogger().info("════════════════════════════════════════════════════");
@@ -1520,6 +1597,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public TownManager getTownManager() {
         return townManager;
+    }
+
+    public com.gravityyfh.roleplaycity.heist.manager.HeistManager getHeistManager() {
+        return heistManager;
+    }
+
+    public com.gravityyfh.roleplaycity.heist.config.HeistConfig getHeistConfig() {
+        return heistConfig;
     }
 
     public com.gravityyfh.roleplaycity.town.manager.TownDataManager getTownDataManager() {

@@ -7,7 +7,7 @@ public enum PlotFlag {
     PVP("PVP", "Combat joueur vs joueur", true),
     EXPLOSION("Explosions", "Dégâts d'explosions (creepers, TNT)", false),
     FIRE_SPREAD("Propagation feu", "Le feu se propage", false),
-    MOB_SPAWNING("Spawn mobs", "Mobs hostiles peuvent spawn", true),
+    MOB_SPAWNING("Spawn mobs", "Mobs hostiles peuvent spawn", false),
     LEAF_DECAY("Feuilles se détériorent", "Feuilles tombent naturellement", true),
     CROP_TRAMPLING("Piétiner cultures", "Détruire cultures en sautant", false),
     ENTITY_GRIEFING("Grief entités", "Endermen, ghasts détruisent blocs", false),

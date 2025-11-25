@@ -186,11 +186,46 @@ public class BackpackItemManager {
     }
 
     /**
+     * Vérifie si les données ItemsAdder sont complètement chargées
+     */
+    private boolean areItemsAdderDataLoaded() {
+        if (!itemsAdderAvailable) {
+            return false;
+        }
+
+        try {
+            Class<?> itemsAdderClass = Class.forName("dev.lone.itemsadder.api.ItemsAdder");
+            Boolean loaded = (Boolean) itemsAdderClass.getMethod("areItemsLoaded").invoke(null);
+            return loaded != null && loaded;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Rafraîchit le statut d'ItemsAdder
+     */
+    public void refreshItemsAdderAvailability() {
+        boolean wasAvailable = itemsAdderAvailable;
+        itemsAdderAvailable = Bukkit.getPluginManager().getPlugin("ItemsAdder") != null;
+
+        if (!wasAvailable && itemsAdderAvailable) {
+            logger.info("[Backpacks] ItemsAdder maintenant disponible !");
+        }
+    }
+
+    /**
      * Crée un item avec ItemsAdder
      */
     private ItemStack createItemsAdderItem(BackpackType type) {
         if (!itemsAdderAvailable) {
             logger.warning("[Backpacks] ItemsAdder non disponible, création d'un item vanilla pour " + type.getId());
+            return createVanillaItem(type);
+        }
+
+        // IMPORTANT: Vérifier si les données ItemsAdder sont chargées
+        if (!areItemsAdderDataLoaded()) {
+            logger.warning("[Backpacks] Données ItemsAdder pas encore chargées, création d'un item vanilla pour " + type.getId());
             return createVanillaItem(type);
         }
 

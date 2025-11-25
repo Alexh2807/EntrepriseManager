@@ -108,7 +108,10 @@
       "Bash(find:*)",
       "Bash(jar tf:*)",
       "Bash(cat:*)",
-      "Bash(jar xf:*)"
+      "Bash(jar xf:*)",
+      "WebFetch(domain:bukkit.org)",
+      "WebFetch(domain:hub.spigotmc.org)",
+      "Bash(Select-String -Pattern \"BUILD|ERROR|SUCCESS\")"
     ],
     "deny": [],
     "ask": []
