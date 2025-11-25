@@ -111,7 +111,8 @@
       "Bash(jar xf:*)",
       "WebFetch(domain:bukkit.org)",
       "WebFetch(domain:hub.spigotmc.org)",
-      "Bash(Select-String -Pattern \"BUILD|ERROR|SUCCESS\")"
+      "Bash(Select-String -Pattern \"BUILD|ERROR|SUCCESS\")",
+      "Bash(Remove-Item:*)"
     ],
     "deny": [],
     "ask": []

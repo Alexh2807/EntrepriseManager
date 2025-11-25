@@ -415,6 +415,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getServer().getPluginManager().registerEvents(heistProtectionListener, this);
             getServer().getPluginManager().registerEvents(heistBombListener, this);
             getServer().getPluginManager().registerEvents(heistFurniturePlaceListener, this);
+
+            // Initialiser le système après un court délai pour que tous les mondes soient chargés
+            getServer().getScheduler().runTaskLater(this, () -> {
+                if (heistManager != null) {
+                    heistManager.initialize();
+                }
+            }, 20L); // 1 seconde après le démarrage
+
             debugLogger.debug("STARTUP", "HeistManager et listeners initialisés (incluant HeistFurniturePlaceListener)");
             getLogger().info("[HeistSystem] Système de cambriolage activé");
         } catch (Exception e) {
@@ -723,6 +731,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     }
 
     public void onDisable() {
+        // Nettoyer le système de cambriolage
+        if (heistManager != null) {
+            heistManager.shutdown();
+        }
+
         // Nettoyer le système de backpacks
         if (backpackCraftListener != null) {
             backpackCraftListener.unregisterRecipes();
