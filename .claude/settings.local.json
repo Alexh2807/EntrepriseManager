@@ -112,7 +112,8 @@
       "WebFetch(domain:bukkit.org)",
       "WebFetch(domain:hub.spigotmc.org)",
       "Bash(Select-String -Pattern \"BUILD|ERROR|SUCCESS\")",
-      "Bash(Remove-Item:*)"
+      "Bash(Remove-Item:*)",
+      "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS|error:\" -Context 0,2)"
     ],
     "deny": [],
     "ask": []
