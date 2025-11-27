@@ -3,10 +3,7 @@ package com.gravityyfh.roleplaycity.police.listeners;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.items.PoliceItemManager;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -16,11 +13,11 @@ import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
-import org.bukkit.inventory.ShapedRecipe;
 
 /**
  * Listener pour gérer les restrictions de craft des items de police
  * Seul le maire de la ville peut crafter les tasers et menottes
+ * Note: Les items sont maintenant gérés via ItemsAdder (/iaget)
  */
 public class PoliceCraftListener implements Listener {
 
@@ -28,74 +25,10 @@ public class PoliceCraftListener implements Listener {
     private final PoliceItemManager itemManager;
     private final TownManager townManager;
 
-    // Recettes
-    private NamespacedKey taserRecipeKey;
-    private NamespacedKey handcuffsRecipeKey;
-
     public PoliceCraftListener(RoleplayCity plugin, PoliceItemManager itemManager) {
         this.plugin = plugin;
         this.itemManager = itemManager;
         this.townManager = plugin.getTownManager();
-
-        // Enregistrer les recettes si activées
-        registerRecipes();
-    }
-
-    /**
-     * Enregistre les recettes de craft
-     */
-    private void registerRecipes() {
-        FileConfiguration config = plugin.getConfig();
-
-        // Recette Taser
-        if (config.getBoolean("police-equipment.taser.crafting.enabled", true)) {
-            taserRecipeKey = new NamespacedKey(plugin, "taser_recipe");
-
-            ShapedRecipe taserRecipe = new ShapedRecipe(taserRecipeKey, itemManager.createTaser());
-
-            // Pattern:
-            // [   ] [I] [   ]
-            // [R] [S] [R]
-            // [   ] [C] [   ]
-            // I = Iron Ingot, R = Redstone, S = Stick, C = Copper Ingot
-            taserRecipe.shape(" I ", "RSR", " C ");
-            taserRecipe.setIngredient('I', Material.IRON_INGOT);
-            taserRecipe.setIngredient('R', Material.REDSTONE);
-            taserRecipe.setIngredient('S', Material.STICK);
-            taserRecipe.setIngredient('C', Material.COPPER_INGOT);
-
-            // Retirer l'ancienne recette si elle existe
-            try {
-                Bukkit.removeRecipe(taserRecipeKey);
-            } catch (Exception ignored) {}
-
-            Bukkit.addRecipe(taserRecipe);
-            plugin.getLogger().info("Recette Taser enregistrée (réservée au maire)");
-        }
-
-        // Recette Menottes
-        if (config.getBoolean("police-equipment.handcuffs.crafting.enabled", true)) {
-            handcuffsRecipeKey = new NamespacedKey(plugin, "handcuffs_recipe");
-
-            ShapedRecipe handcuffsRecipe = new ShapedRecipe(handcuffsRecipeKey, itemManager.createHandcuffs());
-
-            // Pattern:
-            // [I] [C] [I]
-            // [ ] [I] [ ]
-            // [ ] [ ] [ ]
-            // I = Iron Ingot, C = Chain
-            handcuffsRecipe.shape("ICI", " I ", "   ");
-            handcuffsRecipe.setIngredient('I', Material.IRON_INGOT);
-            handcuffsRecipe.setIngredient('C', Material.CHAIN);
-
-            // Retirer l'ancienne recette si elle existe
-            try {
-                Bukkit.removeRecipe(handcuffsRecipeKey);
-            } catch (Exception ignored) {}
-
-            Bukkit.addRecipe(handcuffsRecipe);
-            plugin.getLogger().info("Recette Menottes enregistrée (réservée au maire)");
-        }
     }
 
     /**
@@ -111,7 +44,7 @@ public class PoliceCraftListener implements Listener {
         Recipe recipe = event.getRecipe();
         ItemStack result = recipe.getResult();
 
-        // Vérifier si c'est un taser ou des menottes
+        // Vérifier si c'est un taser ou des menottes (ItemsAdder)
         if (!itemManager.isTaser(result) && !itemManager.isHandcuffs(result)) {
             return;
         }
@@ -154,7 +87,7 @@ public class PoliceCraftListener implements Listener {
 
         ItemStack result = event.getRecipe().getResult();
 
-        // Vérifier si c'est un taser ou des menottes
+        // Vérifier si c'est un taser ou des menottes (ItemsAdder)
         if (!itemManager.isTaser(result) && !itemManager.isHandcuffs(result)) {
             return;
         }
@@ -204,36 +137,12 @@ public class PoliceCraftListener implements Listener {
     }
 
     /**
-     * Supprime les recettes enregistrées (appelé lors du disable du plugin)
-     */
-    public void unregisterRecipes() {
-        if (taserRecipeKey != null) {
-            try {
-                Bukkit.removeRecipe(taserRecipeKey);
-            } catch (Exception ignored) {}
-        }
-
-        if (handcuffsRecipeKey != null) {
-            try {
-                Bukkit.removeRecipe(handcuffsRecipeKey);
-            } catch (Exception ignored) {}
-        }
-    }
-
-    /**
-     * Recharge les recettes avec les nouvelles configurations
+     * Recharge la configuration
      * Appelé lors d'un /rpc reload
      */
     public void reloadRecipes() {
-        // Désinscrire les anciennes recettes
-        unregisterRecipes();
-
         // Recharger la configuration de l'ItemManager
         itemManager.loadConfiguration();
-
-        // Réenregistrer les recettes avec les nouvelles valeurs
-        registerRecipes();
-
-        plugin.getLogger().info("Recettes de police rechargées (Taser & Menottes)");
+        plugin.getLogger().info("Configuration police rechargée (Taser & Menottes via ItemsAdder)");
     }
 }

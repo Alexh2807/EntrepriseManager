@@ -1,6 +1,8 @@
 package com.gravityyfh.roleplaycity.integration;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.identity.data.Identity;
+import com.gravityyfh.roleplaycity.identity.manager.IdentityManager;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -72,6 +74,67 @@ public class RoleplayCityPlaceholders extends PlaceholderExpansion {
             return getPlayerRank(playerUuid, true);
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // PLACEHOLDERS D'IDENTITÉ
+        // ═══════════════════════════════════════════════════════════
+
+        // %roleplaycity_identity_name% → Nom Minecraft du joueur
+        if (identifier.equals("identity_name") || identifier.equals("identity_fullname")) {
+            return player.getName();
+        }
+
+        // %roleplaycity_identity_age% → "25"
+        if (identifier.equals("identity_age")) {
+            Identity identity = getIdentity(playerUuid);
+            if (identity != null) {
+                return String.valueOf(identity.getAge());
+            }
+            return "";
+        }
+
+        // %roleplaycity_identity_sex% → "Homme" ou "Femme"
+        if (identifier.equals("identity_sex")) {
+            Identity identity = getIdentity(playerUuid);
+            if (identity != null && identity.getSex() != null) {
+                return identity.getSex();
+            }
+            return "";
+        }
+
+        // %roleplaycity_identity_height% → "175"
+        if (identifier.equals("identity_height")) {
+            Identity identity = getIdentity(playerUuid);
+            if (identity != null) {
+                return String.valueOf(identity.getHeight());
+            }
+            return "";
+        }
+
+        // %roleplaycity_identity_residence% → "Paris"
+        if (identifier.equals("identity_residence")) {
+            Identity identity = getIdentity(playerUuid);
+            if (identity != null && identity.getResidenceCity() != null) {
+                return identity.getResidenceCity();
+            }
+            return "";
+        }
+
+        // %roleplaycity_identity_has% → "true" ou "false"
+        if (identifier.equals("identity_has")) {
+            Identity identity = getIdentity(playerUuid);
+            return identity != null ? "true" : "false";
+        }
+
+        return null;
+    }
+
+    /**
+     * Récupère l'identité d'un joueur
+     */
+    private Identity getIdentity(UUID playerUuid) {
+        if (plugin.getIdentityManager() != null) {
+            return plugin.getIdentityManager().getIdentity(playerUuid);
+        }
         return null;
     }
 

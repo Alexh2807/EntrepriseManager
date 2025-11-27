@@ -1298,8 +1298,7 @@ police-equipment:
     lore:
       - "&7Clic droit pour taser un joueur."
       - "&7Charges: &6&l%charges%"
-    material: STICK
-    custom-model-data: 10021
+    itemsadder-id: "my_items:taser"
     max-charges: 10
     cooldown: 10
     duration: 5
@@ -1344,8 +1343,7 @@ police-equipment:
     lore:
       - "&7Clic droit sur un joueur pour le menotter."
       - "&7Maintenez Shift pour affaiblir les menottes."
-    material: LEAD
-    custom-model-data: 5456
+    itemsadder-id: "my_items:handcuffs"
 
     crafting:
       enabled: true
@@ -1399,6 +1397,28 @@ police-equipment:
     craft-success: "&aVous avez fabriqué un(e) %item% !"
 
 
+
+
+# ============================================
+#       SYSTÈME DE SERVICE POLICE
+# ============================================
+# Configuration du service policier (casier, skin, etc.)
+
+police-service:
+  enabled: true
+
+  # Skins SkinRestorer à appliquer selon le sexe de la carte d'identité
+  # Ces noms doivent correspondre aux skins configurés dans SkinRestorer
+  skin-homme: "policier"       # Skin appliqué pour les hommes
+  skin-femme: "policiere"      # Skin appliqué pour les femmes
+  skin-default: "policier"     # Skin par défaut si sexe non défini
+
+  # Messages
+  messages:
+    already-in-service: "&cVous êtes déjà en service !"
+    not-in-service: "&cVous n'êtes pas en service !"
+    no-identity: "&cVous devez avoir une carte d'identité pour prendre votre service."
+    not-police: "&cVous devez être policier pour prendre votre service."
 
 
 # ============================================

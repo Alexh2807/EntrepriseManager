@@ -30,6 +30,7 @@ public class TownPoliceGUI implements Listener {
     private static final String POLICE_TITLE = ChatColor.DARK_BLUE + "🚔 Police Municipale";
     private static final String SELECT_PLAYER_TITLE = ChatColor.DARK_BLUE + "👤 Sélectionner un joueur";
     private static final String SELECT_FINE_TITLE = ChatColor.DARK_BLUE + "📋 Type d'amende";
+    private static final String SELECT_ID_TITLE = ChatColor.DARK_BLUE + "📋 Demander l'Identité";
 
     private final Map<UUID, FineContext> pendingFines;
 
@@ -159,13 +160,97 @@ public class TownPoliceGUI implements Listener {
             friskMeta.setDisplayName(ChatColor.DARK_PURPLE + "🔍 Fouiller un joueur");
             List<String> friskLore = new ArrayList<>();
             friskLore.add(ChatColor.GRAY + "Fouiller un suspect");
-            friskLore.add(ChatColor.GRAY + "menotté à proximité");
+            friskLore.add(ChatColor.GRAY + "à proximité");
+            friskLore.add("");
+            friskLore.add(ChatColor.WHITE + "• Menotté: fouille directe");
+            friskLore.add(ChatColor.WHITE + "• Libre: consentement requis");
             friskLore.add("");
             friskLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
             friskMeta.setLore(friskLore);
             friskItem.setItemMeta(friskMeta);
             inv.setItem(23, friskItem);
         }
+
+        // Demander l'identité (slot 16)
+        ItemStack idRequestItem = new ItemStack(Material.NAME_TAG);
+        ItemMeta idRequestMeta = idRequestItem.getItemMeta();
+        idRequestMeta.setDisplayName(ChatColor.AQUA + "📋 Demander l'Identité");
+        List<String> idRequestLore = new ArrayList<>();
+        idRequestLore.add(ChatColor.GRAY + "Demander la carte d'identité");
+        idRequestLore.add(ChatColor.GRAY + "d'un citoyen à proximité");
+        idRequestLore.add("");
+        idRequestLore.add(ChatColor.WHITE + "Le joueur doit accepter");
+        idRequestLore.add(ChatColor.WHITE + "de montrer sa carte.");
+        idRequestLore.add("");
+        idRequestLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
+        idRequestMeta.setLore(idRequestLore);
+        idRequestItem.setItemMeta(idRequestMeta);
+        inv.setItem(16, idRequestItem);
+
+        // Fermer
+        ItemStack closeItem = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = closeItem.getItemMeta();
+        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeItem.setItemMeta(closeMeta);
+        inv.setItem(26, closeItem);
+
+        player.openInventory(inv);
+    }
+
+    /**
+     * Ouvre le menu de sélection de joueur pour demander l'identité
+     * N'affiche que les joueurs à proximité (5 blocs)
+     */
+    private void openIdRequestSelectionMenu(Player player) {
+        Inventory inv = Bukkit.createInventory(null, 27, SELECT_ID_TITLE);
+
+        int slot = 0;
+        boolean found = false;
+
+        for (Player target : Bukkit.getOnlinePlayers()) {
+            if (target.equals(player)) continue;
+
+            // Vérifier la distance (5 blocs)
+            if (!target.getWorld().equals(player.getWorld()) ||
+                target.getLocation().distance(player.getLocation()) > 5) {
+                continue;
+            }
+
+            found = true;
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            meta.setOwningPlayer(target);
+            meta.setDisplayName(ChatColor.YELLOW + target.getName());
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Distance: " + String.format("%.1fm", target.getLocation().distance(player.getLocation())));
+            lore.add("");
+            lore.add(ChatColor.GREEN + "► Cliquez pour demander son ID");
+            meta.setLore(lore);
+            head.setItemMeta(meta);
+            inv.setItem(slot++, head);
+
+            if (slot >= 18) break;
+        }
+
+        if (!found) {
+            ItemStack none = new ItemStack(Material.BARRIER);
+            ItemMeta meta = none.getItemMeta();
+            meta.setDisplayName(ChatColor.RED + "Aucun joueur à proximité");
+            meta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Rapprochez-vous d'un citoyen",
+                ChatColor.GRAY + "pour demander son identité."
+            ));
+            none.setItemMeta(meta);
+            inv.setItem(13, none);
+        }
+
+        // Bouton retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(22, backItem);
 
         // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
@@ -194,7 +279,6 @@ public class TownPoliceGUI implements Listener {
             skullMeta.setDisplayName(ChatColor.YELLOW + target.getName());
 
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "UUID: " + ChatColor.WHITE + target.getUniqueId().toString().substring(0, 8));
             lore.add("");
             lore.add(ChatColor.GREEN + "Cliquez pour sélectionner");
             skullMeta.setLore(lore);
@@ -309,7 +393,50 @@ public class TownPoliceGUI implements Listener {
                 if (plugin.getFriskGUI() != null) {
                     plugin.getFriskGUI().openTargetSelection(player);
                 }
+            } else if (displayName.contains("Demander l'Identité")) {
+                openIdRequestSelectionMenu(player);
             } else if (displayName.contains("Fermer")) {
+                player.closeInventory();
+            }
+        }
+        // Menu de sélection pour demande d'identité
+        else if (title.equals(SELECT_ID_TITLE)) {
+            event.setCancelled(true);
+
+            if (clicked.getType() == Material.PLAYER_HEAD) {
+                SkullMeta idSkullMeta = (SkullMeta) clicked.getItemMeta();
+                org.bukkit.OfflinePlayer idOwningPlayer = idSkullMeta.getOwningPlayer();
+                Player target = idOwningPlayer != null ? Bukkit.getPlayer(idOwningPlayer.getUniqueId()) : null;
+
+                if (target != null && target.isOnline()) {
+                    player.closeInventory();
+
+                    // Vérifier la distance
+                    var requestManager = plugin.getInteractionRequestManager();
+                    if (requestManager == null) {
+                        player.sendMessage(ChatColor.RED + "Système non disponible.");
+                        return;
+                    }
+
+                    // Vérifier s'il n'y a pas déjà une demande en cours
+                    if (requestManager.hasPendingRequest(player.getUniqueId(), target.getUniqueId(),
+                            com.gravityyfh.roleplaycity.service.InteractionRequest.RequestType.REQUEST_ID)) {
+                        player.sendMessage(ChatColor.YELLOW + "Une demande d'identité est déjà en attente pour ce joueur.");
+                        return;
+                    }
+
+                    var request = requestManager.createIdRequest(player, target);
+                    if (request != null) {
+                        player.sendMessage(ChatColor.GREEN + "Demande d'identité envoyée à " + target.getName() + ".");
+                        player.sendMessage(ChatColor.GRAY + "En attente de sa réponse (30 secondes)...");
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "Le joueur n'est plus en ligne.");
+                    player.closeInventory();
+                }
+            } else if (clicked.getType() == Material.ARROW) {
+                openPoliceMenu(player);
+            } else if (clicked.getType() == Material.BARRIER) {
                 player.closeInventory();
             }
         }
@@ -319,14 +446,16 @@ public class TownPoliceGUI implements Listener {
 
             if (clicked.getType() == Material.PLAYER_HEAD) {
                 SkullMeta skullMeta = (SkullMeta) clicked.getItemMeta();
-                String targetName = ChatColor.stripColor(skullMeta.getDisplayName());
-                Player target = Bukkit.getPlayer(targetName);
+                // Utiliser getOwningPlayer pour récupérer le joueur (plus fiable que le nom d'affichage)
+                org.bukkit.OfflinePlayer owningPlayer = skullMeta.getOwningPlayer();
+                Player target = owningPlayer != null ? Bukkit.getPlayer(owningPlayer.getUniqueId()) : null;
 
-                if (target != null) {
+                if (target != null && target.isOnline()) {
                     FineContext context = pendingFines.get(player.getUniqueId());
                     if (context != null) {
                         context.targetUuid = target.getUniqueId();
                         context.targetName = target.getName();
+                        context.targetDisplayName = target.getName();
                         context.step = 1;
 
                         // Passer à la phase 2
@@ -368,7 +497,7 @@ public class TownPoliceGUI implements Listener {
                     player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                     player.sendMessage("§c🚔 §lÉMETTRE UNE AMENDE");
                     player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                    player.sendMessage("§7Contrevenant: §e" + context.targetName);
+                    player.sendMessage("§7Contrevenant: §e" + context.targetDisplayName);
                     player.sendMessage("§7Type: §c" + fineTitle);
                     player.sendMessage("§7Montant: §6" + amount + "€");
                     player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
@@ -433,7 +562,7 @@ public class TownPoliceGUI implements Listener {
                 player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                 player.sendMessage("§a✔ §lAMENDE ÉMISE AVEC SUCCÈS");
                 player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                player.sendMessage("§7Contrevenant: §e" + context.targetName);
+                player.sendMessage("§7Contrevenant: §e" + context.targetDisplayName);
                 player.sendMessage("§7Type: §c" + context.fineTitle);
                 player.sendMessage("§7Montant: §6" + context.amount + "€");
                 player.sendMessage("§7Description: §f" + input);
@@ -451,7 +580,8 @@ public class TownPoliceGUI implements Listener {
     private static class FineContext {
         int step = 0;
         UUID targetUuid;
-        String targetName;
+        String targetName; // Nom Minecraft (pour logs)
+        String targetDisplayName; // Nom d'identité (pour affichage)
         String fineTitle;
         double amount;
     }

@@ -1044,6 +1044,14 @@ public class TownPlotManagementGUI implements Listener {
                     subtypeLore.add(ChatColor.GRAY + "Accès: Juges");
                     subtypeLore.add(ChatColor.YELLOW + "Requis pour juger!");
                     break;
+                case LA_POSTE:
+                    subtypeLore.add(ChatColor.GRAY + "Bureau de poste");
+                    subtypeLore.add(ChatColor.GRAY + "Accès: Tous les citoyens");
+                    break;
+                case BANQUE:
+                    subtypeLore.add(ChatColor.GRAY + "Établissement bancaire");
+                    subtypeLore.add(ChatColor.GRAY + "Accès: Tous les citoyens");
+                    break;
             }
 
             subtypeLore.add("");

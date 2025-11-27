@@ -3,6 +3,8 @@ package com.gravityyfh.roleplaycity.police.listeners;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.data.TasedPlayerData;
 import com.gravityyfh.roleplaycity.police.items.PoliceItemManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.*;
@@ -152,6 +154,13 @@ public class TaserListener implements Listener {
      * Vérifie si une cible peut être tasée
      */
     private boolean canBeTased(Player taser, Player target) {
+        // Vérifier si le policier est en service
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(taser.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(taser, ProfessionalServiceType.POLICE);
+            return false;
+        }
+
         // Vérifier si déjà tasé
         if (tasedData.isTased(target)) {
             taser.sendMessage("§c" + target.getName() + " est déjà tasé!");
@@ -190,9 +199,11 @@ public class TaserListener implements Listener {
         // Marquer comme tasé
         tasedData.addTased(target, duration);
 
-        // Titre et sous-titre
-        String title = config.getString("police-equipment.taser.title", "§c§lVOUS ÊTES TASÉ!");
-        String subtitle = config.getString("police-equipment.taser.subtitle", "§7Immobilisé pendant §6%seconds%s");
+        // Titre et sous-titre (avec traduction des couleurs)
+        String title = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.taser.title", "&c&lVOUS ÊTES TASÉ!"));
+        String subtitle = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.taser.subtitle", "&7Immobilisé pendant &6%seconds%s"));
         subtitle = subtitle.replace("%seconds%", String.valueOf(duration));
 
         target.sendTitle(title, subtitle, 10, duration * 20, 20);

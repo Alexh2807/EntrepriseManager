@@ -6,6 +6,8 @@ import com.gravityyfh.roleplaycity.medical.data.InjuredPlayer;
 import com.gravityyfh.roleplaycity.medical.data.MedicalMission;
 import com.gravityyfh.roleplaycity.medical.gui.HealingMiniGameGUI;
 import com.gravityyfh.roleplaycity.medical.service.MedicalPersistenceService;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -327,6 +329,13 @@ public class MedicalSystemManager {
      * Appelé quand un médecin accepte la mission
      */
     public boolean acceptMission(Player medic, UUID missionId) {
+        // Vérifier si le médecin est en service
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(medic.getUniqueId(), ProfessionalServiceType.MEDICAL)) {
+            serviceManager.sendNotInServiceMessage(medic, ProfessionalServiceType.MEDICAL);
+            return false;
+        }
+
         MedicalMission mission = activeMissions.values().stream()
                 .filter(m -> m.getMissionId().equals(missionId))
                 .findFirst()
@@ -597,6 +606,13 @@ public class MedicalSystemManager {
      * Démarre le processus de soin progressif
      */
     public void startHealingProcess(Player medic, Player patient) {
+        // Vérifier si le médecin est en service
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(medic.getUniqueId(), ProfessionalServiceType.MEDICAL)) {
+            serviceManager.sendNotInServiceMessage(medic, ProfessionalServiceType.MEDICAL);
+            return;
+        }
+
         // Vérifier que le médecin a une mission active
         MedicalMission mission = activeMissions.get(patient.getUniqueId());
         if (mission == null || !mission.getMedic().equals(medic)) {

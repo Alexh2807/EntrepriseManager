@@ -3,6 +3,8 @@ package com.gravityyfh.roleplaycity.police.listeners;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData;
 import com.gravityyfh.roleplaycity.police.items.PoliceItemManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -19,6 +21,7 @@ import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import org.bukkit.ChatColor;
 
 /**
  * Listener pour gérer l'utilisation des menottes
@@ -107,6 +110,13 @@ public class HandcuffsListener implements Listener {
      * Vérifie si une cible peut être menottée
      */
     private boolean canBeHandcuffed(Player handcuffer, Player target) {
+        // Vérifier si le policier est en service
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(handcuffer.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(handcuffer, ProfessionalServiceType.POLICE);
+            return false;
+        }
+
         // Vérifier si le joueur est blessé (système médical)
         if (plugin.getMedicalSystemManager() != null && plugin.getMedicalSystemManager().isInjured(target)) {
             handcuffer.sendMessage("§cCette cible est blessée/inconsciente, vous ne pouvez pas la menotter !");
@@ -143,21 +153,24 @@ public class HandcuffsListener implements Listener {
     private void handcuffTarget(Player handcuffer, Player target) {
         FileConfiguration config = plugin.getConfig();
 
-        // Titre de la boss bar
-        String bossBarTitle = config.getString("police-equipment.handcuffs.boss-bar-title",
-            "§fSanté des Menottes - Shift pour affaiblir");
+        // Titre de la boss bar (avec traduction des couleurs)
+        String bossBarTitle = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.boss-bar-title",
+                "&fSanté des Menottes - Shift pour affaiblir"));
 
         // Menotter
         handcuffedData.handcuff(target, bossBarTitle);
 
-        // Messages
-        String handcufferMsg = config.getString("police-equipment.handcuffs.messages.handcuffed",
-            "§aVous avez menotté §6%target%§a!");
+        // Messages (avec traduction des couleurs)
+        String handcufferMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.handcuffed",
+                "&aVous avez menotté &6%target%&a!"));
         handcufferMsg = handcufferMsg.replace("%target%", target.getName());
         handcuffer.sendMessage(handcufferMsg);
 
-        String targetMsg = config.getString("police-equipment.handcuffs.messages.you-are-handcuffed",
-            "§cVous avez été menotté par §6%player%§c!");
+        String targetMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.you-are-handcuffed",
+                "&cVous avez été menotté par &6%player%&c!"));
         targetMsg = targetMsg.replace("%player%", handcuffer.getName());
         target.sendMessage(targetMsg);
 
@@ -194,14 +207,16 @@ public class HandcuffsListener implements Listener {
 
         FileConfiguration config = plugin.getConfig();
 
-        // Messages
-        String handcufferMsg = config.getString("police-equipment.handcuffs.messages.removed-handcuffs",
-            "§aVous avez libéré §6%target%§a!");
+        // Messages (avec traduction des couleurs)
+        String handcufferMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.removed-handcuffs",
+                "&aVous avez libéré &6%target%&a!"));
         handcufferMsg = handcufferMsg.replace("%target%", target.getName());
         handcuffer.sendMessage(handcufferMsg);
 
-        String targetMsg = config.getString("police-equipment.handcuffs.messages.you-are-freed",
-            "§aVous avez été libéré par §6%player%§a!");
+        String targetMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.you-are-freed",
+                "&aVous avez été libéré par &6%player%&a!"));
         targetMsg = targetMsg.replace("%player%", handcuffer.getName());
         target.sendMessage(targetMsg);
 

@@ -234,7 +234,8 @@ public class TownMembersGUI implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
-        if (!title.contains("Membres de") && !title.contains("Rôles:") && !title.contains("Inviter un joueur")) {
+        // FIX: "Rôles:" corrigé en "Rôle de" pour correspondre au titre du menu de sélection de rôle
+        if (!title.contains("Membres de") && !title.contains("Rôle de") && !title.contains("Inviter un joueur")) {
             return;
         }
 
@@ -305,12 +306,14 @@ public class TownMembersGUI implements Listener {
                 if (event.isLeftClick()) {
                     // Changer le rôle
                     player.closeInventory();
-                    openRoleSelectionMenu(player, target.getUniqueId(), target.getName());
+                    String targetName = target.getName() != null ? target.getName() : target.getUniqueId().toString().substring(0, 8);
+                    openRoleSelectionMenu(player, target.getUniqueId(), targetName);
                 } else if (event.isRightClick()) {
                     // Exclure le membre
                     player.closeInventory();
                     if (townManager.kickMember(townName, player, target.getUniqueId())) {
-                        player.sendMessage(ChatColor.GREEN + target.getName() + " a été exclu de la ville.");
+                        String kickedName = target.getName() != null ? target.getName() : target.getUniqueId().toString().substring(0, 8);
+                        player.sendMessage(ChatColor.GREEN + kickedName + " a été exclu de la ville.");
 
                         Player targetPlayer = target.getPlayer();
                         if (targetPlayer != null && targetPlayer.isOnline()) {
@@ -349,10 +352,11 @@ public class TownMembersGUI implements Listener {
 
                     TownRole currentRole = targetMember.getRole();
                     OfflinePlayer target = Bukkit.getOfflinePlayer(targetUuid);
+                    String targetRoleDisplayName = target.getName() != null ? target.getName() : targetUuid.toString().substring(0, 8);
 
                     // Vérifier si le rôle cliqué est déjà le rôle actuel
                     if (currentRole == selectedRole) {
-                        player.sendMessage(ChatColor.YELLOW + target.getName() + " a déjà le rôle " + selectedRole.getDisplayName());
+                        player.sendMessage(ChatColor.YELLOW + targetRoleDisplayName + " a déjà le rôle " + selectedRole.getDisplayName());
                         return;
                     }
 
@@ -370,7 +374,7 @@ public class TownMembersGUI implements Listener {
 
                     // Attribuer le nouveau rôle (remplace automatiquement l'ancien)
                     targetMember.addRole(selectedRole);
-                    player.sendMessage(ChatColor.GREEN + "✓ Rôle de " + target.getName() + " changé:");
+                    player.sendMessage(ChatColor.GREEN + "✓ Rôle de " + targetRoleDisplayName + " changé:");
                     player.sendMessage(ChatColor.GRAY + "  Ancien: " + ChatColor.YELLOW + currentRole.getDisplayName());
                     player.sendMessage(ChatColor.GRAY + "  Nouveau: " + ChatColor.GREEN + selectedRole.getDisplayName());
 
@@ -390,7 +394,7 @@ public class TownMembersGUI implements Listener {
                     }
 
                     // Rafraîchir le menu
-                    openRoleSelectionMenu(player, targetUuid, target.getName());
+                    openRoleSelectionMenu(player, targetUuid, targetRoleDisplayName);
                 }
             }
         } else if (title.contains("Inviter un joueur")) {

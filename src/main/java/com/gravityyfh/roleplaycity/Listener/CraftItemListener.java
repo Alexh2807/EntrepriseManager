@@ -2,6 +2,7 @@ package com.gravityyfh.roleplaycity.Listener;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
+import com.gravityyfh.roleplaycity.town.manager.TownManager;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -74,6 +75,20 @@ public class CraftItemListener implements Listener {
             com.gravityyfh.roleplaycity.customitems.model.CustomItem customItem = plugin.getCustomItemManager().getItemByItemStack(resultItem);
             if (customItem != null) {
                 String itemId = customItem.getId();
+
+                // Vérifier la restriction mayor_only
+                if (customItem.getRecipe() != null && customItem.getRecipe().isMayorOnly()) {
+                    TownManager townManager = plugin.getTownManager();
+                    if (!townManager.isPlayerMayor(player.getUniqueId())) {
+                        event.setCancelled(true);
+                        String message = plugin.getConfig().getString(
+                            "custom-items.messages.mayor-only-craft",
+                            "§cSeul le Maire de la ville peut fabriquer cet item!"
+                        );
+                        player.sendMessage(message);
+                        return;
+                    }
+                }
 
                 // Vérifier les restrictions pour CRAFT_CUSTOM_ITEM (amountPerSingleCraft uniquement)
                 boolean isBlocked = entrepriseLogic.verifierEtGererRestrictionAction(

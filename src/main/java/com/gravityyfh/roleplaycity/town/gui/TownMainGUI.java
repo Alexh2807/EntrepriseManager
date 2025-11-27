@@ -677,7 +677,9 @@ public class TownMainGUI implements Listener {
             return; // Géré par ImprisonmentWorkflowGUI et TownPrisonManagementGUI
         }
 
-        if (!title.contains("🏙️") && !title.contains("Ville") && !title.contains("Services Municipaux") &&
+        // FIX: Utiliser equals("Menu Ville") au lieu de contains("Ville") pour éviter
+        // d'intercepter "🌍 Villes du Serveur" de TownListGUI
+        if (!title.contains("🏙️") && !title.equals("Menu Ville") && !title.contains("Services Municipaux") &&
             !title.equals(ChatColor.stripColor(JOIN_TOWN_TITLE)) && !title.contains("Gestion -") &&
             !title.equals(MENU_TITLE) && !title.equals(CREATE_TOWN_TITLE)) {
             plugin.getLogger().info("[DEBUG TownMainGUI] Title check FAILED - returning");

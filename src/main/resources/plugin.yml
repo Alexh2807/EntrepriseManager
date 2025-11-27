@@ -9,6 +9,18 @@ loadbefore: [Essentials, Towny]
 
 
 commands:
+  menu:
+    description: Ouvre le menu principal du serveur
+    usage: /<command>
+    aliases: [m]
+  identite:
+    description: Affiche votre carte d'identité
+    usage: /<command>
+    aliases: [id, identity]
+  mairie:
+    description: Accès aux services municipaux - identité, taxes, rendez-vous, etc.
+    usage: /<command> [ville]
+    aliases: [townhall, cityhall]
   roleplaycity:
     description: Commandes d'administration du plugin RoleplayCity
     usage: /<command> [reload|version|help]
@@ -63,6 +75,12 @@ commands:
   bank:
     description: Système bancaire - Gérer votre compte en banque
     usage: /<command>
+  rpc_internal_accept:
+    description: Commande interne - Accepter une requête
+    usage: /<command> <requestId>
+  rpc_internal_refuse:
+    description: Commande interne - Refuser une requête
+    usage: /<command> <requestId>
 
 permissions:
   roleplaycity.use:

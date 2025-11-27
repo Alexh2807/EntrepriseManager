@@ -1341,7 +1341,7 @@ public class EntrepriseGUI implements Listener {
             Player targetOnline = Bukkit.getPlayerExact(targetPlayerName);
             if (targetOnline != null && targetOnline.isOnline()) {
                 entrepriseLogic.inviterEmploye(gerant, entreprise.getNom(), targetOnline);
-                gerant.sendMessage(ChatColor.GREEN + "Invitation envoyée à " + targetPlayerName + ".");
+                gerant.sendMessage(ChatColor.GREEN + "Invitation envoyée à " + targetOnline.getName() + ".");
             } else {
                 gerant.sendMessage(ChatColor.RED + targetPlayerName + " n'est plus en ligne.");
             }

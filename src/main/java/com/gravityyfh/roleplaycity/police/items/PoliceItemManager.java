@@ -1,7 +1,7 @@
 package com.gravityyfh.roleplaycity.police.items;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
-import org.bukkit.Material;
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
@@ -13,43 +13,61 @@ import java.util.List;
 
 /**
  * Manager principal pour les items de police (Taser et Menottes)
- * Gère la création, validation et configuration des items
+ * Gère la validation et configuration des items
+ * Utilise ItemsAdder pour les items (/iaget)
  */
 public class PoliceItemManager {
 
     private final RoleplayCity plugin;
 
-    // NamespacedKeys pour identifier les items
+    // NamespacedKeys pour identifier les items (compatibilité anciens items créés par le plugin)
     private final NamespacedKey taserKey;
     private final NamespacedKey taserChargesKey;
-    private final NamespacedKey taserUniqueKey;
     private final NamespacedKey handcuffsKey;
-    private final NamespacedKey handcuffsUniqueKey;
 
     // Configuration
-    private Material taserMaterial;
-    private int taserCustomModelData;
     private int taserMaxCharges;
-    private String taserName;
     private List<String> taserLore;
+    private String taserItemsAdderId;  // ID ItemsAdder (ex: "my_items:taser")
 
-    private Material handcuffsMaterial;
-    private int handcuffsCustomModelData;
-    private String handcuffsName;
     private List<String> handcuffsLore;
+    private String handcuffsItemsAdderId;  // ID ItemsAdder (ex: "my_items:handcuffs")
+
+    // Vérification de disponibilité ItemsAdder
+    private boolean itemsAdderAvailable;
 
     public PoliceItemManager(RoleplayCity plugin) {
         this.plugin = plugin;
 
-        // Initialiser les NamespacedKeys
+        // Initialiser les NamespacedKeys (compatibilité anciens items)
         this.taserKey = new NamespacedKey(plugin, "police_taser");
         this.taserChargesKey = new NamespacedKey(plugin, "taser_charges");
-        this.taserUniqueKey = new NamespacedKey(plugin, "taser_unique");
-
         this.handcuffsKey = new NamespacedKey(plugin, "police_handcuffs");
-        this.handcuffsUniqueKey = new NamespacedKey(plugin, "handcuffs_unique");
 
+        checkItemsAdderAvailability();
         loadConfiguration();
+    }
+
+    /**
+     * Vérifie la disponibilité d'ItemsAdder au démarrage
+     */
+    private void checkItemsAdderAvailability() {
+        itemsAdderAvailable = Bukkit.getPluginManager().getPlugin("ItemsAdder") != null;
+        if (itemsAdderAvailable) {
+            plugin.getLogger().info("[PoliceItems] ItemsAdder détecté ! Support activé pour Taser/Menottes.");
+        }
+    }
+
+    /**
+     * Rafraîchit le statut d'ItemsAdder (appelé quand ItemsAdder se charge après ce plugin)
+     */
+    public void refreshItemsAdderAvailability() {
+        boolean wasAvailable = itemsAdderAvailable;
+        itemsAdderAvailable = Bukkit.getPluginManager().getPlugin("ItemsAdder") != null;
+
+        if (!wasAvailable && itemsAdderAvailable) {
+            plugin.getLogger().info("[PoliceItems] ItemsAdder maintenant disponible !");
+        }
     }
 
     /**
@@ -60,12 +78,8 @@ public class PoliceItemManager {
         FileConfiguration config = plugin.getConfig();
 
         // Configuration Taser
-        taserMaterial = Material.valueOf(
-            config.getString("police-equipment.taser.material", "STICK").toUpperCase()
-        );
-        taserCustomModelData = config.getInt("police-equipment.taser.custom-model-data", 10021);
         taserMaxCharges = config.getInt("police-equipment.taser.max-charges", 10);
-        taserName = config.getString("police-equipment.taser.name", "§6Taser");
+        taserItemsAdderId = config.getString("police-equipment.taser.itemsadder-id", null);
 
         // Charger le lore du taser
         taserLore = new ArrayList<>();
@@ -78,11 +92,7 @@ public class PoliceItemManager {
         }
 
         // Configuration Menottes
-        handcuffsMaterial = Material.valueOf(
-            config.getString("police-equipment.handcuffs.material", "LEAD").toUpperCase()
-        );
-        handcuffsCustomModelData = config.getInt("police-equipment.handcuffs.custom-model-data", 5456);
-        handcuffsName = config.getString("police-equipment.handcuffs.name", "§eMenottes");
+        handcuffsItemsAdderId = config.getString("police-equipment.handcuffs.itemsadder-id", null);
 
         // Charger le lore des menottes
         handcuffsLore = new ArrayList<>();
@@ -92,120 +102,114 @@ public class PoliceItemManager {
         } else {
             handcuffsLore.addAll(handcuffsConfigLore);
         }
-    }
 
-    /**
-     * Crée un nouveau taser avec charges complètes
-     */
-    public ItemStack createTaser() {
-        return createTaser(taserMaxCharges);
-    }
-
-    /**
-     * Crée un nouveau taser avec un nombre de charges spécifique
-     */
-    public ItemStack createTaser(int charges) {
-        ItemStack item = new ItemStack(taserMaterial);
-        ItemMeta meta = item.getItemMeta();
-
-        if (meta != null) {
-            // Définir le nom avec conversion des couleurs
-            meta.setDisplayName(org.bukkit.ChatColor.translateAlternateColorCodes('&', taserName));
-
-            // Définir le lore avec les charges et conversion des couleurs
-            List<String> lore = new ArrayList<>();
-            for (String line : taserLore) {
-                String processedLine = line.replace("%charges%", String.valueOf(charges));
-                lore.add(org.bukkit.ChatColor.translateAlternateColorCodes('&', processedLine));
-            }
-            meta.setLore(lore);
-
-            // Définir le CustomModelData
-            meta.setCustomModelData(taserCustomModelData);
-
-            // Ajouter les données persistantes
-            meta.getPersistentDataContainer().set(taserKey, PersistentDataType.BYTE, (byte) 1);
-            meta.getPersistentDataContainer().set(taserChargesKey, PersistentDataType.INTEGER, charges);
-            meta.getPersistentDataContainer().set(taserUniqueKey, PersistentDataType.LONG, System.currentTimeMillis());
-
-            item.setItemMeta(meta);
+        // Log si ItemsAdder IDs configurés
+        if (taserItemsAdderId != null) {
+            plugin.getLogger().info("[PoliceItems] Taser ItemsAdder ID: " + taserItemsAdderId);
         }
-
-        return item;
-    }
-
-    /**
-     * Crée des menottes
-     */
-    public ItemStack createHandcuffs() {
-        ItemStack item = new ItemStack(handcuffsMaterial);
-        ItemMeta meta = item.getItemMeta();
-
-        if (meta != null) {
-            // Définir le nom avec conversion des couleurs
-            meta.setDisplayName(org.bukkit.ChatColor.translateAlternateColorCodes('&', handcuffsName));
-
-            // Définir le lore avec conversion des couleurs
-            List<String> lore = new ArrayList<>();
-            for (String line : handcuffsLore) {
-                lore.add(org.bukkit.ChatColor.translateAlternateColorCodes('&', line));
-            }
-            meta.setLore(lore);
-
-            // Définir le CustomModelData
-            meta.setCustomModelData(handcuffsCustomModelData);
-
-            // Ajouter les données persistantes
-            meta.getPersistentDataContainer().set(handcuffsKey, PersistentDataType.BYTE, (byte) 1);
-            meta.getPersistentDataContainer().set(handcuffsUniqueKey, PersistentDataType.LONG, System.currentTimeMillis());
-
-            item.setItemMeta(meta);
+        if (handcuffsItemsAdderId != null) {
+            plugin.getLogger().info("[PoliceItems] Handcuffs ItemsAdder ID: " + handcuffsItemsAdderId);
         }
-
-        return item;
     }
 
     /**
      * Vérifie si un item est un taser
+     * Supporte: items créés par le plugin (PDC) ET items ItemsAdder (/iaget)
      */
     public boolean isTaser(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
+        if (item == null) {
             return false;
         }
 
-        ItemMeta meta = item.getItemMeta();
-        return meta != null &&
-               meta.getPersistentDataContainer().has(taserKey, PersistentDataType.BYTE);
+        // Méthode 1: Vérifier le PDC (anciens items créés par notre plugin)
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && meta.getPersistentDataContainer().has(taserKey, PersistentDataType.BYTE)) {
+                return true;
+            }
+        }
+
+        // Méthode 2: Vérifier via ItemsAdder (items obtenus via /iaget)
+        if (itemsAdderAvailable && taserItemsAdderId != null) {
+            String itemAdderId = getItemsAdderIdFromItemStack(item);
+            if (taserItemsAdderId.equals(itemAdderId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * Vérifie si un item est des menottes
+     * Supporte: items créés par le plugin (PDC) ET items ItemsAdder (/iaget)
      */
     public boolean isHandcuffs(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
+        if (item == null) {
             return false;
         }
 
-        ItemMeta meta = item.getItemMeta();
-        return meta != null &&
-               meta.getPersistentDataContainer().has(handcuffsKey, PersistentDataType.BYTE);
+        // Méthode 1: Vérifier le PDC (anciens items créés par notre plugin)
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && meta.getPersistentDataContainer().has(handcuffsKey, PersistentDataType.BYTE)) {
+                return true;
+            }
+        }
+
+        // Méthode 2: Vérifier via ItemsAdder (items obtenus via /iaget)
+        if (itemsAdderAvailable && handcuffsItemsAdderId != null) {
+            String itemAdderId = getItemsAdderIdFromItemStack(item);
+            if (handcuffsItemsAdderId.equals(itemAdderId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Récupère l'ID ItemsAdder d'un ItemStack via l'API CustomStack
+     * Fonctionne pour les items obtenus via /iaget ou craftés dans ItemsAdder
+     */
+    private String getItemsAdderIdFromItemStack(ItemStack item) {
+        if (!itemsAdderAvailable || item == null) {
+            return null;
+        }
+
+        try {
+            Class<?> customStackClass = Class.forName("dev.lone.itemsadder.api.CustomStack");
+            Object customStack = customStackClass.getMethod("byItemStack", ItemStack.class).invoke(null, item);
+
+            if (customStack != null) {
+                // L'item est un custom item ItemsAdder, récupérer son ID
+                return (String) customStackClass.getMethod("getNamespacedID").invoke(customStack);
+            }
+        } catch (Exception e) {
+            // Silencieux - item non-ItemsAdder ou erreur
+        }
+        return null;
     }
 
     /**
      * Obtient le nombre de charges restantes d'un taser
+     * Pour les items ItemsAdder, retourne max-charges par défaut
      */
     public int getTaserCharges(ItemStack item) {
         if (!isTaser(item)) {
             return 0;
         }
 
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            return meta.getPersistentDataContainer()
-                .getOrDefault(taserChargesKey, PersistentDataType.INTEGER, 0);
+        // Vérifier d'abord le PDC (items avec charges stockées)
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && meta.getPersistentDataContainer().has(taserChargesKey, PersistentDataType.INTEGER)) {
+                return meta.getPersistentDataContainer().get(taserChargesKey, PersistentDataType.INTEGER);
+            }
         }
 
-        return 0;
+        // Pour les items ItemsAdder sans PDC, retourner max charges
+        return taserMaxCharges;
     }
 
     /**
@@ -266,22 +270,6 @@ public class PoliceItemManager {
         return taserMaxCharges;
     }
 
-    public Material getTaserMaterial() {
-        return taserMaterial;
-    }
-
-    public int getTaserCustomModelData() {
-        return taserCustomModelData;
-    }
-
-    public Material getHandcuffsMaterial() {
-        return handcuffsMaterial;
-    }
-
-    public int getHandcuffsCustomModelData() {
-        return handcuffsCustomModelData;
-    }
-
     public NamespacedKey getTaserKey() {
         return taserKey;
     }
@@ -292,5 +280,13 @@ public class PoliceItemManager {
 
     public NamespacedKey getHandcuffsKey() {
         return handcuffsKey;
+    }
+
+    public String getTaserItemsAdderId() {
+        return taserItemsAdderId;
+    }
+
+    public String getHandcuffsItemsAdderId() {
+        return handcuffsItemsAdderId;
     }
 }

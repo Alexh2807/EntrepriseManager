@@ -5,6 +5,8 @@ import com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData;
 import com.gravityyfh.roleplaycity.police.data.ImprisonedPlayerData;
 import com.gravityyfh.roleplaycity.police.data.PrisonData;
 import com.gravityyfh.roleplaycity.police.data.PrisonSpawnPoint;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -164,6 +166,13 @@ public class PrisonManager {
      */
     public boolean imprisonPlayer(Player prisoner, Town town, Plot plot, int durationMinutes,
                                   String reason, Player policier) {
+
+        // Vérifier si le policier est en service
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(policier.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(policier, ProfessionalServiceType.POLICE);
+            return false;
+        }
 
         // Vérifier si le joueur est blessé (système médical)
         if (plugin.getMedicalSystemManager() != null && plugin.getMedicalSystemManager().isInjured(prisoner)) {

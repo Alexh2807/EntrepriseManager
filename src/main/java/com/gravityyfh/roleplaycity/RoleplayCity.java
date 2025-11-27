@@ -175,6 +175,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.lotto.LottoManager lottoManager;
     private com.gravityyfh.roleplaycity.lotto.LottoGUI lottoGUI;
 
+    // Système de Service Police
+    private com.gravityyfh.roleplaycity.police.service.PoliceServiceManager policeServiceManager;
+
+    // Système de Service Professionnel Unifié (Police, Médical, Juge, Entreprise)
+    private com.gravityyfh.roleplaycity.service.ProfessionalServiceManager professionalServiceManager;
+    private com.gravityyfh.roleplaycity.service.ProfessionalServiceListener professionalServiceListener;
+
     // Système de Cambriolage (Heist)
     private com.gravityyfh.roleplaycity.heist.config.HeistConfig heistConfig;
     private com.gravityyfh.roleplaycity.heist.manager.HeistManager heistManager;
@@ -207,6 +214,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // Système d'Identité & Menu
     private com.gravityyfh.roleplaycity.identity.manager.IdentityManager identityManager;
     private com.gravityyfh.roleplaycity.gui.MainMenuGUI mainMenuGUI;
+
+    // Système de Mairie & Rendez-vous
+    private com.gravityyfh.roleplaycity.mairie.service.AppointmentManager appointmentManager;
+
+    // Système de Requêtes d'Interaction (fouille avec consentement, demande ID, etc.)
+    private com.gravityyfh.roleplaycity.service.InteractionRequestManager interactionRequestManager;
 
     public void onEnable() {
         // Force log via Logger to ensure it appears in console even if stdout is redirected
@@ -337,6 +350,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         try {
             getLogger().info("[DEBUG] Tentative d'initialisation de IdentityManager...");
             identityManager = new com.gravityyfh.roleplaycity.identity.manager.IdentityManager(this, connectionManager);
+            // Initialiser le helper d'affichage d'identité
+            com.gravityyfh.roleplaycity.identity.util.IdentityDisplayHelper.init(this);
             getLogger().info("[DEBUG] ✓ IdentityManager initialisé avec succès !");
         } catch (Exception e) {
             getLogger().severe("[DEBUG] ✗ ERREUR lors de l'initialisation de IdentityManager:");
@@ -357,6 +372,20 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().severe("[DEBUG] Message: " + e.getMessage());
             e.printStackTrace();
             mainMenuGUI = null;
+        }
+
+        // Système de Mairie & Rendez-vous
+        try {
+            getLogger().info("[DEBUG] Tentative d'initialisation de AppointmentManager...");
+            com.gravityyfh.roleplaycity.mairie.service.AppointmentPersistenceService appointmentPersistence =
+                    new com.gravityyfh.roleplaycity.mairie.service.AppointmentPersistenceService(this, connectionManager);
+            appointmentManager = new com.gravityyfh.roleplaycity.mairie.service.AppointmentManager(this, appointmentPersistence);
+            getLogger().info("[DEBUG] ✓ AppointmentManager initialisé avec succès !");
+        } catch (Exception e) {
+            getLogger().severe("[DEBUG] ✗ ERREUR lors de l'initialisation de AppointmentManager:");
+            getLogger().severe("[DEBUG] Message: " + e.getMessage());
+            e.printStackTrace();
+            appointmentManager = null;
         }
 
         // Migrer depuis YAML si nécessaire
@@ -404,6 +433,28 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Initialisation du système de Loto
         lottoManager = new com.gravityyfh.roleplaycity.lotto.LottoManager(this);
         lottoGUI = new com.gravityyfh.roleplaycity.lotto.LottoGUI(this, lottoManager);
+
+        // Système de Service Professionnel Unifié (Police, Médical, Juge, Entreprise)
+        try {
+            professionalServiceManager = new com.gravityyfh.roleplaycity.service.ProfessionalServiceManager(
+                this, connectionManager, townManager, identityManager);
+            professionalServiceListener = new com.gravityyfh.roleplaycity.service.ProfessionalServiceListener(
+                this, professionalServiceManager);
+            getServer().getPluginManager().registerEvents(professionalServiceListener, this);
+            getLogger().info("[ProfessionalService] Système de service professionnel unifié activé");
+        } catch (Exception e) {
+            getLogger().warning("[ProfessionalService] Erreur lors de l'initialisation: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        // Système de Service Police (Legacy - remplacé par ProfessionalServiceManager)
+        try {
+            policeServiceManager = new com.gravityyfh.roleplaycity.police.service.PoliceServiceManager(
+                this, townManager, identityManager);
+            getLogger().info("[PoliceService] Système de service police (legacy) activé");
+        } catch (Exception e) {
+            getLogger().warning("[PoliceService] Erreur lors de l'initialisation: " + e.getMessage());
+        }
 
         // Système de Cambriolage (Heist)
         try {
@@ -558,6 +609,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             
             // GUI de fouille
             friskGUI = new com.gravityyfh.roleplaycity.police.gui.FriskGUI(this, handcuffedPlayerData);
+
+            // Système de requêtes d'interaction (fouille avec consentement, demande ID, etc.)
+            interactionRequestManager = new com.gravityyfh.roleplaycity.service.InteractionRequestManager(this);
+            getLogger().info("[Police] ✓ Système de requêtes d'interaction initialisé");
 
             // Charger les joueurs menottés (Persistance)
             if (prisonPersistenceService != null) {
@@ -807,9 +862,6 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
         if (handcuffedPlayerData != null) {
             handcuffedPlayerData.clear();
-        }
-        if (policeCraftListener != null) {
-            policeCraftListener.unregisterRecipes();
         }
 
         // FIX MOYENNE: Nettoyer les tasks d'EntrepriseManager
@@ -1111,6 +1163,25 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         if (identityCmd != null) {
             identityCmd.setExecutor(new com.gravityyfh.roleplaycity.identity.command.IdentityCommand(this));
             getLogger().info("[DEBUG] Commande /identite enregistrée");
+        }
+
+        // Commande Mairie
+        var mairieCmd = getCommand("mairie");
+        if (mairieCmd != null && townManager != null && appointmentManager != null) {
+            var mairieCommand = new com.gravityyfh.roleplaycity.mairie.command.MairieCommand(this, townManager, appointmentManager);
+            mairieCmd.setExecutor(mairieCommand);
+            mairieCmd.setTabCompleter(mairieCommand);
+            getLogger().info("[DEBUG] Commande /mairie enregistrée");
+        }
+
+        // Commandes internes pour le système de requêtes d'interaction
+        var acceptCmd = getCommand("rpc_internal_accept");
+        var refuseCmd = getCommand("rpc_internal_refuse");
+        if (acceptCmd != null && refuseCmd != null) {
+            var requestCommandHandler = new com.gravityyfh.roleplaycity.service.InteractionRequestCommand(this);
+            acceptCmd.setExecutor(requestCommandHandler);
+            refuseCmd.setExecutor(requestCommandHandler);
+            getLogger().info("[DEBUG] Commandes internes accept/refuse enregistrées");
         }
 
         // Enregistrement des commandes LightEconomy
@@ -1505,6 +1576,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 getLogger().info("✓ Configuration des cambriolages rechargée (cambriolage.yml)");
             }
 
+            // 13. Recharger les identités (identities.yml)
+            if (identityManager != null) {
+                int count = identityManager.reloadIdentities();
+                getLogger().info("✓ Identités rechargées (" + count + " identité(s))");
+            }
+
             getLogger().info("════════════════════════════════════════════════════");
             getLogger().info("RoleplayCity rechargé avec succès !");
             getLogger().info("════════════════════════════════════════════════════");
@@ -1610,6 +1687,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public TownManager getTownManager() {
         return townManager;
+    }
+
+    public com.gravityyfh.roleplaycity.police.service.PoliceServiceManager getPoliceServiceManager() {
+        return policeServiceManager;
+    }
+
+    public com.gravityyfh.roleplaycity.service.ProfessionalServiceManager getProfessionalServiceManager() {
+        return professionalServiceManager;
     }
 
     public com.gravityyfh.roleplaycity.heist.manager.HeistManager getHeistManager() {
@@ -1947,6 +2032,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return mainMenuGUI;
     }
 
+    public com.gravityyfh.roleplaycity.mairie.service.AppointmentManager getAppointmentManager() {
+        return appointmentManager;
+    }
+
     // Systèmes de messages interactifs
     public com.gravityyfh.roleplaycity.util.ConfirmationManager getConfirmationManager() {
         return confirmationManager;
@@ -1959,7 +2048,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     public com.gravityyfh.roleplaycity.police.gui.FriskGUI getFriskGUI() {
         return friskGUI;
     }
-    
+
+    public com.gravityyfh.roleplaycity.service.InteractionRequestManager getInteractionRequestManager() {
+        return interactionRequestManager;
+    }
+
     public com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager getCustomItemManager() {
         return customItemManager;
     }

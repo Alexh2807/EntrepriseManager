@@ -113,7 +113,14 @@
       "WebFetch(domain:hub.spigotmc.org)",
       "Bash(Select-String -Pattern \"BUILD|ERROR|SUCCESS\")",
       "Bash(Remove-Item:*)",
-      "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS|error:\" -Context 0,2)"
+      "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS|error:\" -Context 0,2)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\PluginCreator\\EntrepriseManager\\deploy.ps1\")",
+      "Bash(\"/c/Program Files/JetBrains/IntelliJ IDEA Community Edition 2025.2.4/plugins/maven/lib/maven3/bin/mvn.cmd\" clean compile)",
+      "Bash(\"/c/Program Files/JetBrains/IntelliJ IDEA Community Edition 2025.2.4/plugins/maven/lib/maven3/bin/mvn.cmd\" package -DskipTests -q)",
+      "Bash(\"/c/Program Files/JetBrains/IntelliJ IDEA Community Edition 2025.2.4/plugins/maven/lib/maven3/bin/mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" clean compile)",
+      "Bash(\"/c/Program Files/JetBrains/IntelliJ IDEA Community Edition 2025.2.4/plugins/maven/lib/maven3/bin/mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" package -DskipTests -q)",
+      "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS\" -Context 0,2)",
+      "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" compile -X)"
     ],
     "deny": [],
     "ask": []

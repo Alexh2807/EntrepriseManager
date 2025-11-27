@@ -118,6 +118,7 @@ public class RoleplayCityCommandHandler implements CommandExecutor, TabCompleter
             sender.sendMessage(ChatColor.GREEN + "✓ Système de niveau rechargé");
             sender.sendMessage(ChatColor.GREEN + "✓ Système médical rechargé");
             sender.sendMessage(ChatColor.GREEN + "✓ Cambriolages rechargés (cambriolage.yml)");
+            sender.sendMessage(ChatColor.GREEN + "✓ Identités rechargées (identities.yml)");
             sender.sendMessage("");
             sender.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             sender.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ RECHARGEMENT TERMINÉ");
