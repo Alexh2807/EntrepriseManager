@@ -18,6 +18,9 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -109,19 +112,19 @@ public class TownMembersGUI implements Listener {
             inv.setItem(48, inviteItem);
         }
 
-        // Bouton retour
+        // Bouton retour (haut gauche)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
         backItem.setItemMeta(backMeta);
-        inv.setItem(49, backItem);
+        inv.setItem(0, backItem);
 
-        // Bouton fermer
+        // Bouton fermer (haut droite)
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(53, closeItem);
+        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }
@@ -378,6 +381,11 @@ public class TownMembersGUI implements Listener {
                     player.sendMessage(ChatColor.GRAY + "  Ancien: " + ChatColor.YELLOW + currentRole.getDisplayName());
                     player.sendMessage(ChatColor.GRAY + "  Nouveau: " + ChatColor.GREEN + selectedRole.getDisplayName());
 
+                    // ========================================
+                    // DÉSACTIVER LE SERVICE SI RÔLE INCOMPATIBLE
+                    // ========================================
+                    checkAndDeactivateServiceOnRoleChange(targetUuid, currentRole, selectedRole);
+
                     Player targetPlayer = target.getPlayer();
                     if (targetPlayer != null && targetPlayer.isOnline()) {
                         targetPlayer.sendMessage("");
@@ -545,5 +553,43 @@ public class TownMembersGUI implements Listener {
         invitedPlayer.sendMessage("");
         invitedPlayer.sendMessage(ChatColor.GOLD + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         invitedPlayer.sendMessage("");
+    }
+
+    /**
+     * Vérifie et désactive le service professionnel si le nouveau rôle n'est plus compatible
+     * Appelé après un changement de rôle par le maire
+     */
+    private void checkAndDeactivateServiceOnRoleChange(UUID targetUuid, TownRole oldRole, TownRole newRole) {
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager == null) {
+            return;
+        }
+
+        // Vérifier si le joueur a un service actif
+        if (!serviceManager.isInAnyService(targetUuid)) {
+            return;
+        }
+
+        // Récupérer le type de service actif
+        ProfessionalServiceType activeService = serviceManager.getActiveServiceType(targetUuid);
+        if (activeService == null || activeService == ProfessionalServiceType.ENTERPRISE) {
+            return; // Les services entreprise ne dépendent pas des rôles de ville
+        }
+
+        // Vérifier si le nouveau rôle est compatible avec le service actif
+        boolean isCompatible = switch (activeService) {
+            case POLICE -> newRole == TownRole.POLICIER;
+            case MEDICAL -> newRole == TownRole.MEDECIN;
+            case JUDGE -> newRole == TownRole.JUGE;
+            default -> true;
+        };
+
+        // Si le rôle n'est plus compatible, désactiver le service
+        if (!isCompatible) {
+            serviceManager.forceDeactivateService(targetUuid, "Votre rôle a été modifié par le maire");
+            plugin.getLogger().info("[TownMembersGUI] Service " + activeService.getDisplayName() +
+                " désactivé pour " + targetUuid + " suite au changement de rôle: " +
+                oldRole.getDisplayName() + " -> " + newRole.getDisplayName());
+        }
     }
 }

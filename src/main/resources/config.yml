@@ -63,7 +63,6 @@ types-entreprise:
         ANCIENT_DEBRIS: {}
     activites-payantes:
       BLOCK_BREAK:
-        DEEPSLATE: 0.09
         COAL_ORE: 0.70
         COPPER_ORE: 1.20
         IRON_ORE: 2.80
@@ -81,18 +80,18 @@ types-entreprise:
         DEEPSLATE_EMERALD_ORE: 30.00
         DEEPSLATE_DIAMOND_ORE: 60.00
         NETHER_QUARTZ_ORE: 0.90
-        ANCIENT_DEBRIS: 180.00
+        ANCIENT_DEBRIS: 60.00
     message-erreur-restriction:
       - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
       - "&eLimite : %limite% unités par heure. Améliorez votre entreprise avec /entreprise gui"
     # Niveaux de restrictions (quotas horaires pour les membres)
     restriction-levels:
       0:  # Mine artisanale
-        limite-par-heure: 5
+        limite-par-heure: 10
         cout-amelioration: 8000.0
         description: "Mine artisanale"
       1:  # Petite exploitation
-        limite-par-heure: 15
+        limite-par-heure: 20
         cout-amelioration: 20000.0
         description: "Petite exploitation"
       2:  # Exploitation moyenne
@@ -100,15 +99,15 @@ types-entreprise:
         cout-amelioration: 50000.0
         description: "Exploitation moyenne"
       3:  # Grande exploitation
-        limite-par-heure: 100
+        limite-par-heure: 80
         cout-amelioration: 120000.0
         description: "Grande exploitation"
       4:  # Complexe minier industriel (max)
         limite-par-heure: -1
         cout-amelioration: 0
         description: "Complexe minier industriel"
-    limite-non-membre-par-heure: 3
-    cout-creation: 12000.0
+    limite-non-membre-par-heure: 5
+    cout-creation: 6000.0
 
   Agriculture:
     description: "Culture et récolte de produits végétaux essentiels. Items principaux : Blé, Carottes, Pommes de terre, Verrues du Nether."
@@ -129,28 +128,28 @@ types-entreprise:
         HAY_BLOCK: {}
     activites-payantes:
       BLOCK_BREAK:
-        WHEAT: 0.45
-        CARROTS: 0.35
-        POTATOES: 0.35
-        BEETROOTS: 0.35
-        NETHER_WART: 0.10
-        COCOA_BEANS: 0.60
+        WHEAT: 1.60
+        CARROTS: 1.60
+        POTATOES: 1.60
+        BEETROOTS: 1.60
+        NETHER_WART: 1.50
+        COCOA_BEANS: 1.60
         PUMPKIN: 1.60
         MELON: 1.30
-        SUGAR_CANE: 0.30
-        BAMBOO: 0.15
-        CACTUS: 0.28
+        SUGAR_CANE: 1.40
+        BAMBOO: 1.20
+        CACTUS: 1.35
     message-erreur-restriction:
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite : %limite% récoltes par heure. Améliorez votre entreprise avec /entreprise gui"
     # Niveaux de restrictions (quotas horaires pour les membres)
     restriction-levels:
       0:  # Potager
-        limite-par-heure: 10
+        limite-par-heure: 20
         cout-amelioration: 5000.0
         description: "Potager"
       1:  # Petite ferme
-        limite-par-heure: 30
+        limite-par-heure: 40
         cout-amelioration: 12000.0
         description: "Petite ferme"
       2:  # Ferme moyenne
@@ -227,55 +226,55 @@ types-entreprise:
         STRIPPED_BAMBOO_BLOCK: {}
     activites-payantes:
       BLOCK_BREAK:
-        OAK_LOG: 0.45
-        SPRUCE_LOG: 0.50
-        BIRCH_LOG: 0.45
-        JUNGLE_LOG: 0.60
-        ACACIA_LOG: 0.60
-        DARK_OAK_LOG: 0.70
-        MANGROVE_LOG: 0.75
-        CHERRY_LOG: 0.65
-        CRIMSON_STEM: 0.90
-        WARPED_STEM: 0.90
-        OAK_WOOD: 0.45
-        SPRUCE_WOOD: 0.50
-        BIRCH_WOOD: 0.45
-        JUNGLE_WOOD: 0.60
-        ACACIA_WOOD: 0.60
-        DARK_OAK_WOOD: 0.70
-        MANGROVE_WOOD: 0.75
-        CHERRY_WOOD: 0.65
-        CRIMSON_HYPHAE: 0.90
-        WARPED_HYPHAE: 0.90
-        STRIPPED_OAK_LOG: 0.45
-        STRIPPED_SPRUCE_LOG: 0.50
-        STRIPPED_BIRCH_LOG: 0.45
-        STRIPPED_JUNGLE_LOG: 0.60
-        STRIPPED_ACACIA_LOG: 0.60
-        STRIPPED_DARK_OAK_LOG: 0.70
-        STRIPPED_MANGROVE_LOG: 0.75
-        STRIPPED_CHERRY_LOG: 0.65
-        STRIPPED_CRIMSON_STEM: 0.90
-        STRIPPED_WARPED_STEM: 0.90
-        STRIPPED_OAK_WOOD: 0.45
-        STRIPPED_SPRUCE_WOOD: 0.50
-        STRIPPED_BIRCH_WOOD: 0.45
-        STRIPPED_JUNGLE_WOOD: 0.60
-        STRIPPED_ACACIA_WOOD: 0.60
-        STRIPPED_DARK_OAK_WOOD: 0.70
-        STRIPPED_MANGROVE_WOOD: 0.75
-        STRIPPED_CHERRY_WOOD: 0.65
-        STRIPPED_CRIMSON_HYPHAE: 0.90
-        STRIPPED_WARPED_HYPHAE: 0.90
-        BAMBOO_BLOCK: 0.65
-        STRIPPED_BAMBOO_BLOCK: 0.65
+        OAK_LOG: 2.50
+        SPRUCE_LOG: 2.50
+        BIRCH_LOG: 2.50
+        JUNGLE_LOG: 2.50
+        ACACIA_LOG: 2.50
+        DARK_OAK_LOG: 2.50
+        MANGROVE_LOG: 2.50
+        CHERRY_LOG: 2.50
+        CRIMSON_STEM: 2.50
+        WARPED_STEM: 2.50
+        OAK_WOOD: 2.50
+        SPRUCE_WOOD: 2.50
+        BIRCH_WOOD: 2.50
+        JUNGLE_WOOD: 2.50
+        ACACIA_WOOD: 2.50
+        DARK_OAK_WOOD: 2.50
+        MANGROVE_WOOD: 2.50
+        CHERRY_WOOD: 2.50
+        CRIMSON_HYPHAE: 2.50
+        WARPED_HYPHAE: 2.50
+        STRIPPED_OAK_LOG: 2.50
+        STRIPPED_SPRUCE_LOG: 2.50
+        STRIPPED_BIRCH_LOG: 2.50
+        STRIPPED_JUNGLE_LOG: 2.50
+        STRIPPED_ACACIA_LOG: 2.50
+        STRIPPED_DARK_OAK_LOG: 2.50
+        STRIPPED_MANGROVE_LOG: 2.50
+        STRIPPED_CHERRY_LOG: 2.50
+        STRIPPED_CRIMSON_STEM: 2.50
+        STRIPPED_WARPED_STEM: 2.50
+        STRIPPED_OAK_WOOD: 2.50
+        STRIPPED_SPRUCE_WOOD: 2.50
+        STRIPPED_BIRCH_WOOD: 2.50
+        STRIPPED_JUNGLE_WOOD: 2.50
+        STRIPPED_ACACIA_WOOD: 2.50
+        STRIPPED_DARK_OAK_WOOD: 2.50
+        STRIPPED_MANGROVE_WOOD: 2.50
+        STRIPPED_CHERRY_WOOD: 2.50
+        STRIPPED_CRIMSON_HYPHAE: 2.50
+        STRIPPED_WARPED_HYPHAE: 2.50
+        BAMBOO_BLOCK: 2.50
+        STRIPPED_BAMBOO_BLOCK: 2.50
     message-erreur-restriction:
       - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
       - "&eLimite : %limite% bûches par heure. Améliorez votre entreprise avec /entreprise gui"
     # Niveaux de restrictions (quotas horaires pour les membres)
     restriction-levels:
       0:  # Bûcheron artisan
-        limite-par-heure: 10
+        limite-par-heure: 15
         cout-amelioration: 6000.0
         description: "Bûcheron artisan"
       1:  # Petite scierie
@@ -294,8 +293,8 @@ types-entreprise:
         limite-par-heure: -1
         cout-amelioration: 0
         description: "Complexe forestier industriel"
-    limite-non-membre-par-heure: 8
-    cout-creation: 7000.0
+    limite-non-membre-par-heure: 6
+    cout-creation: 1500.0
 
   Boucherie:
     description: "Abattage et transformation d'animaux pour la production de viandes, cuirs, et autres sous-produits. Maîtrise des techniques de boucherie et d'élevage pour un rendement optimal."
@@ -322,41 +321,24 @@ types-entreprise:
         TURTLE: {}
     activites-payantes:
       ENTITY_KILL:
-        SHEEP: 2.20
-        COW: 3.50
-        PIG: 2.80
-        CHICKEN: 1.10
-        RABBIT: 0.90
-        HORSE: 4.50
-        DONKEY: 4.50
-        MULE: 4.50
-        LLAMA: 3.80
-        GOAT: 2.50
-        FOX: 1.50
-        WOLF: 1.80
-        BEAR: 5.00
-        POLAR_BEAR: 5.50
-        HOGLIN: 3.00
-        STRIDER: 1.00
-        MOOSHROOM: 4.00
-        TURTLE: 2.00
-      CRAFT_ITEM:
-        COOKED_BEEF: 0.15
-        COOKED_PORKCHOP: 0.12
-        COOKED_CHICKEN: 0.08
-        COOKED_MUTTON: 0.10
-        COOKED_RABBIT: 0.07
-        LEATHER: 0.05
-        RABBIT_HIDE: 0.03
-        MUSHROOM_STEW: 0.20
-        RABBIT_STEW: 0.25
-        LEATHER_HELMET: 0.50
-        LEATHER_CHESTPLATE: 0.80
-        LEATHER_LEGGINGS: 0.70
-        LEATHER_BOOTS: 0.40
-        SADDLE: 1.00
-        ITEM_FRAME: 0.05
-        LEAD: 0.08
+        SHEEP: 8.50
+        COW: 6.50
+        PIG: 6.50
+        CHICKEN: 9.00
+        RABBIT: 9.00
+        HORSE: 9.00
+        DONKEY: 9.00
+        MULE: 9.00
+        LLAMA: 9.00
+        GOAT: 6.50
+        FOX: 6.50
+        WOLF: 6.50
+        BEAR: 7.80
+        POLAR_BEAR: 7.80
+        HOGLIN: 7.80
+        STRIDER: 6.50
+        MOOSHROOM: 6.50
+        TURTLE: 6.50
     message-erreur-restriction:
       - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
       - "&eLimite : %limite% abattages/crafts par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -437,15 +419,15 @@ types-entreprise:
         DIAMOND_CHESTPLATE: 600.0
         DIAMOND_LEGGINGS: 520.0
         DIAMOND_BOOTS: 300.0
-        NETHERITE_SWORD: 1050.0
-        NETHERITE_PICKAXE: 1150.0
-        NETHERITE_AXE: 1150.0
-        NETHERITE_SHOVEL: 900.0
-        NETHERITE_HOE: 1020.0
-        NETHERITE_HELMET: 1250.0
-        NETHERITE_CHESTPLATE: 1500.0
-        NETHERITE_LEGGINGS: 1400.0
-        NETHERITE_BOOTS: 1180.0
+        NETHERITE_SWORD: 150.0
+        NETHERITE_PICKAXE: 150.0
+        NETHERITE_AXE: 150.0
+        NETHERITE_SHOVEL: 150.0
+        NETHERITE_HOE: 150.0
+        NETHERITE_HELMET: 150.0
+        NETHERITE_CHESTPLATE: 150.0
+        NETHERITE_LEGGINGS: 150.0
+        NETHERITE_BOOTS: 150.0
         SHIELD: 10.0
         BOW: 15.0
         CROSSBOW: 30.0
@@ -475,7 +457,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Forge de maître"
     limite-non-membre-par-heure: 0
-    cout-creation: 18000.0
+    cout-creation: 12000.0
 
   Boulangerie:
     description: "Confection de pains, gâteaux et autres délices cuits au four. Items principaux : Pain, Gâteaux, Cookies."
@@ -490,11 +472,11 @@ types-entreprise:
         RABBIT_STEW: {}
     activites-payantes:
       CRAFT_ITEM:
-        BREAD: 1.60
-        COOKIE: 0.25
+        BREAD: 3.20
+        COOKIE: 3.80
         CAKE: 10.00
         PUMPKIN_PIE: 4.50
-        MUSHROOM_STEW: 2.20
+        MUSHROOM_STEW: 6.20
         RABBIT_STEW: 7.00
     message-erreur-restriction:
       - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
@@ -559,15 +541,15 @@ types-entreprise:
         cout-amelioration: 10000.0
         description: "Atelier artisan"
       1:  # Petit atelier
-        limite-par-heure: 6
+        limite-par-heure: 3
         cout-amelioration: 25000.0
         description: "Petit atelier"
       2:  # Atelier établi
-        limite-par-heure: 15
+        limite-par-heure: 6
         cout-amelioration: 60000.0
         description: "Atelier établi"
       3:  # Grand atelier
-        limite-par-heure: 35
+        limite-par-heure: 12
         cout-amelioration: 130000.0
         description: "Grand atelier"
       4:  # Manufacture de luxe (max)
@@ -575,509 +557,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Manufacture de luxe"
     limite-non-membre-par-heure: 0
-    cout-creation: 12000.0
-
-  Construction:
-    description: "Pose experte de blocs pour la réalisation de structures variées. Services : Placement de Pierre taillée, Béton, Verre, Bois, Métaux décoratifs, etc."
-    shop-sans-restriction: false
-    action_restrictions:
-      CRAFT_ITEM:
-        STONE_BRICKS: {}
-        BRICKS: {}
-        OAK_PLANKS: {}
-        SPRUCE_PLANKS: {}
-        BIRCH_PLANKS: {}
-        JUNGLE_PLANKS: {}
-        ACACIA_PLANKS: {}
-        DARK_OAK_PLANKS: {}
-        MANGROVE_PLANKS: {}
-        CHERRY_PLANKS: {}
-        BAMBOO_PLANKS: {}
-        CRIMSON_PLANKS: {}
-        WARPED_PLANKS: {}
-        GLASS_PANE: {}
-        WHITE_STAINED_GLASS_PANE: {}
-        ORANGE_STAINED_GLASS_PANE: {}
-        MAGENTA_STAINED_GLASS_PANE: {}
-        LIGHT_BLUE_STAINED_GLASS_PANE: {}
-        YELLOW_STAINED_GLASS_PANE: {}
-        LIME_STAINED_GLASS_PANE: {}
-        PINK_STAINED_GLASS_PANE: {}
-        GRAY_STAINED_GLASS_PANE: {}
-        LIGHT_GRAY_STAINED_GLASS_PANE: {}
-        CYAN_STAINED_GLASS_PANE: {}
-        PURPLE_STAINED_GLASS_PANE: {}
-        BLUE_STAINED_GLASS_PANE: {}
-        BROWN_STAINED_GLASS_PANE: {}
-        GREEN_STAINED_GLASS_PANE: {}
-        RED_STAINED_GLASS_PANE: {}
-        BLACK_STAINED_GLASS_PANE: {}
-        LADDER: {}
-        IRON_BARS: {}
-        OAK_FENCE: {}
-        SPRUCE_FENCE: {}
-        BIRCH_FENCE: {}
-        JUNGLE_FENCE: {}
-        ACACIA_FENCE: {}
-        DARK_OAK_FENCE: {}
-        MANGROVE_FENCE: {}
-        CHERRY_FENCE: {}
-        BAMBOO_FENCE: {}
-        CRIMSON_FENCE: {}
-        WARPED_FENCE: {}
-        COBBLESTONE_WALL: {}
-        MOSSY_COBBLESTONE_WALL: {}
-        BRICK_WALL: {}
-        PRISMARINE_WALL: {}
-        RED_SANDSTONE_WALL: {}
-        STONE_BRICK_WALL: {}
-        MUD_BRICK_WALL: {}
-        NETHER_BRICK_WALL: {}
-        RED_NETHER_BRICK_WALL: {}
-        END_STONE_BRICK_WALL: {}
-        POLISHED_BLACKSTONE_BRICK_WALL: {}
-        POLISHED_DEEPSLATE_WALL: {}
-        DEEPSLATE_BRICK_WALL: {}
-        DEEPSLATE_TILE_WALL: {}
-        PURPUR_WALL: {}
-        OAK_DOOR: {}
-        SPRUCE_DOOR: {}
-        BIRCH_DOOR: {}
-        JUNGLE_DOOR: {}
-        ACACIA_DOOR: {}
-        DARK_OAK_DOOR: {}
-        MANGROVE_DOOR: {}
-        CHERRY_DOOR: {}
-        BAMBOO_DOOR: {}
-        CRIMSON_DOOR: {}
-        WARPED_DOOR: {}
-        IRON_DOOR: {}
-        OAK_TRAPDOOR: {}
-        IRON_TRAPDOOR: {}
-        CHEST: {}
-        CRAFTING_TABLE: {}
-        FURNACE: {}
-        ANVIL: {}
-        LANTERN: {}
-        SOUL_LANTERN: {}
-        BOOKSHELF: {}
-        NOTE_BLOCK: {}
-        JUKEBOX: {}
-        REDSTONE_LAMP: {}
-        LEVER: {}
-        STONE_BUTTON: {}
-        OAK_BUTTON: {}
-        WEIGHTED_PRESSURE_PLATE_LIGHT: {}
-        WEIGHTED_PRESSURE_PLATE_HEAVY: {}
-        STONE_PRESSURE_PLATE: {}
-        OAK_PRESSURE_PLATE: {}
-        REDSTONE_TORCH: {}
-        REPEATER: {}
-        COMPARATOR: {}
-        OBSERVER: {}
-        PISTON: {}
-        STICKY_PISTON: {}
-        DISPENSER: {}
-        DROPPER: {}
-        HOPPER: {}
-        RAIL: {}
-        POWERED_RAIL: {}
-        DETECTOR_RAIL: {}
-        ACTIVATOR_RAIL: {}
-        DAYLIGHT_DETECTOR: {}
-        TRIPWIRE_HOOK: {}
-        TARGET: {}
-        BELL: {}
-        BLAST_FURNACE: {}
-        SMOKER: {}
-        BARREL: {}
-        CARTOGRAPHY_TABLE: {}
-        FLETCHING_TABLE: {}
-        GRINDSTONE: {}
-        LOOM: {}
-        SMITHING_TABLE: {}
-        STONECUTTER: {}
-        COMPOSTER: {}
-        CAULDRON: {}
-        END_ROD: {}
-        WHITE_SHULKER_BOX: {}
-        ORANGE_SHULKER_BOX: {}
-        MAGENTA_SHULKER_BOX: {}
-        LIGHT_BLUE_SHULKER_BOX: {}
-        YELLOW_SHULKER_BOX: {}
-        LIME_SHULKER_BOX: {}
-        PINK_SHULKER_BOX: {}
-        GRAY_SHULKER_BOX: {}
-        LIGHT_GRAY_SHULKER_BOX: {}
-        CYAN_SHULKER_BOX: {}
-        PURPLE_SHULKER_BOX: {}
-        BLUE_SHULKER_BOX: {}
-        BROWN_SHULKER_BOX: {}
-        GREEN_SHULKER_BOX: {}
-        RED_SHULKER_BOX: {}
-        BLACK_SHULKER_BOX: {}
-        WHITE_CONCRETE_POWDER: {}
-        ORANGE_CONCRETE_POWDER: {}
-        MAGENTA_CONCRETE_POWDER: {}
-        LIGHT_BLUE_CONCRETE_POWDER: {}
-        YELLOW_CONCRETE_POWDER: {}
-        LIME_CONCRETE_POWDER: {}
-        PINK_CONCRETE_POWDER: {}
-        GRAY_CONCRETE_POWDER: {}
-        LIGHT_GRAY_CONCRETE_POWDER: {}
-        CYAN_CONCRETE_POWDER: {}
-        PURPLE_CONCRETE_POWDER: {}
-        BLUE_CONCRETE_POWDER: {}
-        BROWN_CONCRETE_POWDER: {}
-        GREEN_CONCRETE_POWDER: {}
-        RED_CONCRETE_POWDER: {}
-        BLACK_CONCRETE_POWDER: {}
-    activites-payantes:
-      BLOCK_PLACE:
-        STONE: 0.015
-        DIRT: 0.005
-        COBBLESTONE: 0.01
-        GRANITE: 0.012
-        DIORITE: 0.012
-        ANDESITE: 0.012
-        SAND: 0.008
-        GRAVEL: 0.008
-        CLAY: 0.01
-        GRASS_BLOCK: 0.015
-        FARMLAND: 0.01
-        PATH_BLOCK: 0.01
-        OAK_PLANKS: 0.02
-        SPRUCE_PLANKS: 0.02
-        BIRCH_PLANKS: 0.02
-        JUNGLE_PLANKS: 0.02
-        ACACIA_PLANKS: 0.02
-        DARK_OAK_PLANKS: 0.02
-        MANGROVE_PLANKS: 0.02
-        CHERRY_PLANKS: 0.02
-        BAMBOO_PLANKS: 0.02
-        CRIMSON_PLANKS: 0.025
-        WARPED_PLANKS: 0.025
-        OAK_LOG: 0.015
-        SPRUCE_LOG: 0.015
-        BIRCH_LOG: 0.015
-        JUNGLE_LOG: 0.015
-        ACACIA_LOG: 0.015
-        DARK_OAK_LOG: 0.015
-        MANGROVE_LOG: 0.015
-        CHERRY_LOG: 0.015
-        BAMBOO_BLOCK: 0.018
-        CRIMSON_STEM: 0.018
-        WARPED_STEM: 0.018
-        STRIPPED_OAK_LOG: 0.016
-        STRIPPED_SPRUCE_LOG: 0.016
-        STRIPPED_BIRCH_LOG: 0.016
-        STRIPPED_JUNGLE_LOG: 0.016
-        STRIPPED_ACACIA_LOG: 0.016
-        STRIPPED_DARK_OAK_LOG: 0.016
-        STRIPPED_MANGROVE_LOG: 0.016
-        STRIPPED_CHERRY_LOG: 0.016
-        STRIPPED_BAMBOO_BLOCK: 0.02
-        STRIPPED_CRIMSON_STEM: 0.02
-        STRIPPED_WARPED_STEM: 0.02
-        LADDER: 0.03
-        STONE_BRICKS: 0.08
-        MOSSY_COBBLESTONE: 0.05
-        CRACKED_STONE_BRICKS: 0.08
-        CHISELED_STONE_BRICKS: 0.08
-        BRICKS: 0.07
-        SMOOTH_STONE: 0.04
-        SMOOTH_SANDSTONE: 0.04
-        SMOOTH_RED_SANDSTONE: 0.04
-        WHITE_CONCRETE: 0.06
-        ORANGE_CONCRETE: 0.06
-        MAGENTA_CONCRETE: 0.06
-        LIGHT_BLUE_CONCRETE: 0.06
-        YELLOW_CONCRETE: 0.06
-        LIME_CONCRETE: 0.06
-        PINK_CONCRETE: 0.06
-        GRAY_CONCRETE: 0.06
-        LIGHT_GRAY_CONCRETE: 0.06
-        CYAN_CONCRETE: 0.06
-        PURPLE_CONCRETE: 0.06
-        BLUE_CONCRETE: 0.06
-        BROWN_CONCRETE: 0.06
-        GREEN_CONCRETE: 0.06
-        RED_CONCRETE: 0.06
-        BLACK_CONCRETE: 0.06
-        TERRACOTTA: 0.05
-        WHITE_TERRACOTTA: 0.05
-        ORANGE_TERRACOTTA: 0.05
-        MAGENTA_TERRACOTTA: 0.05
-        LIGHT_BLUE_TERRACOTTA: 0.05
-        YELLOW_TERRACOTTA: 0.05
-        LIME_TERRACOTTA: 0.05
-        PINK_TERRACOTTA: 0.05
-        GRAY_TERRACOTTA: 0.05
-        LIGHT_GRAY_TERRACOTTA: 0.05
-        CYAN_TERRACOTTA: 0.05
-        PURPLE_TERRACOTTA: 0.05
-        BLUE_TERRACOTTA: 0.05
-        BROWN_TERRACOTTA: 0.05
-        GREEN_TERRACOTTA: 0.05
-        RED_TERRACOTTA: 0.05
-        BLACK_TERRACOTTA: 0.05
-        GLASS: 0.06
-        TINTED_GLASS: 0.07
-        WHITE_STAINED_GLASS: 0.06
-        ORANGE_STAINED_GLASS: 0.06
-        MAGENTA_STAINED_GLASS: 0.06
-        LIGHT_BLUE_STAINED_GLASS: 0.06
-        YELLOW_STAINED_GLASS: 0.06
-        LIME_STAINED_GLASS: 0.06
-        PINK_STAINED_GLASS: 0.06
-        GRAY_STAINED_GLASS: 0.06
-        LIGHT_GRAY_STAINED_GLASS: 0.06
-        CYAN_STAINED_GLASS: 0.06
-        PURPLE_STAINED_GLASS: 0.06
-        BLUE_STAINED_GLASS: 0.06
-        BROWN_STAINED_GLASS: 0.06
-        GREEN_STAINED_GLASS: 0.06
-        RED_STAINED_GLASS: 0.06
-        BLACK_STAINED_GLASS: 0.06
-        QUARTZ_BLOCK: 0.15
-        QUARTZ_PILLAR: 0.16
-        CHISELED_QUARTZ_BLOCK: 0.16
-        PRISMARINE: 0.10
-        PRISMARINE_BRICKS: 0.11
-        DARK_PRISMARINE: 0.12
-        DEEPSLATE_TILES: 0.10
-        COBBLED_DEEPSLATE: 0.03
-        POLISHED_DEEPSLATE: 0.04
-        DEEPSLATE_BRICKS: 0.09
-        CRACKED_DEEPSLATE_BRICKS: 0.09
-        CHISELED_DEEPSLATE: 0.09
-        CRACKED_DEEPSLATE_TILES: 0.10
-        BLACKSTONE: 0.03
-        POLISHED_BLACKSTONE: 0.04
-        POLISHED_BLACKSTONE_BRICKS: 0.12
-        CRACKED_POLISHED_BLACKSTONE_BRICKS: 0.12
-        CHISELED_POLISHED_BLACKSTONE: 0.12
-        ANCIENT_DEBRIS: 5.0
-        IRON_BLOCK: 0.20
-        GOLD_BLOCK: 0.30
-        DIAMOND_BLOCK: 0.50
-        EMERALD_BLOCK: 0.40
-        COPPER_BLOCK: 0.05
-        CUT_COPPER: 0.055
-        EXPOSED_COPPER: 0.055
-        WEATHERED_COPPER: 0.055
-        OXIDIZED_COPPER: 0.055
-        WAXED_COPPER_BLOCK: 0.06
-        WAXED_CUT_COPPER: 0.065
-        WAXED_EXPOSED_COPPER: 0.065
-        WAXED_WEATHERED_COPPER: 0.065
-        WAXED_OXIDIZED_COPPER: 0.065
-        IRON_BARS: 0.04
-        CHAIN: 0.05
-        LIGHTNING_ROD: 0.15
-        WHITE_WOOL: 0.03
-        ORANGE_WOOL: 0.03
-        MAGENTA_WOOL: 0.03
-        LIGHT_BLUE_WOOL: 0.03
-        YELLOW_WOOL: 0.03
-        LIME_WOOL: 0.03
-        PINK_WOOL: 0.03
-        GRAY_WOOL: 0.03
-        LIGHT_GRAY_WOOL: 0.03
-        CYAN_WOOL: 0.03
-        PURPLE_WOOL: 0.03
-        BLUE_WOOL: 0.03
-        BROWN_WOOL: 0.03
-        GREEN_WOOL: 0.03
-        RED_WOOL: 0.03
-        BLACK_WOOL: 0.03
-        GLOWSTONE: 0.08
-        SEA_LANTERN: 0.10
-        SHROOMLIGHT: 0.09
-        REDSTONE_LAMP: 0.12
-        LANTERN: 0.07
-        SOUL_LANTERN: 0.08
-        LODESTONE: 1.0
-        RESPAWN_ANCHOR: 0.75
-        LECTERN: 0.05
-        BELL: 0.10
-        SCAFFOLDING: 0.02
-        END_STONE_BRICKS: 0.10
-        PURPUR_BLOCK: 0.09
-        PURPUR_PILLAR: 0.10
-        END_ROD: 0.06
-        NETHER_BRICKS: 0.06
-        RED_NETHER_BRICKS: 0.07
-        CRACKED_NETHER_BRICKS: 0.07
-        CHISELED_NETHER_BRICKS: 0.07
-        BASALT: 0.02
-        POLISHED_BASALT: 0.03
-        SMOOTH_BASALT: 0.03
-        SOUL_SAND: 0.01
-        SOUL_SOIL: 0.015
-        TUFF: 0.015
-        DRIPSTONE_BLOCK: 0.02
-        POINTED_DRIPSTONE: 0.02
-        CALCITE: 0.015
-        DEEPSLATE: 0.015
-        OAK_STAIRS: 0.03
-        SPRUCE_STAIRS: 0.03
-        BIRCH_STAIRS: 0.03
-        JUNGLE_STAIRS: 0.03
-        ACACIA_STAIRS: 0.03
-        DARK_OAK_STAIRS: 0.03
-        MANGROVE_STAIRS: 0.03
-        CHERRY_STAIRS: 0.03
-        BAMBOO_STAIRS: 0.03
-        CRIMSON_STAIRS: 0.035
-        WARPED_STAIRS: 0.035
-        STONE_BRICK_STAIRS: 0.10
-        QUARTZ_STAIRS: 0.18
-        BRICK_STAIRS: 0.09
-        COBBLESTONE_STAIRS: 0.03
-        ANDESITE_STAIRS: 0.04
-        DIORITE_STAIRS: 0.04
-        GRANITE_STAIRS: 0.04
-        POLISHED_DEEPSLATE_STAIRS: 0.06
-        POLISHED_BLACKSTONE_BRICK_STAIRS: 0.14
-        OAK_SLAB: 0.015
-        SPRUCE_SLAB: 0.015
-        BIRCH_SLAB: 0.015
-        JUNGLE_SLAB: 0.015
-        ACACIA_SLAB: 0.015
-        DARK_OAK_SLAB: 0.015
-        MANGROVE_SLAB: 0.015
-        CHERRY_SLAB: 0.015
-        BAMBOO_SLAB: 0.015
-        CRIMSON_SLAB: 0.018
-        WARPED_SLAB: 0.018
-        STONE_BRICK_SLAB: 0.05
-        QUARTZ_SLAB: 0.09
-        BRICK_SLAB: 0.045
-        COBBLESTONE_SLAB: 0.02
-        ANDESITE_SLAB: 0.025
-        DIORITE_SLAB: 0.025
-        GRANITE_SLAB: 0.025
-        POLISHED_DEEPSLATE_SLAB: 0.03
-        POLISHED_BLACKSTONE_BRICK_SLAB: 0.07
-      CRAFT_ITEM:
-        STONE_BRICKS: 0.025
-        BRICKS: 0.015
-        OAK_PLANKS: 0.005
-        SPRUCE_PLANKS: 0.005
-        BIRCH_PLANKS: 0.005
-        JUNGLE_PLANKS: 0.005
-        ACACIA_PLANKS: 0.005
-        DARK_OAK_PLANKS: 0.005
-        MANGROVE_PLANKS: 0.005
-        CHERRY_PLANKS: 0.005
-        BAMBOO_PLANKS: 0.005
-        CRIMSON_PLANKS: 0.006
-        WARPED_PLANKS: 0.006
-        GLASS_PANE: 0.008
-        WHITE_STAINED_GLASS_PANE: 0.009
-        ORANGE_STAINED_GLASS_PANE: 0.009
-        MAGENTA_STAINED_GLASS_PANE: 0.009
-        LIGHT_BLUE_STAINED_GLASS_PANE: 0.009
-        YELLOW_STAINED_GLASS_PANE: 0.009
-        LIME_STAINED_GLASS_PANE: 0.009
-        PINK_STAINED_GLASS_PANE: 0.009
-        GRAY_STAINED_GLASS_PANE: 0.009
-        LIGHT_GRAY_STAINED_GLASS_PANE: 0.009
-        CYAN_STAINED_GLASS_PANE: 0.009
-        PURPLE_STAINED_GLASS_PANE: 0.009
-        BLUE_STAINED_GLASS_PANE: 0.009
-        BROWN_STAINED_GLASS_PANE: 0.009
-        GREEN_STAINED_GLASS_PANE: 0.009
-        RED_STAINED_GLASS_PANE: 0.009
-        BLACK_STAINED_GLASS_PANE: 0.009
-        LADDER: 0.01
-        IRON_BARS: 0.015
-        OAK_FENCE: 0.008
-        SPRUCE_FENCE: 0.008
-        BIRCH_FENCE: 0.008
-        JUNGLE_FENCE: 0.008
-        ACACIA_FENCE: 0.008
-        DARK_OAK_FENCE: 0.008
-        MANGROVE_FENCE: 0.008
-        CHERRY_FENCE: 0.008
-        BAMBOO_FENCE: 0.008
-        CRIMSON_FENCE: 0.009
-        WARPED_FENCE: 0.009
-        COBBLESTONE_WALL: 0.01
-        BRICK_WALL: 0.018
-        QUARTZ_BLOCK: 0.05
-        QUARTZ_PILLAR: 0.055
-        CHISELED_QUARTZ_BLOCK: 0.055
-        ANVIL: 0.5
-        CHEST: 0.01
-        CRAFTING_TABLE: 0.005
-        FURNACE: 0.01
-        LANTERN: 0.02
-        REDSTONE_LAMP: 0.03
-        BLAST_FURNACE: 0.035
-        SMOKER: 0.025
-        BARREL: 0.015
-        WHITE_SHULKER_BOX: 1.55
-        ORANGE_SHULKER_BOX: 1.55
-        MAGENTA_SHULKER_BOX: 1.55
-        LIGHT_BLUE_SHULKER_BOX: 1.55
-        YELLOW_SHULKER_BOX: 1.55
-        LIME_SHULKER_BOX: 1.55
-        PINK_SHULKER_BOX: 1.55
-        GRAY_SHULKER_BOX: 1.55
-        LIGHT_GRAY_SHULKER_BOX: 1.55
-        CYAN_SHULKER_BOX: 1.55
-        PURPLE_SHULKER_BOX: 1.55
-        BLUE_SHULKER_BOX: 1.55
-        BROWN_SHULKER_BOX: 1.55
-        GREEN_SHULKER_BOX: 1.55
-        RED_SHULKER_BOX: 1.55
-        BLACK_SHULKER_BOX: 1.55
-        WHITE_CONCRETE_POWDER: 0.01
-        ORANGE_CONCRETE_POWDER: 0.01
-        MAGENTA_CONCRETE_POWDER: 0.01
-        LIGHT_BLUE_CONCRETE_POWDER: 0.01
-        YELLOW_CONCRETE_POWDER: 0.01
-        LIME_CONCRETE_POWDER: 0.01
-        PINK_CONCRETE_POWDER: 0.01
-        GRAY_CONCRETE_POWDER: 0.01
-        LIGHT_GRAY_CONCRETE_POWDER: 0.01
-        CYAN_CONCRETE_POWDER: 0.01
-        PURPLE_CONCRETE_POWDER: 0.01
-        BLUE_CONCRETE_POWDER: 0.01
-        BROWN_CONCRETE_POWDER: 0.01
-        GREEN_CONCRETE_POWDER: 0.01
-        RED_CONCRETE_POWDER: 0.01
-        BLACK_CONCRETE_POWDER: 0.01
-    message-erreur-restriction:
-      - "&cL'utilisation massive de cet item est réservée aux entreprises de &3Construction&c."
-      - "&eLimite : %limite% crafts par heure. Améliorez votre entreprise avec /entreprise gui"
-      - "&fRejoignez une entreprise de Construction ou créez-en une pour débloquer ces restrictions."
-    # Niveaux de restrictions (quotas horaires pour les membres)
-    restriction-levels:
-      0:  # Petit atelier
-        limite-par-heure: 25
-        cout-amelioration: 7000.0
-        description: "Petit atelier"
-      1:  # Atelier moyen
-        limite-par-heure: 70
-        cout-amelioration: 18000.0
-        description: "Atelier moyen"
-      2:  # Grand atelier
-        limite-par-heure: 180
-        cout-amelioration: 42000.0
-        description: "Grand atelier"
-      3:  # Usine de fabrication
-        limite-par-heure: 450
-        cout-amelioration: 95000.0
-        description: "Usine de fabrication"
-      4:  # Complexe industriel (max)
-        limite-par-heure: -1
-        cout-amelioration: 0
-        description: "Complexe industriel"
-    limite-non-membre-par-heure: 16
-    cout-creation: 8000.0
+    cout-creation: 6000.0
 
 
   # ========================================
@@ -1128,29 +608,29 @@ types-entreprise:
       # Fabrication de telephones (8 couleurs)
       CRAFT_PHONE:
         phone_black:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_blue:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_orange:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_white:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_yellow:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_pink:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_red:
-          limite-par-heure: 5
+          limite-par-heure: 2
         phone_green:
-          limite-par-heure: 5
+          limite-par-heure: 2
       # Fabrication de forfaits
       CRAFT_PLAN:
         silver:
-          limite-par-heure: 10
+          limite-par-heure: 2
         gold:
-          limite-par-heure: 8
+          limite-par-heure: 2
         platinum:
-          limite-par-heure: 5
+          limite-par-heure: 2
     activites-payantes:
       CRAFT_PHONE:
         phone_black: 150.0
@@ -1172,7 +652,7 @@ types-entreprise:
     restriction-levels:
       0:  # Boutique mobile
         limite-par-heure: 3
-        cout-amelioration: 20000.0
+        cout-amelioration: 10000.0
         description: "Boutique mobile"
       1:  # Point de vente
         limite-par-heure: 5
@@ -1263,7 +743,7 @@ rename-cost: 3000.0
 
 town:
   # === COÛTS DE BASE ===
-  creation-cost: 10000.0      # Coût pour créer une ville
+  creation-cost: 5000.0      # Coût pour créer une ville
   join-cost: 100.0            # Frais d'entrée versés à la banque de la ville
   rename-cost: 5000.0         # Coût pour renommer une ville
 
@@ -1284,8 +764,8 @@ town:
       creation-cost: 5000.0
       upgrade-cost: 0
       min-population: 1
-      max-population: 4
-      max-claims: 10
+      max-population: 6
+      max-claims: 20
       bank-limit: 5000.0          # Limite de solde bancaire
       max-policiers: 0
       max-juges: 0
@@ -1298,7 +778,7 @@ town:
     # Communauté établie avec services de base
     village:
       creation-cost: 13000.0      # Coût total depuis le début (5000 + 8000)
-      upgrade-cost: 8000.0        # Coût pour passer de Campement à Village
+      upgrade-cost: 4500.0        # Coût pour passer de Campement à Village
       min-population: 5
       max-population: 14
       max-claims: 130
@@ -1315,8 +795,8 @@ town:
     ville:
       creation-cost: 28000.0      # Coût total depuis le début (5000 + 8000 + 15000)
       upgrade-cost: 15000.0       # Coût pour passer de Village à Ville
-      min-population: 15
-      max-population: 999999
+      min-population: 12
+      max-population: 29
       max-claims: 250
       bank-limit: 50000.0         # Limite de solde bancaire
       max-policiers: 5
@@ -1329,9 +809,9 @@ town:
   # === SYSTÈME DE COMMISSIONS ===
   commissions:
     # Pourcentage de l'amende qui va au policier quand elle est payée
-    police-commission-percentage: 50.0
+    police-commission-percentage: 75.0
     # Pourcentage des frais de justice qui va au juge
-    judge-commission-percentage: 50.0
+    judge-commission-percentage: 75.0
     # Frais de justice en pourcentage de l'amende
     court-fees-percentage: 30.0
 

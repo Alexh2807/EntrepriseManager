@@ -188,6 +188,9 @@ public class ClaimManager {
         // Prélever le coût
         town.withdraw(cost);
 
+        // Vérifier si c'est le premier claim de la ville
+        boolean isFirstClaim = town.getPlots().isEmpty();
+
         // Créer la parcelle
         Plot plot = new Plot(townName, chunk);
         town.addPlot(plot);
@@ -198,9 +201,59 @@ public class ClaimManager {
 
         plugin.getLogger().info("Chunk " + coord + " claimé par " + townName);
 
+        // NOUVEAU : Si c'est le premier claim, créer automatiquement le spawn
+        if (isFirstClaim) {
+            createDefaultSpawn(town, chunk);
+        }
+
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
         return true;
+    }
+
+    /**
+     * Crée automatiquement le spawn de la ville au centre du chunk
+     * Appelé lors du premier claim
+     */
+    private void createDefaultSpawn(Town town, Chunk chunk) {
+        // Calculer le centre du chunk
+        int centerX = (chunk.getX() << 4) + 8; // chunk.getX() * 16 + 8
+        int centerZ = (chunk.getZ() << 4) + 8;
+
+        // Trouver le Y le plus haut qui est safe (bloc solide avec 2 blocs d'air au-dessus)
+        org.bukkit.World world = chunk.getWorld();
+        int highestY = world.getHighestBlockYAt(centerX, centerZ);
+
+        // Créer la location du spawn (légèrement au-dessus du sol)
+        Location spawnLocation = new Location(world, centerX + 0.5, highestY + 1, centerZ + 0.5);
+
+        town.setSpawnLocation(spawnLocation);
+
+        // Notifier le maire et les adjoints
+        notifyTownAdmins(town, "§a§l✓ SPAWN CRÉÉ §r§a- Le point de spawn de la ville a été défini automatiquement au centre du premier terrain claimé.");
+
+        plugin.getLogger().info("Spawn automatique créé pour " + town.getName() + " à " +
+            spawnLocation.getBlockX() + ", " + spawnLocation.getBlockY() + ", " + spawnLocation.getBlockZ());
+    }
+
+    /**
+     * Notifie le maire et les adjoints d'un message important concernant la ville
+     */
+    private void notifyTownAdmins(Town town, String message) {
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            for (com.gravityyfh.roleplaycity.town.data.TownMember member : town.getMembers().values()) {
+                if (member.getRole() == com.gravityyfh.roleplaycity.town.data.TownRole.MAIRE ||
+                    member.getRole() == com.gravityyfh.roleplaycity.town.data.TownRole.ADJOINT) {
+                    org.bukkit.entity.Player player = org.bukkit.Bukkit.getPlayer(member.getPlayerUuid());
+                    if (player != null && player.isOnline()) {
+                        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                        player.sendMessage("§6§l🏛 " + town.getName().toUpperCase());
+                        player.sendMessage(message);
+                        player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -263,9 +316,131 @@ public class ClaimManager {
 
         plugin.getLogger().info("Chunk " + coord + " unclaimed par " + townName + " (remboursement: " + refund + "€)");
 
+        // NOUVEAU : Vérifier si le spawn était sur ce chunk et le déplacer si nécessaire
+        validateAndRelocateSpawn(town);
+
         // Sauvegarder immédiatement
         townManager.saveTownsNow();
         return refund;
+    }
+
+    /**
+     * Vérifie si le spawn de la ville est toujours sur un terrain valide
+     * Si non, le déplace automatiquement vers un autre terrain
+     */
+    public void validateAndRelocateSpawn(Town town) {
+        if (!town.hasSpawnLocation()) {
+            return; // Pas de spawn, rien à faire
+        }
+
+        Location spawnLoc = town.getSpawnLocation();
+
+        // Vérifier si le spawn est toujours sur un terrain de la ville
+        if (isSpawnLocationValid(town, spawnLoc)) {
+            return; // Spawn toujours valide
+        }
+
+        // Le spawn n'est plus valide, chercher un nouveau terrain
+        Plot newSpawnPlot = findBestPlotForSpawn(town);
+
+        if (newSpawnPlot == null) {
+            // Plus aucun terrain ! Supprimer le spawn
+            town.setSpawnLocation(null);
+            notifyTownAdmins(town, "§c§l⚠ SPAWN SUPPRIMÉ §r§c- La ville n'a plus de terrain, le point de spawn a été supprimé.");
+            plugin.getLogger().warning("Spawn de " + town.getName() + " supprimé car plus aucun terrain disponible");
+            return;
+        }
+
+        // Calculer le nouveau spawn au centre du nouveau terrain
+        Location newSpawn = calculateSpawnLocation(newSpawnPlot);
+        town.setSpawnLocation(newSpawn);
+
+        notifyTownAdmins(town, "§e§l⚠ SPAWN DÉPLACÉ §r§e- Le terrain contenant le spawn a été supprimé. Le spawn a été automatiquement déplacé vers un autre terrain.");
+
+        plugin.getLogger().info("Spawn de " + town.getName() + " déplacé vers " +
+            newSpawn.getBlockX() + ", " + newSpawn.getBlockY() + ", " + newSpawn.getBlockZ());
+    }
+
+    /**
+     * Vérifie si la location du spawn est sur un terrain appartenant à la ville
+     */
+    public boolean isSpawnLocationValid(Town town, Location location) {
+        if (location == null) {
+            return false;
+        }
+
+        ChunkCoordinate spawnCoord = ChunkCoordinate.fromLocation(location);
+        String owner = getClaimOwner(spawnCoord);
+
+        return town.getName().equals(owner);
+    }
+
+    /**
+     * Trouve le meilleur terrain pour placer le spawn
+     * Priorité : MUNICIPAL (Mairie) > MUNICIPAL (autre) > PUBLIC > autres
+     */
+    private Plot findBestPlotForSpawn(Town town) {
+        Plot bestPlot = null;
+        int bestPriority = -1;
+
+        for (Plot plot : town.getPlots().values()) {
+            int priority = getPlotSpawnPriority(plot);
+            if (priority > bestPriority) {
+                bestPriority = priority;
+                bestPlot = plot;
+            }
+        }
+
+        return bestPlot;
+    }
+
+    /**
+     * Calcule la priorité d'un terrain pour y placer le spawn
+     * Plus le nombre est élevé, plus le terrain est prioritaire
+     */
+    private int getPlotSpawnPriority(Plot plot) {
+        com.gravityyfh.roleplaycity.town.data.PlotType type = plot.getType();
+
+        // Municipal avec sous-type MAIRIE = priorité maximale
+        if (type == com.gravityyfh.roleplaycity.town.data.PlotType.MUNICIPAL) {
+            if (plot.getMunicipalSubType() == com.gravityyfh.roleplaycity.town.data.MunicipalSubType.MAIRIE) {
+                return 100;
+            }
+            return 80; // Autre municipal
+        }
+
+        // Public = bonne priorité
+        if (type == com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC) {
+            return 60;
+        }
+
+        // Particulier/Professionnel = priorité basse
+        return 20;
+    }
+
+    /**
+     * Calcule la location du spawn au centre d'un terrain
+     */
+    private Location calculateSpawnLocation(Plot plot) {
+        // Récupérer le premier chunk du plot
+        String firstChunkKey = plot.getChunks().iterator().next();
+        String[] parts = firstChunkKey.split(":");
+
+        String worldName = parts[0];
+        int chunkX = Integer.parseInt(parts[1]);
+        int chunkZ = Integer.parseInt(parts[2]);
+
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
+        if (world == null) {
+            return null;
+        }
+
+        // Centre du chunk
+        int centerX = (chunkX << 4) + 8;
+        int centerZ = (chunkZ << 4) + 8;
+        int highestY = world.getHighestBlockYAt(centerX, centerZ);
+
+        return new Location(world, centerX + 0.5, highestY + 1, centerZ + 0.5);
     }
 
     /**

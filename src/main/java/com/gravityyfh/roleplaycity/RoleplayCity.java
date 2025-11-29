@@ -82,6 +82,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI debtManagementGUI;
     private com.gravityyfh.roleplaycity.town.gui.TownListGUI townListGUI;
     private com.gravityyfh.roleplaycity.town.gui.NoTownGUI noTownGUI;
+    private com.gravityyfh.roleplaycity.town.gui.TownAdminGUI townAdminGUI;
     private com.gravityyfh.roleplaycity.town.data.TownTeleportCooldown townTeleportCooldown;
     private com.gravityyfh.roleplaycity.town.gui.PlotGroupManagementGUI plotGroupManagementGUI;
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
@@ -1894,6 +1895,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     plotOwnerGUI = new com.gravityyfh.roleplaycity.town.gui.PlotOwnerGUI(this, townManager,
                             claimManager);
                     getServer().getPluginManager().registerEvents(plotOwnerGUI, this);
+                    // Liaison vers MyPropertyGUI pour le bouton Retour
+                    if (myPropertyGUI != null) {
+                        plotOwnerGUI.setMyPropertyGUI(myPropertyGUI);
+                    }
                     debugLogger.debug("LAZY_LOAD", "PlotOwnerGUI initialisé et enregistré");
                 }
             }
@@ -2048,6 +2053,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     townListGUI = new com.gravityyfh.roleplaycity.town.gui.TownListGUI(this, townManager,
                             townTeleportCooldown);
                     noTownGUI = new com.gravityyfh.roleplaycity.town.gui.NoTownGUI(this, townManager, townListGUI);
+                    townAdminGUI = new com.gravityyfh.roleplaycity.town.gui.TownAdminGUI(this, townManager);
 
                     debugLogger.debug("LAZY_LOAD", "TownMainGUI et GUIs liés initialisés");
 
@@ -2066,11 +2072,24 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     townMainGUI.setTownListGUI(townListGUI);
                     townMainGUI.setNoTownGUI(noTownGUI);
                     townMainGUI.setCooldownManager(townTeleportCooldown);
+                    townMainGUI.setAdminGUI(townAdminGUI);
 
                     // Liaisons réciproques
                     townMembersGUI.setMainGUI(townMainGUI);
                     townUpgradeGUI.setMainGUI(townMainGUI);
+                    townBankGUI.setMainGUI(townMainGUI);
+                    townPoliceGUI.setMainGUI(townMainGUI);
+                    townJusticeGUI.setMainGUI(townMainGUI);
                     townClaimsGUI.setPlotManagementGUI(townPlotManagementGUI);
+                    townClaimsGUI.setAdminGUI(townAdminGUI);
+                    townAdminGUI.setClaimsGUI(townClaimsGUI);
+                    townAdminGUI.setMainGUI(townMainGUI);
+                    townAdminGUI.setUpgradeGUI(townUpgradeGUI);
+                    townCitizenFinesGUI.setMainGUI(townMainGUI);
+                    // Liaison PlotOwnerGUI vers MyPropertyGUI si déjà initialisé
+                    if (plotOwnerGUI != null) {
+                        plotOwnerGUI.setMyPropertyGUI(myPropertyGUI);
+                    }
 
                     // FIX BUG: Enregistrer tous les GUIs comme listeners
                     getServer().getPluginManager().registerEvents(townMainGUI, this);
@@ -2087,6 +2106,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                     getServer().getPluginManager().registerEvents(debtManagementGUI, this);
                     getServer().getPluginManager().registerEvents(townListGUI, this);
                     getServer().getPluginManager().registerEvents(noTownGUI, this);
+                    getServer().getPluginManager().registerEvents(townAdminGUI, this);
 
                     debugLogger.debug("LAZY_LOAD", "Tous les listeners GUI enregistrés");
                 }

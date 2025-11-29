@@ -404,7 +404,7 @@ public class TownPlotManagementGUI implements Listener {
             inv.setItem(25, unclaimItem);
         }
 
-        // Retour à Mes Propriétés (slot 26)
+        // Retour à Mes Propriétés (haut gauche)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
         backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
@@ -412,7 +412,7 @@ public class TownPlotManagementGUI implements Listener {
         backLore.add(ChatColor.GRAY + "Voir tous vos terrains");
         backMeta.setLore(backLore);
         backItem.setItemMeta(backMeta);
-        inv.setItem(26, backItem);
+        inv.setItem(0, backItem);
 
         // FIX UX P2.7: Stocker le Plot affiché pour référence ultérieure
         currentMenuPlots.put(player.getUniqueId(), plot);
@@ -582,8 +582,17 @@ public class TownPlotManagementGUI implements Listener {
                         plugin.getTownManager().saveTownsNow();
 
                         player.closeInventory();
-                        // FIX UX P2.7: Utiliser le plot stocké
-                        openPlotMenu(player, plot);
+
+                        // Si le nouveau type est MUNICIPAL, ouvrir directement le menu de sous-type
+                        if (selectedType == PlotType.MUNICIPAL) {
+                            String townNameForSubtype = plot.getTownName();
+                            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                                openMunicipalSubtypeSelectionMenu(player, plot, townNameForSubtype);
+                            }, 2L);
+                        } else {
+                            // FIX UX P2.7: Utiliser le plot stocké
+                            openPlotMenu(player, plot);
+                        }
                     }
                 }
             }
@@ -676,8 +685,15 @@ public class TownPlotManagementGUI implements Listener {
             handleEvictOwnerOrRenter(player, plot, townName);
         } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
-                ChatColor.YELLOW + " pour accéder à vos propriétés");
+            // Ouvrir le menu Mes Propriétés via le plugin
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (plugin.getMyPropertyGUI() != null) {
+                    plugin.getMyPropertyGUI().openPropertyMenu(player, townName);
+                } else {
+                    // Fallback: ouvrir le menu principal de la ville
+                    plugin.getTownMainGUI().openMainMenu(player);
+                }
+            }, 1L);
         } else if (displayName.contains("Gestion Boîte aux Lettres")) {
             // Vérifier si c'est le bouton du propriétaire/locataire (slot 20) ou du maire (slot 15)
             handleMailboxManagement(player, plot, event.getClick());

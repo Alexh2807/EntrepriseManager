@@ -25,6 +25,7 @@ public class TownBankGUI implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final TownEconomyManager economyManager;
+    private TownMainGUI mainGUI;
 
     private static final String BANK_TITLE = ChatColor.DARK_GREEN + "🏦 Banque Municipale";
     private static final String TRANSACTIONS_TITLE = ChatColor.DARK_GREEN + "📜 Historique";
@@ -40,6 +41,10 @@ public class TownBankGUI implements Listener {
         this.townManager = townManager;
         this.economyManager = economyManager;
         this.pendingActions = new HashMap<>();
+    }
+
+    public void setMainGUI(TownMainGUI mainGUI) {
+        this.mainGUI = mainGUI;
     }
 
     public void openBankMenu(Player player) {
@@ -139,12 +144,22 @@ public class TownBankGUI implements Listener {
             inv.setItem(20, taxItem);
         }
 
-        // Fermer
+        // Retour au menu principal (haut gauche)
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        List<String> backLore = new ArrayList<>();
+        backLore.add(ChatColor.GRAY + "Retour au menu ville");
+        backMeta.setLore(backLore);
+        backItem.setItemMeta(backMeta);
+        inv.setItem(0, backItem);
+
+        // Fermer (haut droite)
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(26, closeItem);
+        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }
@@ -244,6 +259,14 @@ public class TownBankGUI implements Listener {
             openTransactionsMenu(player, townName);
         } else if (displayName.contains("Collecter les Taxes")) {
             handleCollectTaxes(player, townName);
+        } else if (displayName.contains("Retour")) {
+            player.closeInventory();
+            // Retour au menu principal de la ville
+            if (mainGUI != null) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    mainGUI.openMainMenu(player);
+                }, 1L);
+            }
         } else if (displayName.contains("Fermer")) {
             player.closeInventory();
         }

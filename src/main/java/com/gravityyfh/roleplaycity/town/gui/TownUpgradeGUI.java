@@ -81,19 +81,19 @@ public class TownUpgradeGUI implements Listener {
             inv.setItem(15, createMaxLevelItem());
         }
 
-        // Bouton retour
+        // Bouton retour (haut gauche)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
         backItem.setItemMeta(backMeta);
-        inv.setItem(22, backItem);
+        inv.setItem(0, backItem);
 
-        // Bouton fermer
+        // Bouton fermer (haut droite)
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(26, closeItem);
+        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }

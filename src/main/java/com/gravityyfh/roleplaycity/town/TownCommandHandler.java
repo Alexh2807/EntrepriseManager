@@ -79,6 +79,17 @@ public class TownCommandHandler implements CommandExecutor {
                 getTownGUI().openMainMenu(player);
                 return true;
             }
+            case "rejoindre", "join" -> {
+                // Rejoindre une ville (utilisé par TownListGUI)
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Usage: /ville rejoindre <nom_ville>");
+                    return true;
+                }
+                // Joindre les arguments restants pour supporter les noms avec espaces
+                String targetTownName = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+                handleJoinTown(player, targetTownName);
+                return true;
+            }
             case "accept" -> {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Usage: /ville accept <nom_ville>");
@@ -904,5 +915,56 @@ public class TownCommandHandler implements CommandExecutor {
         }
 
         return true;
+    }
+
+    /**
+     * Gère la demande de rejoindre une ville
+     * Appelé par /ville rejoindre <nom_ville> ou /ville join <nom_ville>
+     */
+    private void handleJoinTown(Player player, String townName) {
+        // Vérifier si le joueur est déjà dans une ville
+        String currentTown = townManager.getPlayerTown(player.getUniqueId());
+        if (currentTown != null) {
+            player.sendMessage(ChatColor.RED + "Vous êtes déjà membre de la ville " + ChatColor.GOLD + currentTown + ChatColor.RED + ".");
+            player.sendMessage(ChatColor.GRAY + "Quittez d'abord votre ville actuelle pour en rejoindre une autre.");
+            return;
+        }
+
+        // Vérifier que la ville existe
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "La ville " + ChatColor.GOLD + townName + ChatColor.RED + " n'existe pas.");
+            return;
+        }
+
+        // Récupérer le coût de rejoindre
+        double joinCost = plugin.getConfig().getDouble("town.join-cost", 100.0);
+
+        // Essayer de rejoindre
+        if (townManager.joinTown(player, townName, joinCost)) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ BIENVENUE !");
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage(ChatColor.YELLOW + "Vous avez rejoint la ville " + ChatColor.GOLD + townName + ChatColor.YELLOW + " !");
+            player.sendMessage(ChatColor.GRAY + "Frais de dossier: " + ChatColor.GOLD + String.format("%.2f€", joinCost));
+            player.sendMessage(ChatColor.GREEN + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("");
+
+            // Ouvrir le menu principal après un délai
+            org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> getTownGUI().openMainMenu(player), 20L);
+        } else {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "✗ ÉCHEC");
+            player.sendMessage(ChatColor.RED + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage(ChatColor.YELLOW + "Impossible de rejoindre la ville.");
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GRAY + "Vérifiez que:");
+            player.sendMessage(ChatColor.GRAY + "• Vous avez " + ChatColor.GOLD + String.format("%.2f€", joinCost));
+            player.sendMessage(ChatColor.GRAY + "• La ville accepte les nouveaux membres");
+            player.sendMessage(ChatColor.RED + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage("");
+        }
     }
 }

@@ -27,6 +27,7 @@ public class PlotOwnerGUI implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final ClaimManager claimManager;
+    private MyPropertyGUI myPropertyGUI;
 
     private static final String OWNER_MENU_TITLE = ChatColor.GOLD + "⚙️ Mon Plot";
     private static final String PERMISSIONS_TITLE = ChatColor.BLUE + "👥 Gérer Permissions";
@@ -40,6 +41,10 @@ public class PlotOwnerGUI implements Listener {
         this.townManager = townManager;
         this.claimManager = claimManager;
         this.pendingActions = new HashMap<>();
+    }
+
+    public void setMyPropertyGUI(MyPropertyGUI myPropertyGUI) {
+        this.myPropertyGUI = myPropertyGUI;
     }
 
     /**
@@ -130,7 +135,7 @@ public class PlotOwnerGUI implements Listener {
         trustItem.setItemMeta(trustMeta);
         inv.setItem(16, trustItem);
 
-        // Retour à Mes Propriétés (slot 26)
+        // Retour à Mes Propriétés (haut gauche)
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
         backMeta.setDisplayName(ChatColor.YELLOW + "← Retour à Mes Propriétés");
@@ -138,7 +143,7 @@ public class PlotOwnerGUI implements Listener {
         backLore.add(ChatColor.GRAY + "Voir tous vos terrains");
         backMeta.setLore(backLore);
         backItem.setItemMeta(backMeta);
-        inv.setItem(26, backItem);
+        inv.setItem(0, backItem);
 
         player.openInventory(inv);
     }
@@ -359,8 +364,14 @@ public class PlotOwnerGUI implements Listener {
             player.closeInventory();
         } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "Utilisez " + ChatColor.WHITE + "/ville" +
-                ChatColor.YELLOW + " pour accéder à vos propriétés");
+            if (myPropertyGUI != null) {
+                String townName = townManager.getPlayerTown(player.getUniqueId());
+                if (townName != null) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        myPropertyGUI.openPropertyMenu(player, townName);
+                    }, 1L);
+                }
+            }
         }
     }
 

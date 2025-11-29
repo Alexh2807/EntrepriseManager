@@ -2,7 +2,9 @@ package com.gravityyfh.roleplaycity.postal.gui;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.postal.manager.MailboxManager;
+import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Plot;
+import com.gravityyfh.roleplaycity.town.data.PlotType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownMember;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -27,9 +29,11 @@ import java.util.stream.Collectors;
  */
 public class LaPosteGUI implements Listener {
     private static final String MAIN_MENU_TITLE = ChatColor.GOLD + "📮 La Poste";
+    private static final String DESTINATION_TYPE_TITLE = ChatColor.GOLD + "Type de Destination";
     private static final String TOWN_SELECT_TITLE = ChatColor.GOLD + "Choisir une Ville";
     private static final String RESIDENT_SELECT_TITLE = ChatColor.GOLD + "Choisir un Résident";
     private static final String PLOT_SELECT_TITLE = ChatColor.GOLD + "Choisir un Terrain";
+    private static final String MUNICIPAL_PLOT_SELECT_TITLE = ChatColor.GOLD + "Terrains Municipaux";
     private static final String CONFIRM_TITLE = ChatColor.GOLD + "Confirmer l'envoi";
 
     private final RoleplayCity plugin;
@@ -106,6 +110,54 @@ public class LaPosteGUI implements Listener {
         PostalContext context = new PostalContext();
         context.senderTownName = senderTownName;
         contexts.put(player.getUniqueId(), context);
+    }
+
+    /**
+     * Ouvre le menu de choix du type de destination (Résident ou Terrain Municipal)
+     */
+    private void openDestinationTypeMenu(Player player) {
+        PostalContext context = contexts.get(player.getUniqueId());
+        if (context == null) return;
+
+        Inventory inv = Bukkit.createInventory(null, 27, DESTINATION_TYPE_TITLE);
+
+        // Titre
+        ItemStack titleItem = new ItemStack(Material.COMPASS);
+        titleItem.setItemMeta(createMeta(titleItem, ChatColor.GOLD + "Choisir la Destination",
+            Arrays.asList(
+                ChatColor.GRAY + "Sélectionnez le type",
+                ChatColor.GRAY + "de destinataire",
+                "",
+                ChatColor.YELLOW + (context.isLetter ? "Lettre" : "Colis") + " en cours d'envoi"
+            )));
+        inv.setItem(4, titleItem);
+
+        // Option 1: Envoyer à un résident
+        ItemStack residentItem = new ItemStack(Material.PLAYER_HEAD);
+        residentItem.setItemMeta(createMeta(residentItem, ChatColor.GREEN + "👤 Envoyer à un Résident",
+            Arrays.asList(
+                ChatColor.GRAY + "Livrer à un joueur",
+                ChatColor.GRAY + "sur son terrain personnel",
+                "",
+                ChatColor.YELLOW + "Cliquez pour continuer"
+            )));
+        inv.setItem(11, residentItem);
+
+        // Option 2: Envoyer à un terrain municipal
+        ItemStack municipalItem = new ItemStack(Material.BRICK);
+        municipalItem.setItemMeta(createMeta(municipalItem, ChatColor.AQUA + "🏛 Terrain Municipal",
+            Arrays.asList(
+                ChatColor.GRAY + "Livrer à un bâtiment",
+                ChatColor.GRAY + "municipal d'une ville",
+                "",
+                ChatColor.GRAY + "• Mairie, Commissariat",
+                ChatColor.GRAY + "• Banque, Hôpital, etc.",
+                "",
+                ChatColor.YELLOW + "Cliquez pour continuer"
+            )));
+        inv.setItem(15, municipalItem);
+
+        player.openInventory(inv);
     }
 
     /**
@@ -242,6 +294,87 @@ public class LaPosteGUI implements Listener {
     }
 
     /**
+     * Ouvre le menu de sélection de terrains municipaux
+     */
+    private void openMunicipalPlotSelectionMenu(Player player) {
+        PostalContext context = contexts.get(player.getUniqueId());
+        if (context == null || context.targetTownName == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Contexte invalide");
+            return;
+        }
+
+        Town town = townManager.getTown(context.targetTownName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable");
+            return;
+        }
+
+        // Récupérer tous les terrains municipaux de la ville
+        List<Plot> municipalPlots = town.getPlots().values().stream()
+            .filter(p -> p.getType() == PlotType.MUNICIPAL)
+            .collect(Collectors.toList());
+
+        if (municipalPlots.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Cette ville n'a aucun terrain municipal.");
+            player.closeInventory();
+            contexts.remove(player.getUniqueId());
+            return;
+        }
+
+        Inventory inv = Bukkit.createInventory(null, 54, MUNICIPAL_PLOT_SELECT_TITLE);
+
+        int slot = 0;
+        for (Plot plot : municipalPlots) {
+            if (slot >= 54) break;
+
+            boolean hasMailbox = mailboxManager.hasMailbox(plot);
+            MunicipalSubType subType = plot.getMunicipalSubType();
+
+            // Icône selon le sous-type
+            Material icon;
+            if (!hasMailbox) {
+                icon = Material.RED_WOOL;
+            } else {
+                icon = subType != null ? subType.getIcon() : Material.BRICK;
+            }
+
+            // Nom du terrain
+            String plotName;
+            if (subType != null && subType != MunicipalSubType.NONE) {
+                plotName = subType.getDisplayName();
+            } else {
+                plotName = "Municipal";
+            }
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Type: " + ChatColor.AQUA + "Municipal");
+            if (subType != null && subType != MunicipalSubType.NONE) {
+                lore.add(ChatColor.GRAY + "Fonction: " + ChatColor.LIGHT_PURPLE + subType.getDisplayName());
+            }
+            lore.add(ChatColor.GRAY + "Position: " + ChatColor.WHITE + plot.getCoordinates());
+            lore.add("");
+
+            if (hasMailbox) {
+                lore.add(ChatColor.GREEN + "✓ Boîte aux lettres disponible");
+                lore.add("");
+                lore.add(ChatColor.YELLOW + "Cliquez pour envoyer ici");
+            } else {
+                lore.add(ChatColor.RED + "✗ Aucune boîte aux lettres");
+                lore.add(ChatColor.GRAY + "Impossible de livrer ici");
+            }
+
+            ItemStack plotItem = new ItemStack(icon);
+            plotItem.setItemMeta(createMeta(plotItem,
+                (hasMailbox ? ChatColor.GOLD : ChatColor.RED) + plotName,
+                lore));
+            inv.setItem(slot, plotItem);
+            slot++;
+        }
+
+        player.openInventory(inv);
+    }
+
+    /**
      * Démarre le processus d'envoi de lettre
      */
     private void startLetterProcess(Player player) {
@@ -328,7 +461,7 @@ public class LaPosteGUI implements Listener {
         String title = event.getView().getTitle();
         if (!title.contains("La Poste") && !title.contains("Ville") &&
             !title.contains("Résident") && !title.contains("Terrain") &&
-            !title.contains("Confirmer")) {
+            !title.contains("Confirmer") && !title.contains("Destination")) {
 
             // Gérer l'inventaire du colis
             if (title.contains("Votre Colis")) {
@@ -365,20 +498,37 @@ public class LaPosteGUI implements Listener {
             if (displayName.contains("Envoyer une Lettre") || displayName.contains("Lettre")) {
                 context.isLetter = true;
                 player.closeInventory();
-                openTownSelectionMenu(player);
+                openDestinationTypeMenu(player);
             } else if (displayName.contains("Envoyer un Colis") || displayName.contains("Colis")) {
                 context.isLetter = false;
                 player.closeInventory();
-                openTownSelectionMenu(player);
+                openDestinationTypeMenu(player);
             } else if (displayName.contains("Bienvenue") || displayName.isEmpty()) {
                 // Clic sur le titre ou un slot vide, ignorer
+            }
+        }
+        // Sélection du type de destination
+        else if (title.equals(DESTINATION_TYPE_TITLE)) {
+            if (displayName.contains("Résident") || displayName.contains("Particulier")) {
+                context.isMunicipalDelivery = false;
+                player.closeInventory();
+                openTownSelectionMenu(player);
+            } else if (displayName.contains("Municipal") || displayName.contains("Bâtiment")) {
+                context.isMunicipalDelivery = true;
+                player.closeInventory();
+                openTownSelectionMenu(player);
             }
         }
         // Sélection de ville
         else if (title.equals(TOWN_SELECT_TITLE)) {
             context.targetTownName = ChatColor.stripColor(displayName);
             player.closeInventory();
-            openResidentSelectionMenu(player);
+
+            if (context.isMunicipalDelivery) {
+                openMunicipalPlotSelectionMenu(player);
+            } else {
+                openResidentSelectionMenu(player);
+            }
         }
         // Sélection de résident
         else if (title.equals(RESIDENT_SELECT_TITLE)) {
@@ -424,6 +574,49 @@ public class LaPosteGUI implements Listener {
 
                 if (slot < plots.size()) {
                     context.targetPlot = plots.get(slot);
+
+                    player.closeInventory();
+
+                    if (context.isLetter) {
+                        startLetterProcess(player);
+                    } else {
+                        startParcelProcess(player);
+                    }
+                }
+            }
+        }
+        // Sélection de terrain municipal
+        else if (title.equals(MUNICIPAL_PLOT_SELECT_TITLE)) {
+            if (clicked.getType() == Material.RED_WOOL) {
+                player.sendMessage(ChatColor.RED + "Ce terrain municipal n'a pas de boîte aux lettres.");
+                return;
+            }
+
+            // Récupérer le plot municipal sélectionné
+            int slot = event.getSlot();
+            Town town = townManager.getTown(context.targetTownName);
+            if (town != null) {
+                List<Plot> municipalPlots = town.getPlots().values().stream()
+                    .filter(p -> p.getType() == PlotType.MUNICIPAL)
+                    .collect(Collectors.toList());
+
+                if (slot < municipalPlots.size()) {
+                    Plot selectedPlot = municipalPlots.get(slot);
+
+                    // Vérifier la boîte aux lettres
+                    if (!mailboxManager.hasMailbox(selectedPlot)) {
+                        player.sendMessage(ChatColor.RED + "Ce terrain n'a pas de boîte aux lettres.");
+                        return;
+                    }
+
+                    context.targetPlot = selectedPlot;
+                    // Pour les terrains municipaux, pas de destinataire spécifique
+                    MunicipalSubType subType = selectedPlot.getMunicipalSubType();
+                    if (subType != null && subType != MunicipalSubType.NONE) {
+                        context.targetResidentName = subType.getDisplayName() + " de " + context.targetTownName;
+                    } else {
+                        context.targetResidentName = "Terrain Municipal de " + context.targetTownName;
+                    }
 
                     player.closeInventory();
 
@@ -600,6 +793,7 @@ public class LaPosteGUI implements Listener {
     private static class PostalContext {
         String senderTownName;
         boolean isLetter;
+        boolean isMunicipalDelivery; // true si livraison vers terrain municipal
         String targetTownName;
         String targetResidentName;
         UUID targetResidentUuid;

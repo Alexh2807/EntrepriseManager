@@ -69,14 +69,26 @@ public class DebtManagementGUI implements Listener {
             inv.setItem(i, createDebtItem(debt, town));
         }
 
-        // Bouton de fermeture en bas au centre
+        // Bouton Retour au menu principal
+        ItemStack backButton = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backButton.getItemMeta();
+        if (backMeta != null) {
+            backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+            List<String> backLore = new ArrayList<>();
+            backLore.add(ChatColor.GRAY + "Retour au menu ville");
+            backMeta.setLore(backLore);
+            backButton.setItemMeta(backMeta);
+        }
+        inv.setItem(size - 9, backButton);
+
+        // Bouton de fermeture
         ItemStack closeButton = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeButton.getItemMeta();
         if (closeMeta != null) {
-            closeMeta.setDisplayName(ChatColor.RED + "❌ Fermer");
+            closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
             closeButton.setItemMeta(closeMeta);
         }
-        inv.setItem(size - 5, closeButton);
+        inv.setItem(size - 1, closeButton);
 
         player.openInventory(inv);
     }
@@ -171,6 +183,18 @@ public class DebtManagementGUI implements Listener {
 
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || clickedItem.getType() == Material.AIR) {
+            return;
+        }
+
+        // Bouton Retour
+        if (clickedItem.getType() == Material.ARROW) {
+            player.closeInventory();
+            // Retour au menu principal de la ville
+            if (mainGUI != null) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    mainGUI.openMainMenu(player);
+                }, 1L);
+            }
             return;
         }
 

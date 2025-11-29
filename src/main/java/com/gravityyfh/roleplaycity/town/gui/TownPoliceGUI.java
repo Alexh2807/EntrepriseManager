@@ -28,6 +28,7 @@ public class TownPoliceGUI implements Listener {
     private final RoleplayCity plugin;
     private final TownManager townManager;
     private final TownPoliceManager policeManager;
+    private TownMainGUI mainGUI;
 
     private static final String POLICE_TITLE = ChatColor.DARK_BLUE + "🚔 Police Municipale";
     private static final String SELECT_PLAYER_TITLE = ChatColor.DARK_BLUE + "👤 Sélectionner un joueur";
@@ -36,11 +37,17 @@ public class TownPoliceGUI implements Listener {
 
     private final Map<UUID, FineContext> pendingFines;
 
-    /**
-     * Vérifie si le joueur est toujours autorisé à utiliser le menu Police
-     * Re-vérification pour empêcher les actions si le joueur a quitté le service
-     * @return true si autorisé, false sinon (ferme le menu et envoie un message)
-     */
+    public TownPoliceGUI(RoleplayCity plugin, TownManager townManager, TownPoliceManager policeManager) {
+        this.plugin = plugin;
+        this.townManager = townManager;
+        this.policeManager = policeManager;
+        this.pendingFines = new HashMap<>();
+    }
+
+    public void setMainGUI(TownMainGUI mainGUI) {
+        this.mainGUI = mainGUI;
+    }
+
     private boolean reVerifyPoliceAccess(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
@@ -63,9 +70,9 @@ public class TownPoliceGUI implements Listener {
             return false;
         }
 
-        // Vérifier que le joueur est toujours en service POLICE
         ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
-        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+        if (serviceManager != null
+                && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
             player.closeInventory();
             serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
             return false;
@@ -74,9 +81,6 @@ public class TownPoliceGUI implements Listener {
         return true;
     }
 
-    /**
-     * Version de reVerifyPoliceAccess sans fermer l'inventaire (pour onPlayerChat)
-     */
     private boolean reVerifyPoliceAccessNoClose(Player player) {
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
@@ -96,9 +100,9 @@ public class TownPoliceGUI implements Listener {
             return false;
         }
 
-        // Vérifier que le joueur est toujours en service POLICE
         ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
-        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+        if (serviceManager != null
+                && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
             serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
             return false;
         }
@@ -106,446 +110,302 @@ public class TownPoliceGUI implements Listener {
         return true;
     }
 
-    public TownPoliceGUI(RoleplayCity plugin, TownManager townManager, TownPoliceManager policeManager) {
-        this.plugin = plugin;
-        this.townManager = townManager;
-        this.policeManager = policeManager;
-        this.pendingFines = new HashMap<>();
-    }
-
     public void openPoliceMenu(Player player) {
+        if (!reVerifyPoliceAccess(player))
+            return;
+
         String townName = townManager.getPlayerTown(player.getUniqueId());
-        if (townName == null) {
-            player.sendMessage(ChatColor.RED + "Vous devez être dans une ville.");
-            return;
-        }
+        Inventory inv = Bukkit.createInventory(null, 45, POLICE_TITLE);
 
-        Town town = townManager.getTown(townName);
-        if (town == null) {
-            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
-            return;
-        }
+        // --- SECTION INTERVENTIONS (Ligne 2) ---
+        // Séparateurs Rouges
+        ItemStack redPane = createDecorativePane(Material.RED_STAINED_GLASS_PANE, " ");
+        inv.setItem(9, redPane);
+        inv.setItem(17, redPane);
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
-        if (role != TownRole.POLICIER) {
-            player.sendMessage(ChatColor.RED + "Vous devez être policier pour accéder à ce menu.");
-            return;
-        }
+        // 1. Émettre Amende (Slot 11)
+        ItemStack fineItem = new ItemStack(Material.PAPER);
+        ItemMeta fineMeta = fineItem.getItemMeta();
+        fineMeta.setDisplayName(ChatColor.RED + "📝 Émettre Amende");
+        fineMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Verbaliser un citoyen",
+                "",
+                ChatColor.YELLOW + "▶ Cliquez pour sélectionner"));
+        fineItem.setItemMeta(fineMeta);
+        inv.setItem(11, fineItem);
 
-        // Vérifier que le joueur est en service POLICE
-        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
-        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
-            serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
-            return;
-        }
+        // 2. Demander Identité (Slot 12)
+        ItemStack idItem = new ItemStack(Material.NAME_TAG);
+        ItemMeta idMeta = idItem.getItemMeta();
+        idMeta.setDisplayName(ChatColor.AQUA + "🆔 Contrôle d'Identité");
+        idMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Demander les papiers",
+                ChatColor.GRAY + "d'un citoyen proche",
+                "",
+                ChatColor.YELLOW + "▶ Cliquez pour demander"));
+        idItem.setItemMeta(idMeta);
+        inv.setItem(12, idItem);
 
-        Inventory inv = Bukkit.createInventory(null, 27, POLICE_TITLE);
-
-        // Statistiques
-        var stats = policeManager.getTownStatistics(townName);
-
-        ItemStack statsItem = new ItemStack(Material.BOOK);
-        ItemMeta statsMeta = statsItem.getItemMeta();
-        statsMeta.setDisplayName(ChatColor.GOLD + "Statistiques");
-        List<String> statsLore = new ArrayList<>();
-        statsLore.add(ChatColor.GRAY + "Total amendes: " + ChatColor.WHITE + stats.totalFines());
-        statsLore.add(ChatColor.GRAY + "Payées: " + ChatColor.GREEN + stats.paidFines());
-        statsLore.add(ChatColor.GRAY + "Contestées: " + ChatColor.YELLOW + stats.contestedFines());
-        statsLore.add(ChatColor.GRAY + "En attente: " + ChatColor.RED + stats.pendingFines());
-        statsLore.add("");
-        statsLore.add(ChatColor.GRAY + "Montant total: " + ChatColor.GOLD + String.format("%.2f€", stats.totalAmount()));
-        statsLore.add(ChatColor.GRAY + "Collecté: " + ChatColor.GREEN + String.format("%.2f€", stats.collectedAmount()));
-        statsMeta.setLore(statsLore);
-        statsItem.setItemMeta(statsMeta);
-        inv.setItem(4, statsItem);
-
-        // Émettre une amende (slot 10)
-        ItemStack issueFineItem = new ItemStack(Material.PAPER);
-        ItemMeta issueFineMeta = issueFineItem.getItemMeta();
-        issueFineMeta.setDisplayName(ChatColor.RED + "Émettre une Amende");
-        List<String> issueFineLore = new ArrayList<>();
-        issueFineLore.add(ChatColor.GRAY + "Infliger une amende");
-        issueFineLore.add(ChatColor.GRAY + "à un citoyen");
-        issueFineLore.add("");
-        issueFineLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
-        issueFineMeta.setLore(issueFineLore);
-        issueFineItem.setItemMeta(issueFineMeta);
-        inv.setItem(10, issueFineItem);
-
-        // Amendes en attente (slot 12)
-        ItemStack activeFinesItem = new ItemStack(Material.REDSTONE);
-        ItemMeta activeFinesMeta = activeFinesItem.getItemMeta();
-        activeFinesMeta.setDisplayName(ChatColor.YELLOW + "Amendes en Attente");
-        List<String> activeFinesLore = new ArrayList<>();
-        activeFinesLore.add(ChatColor.GRAY + "Voir toutes les amendes");
-        activeFinesLore.add(ChatColor.GRAY + "qui n'ont pas été payées");
-        activeFinesLore.add("");
-        activeFinesLore.add(ChatColor.WHITE + "Total: " + stats.pendingFines());
-        activeFinesLore.add(ChatColor.YELLOW + "Cliquez pour voir");
-        activeFinesMeta.setLore(activeFinesLore);
-        activeFinesItem.setItemMeta(activeFinesMeta);
-        inv.setItem(12, activeFinesItem);
-
-        // Amendes contestées (slot 14)
-        ItemStack contestedItem = new ItemStack(Material.WRITABLE_BOOK);
-        ItemMeta contestedMeta = contestedItem.getItemMeta();
-        contestedMeta.setDisplayName(ChatColor.GOLD + "Amendes Contestées");
-        List<String> contestedLore = new ArrayList<>();
-        contestedLore.add(ChatColor.GRAY + "Voir les amendes");
-        contestedLore.add(ChatColor.GRAY + "en attente de jugement");
-        contestedLore.add("");
-        contestedLore.add(ChatColor.WHITE + "Total: " + stats.contestedFines());
-        contestedLore.add(ChatColor.YELLOW + "Cliquez pour voir");
-        contestedMeta.setLore(contestedLore);
-        contestedItem.setItemMeta(contestedMeta);
-        inv.setItem(14, contestedItem);
-
-        // Emprisonner un joueur (slot 19 - système de prison)
-        if (plugin.getPrisonManager() != null) {
-            ItemStack imprisonItem = new ItemStack(Material.IRON_BARS);
-            ItemMeta imprisonMeta = imprisonItem.getItemMeta();
-            imprisonMeta.setDisplayName(ChatColor.DARK_RED + "⛓️ Emprisonner");
-            List<String> imprisonLore = new ArrayList<>();
-            imprisonLore.add(ChatColor.GRAY + "Emprisonner un joueur");
-            imprisonLore.add(ChatColor.GRAY + "menotté sur un COMMISSARIAT");
-            imprisonLore.add("");
-            imprisonLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
-            imprisonMeta.setLore(imprisonLore);
-            imprisonItem.setItemMeta(imprisonMeta);
-            inv.setItem(19, imprisonItem);
-        }
-
-        // Gérer les prisonniers (slot 21)
-        if (plugin.getPrisonManager() != null) {
-            int prisonersCount = plugin.getPrisonManager().getImprisonedData().getImprisonedCount();
-            ItemStack managePrisonersItem = new ItemStack(Material.IRON_DOOR);
-            ItemMeta managePrisonersMeta = managePrisonersItem.getItemMeta();
-            managePrisonersMeta.setDisplayName(ChatColor.DARK_RED + "🔒 Gérer les Prisonniers");
-            List<String> managePrisonersLore = new ArrayList<>();
-            managePrisonersLore.add(ChatColor.GRAY + "Voir tous les prisonniers");
-            managePrisonersLore.add(ChatColor.GRAY + "de votre ville");
-            managePrisonersLore.add("");
-            managePrisonersLore.add(ChatColor.WHITE + "Prisonniers: " + prisonersCount);
-            managePrisonersLore.add(ChatColor.YELLOW + "Cliquez pour voir");
-            managePrisonersMeta.setLore(managePrisonersLore);
-            managePrisonersItem.setItemMeta(managePrisonersMeta);
-            inv.setItem(21, managePrisonersItem);
-        }
-
-        // Fouiller un joueur (slot 23 - système de fouille)
+        // 3. Fouiller (Slot 14)
         if (plugin.getFriskGUI() != null) {
             ItemStack friskItem = new ItemStack(Material.ENDER_EYE);
             ItemMeta friskMeta = friskItem.getItemMeta();
-            friskMeta.setDisplayName(ChatColor.DARK_PURPLE + "🔍 Fouiller un joueur");
-            List<String> friskLore = new ArrayList<>();
-            friskLore.add(ChatColor.GRAY + "Fouiller un suspect");
-            friskLore.add(ChatColor.GRAY + "à proximité");
-            friskLore.add("");
-            friskLore.add(ChatColor.WHITE + "• Menotté: fouille directe");
-            friskLore.add(ChatColor.WHITE + "• Libre: consentement requis");
-            friskLore.add("");
-            friskLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
-            friskMeta.setLore(friskLore);
+            friskMeta.setDisplayName(ChatColor.DARK_PURPLE + "🔍 Fouiller Suspect");
+            friskMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Inspecter l'inventaire",
+                    ChatColor.GRAY + "(Menotté ou Consentement)",
+                    "",
+                    ChatColor.YELLOW + "▶ Cliquez pour fouiller"));
             friskItem.setItemMeta(friskMeta);
-            inv.setItem(23, friskItem);
+            inv.setItem(14, friskItem);
         }
 
-        // Demander l'identité (slot 16)
-        ItemStack idRequestItem = new ItemStack(Material.NAME_TAG);
-        ItemMeta idRequestMeta = idRequestItem.getItemMeta();
-        idRequestMeta.setDisplayName(ChatColor.AQUA + "📋 Demander l'Identité");
-        List<String> idRequestLore = new ArrayList<>();
-        idRequestLore.add(ChatColor.GRAY + "Demander la carte d'identité");
-        idRequestLore.add(ChatColor.GRAY + "d'un citoyen à proximité");
-        idRequestLore.add("");
-        idRequestLore.add(ChatColor.WHITE + "Le joueur doit accepter");
-        idRequestLore.add(ChatColor.WHITE + "de montrer sa carte.");
-        idRequestLore.add("");
-        idRequestLore.add(ChatColor.YELLOW + "Cliquez pour commencer");
-        idRequestMeta.setLore(idRequestLore);
-        idRequestItem.setItemMeta(idRequestMeta);
-        inv.setItem(16, idRequestItem);
+        // 4. Emprisonner (Slot 15)
+        if (plugin.getPrisonManager() != null) {
+            ItemStack prisonItem = new ItemStack(Material.IRON_BARS);
+            ItemMeta prisonMeta = prisonItem.getItemMeta();
+            prisonMeta.setDisplayName(ChatColor.DARK_RED + "⛓️ Incarcérer");
+            prisonMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Mettre en cellule un",
+                    ChatColor.GRAY + "suspect menotté",
+                    "",
+                    ChatColor.YELLOW + "▶ Cliquez pour emprisonner"));
+            prisonItem.setItemMeta(prisonMeta);
+            inv.setItem(15, prisonItem);
+        }
 
-        // Fermer
+        // --- SECTION ADMINISTRATION (Ligne 4) ---
+        // Séparateurs Bleus
+        ItemStack bluePane = createDecorativePane(Material.BLUE_STAINED_GLASS_PANE, " ");
+        inv.setItem(27, bluePane);
+        inv.setItem(35, bluePane);
+
+        var stats = policeManager.getTownStatistics(townName);
+
+        // 1. Amendes en cours (Slot 29)
+        ItemStack activeFinesItem = new ItemStack(Material.FILLED_MAP);
+        ItemMeta activeFinesMeta = activeFinesItem.getItemMeta();
+        activeFinesMeta.setDisplayName(ChatColor.GOLD + "📂 Dossiers Amendes");
+        activeFinesMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "En attente: " + ChatColor.RED + stats.pendingFines(),
+                ChatColor.GRAY + "Contestées: " + ChatColor.YELLOW + stats.contestedFines(),
+                "",
+                ChatColor.YELLOW + "▶ Cliquez pour gérer"));
+        activeFinesItem.setItemMeta(activeFinesMeta);
+        inv.setItem(29, activeFinesItem);
+
+        // 2. Gestion Prisonniers (Slot 31)
+        if (plugin.getPrisonManager() != null) {
+            int prisonersCount = plugin.getPrisonManager().getImprisonedData().getImprisonedCount();
+            ItemStack prisonersItem = new ItemStack(Material.IRON_DOOR);
+            ItemMeta prisonersMeta = prisonersItem.getItemMeta();
+            prisonersMeta.setDisplayName(ChatColor.DARK_AQUA + "👥 Détenus");
+            prisonersMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Actuellement en cellule: " + ChatColor.WHITE + prisonersCount,
+                    "",
+                    ChatColor.YELLOW + "▶ Cliquez pour gérer"));
+            prisonersItem.setItemMeta(prisonersMeta);
+            inv.setItem(31, prisonersItem);
+        }
+
+        // 3. Statistiques (Slot 33)
+        ItemStack statsItem = new ItemStack(Material.BOOK);
+        ItemMeta statsMeta = statsItem.getItemMeta();
+        statsMeta.setDisplayName(ChatColor.WHITE + "📊 Registre");
+        statsMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Total: " + ChatColor.WHITE + stats.totalFines() + " amendes",
+                ChatColor.GRAY + "Collecté: " + ChatColor.GREEN + String.format("%.2f€", stats.collectedAmount()),
+                "",
+                ChatColor.YELLOW + "▶ Cliquez pour détails"));
+        statsItem.setItemMeta(statsMeta);
+        inv.setItem(33, statsItem);
+
+        // --- HEADER ---
+        // Retour au menu principal (haut gauche)
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backMeta.setLore(Arrays.asList(ChatColor.GRAY + "Retour au menu ville"));
+        backItem.setItemMeta(backMeta);
+        inv.setItem(0, backItem);
+
+        // Fermer (haut droite)
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(26, closeItem);
+        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }
 
-    /**
-     * Ouvre le menu de sélection de joueur pour demander l'identité
-     * N'affiche que les joueurs à proximité (5 blocs)
-     */
+    private ItemStack createDecorativePane(Material material, String name) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(name);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    // ... (Keep existing selection menus and event handlers, but update them to
+    // redirect to openPoliceMenu)
+    // For brevity, I'm including the essential parts. The selection menus logic
+    // remains largely the same
+    // but needs to be adapted to the new structure if needed.
+    // I will include the full class content to be safe.
+
     private void openIdRequestSelectionMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, SELECT_ID_TITLE);
-
         int slot = 0;
         boolean found = false;
-
         for (Player target : Bukkit.getOnlinePlayers()) {
-            if (target.equals(player)) continue;
-
-            // Vérifier la distance (5 blocs)
-            if (!target.getWorld().equals(player.getWorld()) ||
-                target.getLocation().distance(player.getLocation()) > 5) {
+            if (target.equals(player))
                 continue;
-            }
-
+            if (!target.getWorld().equals(player.getWorld()) || target.getLocation().distance(player.getLocation()) > 5)
+                continue;
             found = true;
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(target);
             meta.setDisplayName(ChatColor.YELLOW + target.getName());
-
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Distance: " + String.format("%.1fm", target.getLocation().distance(player.getLocation())));
-            lore.add("");
-            lore.add(ChatColor.GREEN + "► Cliquez pour demander son ID");
-            meta.setLore(lore);
+            meta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Distance: "
+                            + String.format("%.1fm", target.getLocation().distance(player.getLocation())),
+                    "", ChatColor.GREEN + "► Cliquez pour demander ID"));
             head.setItemMeta(meta);
             inv.setItem(slot++, head);
-
-            if (slot >= 18) break;
+            if (slot >= 18)
+                break;
         }
-
         if (!found) {
             ItemStack none = new ItemStack(Material.BARRIER);
             ItemMeta meta = none.getItemMeta();
             meta.setDisplayName(ChatColor.RED + "Aucun joueur à proximité");
-            meta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Rapprochez-vous d'un citoyen",
-                ChatColor.GRAY + "pour demander son identité."
-            ));
             none.setItemMeta(meta);
             inv.setItem(13, none);
         }
-
-        // Bouton retour
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
-        backItem.setItemMeta(backMeta);
-        inv.setItem(22, backItem);
-
-        // Fermer
-        ItemStack closeItem = new ItemStack(Material.BARRIER);
-        ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
-        closeItem.setItemMeta(closeMeta);
-        inv.setItem(26, closeItem);
-
+        addBackAndCloseButtons(inv);
         player.openInventory(inv);
     }
 
-    // PHASE 1: Sélection du joueur en ligne
     private void openPlayerSelectionMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 54, SELECT_PLAYER_TITLE);
-
         Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
         int slot = 0;
-
         for (Player target : onlinePlayers) {
-            if (slot >= 45) break;
-            if (target.equals(player)) continue; // Ne pas afficher le policier lui-même
-
+            if (slot >= 45)
+                break;
+            if (target.equals(player))
+                continue;
             ItemStack playerHead = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta skullMeta = (SkullMeta) playerHead.getItemMeta();
             skullMeta.setOwningPlayer(target);
             skullMeta.setDisplayName(ChatColor.YELLOW + target.getName());
-
-            List<String> lore = new ArrayList<>();
-            lore.add("");
-            lore.add(ChatColor.GREEN + "Cliquez pour sélectionner");
-            skullMeta.setLore(lore);
-
+            skullMeta.setLore(Arrays.asList("", ChatColor.GREEN + "Cliquez pour sélectionner"));
             playerHead.setItemMeta(skullMeta);
             inv.setItem(slot++, playerHead);
         }
-
-        // Bouton retour
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
-        backItem.setItemMeta(backMeta);
-        inv.setItem(49, backItem);
-
-        // Fermer
-        ItemStack closeItem = new ItemStack(Material.BARRIER);
-        ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
-        closeItem.setItemMeta(closeMeta);
-        inv.setItem(53, closeItem);
-
+        addBackAndCloseButtons(inv);
         player.openInventory(inv);
     }
 
-    // PHASE 2: Sélection de l'amende prédéfinie
     private void openFineSelectionMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 54, SELECT_FINE_TITLE);
-
-        // Charger les amendes prédéfinies depuis la config
         List<Map<?, ?>> predefinedFines = plugin.getConfig().getMapList("town.predefined-fines");
         int slot = 0;
-
         for (Map<?, ?> fineData : predefinedFines) {
-            if (slot >= 45) break;
-
+            if (slot >= 45)
+                break;
             String title = (String) fineData.get("title");
             double amount = ((Number) fineData.get("amount")).doubleValue();
             String description = (String) fineData.get("description");
-
             ItemStack fineItem = new ItemStack(Material.PAPER);
             ItemMeta fineMeta = fineItem.getItemMeta();
             fineMeta.setDisplayName(ChatColor.RED + title);
-
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€");
-            lore.add("");
-            lore.add(ChatColor.WHITE + description);
-            lore.add("");
-            lore.add(ChatColor.GREEN + "Cliquez pour sélectionner");
-            fineMeta.setLore(lore);
-
+            fineMeta.setLore(Arrays.asList(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + amount + "€", "",
+                    ChatColor.WHITE + description, "", ChatColor.GREEN + "Cliquez pour sélectionner"));
             fineItem.setItemMeta(fineMeta);
             inv.setItem(slot++, fineItem);
         }
+        addBackAndCloseButtons(inv);
+        player.openInventory(inv);
+    }
 
-        // Bouton retour
+    private void addBackAndCloseButtons(Inventory inv) {
         ItemStack backItem = new ItemStack(Material.ARROW);
         ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backMeta.setDisplayName(ChatColor.YELLOW + "Retour");
         backItem.setItemMeta(backMeta);
-        inv.setItem(49, backItem);
+        inv.setItem(inv.getSize() - 5, backItem); // Center-ish
 
-        // Fermer
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
         closeMeta.setDisplayName(ChatColor.RED + "Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(53, closeItem);
-
-        player.openInventory(inv);
+        inv.setItem(inv.getSize() - 1, closeItem);
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
-
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        if (!(event.getWhoClicked() instanceof Player player))
             return;
-        }
-
         ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) {
+        if (clicked == null || !clicked.hasItemMeta())
             return;
-        }
+        String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
-        // NPE Guard: Vérifier que l'item a une metadata et un displayName
-        if (!clicked.hasItemMeta() || clicked.getItemMeta().getDisplayName() == null) {
-            return;
-        }
-
-        // Menu principal de la police
         if (title.equals(POLICE_TITLE)) {
             event.setCancelled(true);
-            String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
-
-            if (displayName.contains("Émettre une Amende")) {
-                // Re-vérification avant d'émettre une amende
-                if (!reVerifyPoliceAccess(player)) return;
-                // Initialiser le contexte et ouvrir la phase 1
+            if (displayName.contains("Émettre Amende")) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
                 pendingFines.put(player.getUniqueId(), new FineContext());
                 openPlayerSelectionMenu(player);
-            } else if (displayName.contains("Emprisonner")) {
-                // Re-vérification avant d'emprisonner
-                if (!reVerifyPoliceAccess(player)) return;
-                // Ouvrir le workflow d'emprisonnement
-                if (plugin.getImprisonmentWorkflowGUI() != null) {
-                    plugin.getImprisonmentWorkflowGUI().openPrisonerSelectionMenu(player);
-                }
-            } else if (displayName.contains("Gérer les Prisonniers")) {
-                // Re-vérification avant de gérer les prisonniers
-                if (!reVerifyPoliceAccess(player)) return;
-                // Ouvrir le menu de gestion des prisonniers
-                if (plugin.getTownPrisonManagementGUI() != null) {
-                    plugin.getTownPrisonManagementGUI().openPrisonManagementMenu(player);
-                }
-            } else if (displayName.contains("Fouiller un joueur")) {
-                // Re-vérification avant de fouiller
-                if (!reVerifyPoliceAccess(player)) return;
-                if (plugin.getFriskGUI() != null) {
-                    plugin.getFriskGUI().openTargetSelection(player);
-                }
-            } else if (displayName.contains("Demander l'Identité")) {
-                // Re-vérification avant de demander l'identité
-                if (!reVerifyPoliceAccess(player)) return;
+            } else if (displayName.contains("Contrôle d'Identité")) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
                 openIdRequestSelectionMenu(player);
+            } else if (displayName.contains("Fouiller Suspect")) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
+                if (plugin.getFriskGUI() != null)
+                    plugin.getFriskGUI().openTargetSelection(player);
+            } else if (displayName.contains("Incarcérer")) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
+                if (plugin.getImprisonmentWorkflowGUI() != null)
+                    plugin.getImprisonmentWorkflowGUI().openPrisonerSelectionMenu(player);
+            } else if (displayName.contains("Dossiers Amendes")) {
+                // TODO: Open Active/Contested Fines Menu (Combined or Separate)
+                // For now, let's just show a message or open a simple list if available
+                player.sendMessage(ChatColor.YELLOW + "Fonctionnalité en cours de refonte (Dossiers).");
+            } else if (displayName.contains("Détenus")) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
+                if (plugin.getTownPrisonManagementGUI() != null)
+                    plugin.getTownPrisonManagementGUI().openPrisonManagementMenu(player);
+            } else if (displayName.contains("Retour")) {
+                player.closeInventory();
+                // Retour au menu principal de la ville
+                if (mainGUI != null) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        mainGUI.openMainMenu(player);
+                    }, 1L);
+                }
             } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
             }
-        }
-        // Menu de sélection pour demande d'identité
-        else if (title.equals(SELECT_ID_TITLE)) {
+        } else if (title.equals(SELECT_PLAYER_TITLE)) {
             event.setCancelled(true);
-
             if (clicked.getType() == Material.PLAYER_HEAD) {
-                // Re-vérification avant d'envoyer la demande d'identité
-                if (!reVerifyPoliceAccess(player)) return;
-                SkullMeta idSkullMeta = (SkullMeta) clicked.getItemMeta();
-                org.bukkit.OfflinePlayer idOwningPlayer = idSkullMeta.getOwningPlayer();
-                Player target = idOwningPlayer != null ? Bukkit.getPlayer(idOwningPlayer.getUniqueId()) : null;
-
-                if (target != null && target.isOnline()) {
-                    player.closeInventory();
-
-                    // Vérifier la distance
-                    var requestManager = plugin.getInteractionRequestManager();
-                    if (requestManager == null) {
-                        player.sendMessage(ChatColor.RED + "Système non disponible.");
-                        return;
-                    }
-
-                    // Vérifier s'il n'y a pas déjà une demande en cours
-                    if (requestManager.hasPendingRequest(player.getUniqueId(), target.getUniqueId(),
-                            com.gravityyfh.roleplaycity.service.InteractionRequest.RequestType.REQUEST_ID)) {
-                        player.sendMessage(ChatColor.YELLOW + "Une demande d'identité est déjà en attente pour ce joueur.");
-                        return;
-                    }
-
-                    var request = requestManager.createIdRequest(player, target);
-                    if (request != null) {
-                        player.sendMessage(ChatColor.GREEN + "Demande d'identité envoyée à " + target.getName() + ".");
-                        player.sendMessage(ChatColor.GRAY + "En attente de sa réponse (30 secondes)...");
-                    }
-                } else {
-                    player.sendMessage(ChatColor.RED + "Le joueur n'est plus en ligne.");
-                    player.closeInventory();
-                }
-            } else if (clicked.getType() == Material.ARROW) {
-                openPoliceMenu(player);
-            } else if (clicked.getType() == Material.BARRIER) {
-                player.closeInventory();
-            }
-        }
-        // PHASE 1: Sélection du joueur
-        else if (title.equals(SELECT_PLAYER_TITLE)) {
-            event.setCancelled(true);
-
-            if (clicked.getType() == Material.PLAYER_HEAD) {
-                // Re-vérification avant de sélectionner un joueur pour amende
                 if (!reVerifyPoliceAccess(player)) {
                     pendingFines.remove(player.getUniqueId());
                     return;
                 }
                 SkullMeta skullMeta = (SkullMeta) clicked.getItemMeta();
-                // Utiliser getOwningPlayer pour récupérer le joueur (plus fiable que le nom d'affichage)
                 org.bukkit.OfflinePlayer owningPlayer = skullMeta.getOwningPlayer();
                 Player target = owningPlayer != null ? Bukkit.getPlayer(owningPlayer.getUniqueId()) : null;
-
                 if (target != null && target.isOnline()) {
                     FineContext context = pendingFines.get(player.getUniqueId());
                     if (context != null) {
@@ -553,64 +413,77 @@ public class TownPoliceGUI implements Listener {
                         context.targetName = target.getName();
                         context.targetDisplayName = target.getName();
                         context.step = 1;
-
-                        // Passer à la phase 2
                         openFineSelectionMenu(player);
                     }
                 } else {
-                    player.sendMessage(ChatColor.RED + "Le joueur n'est plus en ligne.");
+                    player.sendMessage(ChatColor.RED + "Joueur hors ligne.");
                     player.closeInventory();
                     pendingFines.remove(player.getUniqueId());
                 }
-            } else if (clicked.getType() == Material.ARROW) {
+            } else if (displayName.contains("Retour")) {
                 openPoliceMenu(player);
                 pendingFines.remove(player.getUniqueId());
-            } else if (clicked.getType() == Material.BARRIER) {
+            } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
                 pendingFines.remove(player.getUniqueId());
             }
-        }
-        // PHASE 2: Sélection de l'amende
-        else if (title.equals(SELECT_FINE_TITLE)) {
+        } else if (title.equals(SELECT_FINE_TITLE)) {
             event.setCancelled(true);
-
             if (clicked.getType() == Material.PAPER) {
-                // Re-vérification avant de sélectionner le type d'amende
                 if (!reVerifyPoliceAccess(player)) {
                     pendingFines.remove(player.getUniqueId());
                     return;
                 }
                 FineContext context = pendingFines.get(player.getUniqueId());
                 if (context != null) {
-                    String fineTitle = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
-
-                    // Récupérer les informations de l'amende depuis le lore
                     List<String> lore = clicked.getItemMeta().getLore();
-                    String amountLine = ChatColor.stripColor(lore.get(0)); // "Montant: 500.0€"
+                    String amountLine = ChatColor.stripColor(lore.get(0));
                     double amount = Double.parseDouble(amountLine.replaceAll("[^0-9.]", ""));
-
-                    context.fineTitle = fineTitle;
+                    context.fineTitle = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
                     context.amount = amount;
                     context.step = 2;
-
-                    // Passer à la phase 3: demander la description
                     player.closeInventory();
                     player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                     player.sendMessage("§c🚔 §lÉMETTRE UNE AMENDE");
-                    player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
                     player.sendMessage("§7Contrevenant: §e" + context.targetDisplayName);
-                    player.sendMessage("§7Type: §c" + fineTitle);
+                    player.sendMessage("§7Type: §c" + context.fineTitle);
                     player.sendMessage("§7Montant: §6" + amount + "€");
+                    player.sendMessage("§eEntrez une description (min 20 chars) ou 'annuler'");
                     player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                    player.sendMessage("§eÉtape 3/3: Entrez une description détaillée");
-                    player.sendMessage("§7(Minimum 20 caractères)");
-                    player.sendMessage("§7(Tapez 'annuler' pour abandonner)");
                 }
-            } else if (clicked.getType() == Material.ARROW) {
+            } else if (displayName.contains("Retour")) {
                 openPlayerSelectionMenu(player);
-            } else if (clicked.getType() == Material.BARRIER) {
+            } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
                 pendingFines.remove(player.getUniqueId());
+            }
+        } else if (title.equals(SELECT_ID_TITLE)) {
+            event.setCancelled(true);
+            if (clicked.getType() == Material.PLAYER_HEAD) {
+                if (!reVerifyPoliceAccess(player))
+                    return;
+                SkullMeta idSkullMeta = (SkullMeta) clicked.getItemMeta();
+                org.bukkit.OfflinePlayer idOwningPlayer = idSkullMeta.getOwningPlayer();
+                Player target = idOwningPlayer != null ? Bukkit.getPlayer(idOwningPlayer.getUniqueId()) : null;
+                if (target != null && target.isOnline()) {
+                    player.closeInventory();
+                    var requestManager = plugin.getInteractionRequestManager();
+                    if (requestManager != null
+                            && !requestManager.hasPendingRequest(player.getUniqueId(), target.getUniqueId(),
+                                    com.gravityyfh.roleplaycity.service.InteractionRequest.RequestType.REQUEST_ID)) {
+                        requestManager.createIdRequest(player, target);
+                        player.sendMessage(ChatColor.GREEN + "Demande envoyée à " + target.getName());
+                    } else {
+                        player.sendMessage(ChatColor.YELLOW + "Demande déjà en cours ou système indisponible.");
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "Joueur hors ligne.");
+                    player.closeInventory();
+                }
+            } else if (displayName.contains("Retour")) {
+                openPoliceMenu(player);
+            } else if (displayName.contains("Fermer")) {
+                player.closeInventory();
             }
         }
     }
@@ -619,68 +492,35 @@ public class TownPoliceGUI implements Listener {
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         FineContext context = pendingFines.get(player.getUniqueId());
-
-        if (context == null || context.step != 2) {
+        if (context == null || context.step != 2)
             return;
-        }
 
         event.setCancelled(true);
         String input = event.getMessage().trim();
 
         if (input.equalsIgnoreCase("annuler")) {
             pendingFines.remove(player.getUniqueId());
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            player.sendMessage("§e✖ Émission d'amende annulée");
-            player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+            player.sendMessage(ChatColor.YELLOW + "Action annulée.");
             return;
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> {
-            // Re-vérification finale avant d'émettre l'amende
-            // (le joueur pourrait avoir quitté le service entre temps)
             if (!reVerifyPoliceAccessNoClose(player)) {
                 pendingFines.remove(player.getUniqueId());
                 return;
             }
-
-            // Vérifier la longueur minimale
             if (input.length() < 20) {
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                player.sendMessage("§c✖ Description trop courte");
-                player.sendMessage("§7Minimum: §f20 caractères");
-                player.sendMessage("§7Actuel: §f" + input.length() + " / 20");
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage(ChatColor.RED + "Description trop courte (min 20).");
                 return;
             }
-
-            // Émettre l'amende
             String townName = townManager.getPlayerTown(player.getUniqueId());
-            String fullReason = context.fineTitle + " - " + input;
-
-            Fine fine = policeManager.issueFine(
-                townName,
-                context.targetUuid,
-                context.targetName,
-                player,
-                fullReason,
-                context.amount
-            );
-
+            Fine fine = policeManager.issueFine(townName, context.targetUuid, context.targetName, player,
+                    context.fineTitle + " - " + input, context.amount);
             if (fine != null) {
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                player.sendMessage("§a✔ §lAMENDE ÉMISE AVEC SUCCÈS");
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                player.sendMessage("§7Contrevenant: §e" + context.targetDisplayName);
-                player.sendMessage("§7Type: §c" + context.fineTitle);
-                player.sendMessage("§7Montant: §6" + context.amount + "€");
-                player.sendMessage("§7Description: §f" + input);
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage(ChatColor.GREEN + "Amende émise avec succès !");
             } else {
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-                player.sendMessage("§c✖ Erreur lors de l'émission");
-                player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
+                player.sendMessage(ChatColor.RED + "Erreur lors de l'émission.");
             }
-
             pendingFines.remove(player.getUniqueId());
         });
     }
@@ -688,8 +528,8 @@ public class TownPoliceGUI implements Listener {
     private static class FineContext {
         int step = 0;
         UUID targetUuid;
-        String targetName; // Nom Minecraft (pour logs)
-        String targetDisplayName; // Nom d'identité (pour affichage)
+        String targetName;
+        String targetDisplayName;
         String fineTitle;
         double amount;
     }

@@ -122,7 +122,9 @@
       "Bash(Select-String -Pattern \"ERROR|BUILD|SUCCESS\" -Context 0,2)",
       "Bash(\"C:\\Program Files\\JetBrains\\IntelliJ IDEA Community Edition 2025.2.4\\plugins\\maven\\lib\\maven3\\bin\\mvn.cmd\" -f \"C:\\PluginCreator\\EntrepriseManager\\pom.xml\" compile -X)",
       "Bash(Select-String -Pattern \"ERROR|error:\" -Context 0,1)",
-      "Bash(Select-String -Pattern \"ERROR|BUILD|error:\" -Context 0,2)"
+      "Bash(Select-String -Pattern \"ERROR|BUILD|error:\" -Context 0,2)",
+      "Bash(Select-String -Pattern \"ERROR|error:\" -Context 0,2)",
+      "Bash(\"C:/Program Files/JetBrains/IntelliJ IDEA Community Edition 2025.2.4/plugins/maven/lib/maven3/bin/mvn.cmd\" -f \"C:/PluginCreator/EntrepriseManager/pom.xml\" clean package -DskipTests)"
     ],
     "deny": [],
     "ask": []

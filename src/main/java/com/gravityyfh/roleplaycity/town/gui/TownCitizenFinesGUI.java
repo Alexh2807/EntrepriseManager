@@ -21,6 +21,7 @@ public class TownCitizenFinesGUI implements Listener {
 
     private final RoleplayCity plugin;
     private final TownPoliceManager policeManager;
+    private TownMainGUI mainGUI;
 
     private static final String FINES_TITLE = ChatColor.RED + "📋 Mes Amendes";
 
@@ -30,6 +31,10 @@ public class TownCitizenFinesGUI implements Listener {
         this.plugin = plugin;
         this.policeManager = policeManager;
         this.pendingContests = new HashMap<>();
+    }
+
+    public void setMainGUI(TownMainGUI mainGUI) {
+        this.mainGUI = mainGUI;
     }
 
     public void openFinesMenu(Player player) {
@@ -101,12 +106,22 @@ public class TownCitizenFinesGUI implements Listener {
             inv.setItem(slot++, item);
         }
 
-        // Fermer
+        // Retour au menu principal (haut gauche)
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        List<String> backLore = new ArrayList<>();
+        backLore.add(ChatColor.GRAY + "Retour au menu ville");
+        backMeta.setLore(backLore);
+        backItem.setItemMeta(backMeta);
+        inv.setItem(0, backItem);
+
+        // Fermer (haut droite)
         ItemStack closeItem = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "Fermer");
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
         closeItem.setItemMeta(closeMeta);
-        inv.setItem(49, closeItem);
+        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }
@@ -135,6 +150,17 @@ public class TownCitizenFinesGUI implements Listener {
         }
 
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+
+        if (displayName.contains("Retour")) {
+            player.closeInventory();
+            // Retour au menu principal de la ville
+            if (mainGUI != null) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    mainGUI.openMainMenu(player);
+                }, 1L);
+            }
+            return;
+        }
 
         if (displayName.contains("Fermer")) {
             player.closeInventory();

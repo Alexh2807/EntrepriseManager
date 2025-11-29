@@ -72,9 +72,16 @@ public class ScoreboardContentProvider {
             StringBuilder line1 = new StringBuilder();
             line1.append(ICON_LOCATION).append(" ").append(INFO_COLOR);
 
-            // Numéro de terrain
+            // Numéro de terrain ou nom municipal
             if (plot.getPlotNumber() != null) {
                 line1.append(plot.getPlotNumber());
+            } else if (type == PlotType.MUNICIPAL) {
+                // Pour les terrains municipaux sans numéro, afficher le sous-type ou "Municipal"
+                if (plot.getMunicipalSubType() != null && plot.getMunicipalSubType() != MunicipalSubType.NONE) {
+                    line1.append(plot.getMunicipalSubType().getDisplayName());
+                } else {
+                    line1.append("Municipal");
+                }
             } else {
                 line1.append("(").append(plot.getChunkX()).append(", ").append(plot.getChunkZ()).append(")");
             }
