@@ -4,6 +4,8 @@ import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.data.ImprisonedPlayerData;
 import com.gravityyfh.roleplaycity.police.data.PrisonData;
 import com.gravityyfh.roleplaycity.police.manager.PrisonManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
 import com.gravityyfh.roleplaycity.town.manager.TownManager;
@@ -50,6 +52,13 @@ public class TownPrisonManagementGUI implements Listener {
      * Ouvre le menu principal de gestion prison
      */
     public void openPrisonManagementMenu(Player player) {
+        // Vérifier que le joueur est en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
+            return;
+        }
+
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous devez être dans une ville.");
@@ -63,7 +72,7 @@ public class TownPrisonManagementGUI implements Listener {
         }
 
         TownRole role = town.getMemberRole(player.getUniqueId());
-        if (role != TownRole.POLICIER && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+        if (role != TownRole.POLICIER) {
             player.sendMessage(ChatColor.RED + "Vous devez être policier pour accéder à ce menu.");
             return;
         }
@@ -318,6 +327,14 @@ public class TownPrisonManagementGUI implements Listener {
             }
 
             if (clicked.getType() == Material.LIME_DYE) {
+                // Vérifier que le joueur est en service POLICE
+                ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+                if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+                    player.closeInventory();
+                    serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
+                    return;
+                }
+
                 // Libérer
                 prisonManager.releasePrisoner(prisonerUuid, false);
                 player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
@@ -345,6 +362,14 @@ public class TownPrisonManagementGUI implements Listener {
             }
 
             if (clicked.getType() == Material.CLOCK) {
+                // Vérifier que le joueur est en service POLICE
+                ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+                if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+                    player.closeInventory();
+                    serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
+                    return;
+                }
+
                 String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
                 String[] parts = displayName.replace("+", "").split(" ");
 

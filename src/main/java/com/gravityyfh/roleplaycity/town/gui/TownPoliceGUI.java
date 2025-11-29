@@ -1,6 +1,8 @@
 package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -34,6 +36,76 @@ public class TownPoliceGUI implements Listener {
 
     private final Map<UUID, FineContext> pendingFines;
 
+    /**
+     * Vérifie si le joueur est toujours autorisé à utiliser le menu Police
+     * Re-vérification pour empêcher les actions si le joueur a quitté le service
+     * @return true si autorisé, false sinon (ferme le menu et envoie un message)
+     */
+    private boolean reVerifyPoliceAccess(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
+            return false;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return false;
+        }
+
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.POLICIER) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Vous n'avez plus accès au menu Police.");
+            return false;
+        }
+
+        // Vérifier que le joueur est toujours en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            player.closeInventory();
+            serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Version de reVerifyPoliceAccess sans fermer l'inventaire (pour onPlayerChat)
+     */
+    private boolean reVerifyPoliceAccessNoClose(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
+            return false;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return false;
+        }
+
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.POLICIER) {
+            player.sendMessage(ChatColor.RED + "Vous n'avez plus accès aux fonctions de police.");
+            return false;
+        }
+
+        // Vérifier que le joueur est toujours en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
+            return false;
+        }
+
+        return true;
+    }
+
     public TownPoliceGUI(RoleplayCity plugin, TownManager townManager, TownPoliceManager policeManager) {
         this.plugin = plugin;
         this.townManager = townManager;
@@ -55,8 +127,15 @@ public class TownPoliceGUI implements Listener {
         }
 
         TownRole role = town.getMemberRole(player.getUniqueId());
-        if (role != TownRole.POLICIER && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+        if (role != TownRole.POLICIER) {
             player.sendMessage(ChatColor.RED + "Vous devez être policier pour accéder à ce menu.");
+            return;
+        }
+
+        // Vérifier que le joueur est en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE);
             return;
         }
 
@@ -376,24 +455,34 @@ public class TownPoliceGUI implements Listener {
             String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
 
             if (displayName.contains("Émettre une Amende")) {
+                // Re-vérification avant d'émettre une amende
+                if (!reVerifyPoliceAccess(player)) return;
                 // Initialiser le contexte et ouvrir la phase 1
                 pendingFines.put(player.getUniqueId(), new FineContext());
                 openPlayerSelectionMenu(player);
             } else if (displayName.contains("Emprisonner")) {
+                // Re-vérification avant d'emprisonner
+                if (!reVerifyPoliceAccess(player)) return;
                 // Ouvrir le workflow d'emprisonnement
                 if (plugin.getImprisonmentWorkflowGUI() != null) {
                     plugin.getImprisonmentWorkflowGUI().openPrisonerSelectionMenu(player);
                 }
             } else if (displayName.contains("Gérer les Prisonniers")) {
+                // Re-vérification avant de gérer les prisonniers
+                if (!reVerifyPoliceAccess(player)) return;
                 // Ouvrir le menu de gestion des prisonniers
                 if (plugin.getTownPrisonManagementGUI() != null) {
                     plugin.getTownPrisonManagementGUI().openPrisonManagementMenu(player);
                 }
             } else if (displayName.contains("Fouiller un joueur")) {
+                // Re-vérification avant de fouiller
+                if (!reVerifyPoliceAccess(player)) return;
                 if (plugin.getFriskGUI() != null) {
                     plugin.getFriskGUI().openTargetSelection(player);
                 }
             } else if (displayName.contains("Demander l'Identité")) {
+                // Re-vérification avant de demander l'identité
+                if (!reVerifyPoliceAccess(player)) return;
                 openIdRequestSelectionMenu(player);
             } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
@@ -404,6 +493,8 @@ public class TownPoliceGUI implements Listener {
             event.setCancelled(true);
 
             if (clicked.getType() == Material.PLAYER_HEAD) {
+                // Re-vérification avant d'envoyer la demande d'identité
+                if (!reVerifyPoliceAccess(player)) return;
                 SkullMeta idSkullMeta = (SkullMeta) clicked.getItemMeta();
                 org.bukkit.OfflinePlayer idOwningPlayer = idSkullMeta.getOwningPlayer();
                 Player target = idOwningPlayer != null ? Bukkit.getPlayer(idOwningPlayer.getUniqueId()) : null;
@@ -445,6 +536,11 @@ public class TownPoliceGUI implements Listener {
             event.setCancelled(true);
 
             if (clicked.getType() == Material.PLAYER_HEAD) {
+                // Re-vérification avant de sélectionner un joueur pour amende
+                if (!reVerifyPoliceAccess(player)) {
+                    pendingFines.remove(player.getUniqueId());
+                    return;
+                }
                 SkullMeta skullMeta = (SkullMeta) clicked.getItemMeta();
                 // Utiliser getOwningPlayer pour récupérer le joueur (plus fiable que le nom d'affichage)
                 org.bukkit.OfflinePlayer owningPlayer = skullMeta.getOwningPlayer();
@@ -479,6 +575,11 @@ public class TownPoliceGUI implements Listener {
             event.setCancelled(true);
 
             if (clicked.getType() == Material.PAPER) {
+                // Re-vérification avant de sélectionner le type d'amende
+                if (!reVerifyPoliceAccess(player)) {
+                    pendingFines.remove(player.getUniqueId());
+                    return;
+                }
                 FineContext context = pendingFines.get(player.getUniqueId());
                 if (context != null) {
                     String fineTitle = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
@@ -535,6 +636,13 @@ public class TownPoliceGUI implements Listener {
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> {
+            // Re-vérification finale avant d'émettre l'amende
+            // (le joueur pourrait avoir quitté le service entre temps)
+            if (!reVerifyPoliceAccessNoClose(player)) {
+                pendingFines.remove(player.getUniqueId());
+                return;
+            }
+
             // Vérifier la longueur minimale
             if (input.length() < 20) {
                 player.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");

@@ -15,7 +15,10 @@ public class NameValidator {
     private final Plugin plugin;
 
     // Patterns de sécurité
-    private static final Pattern SAFE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ\\s\\-_']+$");
+    // PAS D'ESPACES pour éviter les problèmes avec les commandes
+    private static final Pattern SAFE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ\\-_]+$");
+    // Pattern pour les descriptions (espaces autorisés)
+    private static final Pattern SAFE_DESCRIPTION_PATTERN = Pattern.compile("^[a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ\\s\\-_'.,!?()]+$");
     private static final Pattern SQL_INJECTION_PATTERN = Pattern.compile("('.*(\\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|SCRIPT)\\b).*')|(--)|(;)|(\\|\\|)|(&&)", Pattern.CASE_INSENSITIVE);
     private static final Pattern COMMAND_INJECTION_PATTERN = Pattern.compile("[$`&|;<>{}\\[\\]\\\\]");
     private static final Pattern PATH_TRAVERSAL_PATTERN = Pattern.compile("(\\.\\./)|(\\.\\\\)|(\\.\\.%2[fF])");
@@ -70,9 +73,9 @@ public class NameValidator {
             return ValidationResult.error("Le nom ne peut pas dépasser " + MAX_ENTREPRISE_NAME_LENGTH + " caractères");
         }
 
-        // Vérifier les caractères autorisés
+        // Vérifier les caractères autorisés (PAS d'espaces)
         if (!SAFE_NAME_PATTERN.matcher(trimmed).matches()) {
-            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, espaces, - _ ' uniquement)");
+            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, - _ uniquement, PAS d'espaces)");
         }
 
         // Vérifier les patterns malveillants
@@ -107,9 +110,9 @@ public class NameValidator {
             return ValidationResult.error("Le nom ne peut pas dépasser " + MAX_TOWN_NAME_LENGTH + " caractères");
         }
 
-        // Vérifier les caractères autorisés
+        // Vérifier les caractères autorisés (PAS d'espaces)
         if (!SAFE_NAME_PATTERN.matcher(trimmed).matches()) {
-            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, espaces, - _ ' uniquement)");
+            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, - _ uniquement, PAS d'espaces)");
         }
 
         // Vérifier les patterns malveillants
@@ -144,9 +147,9 @@ public class NameValidator {
             return ValidationResult.error("Le nom ne peut pas dépasser " + MAX_NAME_LENGTH + " caractères");
         }
 
-        // Vérifier les caractères autorisés
+        // Vérifier les caractères autorisés (PAS d'espaces)
         if (!SAFE_NAME_PATTERN.matcher(trimmed).matches()) {
-            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, espaces, - _ ' uniquement)");
+            return ValidationResult.error("Le nom contient des caractères non autorisés (lettres, chiffres, - _ uniquement, PAS d'espaces)");
         }
 
         // Vérifier les patterns malveillants
@@ -232,15 +235,16 @@ public class NameValidator {
     /**
      * Nettoie un nom en supprimant les caractères dangereux
      * FIX #33 intégré: Sanitisation
+     * PAS D'ESPACES - les espaces sont remplacés par des underscores
      */
     public String sanitizeName(String name) {
         if (name == null) return "";
 
-        // Trim et normaliser les espaces
-        String sanitized = name.trim().replaceAll("\\s+", " ");
+        // Trim et remplacer les espaces par des underscores
+        String sanitized = name.trim().replaceAll("\\s+", "_");
 
-        // Supprimer les caractères dangereux
-        sanitized = sanitized.replaceAll("[^a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ\\s\\-_']", "");
+        // Supprimer les caractères dangereux (PAS d'espaces)
+        sanitized = sanitized.replaceAll("[^a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ\\-_]", "");
 
         // Limiter la longueur
         if (sanitized.length() > MAX_NAME_LENGTH) {

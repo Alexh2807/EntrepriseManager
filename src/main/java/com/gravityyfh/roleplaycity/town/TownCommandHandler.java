@@ -123,7 +123,8 @@ public class TownCommandHandler implements CommandExecutor {
                     player.sendMessage(ChatColor.RED + "Usage: /ville finishgrouping <nom_du_groupe>");
                     return true;
                 }
-                String groupName = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+                // Joindre avec underscore (PAS d'espaces pour éviter les problèmes de parsing)
+                String groupName = String.join("_", java.util.Arrays.copyOfRange(args, 1, args.length));
                 plugin.getPlotGroupingListener().finishGrouping(player, groupName);
                 return true;
             }
@@ -273,13 +274,14 @@ public class TownCommandHandler implements CommandExecutor {
 
             // NOUVEAU : Si terrain PROFESSIONNEL, gérer sélection d'entreprise
             if (terrainType == PlotType.PROFESSIONNEL) {
-                // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
+                // FIX: Utiliser peekSelectedEnterprise pour NE PAS supprimer le SIRET du cache
+                // Le SIRET sera récupéré et supprimé par buyPlot() lors de la confirmation
                 String cachedSiret = null;
                 com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager = plugin.getEnterpriseContextManager();
-                
+
                 if (enterpriseContextManager != null) {
-                    cachedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
-                        player.getUniqueId(), 
+                    cachedSiret = enterpriseContextManager.peekSelectedEnterprise(
+                        player.getUniqueId(),
                         com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.PURCHASE
                     );
                 }
@@ -430,12 +432,13 @@ public class TownCommandHandler implements CommandExecutor {
 
                 // Seulement demander entreprise pour NOUVELLE location, pas recharge
                 if (!isRecharge) {
-                    // FIX: Toujours nettoyer le cache et vérifier s'il contenait un SIRET
+                    // FIX: Utiliser peekSelectedEnterprise pour NE PAS supprimer le SIRET du cache
+                    // Le SIRET sera recupere et supprime par rentPlot() lors de la confirmation
                     String cachedSiret = null;
                     com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager enterpriseContextManager = plugin.getEnterpriseContextManager();
-                    
+
                     if (enterpriseContextManager != null) {
-                        cachedSiret = enterpriseContextManager.getAndClearSelectedEnterprise(
+                        cachedSiret = enterpriseContextManager.peekSelectedEnterprise(
                             player.getUniqueId(),
                             com.gravityyfh.roleplaycity.town.manager.EnterpriseContextManager.OperationType.RENTAL
                         );
@@ -575,9 +578,8 @@ public class TownCommandHandler implements CommandExecutor {
             int chunkX = Integer.parseInt(chunkXStr);
             int chunkZ = Integer.parseInt(chunkZStr);
 
-            // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
-            // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
-            if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
+            // NOTE: Ne PAS nettoyer le cache ici - buyPlot() va le recuperer et le supprimer
+            // Le cache sera automatiquement supprime par getAndClearSelectedEnterprise() dans TownEconomyManager.buyPlot()
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();
@@ -646,9 +648,8 @@ public class TownCommandHandler implements CommandExecutor {
             int chunkZ = Integer.parseInt(chunkZStr);
             int days = Integer.parseInt(daysStr);
 
-            // FIX: Nettoyer le cache de sélection d'entreprise après confirmation
-            // Cela garantit qu'une nouvelle transaction nécessitera une nouvelle sélection
-            if (plugin.getEnterpriseContextManager() != null) plugin.getEnterpriseContextManager().clearPlayerCache(player.getUniqueId());
+            // NOTE: Ne PAS nettoyer le cache ici - rentPlot() va le recuperer et le supprimer
+            // Le cache sera automatiquement supprime par getAndClearSelectedEnterprise() dans TownEconomyManager.rentPlot()
 
             ClaimManager claimManager = plugin.getClaimManager();
             TownEconomyManager economyManager = plugin.getTownEconomyManager();

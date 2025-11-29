@@ -63,27 +63,17 @@ public class MailboxNotificationListener implements Listener {
         boolean isRenter = plot.getRenterUuid() != null && plot.getRenterUuid().equals(playerId);
 
         if (isOwner || isRenter) {
-            // NOTIFICATION : Absence de boîte aux lettres (TOUJOURS affiché)
-            if (!mailboxManager.hasMailbox(plot)) {
-                player.sendMessage(ChatColor.YELLOW + "⚠ Votre terrain ne possède aucune boîte aux lettres.");
-                player.sendMessage(ChatColor.GRAY + "Vous devez en placer une : " +
-                    ChatColor.WHITE + "/ville " + ChatColor.GRAY + "-> \"Mes propriétés\"");
-            } else {
-                // NOTIFICATION : Courrier en attente (TOUJOURS affiché)
-                if (plot.hasMailbox()) {
-                    Mailbox mailbox = plot.getMailbox();
-                    if (mailbox != null && mailbox.hasMail()) {
-                        player.sendMessage(ChatColor.GREEN + "📬 Vous avez du courrier !");
-                        player.sendMessage(ChatColor.YELLOW + "Faites un clic droit sur votre boîte aux lettres " +
-                            "pour récupérer votre courrier.");
-                    }
+            // NOTIFICATION : Courrier en attente uniquement (le statut mailbox est dans le scoreboard)
+            if (mailboxManager.hasMailbox(plot) && plot.hasMailbox()) {
+                Mailbox mailbox = plot.getMailbox();
+                if (mailbox != null && mailbox.hasMail()) {
+                    player.sendMessage(ChatColor.GREEN + "📬 Vous avez du courrier !");
+                    player.sendMessage(ChatColor.YELLOW + "Faites un clic droit sur votre boîte aux lettres " +
+                        "pour récupérer votre courrier.");
                 }
             }
-        } else {
-            // NOTIFICATION : Visiteur sur un terrain sans mailbox (TOUJOURS affiché)
-            if (!mailboxManager.hasMailbox(plot)) {
-                player.sendMessage(ChatColor.GRAY + "Ce terrain ne possède aucune boîte aux lettres.");
-            }
+            // NOTE: Le message "pas de boîte aux lettres" est maintenant affiché dans le scoreboard
         }
+        // NOTE: Le message pour les visiteurs est supprimé car l'info est dans le scoreboard
     }
 }

@@ -801,7 +801,8 @@ public class TownMainGUI implements Listener {
             if (currentTownName != null) {
                 openManageTownMenu(player, currentTownName);
             }
-        } else if (strippedName.contains("Informations de la Ville")) {
+        } else if (strippedName.contains("✦") || strippedName.contains("Informations de la Ville")) {
+            // Le bouton info contient "✦ NOMVILLE ✦" (slot 13 et 49)
             player.closeInventory();
             showTownInfo(player);
         } else if (strippedName.contains("Ameliorer la Ville")) {
@@ -831,7 +832,8 @@ public class TownMainGUI implements Listener {
         } else if (strippedName.contains("Definir le Spawn")) {
             player.closeInventory();
             handleSetSpawn(player);
-        } else if (strippedName.contains("Quitter la Ville")) {
+        } else if (strippedName.contains("Quitter")) {
+            // Le bouton s'appelle "Quitter" (pas "Quitter la Ville")
             player.closeInventory();
             handleLeaveTown(player);
         } else if (strippedName.contains("Retour")) {
@@ -1102,7 +1104,10 @@ public class TownMainGUI implements Listener {
                     "",
                     "Vérifiez:",
                     "*Que la ville a " + String.format("%.2f€", renameCost) + " en banque",
-                    "*Que le nom n'est pas déjà pris"
+                    "*Que le nom n'est pas déjà pris",
+                    "*Que le nom fait 3-32 caractères",
+                    "*Caractères autorisés: lettres, chiffres, - et _",
+                    "*PAS d'espaces!"
                 ));
             }
         });

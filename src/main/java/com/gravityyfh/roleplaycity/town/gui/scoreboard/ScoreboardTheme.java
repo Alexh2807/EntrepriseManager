@@ -101,6 +101,9 @@ public class ScoreboardTheme {
     public static final String ICON_RENT = "◎";
     public static final String ICON_TIME = "⌚";
     public static final String ICON_COMPANY = "■";
+    public static final String ICON_MAILBOX = "✉";
+    public static final String ICON_CHECK = "✓";
+    public static final String ICON_CROSS = "✗";
 
     // ========== SÉPARATEURS ==========
 

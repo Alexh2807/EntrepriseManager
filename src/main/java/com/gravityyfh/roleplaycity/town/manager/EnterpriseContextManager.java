@@ -128,6 +128,33 @@ public class EnterpriseContextManager {
     }
 
     /**
+     * Consulte l'entreprise sélectionnée SANS la supprimer du cache.
+     * Utilisé pour vérifier si une sélection existe avant d'afficher la confirmation.
+     *
+     * @param playerUuid UUID du joueur
+     * @param expectedOpType Type d'opération attendu (sécurité)
+     * @return SIRET de l'entreprise, ou null si cache vide/expiré/mauvais type
+     */
+    public String peekSelectedEnterprise(UUID playerUuid, OperationType expectedOpType) {
+        SelectionContext context = selectionCache.get(playerUuid);
+
+        if (context == null) {
+            return null;
+        }
+
+        if (context.isExpired()) {
+            selectionCache.remove(playerUuid); // Nettoyer le cache expiré
+            return null;
+        }
+
+        if (context.operationType != expectedOpType) {
+            return null;
+        }
+
+        return context.siret;
+    }
+
+    /**
      * Récupère et supprime l'entreprise sélectionnée du cache
      *
      * @param playerUuid UUID du joueur

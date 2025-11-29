@@ -2,6 +2,8 @@ package com.gravityyfh.roleplaycity.town.manager;
 
 import com.gravityyfh.roleplaycity.contract.model.Contract;
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -42,6 +44,15 @@ public class TownJusticeManager {
             judge.sendMessage("§7Vous n'avez pas l'autorité pour juger");
             judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return false;
+        }
+
+        // Si c'est un JUGE (pas MAIRE), vérifier qu'il est en service
+        if (role == TownRole.JUGE) {
+            ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+            if (serviceManager != null && !serviceManager.isInService(judge.getUniqueId(), ProfessionalServiceType.JUDGE)) {
+                serviceManager.sendNotInServiceMessage(judge, ProfessionalServiceType.JUDGE);
+                return false;
+            }
         }
 
         // Vérifier que l'amende est bien contestée
@@ -202,6 +213,15 @@ public class TownJusticeManager {
             judge.sendMessage("§7Vous n'avez pas l'autorité pour juger");
             judge.sendMessage("§8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             return false;
+        }
+
+        // Si c'est un JUGE (pas MAIRE), vérifier qu'il est en service
+        if (role == TownRole.JUGE) {
+            ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+            if (serviceManager != null && !serviceManager.isInService(judge.getUniqueId(), ProfessionalServiceType.JUDGE)) {
+                serviceManager.sendNotInServiceMessage(judge, ProfessionalServiceType.JUDGE);
+                return false;
+            }
         }
 
         if (contrat.getStatus() != com.gravityyfh.roleplaycity.contract.model.ContractStatus.LITIGE) {

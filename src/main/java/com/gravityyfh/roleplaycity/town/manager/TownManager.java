@@ -179,6 +179,14 @@ public class TownManager {
             return false;
         }
 
+        // Validation du nouveau nom (PAS d'espaces)
+        if (newName == null || !newName.matches("^[a-zA-Z0-9_\\-]+$")) {
+            return false;
+        }
+        if (newName.length() < 3 || newName.length() > 32) {
+            return false;
+        }
+
         Town town = towns.get(oldName);
 
         // Vérifier le solde de la ville
@@ -622,10 +630,12 @@ public class TownManager {
     public void saveTownsNow() {
         // Si une sauvegarde est déjà planifiée, on ne fait rien (debouncing)
         if (savePending.get()) {
+            plugin.getLogger().fine("[TownManager] Sauvegarde déjà planifiée, ignorée");
             return;
         }
 
         savePending.set(true);
+        plugin.getLogger().info("[TownManager] Sauvegarde planifiée dans 1 seconde...");
 
         // Annuler la tâche précédente si elle existe
         if (saveTask != null && !saveTask.isCancelled()) {
@@ -635,17 +645,19 @@ public class TownManager {
         // Planifier la sauvegarde avec un délai de 1 seconde
         // Si d'autres modifications arrivent dans cette seconde, elles seront ignorées
         saveTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getLogger().info("[TownManager] Exécution de la sauvegarde async...");
             // Sauvegarder de manière asynchrone pour ne pas bloquer le thread principal
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
                     if (plugin.getTownDataManager() != null) {
-                        plugin.getTownDataManager().saveTowns(getTownsForSave());
+                        Map<String, Town> townsToSave = getTownsForSave();
+                        plugin.getLogger().info("[TownManager] Sauvegarde de " + townsToSave.size() + " villes...");
+                        plugin.getTownDataManager().saveTowns(townsToSave);
+                        plugin.getLogger().info("[TownManager] ✓ Sauvegarde async terminée");
                     }
                 } catch (Exception e) {
-                    // FIX BASSE: Utiliser logging avec exception complète
                     plugin.getLogger().log(Level.SEVERE, "Erreur lors de la sauvegarde asynchrone des villes", e);
                 } finally {
-                    // Réinitialiser le flag pour permettre une nouvelle sauvegarde
                     savePending.set(false);
                 }
             });
@@ -653,11 +665,11 @@ public class TownManager {
     }
 
     /**
-     * Sauvegarde synchrone immédiate (utilisée lors de l'arrêt du serveur)
-     * Ne pas utiliser en jeu, préférer saveTownsNow()
+     * Sauvegarde synchrone immédiate (utilisée lors de l'arrêt du serveur ou reload)
+     * Annule toute sauvegarde async en attente et sauvegarde immédiatement
      */
     public void saveTownsSync() {
-        // Annuler toute sauvegarde asynchrone en attente
+        // Annuler toute sauvegarde planifiée (pas encore démarrée)
         if (saveTask != null && !saveTask.isCancelled()) {
             saveTask.cancel();
         }

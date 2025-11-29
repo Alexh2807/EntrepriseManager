@@ -429,7 +429,21 @@ public class EntrepriseManagerLogic {
             plugin.getLogger().warning("Tentative d'enregistrement d'action productive avec des paramètres nuls ou invalides (Joueur: " + player + ", Material: " + material + ", Quantité: " + quantite + ")");
             return;
         }
-        Entreprise entreprise = getEntrepriseDuJoueur(player);
+
+        // FIX: Si en service, utiliser l'entreprise du service actif (prioritaire)
+        Entreprise entreprise = null;
+        if (plugin.getServiceModeManager() != null && plugin.getServiceModeManager().isInService(player.getUniqueId())) {
+            String serviceEntName = plugin.getServiceModeManager().getActiveEnterprise(player.getUniqueId());
+            if (serviceEntName != null) {
+                entreprise = getEntreprise(serviceEntName);
+            }
+        }
+
+        // Fallback: chercher une entreprise du joueur (hors service)
+        if (entreprise == null) {
+            entreprise = getEntrepriseDuJoueur(player);
+        }
+
         if (entreprise == null) {
             return;
         }
@@ -533,7 +547,20 @@ public class EntrepriseManagerLogic {
             return;
         }
 
-        Entreprise entreprise = getEntrepriseDuJoueur(player);
+        // FIX: Si en service, utiliser l'entreprise du service actif (prioritaire)
+        Entreprise entreprise = null;
+        if (plugin.getServiceModeManager() != null && plugin.getServiceModeManager().isInService(player.getUniqueId())) {
+            String serviceEntName = plugin.getServiceModeManager().getActiveEnterprise(player.getUniqueId());
+            if (serviceEntName != null) {
+                entreprise = getEntreprise(serviceEntName);
+            }
+        }
+
+        // Fallback: chercher une entreprise du joueur (hors service)
+        if (entreprise == null) {
+            entreprise = getEntrepriseDuJoueur(player);
+        }
+
         if (entreprise == null) {
             return;
         }
@@ -607,23 +634,47 @@ public class EntrepriseManagerLogic {
      * @param player Le joueur qui a crafté le backpack
      * @param backpackType Le type de backpack (sacoche, valisette, sac_course, etc.)
      */
+    /**
+     * Enregistre le craft d'un backpack (version avec quantité par défaut = 1)
+     */
     public void enregistrerCraftBackpack(Player player, String backpackType) {
-        if (player == null || backpackType == null) {
-            plugin.getLogger().warning("enregistrerCraftBackpack appelé avec des paramètres nuls");
+        enregistrerCraftBackpack(player, backpackType, 1);
+    }
+
+    /**
+     * Enregistre le craft de backpacks avec une quantité spécifique
+     */
+    public void enregistrerCraftBackpack(Player player, String backpackType, int quantite) {
+        if (player == null || backpackType == null || quantite <= 0) {
+            plugin.getLogger().warning("enregistrerCraftBackpack appelé avec des paramètres nuls ou invalides");
             return;
         }
 
-        Entreprise entreprise = getEntrepriseDuJoueur(player);
+        // FIX: Si en service, utiliser l'entreprise du service actif (prioritaire)
+        Entreprise entreprise = null;
+        if (plugin.getServiceModeManager() != null && plugin.getServiceModeManager().isInService(player.getUniqueId())) {
+            String serviceEntName = plugin.getServiceModeManager().getActiveEnterprise(player.getUniqueId());
+            if (serviceEntName != null) {
+                entreprise = getEntreprise(serviceEntName);
+            }
+        }
+
+        // Fallback: chercher une entreprise du joueur (hors service)
+        if (entreprise == null) {
+            entreprise = getEntrepriseDuJoueur(player);
+        }
+
         if (entreprise == null) {
             return; // Pas d'entreprise, pas d'enregistrement
         }
 
-        // Récupérer la valeur du backpack depuis la config
+        // Récupérer la valeur unitaire du backpack depuis la config
         String typeEntreprise = entreprise.getType();
         String configPath = "types-entreprise." + typeEntreprise + ".activites-payantes.CRAFT_BACKPACK." + backpackType;
-        double valeurBackpack = plugin.getConfig().getDouble(configPath, 0.0);
+        double valeurUnitaire = plugin.getConfig().getDouble(configPath, 0.0);
+        double valeurTotale = valeurUnitaire * quantite;
 
-        if (valeurBackpack > 0) {
+        if (valeurUnitaire > 0) {
             // Enregistrer l'activité dans le record de l'employé
             EmployeeActivityRecord activityRecord = entreprise.getOrCreateEmployeeActivityRecord(
                 player.getUniqueId(),
@@ -635,11 +686,11 @@ public class EntrepriseManagerLogic {
             // Utiliser LEATHER comme Material de référence pour les backpacks dans les logs
             Material backpackMaterial = Material.LEATHER;
 
-            // Enregistrer l'action détaillée
+            // Enregistrer l'action détaillée avec la quantité correcte
             activityRecord.recordAction(
                 actionKey,
-                valeurBackpack,
-                1,
+                valeurTotale,
+                quantite,
                 DetailedActionType.ITEM_CRAFTED,
                 backpackMaterial
             );
@@ -651,23 +702,23 @@ public class EntrepriseManagerLogic {
 
             if (isInService) {
                 // Mode service: split 50/50 (joueur accumule 50%, entreprise gagne 50%)
-                double companyShare = plugin.getServiceModeManager().processServiceEarnings(player, valeurBackpack);
+                double companyShare = plugin.getServiceModeManager().processServiceEarnings(player, valeurTotale);
                 activiteProductiveHoraireValeur.merge(entreprise.getNom(), companyShare, Double::sum);
 
                 // Ajouter au log global de production de l'entreprise
                 entreprise.addGlobalProductionRecord(
                     LocalDateTime.now(),
                     backpackMaterial,
-                    1,
+                    quantite,
                     player.getUniqueId().toString(),
                     DetailedActionType.ITEM_CRAFTED
                 );
 
-                plugin.getLogger().fine("Craft de backpack '" + backpackType + "' enregistré pour " + player.getName() +
-                        " (MODE SERVICE - Entreprise: " + entreprise.getNom() + ", Type: " + typeEntreprise + ", Valeur: " + valeurBackpack + "€)");
+                plugin.getLogger().fine("Craft de " + quantite + "x backpack '" + backpackType + "' enregistré pour " + player.getName() +
+                        " (MODE SERVICE - Entreprise: " + entreprise.getNom() + ", Type: " + typeEntreprise + ", Valeur totale: " + valeurTotale + "€)");
             } else {
                 // Hors service: AUCUN gain (le joueur ne travaille pas pour l'entreprise)
-                plugin.getLogger().fine("Joueur " + player.getName() + " hors service - Backpack '" + backpackType + "' non enregistré pour '" + entreprise.getNom() + "'");
+                plugin.getLogger().fine("Joueur " + player.getName() + " hors service - Backpack '" + backpackType + "' x" + quantite + " non enregistré pour '" + entreprise.getNom() + "'");
             }
         } else {
             plugin.getLogger().fine("Backpack '" + backpackType + "' n'a pas de valeur configurée dans activites-payantes.CRAFT_BACKPACK pour " + typeEntreprise);

@@ -2,7 +2,10 @@ package com.gravityyfh.roleplaycity.police.listeners;
 
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
@@ -247,6 +250,14 @@ public class HandcuffsFollowListener implements Listener {
             }
         }
 
+        // Vérifier que le joueur est en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(handcuffer.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(handcuffer, ProfessionalServiceType.POLICE);
+            event.setCancelled(true);
+            return;
+        }
+
         // Démarrer le suivi
         startFollowing(handcuffer, target);
         event.setCancelled(true);
@@ -260,13 +271,15 @@ public class HandcuffsFollowListener implements Listener {
 
         FileConfiguration config = plugin.getConfig();
 
-        String handcufferMsg = config.getString("police-equipment.handcuffs.messages.start-following",
-            "§a%target% vous suit maintenant!");
+        String handcufferMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.start-following",
+                "&a%target% vous suit maintenant!"));
         handcufferMsg = handcufferMsg.replace("%target%", target.getName());
         handcuffer.sendMessage(handcufferMsg);
 
-        String targetMsg = config.getString("police-equipment.handcuffs.messages.you-follow",
-            "§cVous suivez maintenant §6%player%§c!");
+        String targetMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.you-follow",
+                "&cVous suivez maintenant &6%player%&c!"));
         targetMsg = targetMsg.replace("%player%", handcuffer.getName());
         target.sendMessage(targetMsg);
     }
@@ -279,13 +292,15 @@ public class HandcuffsFollowListener implements Listener {
 
         FileConfiguration config = plugin.getConfig();
 
-        String handcufferMsg = config.getString("police-equipment.handcuffs.messages.stop-following",
-            "§a%target% ne vous suit plus.");
+        String handcufferMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.stop-following",
+                "&a%target% ne vous suit plus."));
         handcufferMsg = handcufferMsg.replace("%target%", target.getName());
         handcuffer.sendMessage(handcufferMsg);
 
-        String targetMsg = config.getString("police-equipment.handcuffs.messages.you-stop-follow",
-            "§aVous ne suivez plus §6%player%§a.");
+        String targetMsg = ChatColor.translateAlternateColorCodes('&',
+            config.getString("police-equipment.handcuffs.messages.you-stop-follow",
+                "&aVous ne suivez plus &6%player%&a."));
         targetMsg = targetMsg.replace("%player%", handcuffer.getName());
         target.sendMessage(targetMsg);
     }

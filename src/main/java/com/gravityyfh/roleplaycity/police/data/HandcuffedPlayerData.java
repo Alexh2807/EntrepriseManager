@@ -133,8 +133,8 @@ public class HandcuffedPlayerData {
             bossBar.setVisible(false);
         }
 
-        // Retirer du suivi
-        stopFollowing(uuid);
+        // Retirer du suivi - chercher si quelqu'un suit ce joueur
+        stopFollowingTarget(uuid);
 
         // Retirer l'historique de positions
         pathHistory.remove(uuid);
@@ -203,11 +203,31 @@ public class HandcuffedPlayerData {
     }
 
     /**
-     * Arrête le suivi
+     * Arrête le suivi (par le handcuffer)
      */
     public void stopFollowing(UUID handcuffer) {
         followingMap.remove(handcuffer);
         pathHistory.remove(handcuffer);
+    }
+
+    /**
+     * Arrête le suivi d'un joueur menotté (par sa cible)
+     * Cherche quel handcuffer suit ce joueur et arrête le suivi
+     * @return l'UUID du handcuffer qui suivait ce joueur, ou null si personne
+     */
+    public UUID stopFollowingTarget(UUID handcuffedTarget) {
+        UUID handcufferToRemove = null;
+        for (Map.Entry<UUID, UUID> entry : followingMap.entrySet()) {
+            if (entry.getValue().equals(handcuffedTarget)) {
+                handcufferToRemove = entry.getKey();
+                break;
+            }
+        }
+        if (handcufferToRemove != null) {
+            followingMap.remove(handcufferToRemove);
+            pathHistory.remove(handcufferToRemove);
+        }
+        return handcufferToRemove;
     }
 
     /**

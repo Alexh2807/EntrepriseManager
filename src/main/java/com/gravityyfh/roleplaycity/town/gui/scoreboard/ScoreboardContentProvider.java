@@ -3,6 +3,7 @@ package com.gravityyfh.roleplaycity.town.gui.scoreboard;
 import com.gravityyfh.roleplaycity.EntrepriseManagerLogic;
 import com.gravityyfh.roleplaycity.entreprise.model.*;
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.postal.manager.MailboxManager;
 import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.PlotType;
@@ -47,7 +48,7 @@ public class ScoreboardContentProvider {
         if (type == PlotType.PUBLIC) {
             addPublicPlotContent(builder);
         } else if (type == PlotType.MUNICIPAL) {
-            addMunicipalPlotContent();
+            addMunicipalPlotContent(builder, plot);
         } else if (type == PlotType.PROFESSIONNEL) {
             addProfessionalPlotContent(builder, plot);
         } else if (type == PlotType.PARTICULIER) {
@@ -111,9 +112,10 @@ public class ScoreboardContentProvider {
     /**
      * Contenu pour un terrain MUNICIPAL
      */
-    private void addMunicipalPlotContent() {
-        // Les terrains municipaux n'ont généralement pas d'infos supplémentaires
+    private void addMunicipalPlotContent(ScoreboardBuilder builder, Plot plot) {
         // Le sous-type est déjà affiché dans addBasicPlotInfo
+        // BOÎTE AUX LETTRES
+        addMailboxStatus(builder, plot);
     }
 
     /**
@@ -199,6 +201,9 @@ public class ScoreboardContentProvider {
             builder.addLine(ICON_RENT + " " + RENT_COLOR + ChatColor.BOLD + "EN LOCATION");
             builder.addLine(indent(LABEL_COLOR + "Prix: " + RENT_COLOR + formatPricePerDay(plot.getRentPricePerDay())));
         }
+
+        // BOÎTE AUX LETTRES
+        addMailboxStatus(builder, plot);
     }
 
     /**
@@ -252,6 +257,9 @@ public class ScoreboardContentProvider {
             builder.addLine(ICON_RENT + " " + RENT_COLOR + ChatColor.BOLD + "EN LOCATION");
             builder.addLine(indent(LABEL_COLOR + "Prix: " + RENT_COLOR + formatPricePerDay(plot.getRentPricePerDay())));
         }
+
+        // BOÎTE AUX LETTRES
+        addMailboxStatus(builder, plot);
     }
 
     /**
@@ -264,5 +272,23 @@ public class ScoreboardContentProvider {
             case MUNICIPAL -> ICON_MUNICIPAL;
             case PUBLIC -> ICON_PUBLIC;
         };
+    }
+
+    /**
+     * Ajoute le statut de la boîte aux lettres au scoreboard
+     * Affiche "Boîte aux lettres : ✓" ou "Boîte aux lettres : ✗"
+     */
+    private void addMailboxStatus(ScoreboardBuilder builder, Plot plot) {
+        MailboxManager mailboxManager = plugin.getMailboxManager();
+        if (mailboxManager == null) return;
+
+        boolean hasMailbox = mailboxManager.hasMailbox(plot);
+
+        builder.addEmptyLine();
+        if (hasMailbox) {
+            builder.addLine(ICON_MAILBOX + " " + LABEL_COLOR + "Boîte aux lettres: " + PRICE_COLOR + ICON_CHECK);
+        } else {
+            builder.addLine(ICON_MAILBOX + " " + LABEL_COLOR + "Boîte aux lettres: " + ALERT_COLOR + ICON_CROSS);
+        }
     }
 }

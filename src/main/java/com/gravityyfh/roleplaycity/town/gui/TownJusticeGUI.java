@@ -2,6 +2,8 @@ package com.gravityyfh.roleplaycity.town.gui;
 
 import com.gravityyfh.roleplaycity.contract.model.Contract;
 import com.gravityyfh.roleplaycity.RoleplayCity;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.Fine;
 import com.gravityyfh.roleplaycity.town.data.Town;
 import com.gravityyfh.roleplaycity.town.data.TownRole;
@@ -39,6 +41,46 @@ public class TownJusticeGUI implements Listener {
 
     private final Map<UUID, JudgementContext> pendingJudgements;
 
+    /**
+     * Vérifie si le joueur est toujours autorisé à utiliser le menu Justice
+     * Re-vérification pour empêcher les actions si le joueur a quitté le service
+     * @return true si autorisé, false sinon (ferme le menu et envoie un message)
+     */
+    private boolean reVerifyJudgeAccess(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
+            return false;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return false;
+        }
+
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.JUGE && role != TownRole.MAIRE) {
+            player.closeInventory();
+            player.sendMessage(ChatColor.RED + "Vous n'avez plus accès au menu Justice.");
+            return false;
+        }
+
+        // Si c'est un JUGE (pas MAIRE), vérifier qu'il est toujours en service
+        if (role == TownRole.JUGE) {
+            ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+            if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.JUDGE)) {
+                player.closeInventory();
+                serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.JUDGE);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public TownJusticeGUI(RoleplayCity plugin, TownManager townManager,
                          TownPoliceManager policeManager, TownJusticeManager justiceManager) {
         this.plugin = plugin;
@@ -65,6 +107,15 @@ public class TownJusticeGUI implements Listener {
         if (role != TownRole.JUGE && role != TownRole.MAIRE) {
             player.sendMessage(ChatColor.RED + "Vous devez être juge pour accéder à ce menu.");
             return;
+        }
+
+        // Si c'est un JUGE (pas MAIRE), vérifier qu'il est en service
+        if (role == TownRole.JUGE) {
+            ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+            if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.JUDGE)) {
+                serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.JUDGE);
+                return;
+            }
         }
 
         Inventory inv = Bukkit.createInventory(null, 27, JUSTICE_TITLE);
@@ -346,6 +397,8 @@ public class TownJusticeGUI implements Listener {
             player.closeInventory();
             openJusticeMenu(player);
         } else if (clicked.getType() == Material.PAPER) {
+            // Re-vérification avant d'ouvrir le verdict
+            if (!reVerifyJudgeAccess(player)) return;
             String offenderName = displayName;
             String townName = townManager.getPlayerTown(player.getUniqueId());
             List<Fine> contestedFines = policeManager.getContestedFines(townName);
@@ -372,6 +425,8 @@ public class TownJusticeGUI implements Listener {
             player.closeInventory();
             openJusticeMenu(player);
         } else if (clicked.getType() == Material.MAP) {
+            // Re-vérification avant d'ouvrir le verdict contrat
+            if (!reVerifyJudgeAccess(player)) return;
              // Extract ID
              if (clicked.getItemMeta().hasLore()) {
                  for(String line : clicked.getItemMeta().getLore()) {
@@ -403,6 +458,9 @@ public class TownJusticeGUI implements Listener {
             return;
         }
 
+        // Re-vérification avant de rendre un verdict
+        if (!reVerifyJudgeAccess(player)) return;
+
         // Find Fine logic same as before...
         // Simplified for brevity in this large replace, relying on previous logic
         ItemStack dossierItem = event.getInventory().getItem(4);
@@ -433,15 +491,18 @@ public class TownJusticeGUI implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || !clicked.hasItemMeta()) return;
-        
+
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
-        
+
         if (displayName.contains("Retour")) {
              player.closeInventory();
              openContractCasesMenu(player);
              return;
         }
-        
+
+        // Re-vérification avant de rendre un verdict contrat
+        if (!reVerifyJudgeAccess(player)) return;
+
         // Find Contract via Title/ID match or Context
         // We can get ID from item 4 info again or cache it.
         // Let's assume we stored it in title "Litige: Title". Weak.
@@ -520,6 +581,13 @@ public class TownJusticeGUI implements Listener {
     }
 
     private void processJudgement(Player player, JudgementContext context, String input) {
+        // Re-vérification finale avant de rendre le jugement
+        // (le joueur pourrait avoir quitté le service entre temps)
+        if (!reVerifyJudgeAccessNoClose(player)) {
+            pendingJudgements.remove(player.getUniqueId());
+            return;
+        }
+
         if (input.length() < 5) {
             player.sendMessage(ChatColor.RED + "Verdict trop court (min 5 car.)");
             return;
@@ -536,6 +604,40 @@ public class TownJusticeGUI implements Listener {
             player.sendMessage(ChatColor.GREEN + "Jugement rendu !");
         }
         pendingJudgements.remove(player.getUniqueId());
+    }
+
+    /**
+     * Version de reVerifyJudgeAccess sans fermer l'inventaire (pour processJudgement via chat)
+     */
+    private boolean reVerifyJudgeAccessNoClose(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
+            return false;
+        }
+
+        Town town = townManager.getTown(townName);
+        if (town == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
+            return false;
+        }
+
+        TownRole role = town.getMemberRole(player.getUniqueId());
+        if (role != TownRole.JUGE && role != TownRole.MAIRE) {
+            player.sendMessage(ChatColor.RED + "Vous n'avez plus accès aux fonctions de juge.");
+            return false;
+        }
+
+        // Si c'est un JUGE (pas MAIRE), vérifier qu'il est toujours en service
+        if (role == TownRole.JUGE) {
+            ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+            if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.JUDGE)) {
+                serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.JUDGE);
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static class JudgementContext {

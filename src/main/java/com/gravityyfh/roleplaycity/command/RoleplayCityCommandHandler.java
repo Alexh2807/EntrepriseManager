@@ -111,17 +111,19 @@ public class RoleplayCityCommandHandler implements CommandExecutor, TabCompleter
 
             long duration = System.currentTimeMillis() - startTime;
 
-            sender.sendMessage(ChatColor.GREEN + "✓ Configuration rechargée");
-            sender.sendMessage(ChatColor.GREEN + "✓ Villes rechargées");
-            sender.sendMessage(ChatColor.GREEN + "✓ Entreprises rechargées");
-            sender.sendMessage(ChatColor.GREEN + "✓ Boutiques rechargées");
-            sender.sendMessage(ChatColor.GREEN + "✓ Système de niveau rechargé");
-            sender.sendMessage(ChatColor.GREEN + "✓ Système médical rechargé");
-            sender.sendMessage(ChatColor.GREEN + "✓ Cambriolages rechargés (cambriolage.yml)");
-            sender.sendMessage(ChatColor.GREEN + "✓ Identités rechargées (identities.yml)");
+            sender.sendMessage(ChatColor.AQUA + "💾 Sauvegarde effectuée:");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Villes, Entreprises, Boutiques");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Amendes, Notifications");
+            sender.sendMessage("");
+            sender.sendMessage(ChatColor.AQUA + "🔄 Rechargement effectué:");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Configuration principale");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Villes & Entreprises");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Boutiques & Niveau");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Système médical & Police");
+            sender.sendMessage(ChatColor.GREEN + "  ✓ Cambriolages, Identités, Téléphonie");
             sender.sendMessage("");
             sender.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
-            sender.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ RECHARGEMENT TERMINÉ");
+            sender.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "✓ RECHARGEMENT TERMINÉ (données sauvées)");
             sender.sendMessage(ChatColor.GRAY + "Durée: " + ChatColor.WHITE + duration + "ms");
             sender.sendMessage(ChatColor.GOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
             sender.sendMessage("");

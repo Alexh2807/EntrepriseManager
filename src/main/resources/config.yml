@@ -1117,6 +1117,83 @@ types-entreprise:
     cout-creation: 20000.0
 
 
+  # ========================================
+  #          SECTEUR TELECOM
+  # ========================================
+
+  Telecom:
+    description: "Entreprise de telecommunications permettant la fabrication et la vente de telephones et forfaits."
+    shop-sans-restriction: false
+    action_restrictions:
+      # Fabrication de telephones (8 couleurs)
+      CRAFT_PHONE:
+        phone_black:
+          limite-par-heure: 5
+        phone_blue:
+          limite-par-heure: 5
+        phone_orange:
+          limite-par-heure: 5
+        phone_white:
+          limite-par-heure: 5
+        phone_yellow:
+          limite-par-heure: 5
+        phone_pink:
+          limite-par-heure: 5
+        phone_red:
+          limite-par-heure: 5
+        phone_green:
+          limite-par-heure: 5
+      # Fabrication de forfaits
+      CRAFT_PLAN:
+        silver:
+          limite-par-heure: 10
+        gold:
+          limite-par-heure: 8
+        platinum:
+          limite-par-heure: 5
+    activites-payantes:
+      CRAFT_PHONE:
+        phone_black: 150.0
+        phone_blue: 150.0
+        phone_orange: 150.0
+        phone_white: 150.0
+        phone_yellow: 150.0
+        phone_pink: 150.0
+        phone_red: 150.0
+        phone_green: 150.0
+      CRAFT_PLAN:
+        silver: 50.0
+        gold: 100.0
+        platinum: 200.0
+    message-erreur-restriction:
+      - "&cVous n'etes pas autorise a fabriquer cet equipement de telecommunication."
+      - "&7Rejoignez une entreprise Telecom pour obtenir cette autorisation."
+    # Niveaux de restrictions (evolution de l'entreprise)
+    restriction-levels:
+      0:  # Boutique mobile
+        limite-par-heure: 3
+        cout-amelioration: 20000.0
+        description: "Boutique mobile"
+      1:  # Point de vente
+        limite-par-heure: 5
+        cout-amelioration: 40000.0
+        description: "Point de vente"
+      2:  # Magasin specialise
+        limite-par-heure: 8
+        cout-amelioration: 80000.0
+        description: "Magasin specialise"
+      3:  # Centre Telecom
+        limite-par-heure: 12
+        cout-amelioration: 150000.0
+        description: "Centre Telecom"
+      4:  # Operateur regional (max)
+        limite-par-heure: 20
+        cout-amelioration: 0
+        description: "Operateur regional"
+    limite-non-membre-par-heure: 0
+    cout-creation: 50000.0
+
+
 #--------------------------------------------------------------------------------------------------
 # FINANCE ET PARAMÈTRES GLOBAUX DES ENTREPRISES
 #--------------------------------------------------------------------------------------------------

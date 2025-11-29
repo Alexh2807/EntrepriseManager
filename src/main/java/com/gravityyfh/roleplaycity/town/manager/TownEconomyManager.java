@@ -687,15 +687,88 @@ public class TownEconomyManager {
                 Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
 
                 if (company != null) {
+                    // FIX: D'abord tenter de rembourser les dettes entreprise existantes
+                    double existingCompanyDebt = plot.getCompanyDebtAmount();
+                    if (existingCompanyDebt > 0) {
+                        double totalDue = existingCompanyDebt + tax;
+                        if (company.getSolde() >= totalDue) {
+                            // Payer la dette existante
+                            company.setSolde(company.getSolde() - existingCompanyDebt);
+                            town.deposit(existingCompanyDebt);
+                            totalCollected += existingCompanyDebt;
+
+                            plugin.getLogger().info(String.format(
+                                    "[TownEconomyManager] Dette entreprise remboursée automatiquement: %s a payé %.2f€ pour %s",
+                                    company.getNom(), existingCompanyDebt, plot.getCoordinates()
+                            ));
+
+                            UUID gerantUuid = plot.getOwnerUuid();
+                            if (gerantUuid != null) {
+                                Player gerant = Bukkit.getPlayer(gerantUuid);
+                                if (gerant != null && gerant.isOnline()) {
+                                    gerant.sendMessage(ChatColor.GREEN + "✓ Dette entreprise de " +
+                                            String.format("%.2f€", existingCompanyDebt) + " remboursée automatiquement pour " +
+                                            plot.getCoordinates());
+                                }
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                            }
+
+                            addTransaction(townName, new PlotTransaction(
+                                    PlotTransaction.TransactionType.TAX,
+                                    plot.getOwnerUuid(),
+                                    company.getNom() + " (PRO)",
+                                    existingCompanyDebt,
+                                    "Remboursement dette entreprise " + plot.getCoordinates()
+                            ));
+
+                            plot.resetDebt();
+                        } else if (company.getSolde() >= existingCompanyDebt) {
+                            // Payer la dette mais pas la taxe
+                            company.setSolde(company.getSolde() - existingCompanyDebt);
+                            town.deposit(existingCompanyDebt);
+                            totalCollected += existingCompanyDebt;
+
+                            plugin.getLogger().info(String.format(
+                                    "[TownEconomyManager] Dette entreprise remboursée (sans taxe): %s a payé %.2f€ pour %s",
+                                    company.getNom(), existingCompanyDebt, plot.getCoordinates()
+                            ));
+
+                            UUID gerantUuid = plot.getOwnerUuid();
+                            if (gerantUuid != null) {
+                                Player gerant = Bukkit.getPlayer(gerantUuid);
+                                if (gerant != null && gerant.isOnline()) {
+                                    gerant.sendMessage(ChatColor.GREEN + "✓ Dette entreprise de " +
+                                            String.format("%.2f€", existingCompanyDebt) + " remboursée pour " +
+                                            plot.getCoordinates());
+                                    gerant.sendMessage(ChatColor.YELLOW + "⚠ Taxe de " +
+                                            String.format("%.2f€", tax) + " ajoutée comme nouvelle dette (fonds insuffisants)");
+                                }
+                            }
+
+                            addTransaction(townName, new PlotTransaction(
+                                    PlotTransaction.TransactionType.TAX,
+                                    plot.getOwnerUuid(),
+                                    company.getNom() + " (PRO)",
+                                    existingCompanyDebt,
+                                    "Remboursement dette entreprise " + plot.getCoordinates()
+                            ));
+
+                            plot.resetDebt();
+                            // Créer une nouvelle dette pour la taxe
+                            companyManager.handleInsufficientFunds(plot, company, tax);
+
+                            if (companyManager.checkCompanyDebtStatus(plot)) {
+                                companyManager.seizePlotForDebt(plot);
+                            }
+                            continue;
+                        }
+                    }
+
                     if (company.getSolde() >= tax) {
                         company.setSolde(company.getSolde() - tax);
                         town.deposit(tax);
                         totalCollected += tax;
                         parcelsWithTax++;
-
-                        if (plot.getCompanyDebtAmount() > 0) {
-                            plot.resetDebt();
-                        }
 
                         UUID gerantUuid = plot.getOwnerUuid();
                         if (gerantUuid != null) {
@@ -749,21 +822,99 @@ public class TownEconomyManager {
             }
 
             OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
-            if (payer.getName() != null) {
-                payerName = payer.getName();
+            // FIX CRITIQUE: Utiliser le nom stocké si getName() retourne null
+            // Ceci arrive quand le joueur n'a pas été vu depuis le redémarrage du serveur
+            String effectiveName = payer.getName();
+            if (effectiveName == null) {
+                effectiveName = payerName; // Utiliser le nom stocké dans le plot
+            } else {
+                payerName = effectiveName;
             }
 
-            if (RoleplayCity.getEconomy().has(payer, tax)) {
-                RoleplayCity.getEconomy().withdrawPlayer(payer, tax);
+            // Si on n'a toujours pas de nom, on ne peut pas faire la transaction
+            if (effectiveName == null) {
+                plugin.getLogger().warning(String.format(
+                        "[TownEconomyManager] Impossible de collecter la taxe: nom inconnu pour UUID %s sur parcelle %s",
+                        payerUuid, plot.getCoordinates()
+                ));
+                continue;
+            }
+
+            // FIX: D'abord tenter de rembourser les dettes existantes AVANT la taxe journalière
+            double existingDebt = plot.getParticularDebtAmount();
+            if (existingDebt > 0) {
+                // Vérifier si le joueur peut payer la dette + la taxe (utiliser le nom effectif)
+                double totalDue = existingDebt + tax;
+                if (hasMoneyByName(effectiveName, totalDue)) {
+                    // Payer la dette existante
+                    withdrawByName(effectiveName, existingDebt);
+                    town.deposit(existingDebt);
+                    totalCollected += existingDebt;
+
+                    plugin.getLogger().info(String.format(
+                            "[TownEconomyManager] Dette remboursée automatiquement: %s a payé %.2f€ de dette pour %s",
+                            payerName, existingDebt, plot.getCoordinates()
+                    ));
+
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.GREEN + "✓ Dette de " +
+                                String.format("%.2f€", existingDebt) + " remboursée automatiquement pour " +
+                                plot.getCoordinates());
+                    }
+
+                    addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            payerUuid,
+                            payerName,
+                            existingDebt,
+                            "Remboursement dette parcelle " + plot.getCoordinates()
+                    ));
+
+                    plot.resetParticularDebt();
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                } else if (hasMoneyByName(effectiveName, existingDebt)) {
+                    // Le joueur peut payer la dette mais pas la taxe
+                    withdrawByName(effectiveName, existingDebt);
+                    town.deposit(existingDebt);
+                    totalCollected += existingDebt;
+
+                    plugin.getLogger().info(String.format(
+                            "[TownEconomyManager] Dette remboursée automatiquement (sans taxe): %s a payé %.2f€ de dette pour %s",
+                            payerName, existingDebt, plot.getCoordinates()
+                    ));
+
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.GREEN + "✓ Dette de " +
+                                String.format("%.2f€", existingDebt) + " remboursée automatiquement pour " +
+                                plot.getCoordinates());
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "⚠ Taxe de " +
+                                String.format("%.2f€", tax) + " ajoutée comme nouvelle dette (fonds insuffisants)");
+                    }
+
+                    addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            payerUuid,
+                            payerName,
+                            existingDebt,
+                            "Remboursement dette parcelle " + plot.getCoordinates()
+                    ));
+
+                    plot.resetParticularDebt();
+                    plot.setParticularDebtAmount(tax);
+                    plot.setParticularLastDebtWarningDate(LocalDateTime.now());
+                    plot.setParticularDebtWarningCount(1);
+
+                    unpaidPlayers.add(payerName != null ? payerName : payerUuid.toString());
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    continue; // Passer au plot suivant
+                }
+            }
+
+            if (hasMoneyByName(effectiveName, tax)) {
+                withdrawByName(effectiveName, tax);
                 town.deposit(tax);
                 totalCollected += tax;
                 parcelsWithTax++;
-
-                if (plot.getParticularDebtAmount() > 0) {
-                    plot.resetParticularDebt();
-                }
-
-
 
                 addTransaction(townName, new PlotTransaction(
                         PlotTransaction.TransactionType.TAX,
@@ -782,23 +933,18 @@ public class TownEconomyManager {
                     plot.setParticularLastDebtWarningDate(LocalDateTime.now());
                     plot.setParticularDebtWarningCount(1);
 
-
-
                     debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                 } else {
                     debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
                 }
 
                 if (plot.getParticularLastDebtWarningDate() != null) {
-                    // ✅ FIX: Utiliser ChronoUnit.DAYS pour compter les jours calendaires
                     long daysSinceWarning = ChronoUnit.DAYS.between(plot.getParticularLastDebtWarningDate().toLocalDate(), LocalDateTime.now().toLocalDate());
                     if (daysSinceWarning >= 7) {
                         plugin.getLogger().warning(String.format(
                                 "[TownEconomyManager] SAISIE AUTO - Terrain %s:%d,%d saisi pour dette (Particulier %s, Dette: %.2f€)",
                                 plot.getWorldName(), plot.getChunkX(), plot.getChunkZ(), payerName, plot.getParticularDebtAmount()
                         ));
-
-
 
                         townManager.transferPlotToTown(plot, "Dette impayée particulier: " +
                                 String.format("%.2f€", plot.getParticularDebtAmount()));
@@ -839,15 +985,88 @@ public class TownEconomyManager {
                 Entreprise company = companyManager.getCompanyBySiret(plot.getCompanySiret());
 
                 if (company != null) {
+                    // FIX: D'abord tenter de rembourser les dettes entreprise existantes
+                    double existingCompanyDebt = plot.getCompanyDebtAmount();
+                    if (existingCompanyDebt > 0) {
+                        double totalDue = existingCompanyDebt + hourlyTax;
+                        if (company.getSolde() >= totalDue) {
+                            // Payer la dette existante
+                            company.setSolde(company.getSolde() - existingCompanyDebt);
+                            town.deposit(existingCompanyDebt);
+                            totalCollected += existingCompanyDebt;
+
+                            plugin.getLogger().info(String.format(
+                                    "[TownEconomyManager] Dette entreprise remboursée automatiquement: %s a payé %.2f€ pour %s",
+                                    company.getNom(), existingCompanyDebt, plot.getCoordinates()
+                            ));
+
+                            UUID gerantUuid = plot.getOwnerUuid();
+                            if (gerantUuid != null) {
+                                Player gerant = Bukkit.getPlayer(gerantUuid);
+                                if (gerant != null && gerant.isOnline()) {
+                                    gerant.sendMessage(ChatColor.GREEN + "✓ Dette entreprise de " +
+                                            String.format("%.2f€", existingCompanyDebt) + " remboursée automatiquement pour " +
+                                            plot.getCoordinates());
+                                }
+                                debtNotificationService.refresh(gerantUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                            }
+
+                            addTransaction(townName, new PlotTransaction(
+                                    PlotTransaction.TransactionType.TAX,
+                                    plot.getOwnerUuid(),
+                                    company.getNom() + " (PRO)",
+                                    existingCompanyDebt,
+                                    "Remboursement dette entreprise " + plot.getCoordinates()
+                            ));
+
+                            plot.resetDebt();
+                        } else if (company.getSolde() >= existingCompanyDebt) {
+                            // Payer la dette mais pas la taxe horaire
+                            company.setSolde(company.getSolde() - existingCompanyDebt);
+                            town.deposit(existingCompanyDebt);
+                            totalCollected += existingCompanyDebt;
+
+                            plugin.getLogger().info(String.format(
+                                    "[TownEconomyManager] Dette entreprise remboursée (sans taxe): %s a payé %.2f€ pour %s",
+                                    company.getNom(), existingCompanyDebt, plot.getCoordinates()
+                            ));
+
+                            UUID gerantUuid = plot.getOwnerUuid();
+                            if (gerantUuid != null) {
+                                Player gerant = Bukkit.getPlayer(gerantUuid);
+                                if (gerant != null && gerant.isOnline()) {
+                                    gerant.sendMessage(ChatColor.GREEN + "✓ Dette entreprise de " +
+                                            String.format("%.2f€", existingCompanyDebt) + " remboursée pour " +
+                                            plot.getCoordinates());
+                                    gerant.sendMessage(ChatColor.YELLOW + "⚠ Taxe horaire de " +
+                                            String.format("%.2f€", hourlyTax) + " ajoutée comme nouvelle dette (fonds insuffisants)");
+                                }
+                            }
+
+                            addTransaction(townName, new PlotTransaction(
+                                    PlotTransaction.TransactionType.TAX,
+                                    plot.getOwnerUuid(),
+                                    company.getNom() + " (PRO)",
+                                    existingCompanyDebt,
+                                    "Remboursement dette entreprise " + plot.getCoordinates()
+                            ));
+
+                            plot.resetDebt();
+                            // Créer une nouvelle dette pour la taxe horaire
+                            companyManager.handleInsufficientFunds(plot, company, hourlyTax);
+
+                            if (companyManager.checkCompanyDebtStatus(plot)) {
+                                companyManager.seizePlotForDebt(plot);
+                            }
+                            continue;
+                        }
+                    }
+
                     if (company.getSolde() >= hourlyTax) {
                         company.setSolde(company.getSolde() - hourlyTax);
                         town.deposit(hourlyTax);
                         totalCollected += hourlyTax;
                         parcelsWithTax++;
-
-                        if (plot.getCompanyDebtAmount() > 0) {
-                            plot.resetDebt();
-                        }
 
                         UUID gerantUuid = plot.getOwnerUuid();
                         if (gerantUuid != null) {
@@ -898,20 +1117,104 @@ public class TownEconomyManager {
 
             // NOUVEAU : Prélever même OFFLINE
             OfflinePlayer payer = Bukkit.getOfflinePlayer(payerUuid);
-            if (payer.getName() != null) {
-                payerName = payer.getName();
+            // FIX CRITIQUE: Utiliser le nom stocké si getName() retourne null
+            String effectiveName = payer.getName();
+            if (effectiveName == null) {
+                effectiveName = payerName;
+            } else {
+                payerName = effectiveName;
             }
 
-            if (RoleplayCity.getEconomy().has(payer, hourlyTax)) {
-                RoleplayCity.getEconomy().withdrawPlayer(payer, hourlyTax);
+            // Si on n'a toujours pas de nom, on ne peut pas faire la transaction
+            if (effectiveName == null) {
+                plugin.getLogger().warning(String.format(
+                        "[TownEconomyManager] Impossible de collecter la taxe horaire: nom inconnu pour UUID %s sur parcelle %s",
+                        payerUuid, plot.getCoordinates()
+                ));
+                continue;
+            }
+
+            // FIX: D'abord tenter de rembourser les dettes existantes AVANT la taxe horaire
+            double existingDebt = plot.getParticularDebtAmount();
+            if (existingDebt > 0) {
+                // Vérifier si le joueur peut payer la dette + la taxe horaire
+                double totalDue = existingDebt + hourlyTax;
+                if (hasMoneyByName(effectiveName, totalDue)) {
+                    // Payer la dette existante
+                    withdrawByName(effectiveName, existingDebt);
+                    town.deposit(existingDebt);
+                    totalCollected += existingDebt;
+
+                    plugin.getLogger().info(String.format(
+                            "[TownEconomyManager] Dette remboursée automatiquement: %s a payé %.2f€ de dette pour %s",
+                            payerName, existingDebt, plot.getCoordinates()
+                    ));
+
+                    // Notifier le joueur si en ligne
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.GREEN + "✓ Dette de " +
+                                String.format("%.2f€", existingDebt) + " remboursée automatiquement pour " +
+                                plot.getCoordinates());
+                    }
+
+                    addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            payerUuid,
+                            payerName,
+                            existingDebt,
+                            "Remboursement dette parcelle " + plot.getCoordinates()
+                    ));
+
+                    // Réinitialiser la dette
+                    plot.resetParticularDebt();
+
+                    // Rafraîchir les notifications de dette
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.PAYMENT);
+                } else if (hasMoneyByName(effectiveName, existingDebt)) {
+                    // Le joueur peut payer la dette mais pas la taxe horaire
+                    // Priorité: payer la dette d'abord pour éviter la saisie
+                    withdrawByName(effectiveName, existingDebt);
+                    town.deposit(existingDebt);
+                    totalCollected += existingDebt;
+
+                    plugin.getLogger().info(String.format(
+                            "[TownEconomyManager] Dette remboursée automatiquement (sans taxe): %s a payé %.2f€ de dette pour %s",
+                            payerName, existingDebt, plot.getCoordinates()
+                    ));
+
+                    if (payer.isOnline() && payer.getPlayer() != null) {
+                        payer.getPlayer().sendMessage(ChatColor.GREEN + "✓ Dette de " +
+                                String.format("%.2f€", existingDebt) + " remboursée automatiquement pour " +
+                                plot.getCoordinates());
+                        payer.getPlayer().sendMessage(ChatColor.YELLOW + "⚠ Taxe horaire de " +
+                                String.format("%.2f€", hourlyTax) + " ajoutée comme nouvelle dette (fonds insuffisants)");
+                    }
+
+                    addTransaction(townName, new PlotTransaction(
+                            PlotTransaction.TransactionType.TAX,
+                            payerUuid,
+                            payerName,
+                            existingDebt,
+                            "Remboursement dette parcelle " + plot.getCoordinates()
+                    ));
+
+                    // Réinitialiser la dette puis recréer avec la taxe horaire
+                    plot.resetParticularDebt();
+                    plot.setParticularDebtAmount(hourlyTax);
+                    plot.setParticularLastDebtWarningDate(LocalDateTime.now());
+                    plot.setParticularDebtWarningCount(1);
+
+                    unpaidPlayers.add(payerName);
+                    debtNotificationService.refresh(payerUuid, DebtNotificationService.DebtUpdateReason.ECONOMY_EVENT);
+                    continue; // Passer au plot suivant
+                }
+            }
+
+            if (hasMoneyByName(effectiveName, hourlyTax)) {
+                withdrawByName(effectiveName, hourlyTax);
                 town.deposit(hourlyTax);
                 totalCollected += hourlyTax;
                 parcelsWithTax++;
-
-                // Réinitialiser la dette si le terrain était endetté
-                if (plot.getParticularDebtAmount() > 0) {
-                    plot.resetParticularDebt();
-                }
 
                 // Enregistrer pour le rapport individuel
                 playerTaxes.put(payerUuid, playerTaxes.getOrDefault(payerUuid, 0.0) + hourlyTax);
@@ -1153,7 +1456,44 @@ public class TownEconomyManager {
         return history.subList(Math.max(0, size - limit), size);
     }
 
-    // === RëSULTAT DE COLLECTE ===
+    // === MÉTHODES UTILITAIRES POUR TRANSACTIONS OFFLINE ===
+
+    /**
+     * Vérifie si un joueur (par nom) a assez d'argent.
+     * Utilise directement le nom pour éviter les problèmes avec OfflinePlayer.getName() null.
+     */
+    private boolean hasMoneyByName(String playerName, double amount) {
+        if (playerName == null || playerName.isEmpty()) {
+            return false;
+        }
+        try {
+            double balance = RoleplayCity.getEconomy().getBalance(playerName);
+            return balance >= amount;
+        } catch (Exception e) {
+            plugin.getLogger().warning("[TownEconomyManager] Erreur lors de la vérification du solde pour " + playerName + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Retire de l'argent d'un joueur (par nom).
+     * Utilise directement le nom pour éviter les problèmes avec OfflinePlayer.getName() null.
+     * @return true si le retrait a réussi
+     */
+    private boolean withdrawByName(String playerName, double amount) {
+        if (playerName == null || playerName.isEmpty()) {
+            return false;
+        }
+        try {
+            net.milkbowl.vault.economy.EconomyResponse response = RoleplayCity.getEconomy().withdrawPlayer(playerName, amount);
+            return response.transactionSuccess();
+        } catch (Exception e) {
+            plugin.getLogger().warning("[TownEconomyManager] Erreur lors du retrait pour " + playerName + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    // === RÉSULTAT DE COLLECTE ===
 
     public record TaxCollectionResult(double totalCollected, int parcelsCollected, int unpaidCount,
                                       List<String> unpaidPlayers) {

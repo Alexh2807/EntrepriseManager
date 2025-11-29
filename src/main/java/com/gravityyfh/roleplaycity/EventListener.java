@@ -89,8 +89,10 @@ public class EventListener implements Listener {
         plugin.getLogger().fine("Culture détectée: " + blockType + ", Age: " + ageable.getAge() + "/" + ageable.getMaximumAge());
 
         if (ageable.getAge() != ageable.getMaximumAge()) {
+            // FIX: Culture pas mature = retourner TRUE pour ignorer completement
+            // (pas de quota, pas d'enregistrement d'action)
             plugin.getLogger().fine("Culture pas mature, ignorée: " + player.getName() + " - " + blockType);
-            return false;
+            return true; // Important: retourner true pour ne pas traiter comme un bloc normal
         }
 
         // Culture mature: retirer du cache pour éviter le message d'erreur

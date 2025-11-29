@@ -472,6 +472,18 @@ public class PlotGroupingListener implements Listener {
         // Générer automatiquement un nom si "auto" est passé
         if (groupName == null || groupName.equalsIgnoreCase("auto")) {
             groupName = generateGroupName(town);
+        } else {
+            // Valider le nom du groupe (PAS d'espaces)
+            if (!groupName.matches("^[a-zA-Z0-9_\\-]+$")) {
+                player.sendMessage(ChatColor.RED + "Nom de groupe invalide!");
+                player.sendMessage(ChatColor.YELLOW + "Caractères autorisés: lettres, chiffres, tirets (-) et underscores (_)");
+                player.sendMessage(ChatColor.YELLOW + "PAS d'espaces!");
+                return false;
+            }
+            if (groupName.length() < 2 || groupName.length() > 32) {
+                player.sendMessage(ChatColor.RED + "Le nom doit faire entre 2 et 32 caractères!");
+                return false;
+            }
         }
 
         // Vérifier l'adjacence

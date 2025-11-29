@@ -3,6 +3,8 @@ package com.gravityyfh.roleplaycity.police.gui;
 import com.gravityyfh.roleplaycity.RoleplayCity;
 import com.gravityyfh.roleplaycity.police.data.HandcuffedPlayerData;
 import com.gravityyfh.roleplaycity.police.manager.PrisonManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceManager;
+import com.gravityyfh.roleplaycity.service.ProfessionalServiceType;
 import com.gravityyfh.roleplaycity.town.data.MunicipalSubType;
 import com.gravityyfh.roleplaycity.town.data.Plot;
 import com.gravityyfh.roleplaycity.town.data.Town;
@@ -55,6 +57,13 @@ public class ImprisonmentWorkflowGUI implements Listener {
      * Phase 1: Sélectionner un joueur menotté sur le COMMISSARIAT
      */
     public void openPrisonerSelectionMenu(Player policier) {
+        // Vérifier que le joueur est en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(policier.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            serviceManager.sendNotInServiceMessage(policier, ProfessionalServiceType.POLICE);
+            return;
+        }
+
         String townName = townManager.getPlayerTown(policier.getUniqueId());
         if (townName == null) {
             policier.sendMessage(ChatColor.RED + "Vous devez être dans une ville.");
@@ -260,6 +269,15 @@ public class ImprisonmentWorkflowGUI implements Listener {
         if (context == null) return;
 
         event.setCancelled(true);
+
+        // Vérifier que le joueur est toujours en service POLICE
+        ProfessionalServiceManager serviceManager = plugin.getProfessionalServiceManager();
+        if (serviceManager != null && !serviceManager.isInService(player.getUniqueId(), ProfessionalServiceType.POLICE)) {
+            pendingImprisonments.remove(player.getUniqueId());
+            Bukkit.getScheduler().runTask(plugin, () ->
+                serviceManager.sendNotInServiceMessage(player, ProfessionalServiceType.POLICE));
+            return;
+        }
 
         String reason = event.getMessage().trim();
 

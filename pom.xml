@@ -6,7 +6,7 @@
 
     <groupId>com.gravityyfh.roleplaycity</groupId>
     <artifactId>RoleplayCity</artifactId>
-    <version>1.06.25</version>
+    <version>1.06.50</version>
     <packaging>jar</packaging>
 
     <name>RoleplayCity</name>
@@ -199,6 +199,14 @@
             <scope>system</scope>
             <systemPath>${project.basedir}/libs/SignGUI.jar</systemPath>
         </dependency> -->
+
+        <!-- OpenAudioMc API pour le systeme de telephonie -->
+        <dependency>
+            <groupId>com.github.Mindgamesnl.OpenAudioMc</groupId>
+            <artifactId>openaudiomc-api</artifactId>
+            <version>6.10.10</version>
+            <scope>provided</scope>
+        </dependency>
 
     </dependencies>
 </project>

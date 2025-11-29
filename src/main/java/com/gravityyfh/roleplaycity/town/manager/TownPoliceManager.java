@@ -46,7 +46,7 @@ public class TownPoliceManager {
 
         // Vérifier que le policier a le rôle approprié
         TownRole role = town.getMemberRole(policier.getUniqueId());
-        if (role != TownRole.POLICIER && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+        if (role != TownRole.POLICIER) {
             return null;
         }
 
@@ -249,7 +249,7 @@ public class TownPoliceManager {
         }
 
         TownRole role = town.getMemberRole(canceller.getUniqueId());
-        if (role != TownRole.POLICIER && role != TownRole.MAIRE && role != TownRole.ADJOINT) {
+        if (role != TownRole.POLICIER) {
             return false;
         }
 

@@ -4,7 +4,7 @@ main: com.gravityyfh.roleplaycity.RoleplayCity
 api-version: 1.20
 
 depend: [Vault, PlaceholderAPI]
-softdepend: [QuickShop, CoreProtect, TreeCuter, ProtocolLib, ItemsAdder]
+softdepend: [QuickShop, CoreProtect, TreeCuter, ProtocolLib, ItemsAdder, OpenAudioMc]
 loadbefore: [Essentials, Towny]
 
 
@@ -81,6 +81,10 @@ commands:
   rpc_internal_refuse:
     description: Commande interne - Refuser une requête
     usage: /<command> <requestId>
+  phone:
+    description: Système de téléphone - Appels, SMS, contacts
+    usage: /<command> [call|sms|contacts|inbox|give]
+    aliases: [tel, telephone]
 
 permissions:
   roleplaycity.use:
@@ -186,4 +190,15 @@ permissions:
     default: true
   lighteconomy.user.command.bank:
     description: Permet d'ouvrir sa banque (via commande)
+    default: op
+
+  # Permissions Téléphone
+  roleplaycity.phone.use:
+    description: Permet d'utiliser le système de téléphone
+    default: true
+  roleplaycity.phone.give:
+    description: Permet de donner des téléphones et forfaits avec /phone give
+    default: op
+  roleplaycity.phone.admin:
+    description: Permet d'administrer le système de téléphone
     default: op

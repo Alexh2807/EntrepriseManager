@@ -221,6 +221,18 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // Système de Requêtes d'Interaction (fouille avec consentement, demande ID, etc.)
     private com.gravityyfh.roleplaycity.service.InteractionRequestManager interactionRequestManager;
 
+    // Système de Téléphones
+    private com.gravityyfh.roleplaycity.phone.PhoneManager phoneManager;
+    private com.gravityyfh.roleplaycity.phone.repository.PhoneRepository phoneRepository;
+    private com.gravityyfh.roleplaycity.phone.service.PhoneService phoneService;
+    private com.gravityyfh.roleplaycity.phone.service.MusicService musicService;
+    private com.gravityyfh.roleplaycity.phone.service.CallService callService;
+    private com.gravityyfh.roleplaycity.phone.listener.PhoneInteractionListener phoneInteractionListener;
+    private com.gravityyfh.roleplaycity.phone.listener.PhoneCraftListener phoneCraftListener;
+    private com.gravityyfh.roleplaycity.phone.listener.PhoneInventoryListener phoneInventoryListener;
+    private com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener phoneCallListener;
+    private com.gravityyfh.roleplaycity.phone.listener.PhoneChatListener phoneChatListener;
+
     public void onEnable() {
         // Force log via Logger to ensure it appears in console even if stdout is redirected
         java.util.logging.Logger.getGlobal().info("[RPC-ENABLE] onEnable() method has been called! (Global Logger)");
@@ -541,6 +553,21 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         plotGroupingListener = new com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener(this, townManager,
                 claimManager);
 
+        // Enregistrer le listener de protection ItemsAdder pour les villes (via Reflection)
+        if (getServer().getPluginManager().getPlugin("ItemsAdder") != null) {
+            try {
+                Class<?> listenerClass = Class.forName("com.gravityyfh.roleplaycity.town.listener.ItemsAdderProtectionListener");
+                java.lang.reflect.Constructor<?> constructor = listenerClass.getConstructor(RoleplayCity.class,
+                        com.gravityyfh.roleplaycity.town.manager.TownManager.class,
+                        com.gravityyfh.roleplaycity.town.manager.ClaimManager.class);
+                Listener itemsAdderProtectionListener = (Listener) constructor.newInstance(this, townManager, claimManager);
+                getServer().getPluginManager().registerEvents(itemsAdderProtectionListener, this);
+                getLogger().info("[Town] ItemsAdder Protection Listener enregistre avec succes.");
+            } catch (Throwable e) {
+                getLogger().warning("[Town] Impossible de charger le listener de protection ItemsAdder: " + e.getMessage());
+            }
+        }
+
         // Charger les villes
         townManager.loadTowns(townDataManager.loadTowns());
 
@@ -782,6 +809,48 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().warning("PlaceholderAPI non trouvé - Les placeholders ne seront pas disponibles.");
         }
 
+        // Système de Téléphones
+        if (getConfig().getBoolean("phone-system.enabled", true)) {
+            try {
+                debugLogger.debug("STARTUP", "Initialisation du systeme de telephones...");
+
+                // Manager principal
+                phoneManager = new com.gravityyfh.roleplaycity.phone.PhoneManager(this);
+                phoneManager.initialize();
+
+                // Repository et Services
+                phoneRepository = new com.gravityyfh.roleplaycity.phone.repository.PhoneRepository(this);
+                phoneService = new com.gravityyfh.roleplaycity.phone.service.PhoneService(this, phoneManager, phoneRepository);
+                musicService = new com.gravityyfh.roleplaycity.phone.service.MusicService(this, phoneManager);
+                callService = new com.gravityyfh.roleplaycity.phone.service.CallService(this, phoneManager);
+
+                // Listeners
+                phoneInteractionListener = new com.gravityyfh.roleplaycity.phone.listener.PhoneInteractionListener(this);
+                phoneCraftListener = new com.gravityyfh.roleplaycity.phone.listener.PhoneCraftListener(this);
+                phoneInventoryListener = new com.gravityyfh.roleplaycity.phone.listener.PhoneInventoryListener(this);
+                phoneCallListener = new com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener(this);
+                phoneChatListener = new com.gravityyfh.roleplaycity.phone.listener.PhoneChatListener(this);
+
+                // Enregistrer les listeners
+                getServer().getPluginManager().registerEvents(phoneInteractionListener, this);
+                getServer().getPluginManager().registerEvents(phoneCraftListener, this);
+                getServer().getPluginManager().registerEvents(phoneInventoryListener, this);
+                getServer().getPluginManager().registerEvents(phoneChatListener, this);
+                // Note: phoneCallListener n'est pas un Listener Bukkit, c'est un utilitaire
+
+                // Demarrer la tache de verification periodique des telephones
+                phoneInventoryListener.startPhoneCheckTask();
+
+                debugLogger.debug("STARTUP", "Systeme de telephones initialise avec succes");
+                getLogger().info("[PhoneSystem] Systeme de telephones active avec " + phoneManager.getPhoneTypes().size() + " types de telephones");
+            } catch (Exception e) {
+                getLogger().severe("[PhoneSystem] Erreur lors de l'initialisation du systeme de telephones: " + e.getMessage());
+                e.printStackTrace();
+                phoneManager = null;
+                phoneService = null;
+            }
+        }
+
         getLogger().info("Tous les composants ont été initialisés avec succès.");
     }
 
@@ -862,6 +931,15 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         }
         if (handcuffedPlayerData != null) {
             handcuffedPlayerData.clear();
+        }
+
+        // Nettoyer le système de téléphones
+        if (phoneManager != null) {
+            getLogger().info("Nettoyage du systeme de telephones...");
+            phoneManager.unregisterRecipes();
+        }
+        if (phoneCallListener != null) {
+            phoneCallListener.cleanup();
         }
 
         // FIX MOYENNE: Nettoyer les tasks d'EntrepriseManager
@@ -1250,6 +1328,17 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // } else {
         //     getLogger().severe("ERREUR: La commande 'contract' n'est pas définie dans plugin.yml !");
         // }
+
+        // Commande telephone
+        var phoneCmd = getCommand("phone");
+        if (phoneCmd != null) {
+            com.gravityyfh.roleplaycity.phone.command.PhoneCommand phoneCommand = new com.gravityyfh.roleplaycity.phone.command.PhoneCommand(this);
+            phoneCmd.setExecutor(phoneCommand);
+            phoneCmd.setTabCompleter(phoneCommand);
+            getLogger().info("Commande /phone enregistree");
+        } else {
+            getLogger().warning("Commande /phone non trouvee dans plugin.yml");
+        }
     }
 
     /**
@@ -1476,6 +1565,47 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         getLogger().info("════════════════════════════════════════════════════");
 
         try {
+            // ═══════════════════════════════════════════════════════════════
+            // ÉTAPE 0: SAUVEGARDE SYNCHRONE DE TOUTES LES DONNÉES AVANT RECHARGEMENT
+            // IMPORTANT: Utiliser les méthodes SYNC pour garantir que les données
+            // sont écrites AVANT le rechargement (sinon perte de données!)
+            // ═══════════════════════════════════════════════════════════════
+            getLogger().info("Sauvegarde synchrone des données en cours...");
+
+            // Sauvegarder les villes (SQLite) - SYNC obligatoire!
+            if (townManager != null) {
+                townManager.saveTownsSync();
+                getLogger().info("  ✓ Villes sauvegardées (SQLite)");
+            }
+
+            // Sauvegarder les entreprises - SYNC obligatoire!
+            if (entrepriseLogic != null) {
+                entrepriseLogic.saveEntreprisesSync();
+                getLogger().info("  ✓ Entreprises sauvegardées");
+            }
+
+            // Sauvegarder les boutiques (attendre la fin avec join)
+            if (shopManager != null) {
+                shopManager.saveShops().join();
+                getLogger().info("  ✓ Boutiques sauvegardées");
+            }
+
+            // Sauvegarder les amendes
+            if (townPoliceManager != null && townFinesDataManager != null) {
+                townFinesDataManager.saveFines(townPoliceManager.getFinesForSave());
+                getLogger().info("  ✓ Amendes sauvegardées");
+            }
+
+            // Sauvegarder les notifications
+            if (notificationManager != null) {
+                notificationManager.saveNotificationsSync();
+                getLogger().info("  ✓ Notifications sauvegardées");
+            }
+
+            getLogger().info("════════════════════════════════════════════════════");
+            getLogger().info("Rechargement des configurations...");
+            getLogger().info("════════════════════════════════════════════════════");
+
             // 1. Recharger config.yml
             reloadConfig();
             getLogger().info("✓ Configuration principale rechargée");
@@ -1488,8 +1618,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
             // 2. Recharger le système de villes
             if (townManager != null && townDataManager != null) {
-                // Recharger directement depuis le fichier (sans sauvegarder avant!)
-                // Cela permet de récupérer les modifications manuelles du fichier towns.yml
+                // Les données ont été sauvegardées avant, on peut recharger en sécurité
                 townManager.loadTowns(townDataManager.loadTowns());
                 // Reconstruire le cache de claims
                 if (claimManager != null) {
@@ -1580,6 +1709,12 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             if (identityManager != null) {
                 int count = identityManager.reloadIdentities();
                 getLogger().info("✓ Identités rechargées (" + count + " identité(s))");
+            }
+
+            // 14. Recharger le système de téléphonie (phones.yml)
+            if (phoneManager != null) {
+                phoneManager.reload();
+                getLogger().info("✓ Système de téléphonie rechargé (phones.yml)");
             }
 
             getLogger().info("════════════════════════════════════════════════════");
@@ -2055,6 +2190,27 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.customitems.manager.CustomItemManager getCustomItemManager() {
         return customItemManager;
+    }
+
+    // Système de Téléphones
+    public com.gravityyfh.roleplaycity.phone.PhoneManager getPhoneManager() {
+        return phoneManager;
+    }
+
+    public com.gravityyfh.roleplaycity.phone.service.PhoneService getPhoneService() {
+        return phoneService;
+    }
+
+    public com.gravityyfh.roleplaycity.phone.service.MusicService getMusicService() {
+        return musicService;
+    }
+
+    public com.gravityyfh.roleplaycity.phone.service.CallService getCallService() {
+        return callService;
+    }
+
+    public com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener getPhoneCallListener() {
+        return phoneCallListener;
     }
 
     /**
