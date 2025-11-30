@@ -52,6 +52,7 @@ public class TownMainGUI implements Listener {
     private static final String MENU_TITLE = "Menu Principal";
     private static final String CREATE_TOWN_TITLE = "Creer une Ville";
     private static final String JOIN_TOWN_TITLE = "Rejoindre une Ville";
+    private static final String LEAVE_CONFIRM_TITLE = ChatColor.RED + "⚠ Confirmer Départ";
 
     public TownMainGUI(RoleplayCity plugin, TownManager townManager) {
         this.plugin = plugin;
@@ -237,7 +238,7 @@ public class TownMainGUI implements Listener {
             inv.setItem(i, borderPane);
         }
 
-        // Bouton "Villes du Serveur" (slot 8 - coin supérieur droit)
+        // Bouton "Villes du Serveur" (slot 4 - CENTRE HAUT)
         ItemStack townListItem = new ItemStack(Material.COMPASS);
         ItemMeta townListMeta = townListItem.getItemMeta();
         townListMeta.setDisplayName(ChatColor.AQUA + "🌍 Villes du Serveur");
@@ -248,7 +249,7 @@ public class TownMainGUI implements Listener {
         townListLore.add(ChatColor.YELLOW + "▶ Cliquez pour voir la liste");
         townListMeta.setLore(townListLore);
         townListItem.setItemMeta(townListMeta);
-        inv.setItem(8, townListItem);
+        inv.setItem(4, townListItem);
 
         // ═══════════════════════════════════════════════════════════
         // EN-TÊTE - INFORMATIONS DE LA VILLE (Ligne 1)
@@ -276,8 +277,6 @@ public class TownMainGUI implements Listener {
         }
         infoMeta.setLore(infoLore);
         infoItem.setItemMeta(infoMeta);
-        inv.setItem(4, infoItem); // Slot 4 (Ligne 0, milieu) ou 13 (Ligne 1, milieu) ? Le plan disait Lignes 1-2.
-                                  // Mettons-le en 13.
         inv.setItem(13, infoItem);
 
         // ═══════════════════════════════════════════════════════════
@@ -474,35 +473,47 @@ public class TownMainGUI implements Listener {
         myFinesItem.setItemMeta(myFinesMeta);
         inv.setItem(11, myFinesItem);
 
-        // Police (Policier, Adjoint, Maire)
-        if (role == TownRole.POLICIER || role == TownRole.ADJOINT || role == TownRole.MAIRE) {
-            ItemStack policeItem = new ItemStack(Material.IRON_CHESTPLATE);
-            ItemMeta policeMeta = policeItem.getItemMeta();
+        // Police (visible pour tous, accessible uniquement aux Policiers)
+        ItemStack policeItem = new ItemStack(Material.IRON_CHESTPLATE);
+        ItemMeta policeMeta = policeItem.getItemMeta();
+        List<String> policeLore = new ArrayList<>();
+        if (role == TownRole.POLICIER) {
             policeMeta.setDisplayName(ChatColor.DARK_BLUE + "Police Municipale");
-            List<String> policeLore = new ArrayList<>();
             policeLore.add(ChatColor.GRAY + "Émettre des amendes");
             policeLore.add(ChatColor.GRAY + "Voir les amendes actives");
             policeLore.add("");
             policeLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-            policeMeta.setLore(policeLore);
-            policeItem.setItemMeta(policeMeta);
-            inv.setItem(13, policeItem);
+        } else {
+            policeMeta.setDisplayName(ChatColor.GRAY + "Police Municipale");
+            policeLore.add(ChatColor.RED + "⛔ Accès réservé aux Policiers");
+            policeLore.add("");
+            policeLore.add(ChatColor.GRAY + "Seuls les policiers de la ville");
+            policeLore.add(ChatColor.GRAY + "peuvent accéder à ce menu.");
         }
+        policeMeta.setLore(policeLore);
+        policeItem.setItemMeta(policeMeta);
+        inv.setItem(13, policeItem);
 
-        // Justice (Juge, Maire)
-        if (role == TownRole.JUGE || role == TownRole.MAIRE) {
-            ItemStack justiceItem = new ItemStack(Material.GOLDEN_SWORD);
-            ItemMeta justiceMeta = justiceItem.getItemMeta();
+        // Justice (visible pour tous, accessible uniquement aux Juges)
+        ItemStack justiceItem = new ItemStack(Material.GOLDEN_SWORD);
+        ItemMeta justiceMeta = justiceItem.getItemMeta();
+        List<String> justiceLore = new ArrayList<>();
+        if (role == TownRole.JUGE) {
             justiceMeta.setDisplayName(ChatColor.DARK_PURPLE + "Justice Municipale");
-            List<String> justiceLore = new ArrayList<>();
             justiceLore.add(ChatColor.GRAY + "Juger les contestations");
             justiceLore.add(ChatColor.GRAY + "Voir les affaires en cours");
             justiceLore.add("");
             justiceLore.add(ChatColor.YELLOW + "Cliquez pour ouvrir");
-            justiceMeta.setLore(justiceLore);
-            justiceItem.setItemMeta(justiceMeta);
-            inv.setItem(15, justiceItem);
+        } else {
+            justiceMeta.setDisplayName(ChatColor.GRAY + "Justice Municipale");
+            justiceLore.add(ChatColor.RED + "⛔ Accès réservé aux Juges");
+            justiceLore.add("");
+            justiceLore.add(ChatColor.GRAY + "Seuls les juges de la ville");
+            justiceLore.add(ChatColor.GRAY + "peuvent accéder à ce menu.");
         }
+        justiceMeta.setLore(justiceLore);
+        justiceItem.setItemMeta(justiceMeta);
+        inv.setItem(15, justiceItem);
 
         // Retour (slot 26 pour standardiser à droite)
         ItemStack backItem = new ItemStack(Material.ARROW);
@@ -632,6 +643,13 @@ public class TownMainGUI implements Listener {
             player.closeInventory();
             if (justiceGUI != null) {
                 justiceGUI.openJusticeMenu(player);
+            }
+        } else if (strippedName.contains("Mes Amendes")) {
+            player.closeInventory();
+            if (citizenFinesGUI != null) {
+                citizenFinesGUI.openFinesMenu(player);
+            } else {
+                NavigationManager.sendError(player, "Le système d'amendes n'est pas disponible.");
             }
         } else if (strippedName.contains("Administration")) {
             player.closeInventory();
@@ -795,10 +813,108 @@ public class TownMainGUI implements Listener {
             return;
         }
 
-        if (townManager.leaveTown(player)) {
-            NavigationManager.sendSuccess(player, "Vous avez quitté la ville " + townName + ".");
-        } else {
-            NavigationManager.sendError(player, "Impossible de quitter la ville.");
+        // Ouvrir la GUI de confirmation au lieu de quitter directement
+        openLeaveTownConfirmationMenu(player, town);
+    }
+
+    /**
+     * Ouvre le menu de confirmation pour quitter la ville
+     */
+    private void openLeaveTownConfirmationMenu(Player player, Town town) {
+        Inventory inv = Bukkit.createInventory(null, 27, LEAVE_CONFIRM_TITLE);
+
+        // Vérifier si le joueur a des propriétés
+        boolean hasProperties = hasOwnedOrRentedPlots(player, town);
+        boolean hasDebts = hasPlayerDebts(player, town);
+        boolean hasFines = hasUnpaidFines(player);
+
+        // Bouton de confirmation (rouge - Porte)
+        ItemStack confirmItem = new ItemStack(Material.OAK_DOOR);
+        ItemMeta confirmMeta = confirmItem.getItemMeta();
+        confirmMeta.setDisplayName(ChatColor.DARK_RED + "" + ChatColor.BOLD + "✖ CONFIRMER LE DÉPART");
+        List<String> confirmLore = new ArrayList<>();
+        confirmLore.add("");
+        confirmLore.add(ChatColor.RED + "⚠ ATTENTION ⚠");
+        confirmLore.add("");
+        confirmLore.add(ChatColor.GRAY + "Vous allez quitter:");
+        confirmLore.add(ChatColor.WHITE + "• Ville: " + ChatColor.GOLD + town.getName());
+        confirmLore.add("");
+
+        if (hasProperties) {
+            confirmLore.add(ChatColor.RED + "⚠ Vous perdrez vos parcelles PARTICULIER !");
+        }
+        if (hasDebts) {
+            double totalDebt = town.getTotalPlayerDebt(player.getUniqueId());
+            confirmLore.add(ChatColor.RED + "⚠ Dettes impayées: " + String.format("%.2f€", totalDebt));
+        }
+        if (hasFines) {
+            confirmLore.add(ChatColor.RED + "⚠ Amendes non réglées !");
+        }
+
+        if (!hasProperties && !hasDebts && !hasFines) {
+            confirmLore.add(ChatColor.GRAY + "Aucune pénalité particulière.");
+        }
+
+        confirmLore.add("");
+        confirmLore.add(ChatColor.DARK_RED + "▶ Cliquez pour quitter définitivement");
+        confirmMeta.setLore(confirmLore);
+        confirmItem.setItemMeta(confirmMeta);
+        inv.setItem(11, confirmItem);
+
+        // Bouton d'annulation (vert - Emeraude)
+        ItemStack cancelItem = new ItemStack(Material.EMERALD_BLOCK);
+        ItemMeta cancelMeta = cancelItem.getItemMeta();
+        cancelMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "✔ ANNULER");
+        List<String> cancelLore = new ArrayList<>();
+        cancelLore.add("");
+        cancelLore.add(ChatColor.GRAY + "Retourner au menu de la ville");
+        cancelLore.add(ChatColor.GRAY + "sans quitter.");
+        cancelLore.add("");
+        cancelLore.add(ChatColor.GREEN + "▶ Cliquez pour annuler");
+        cancelMeta.setLore(cancelLore);
+        cancelItem.setItemMeta(cancelMeta);
+        inv.setItem(15, cancelItem);
+
+        player.openInventory(inv);
+    }
+
+    /**
+     * Gère les clics dans le menu de confirmation de départ
+     */
+    @EventHandler
+    public void onLeaveConfirmClick(InventoryClickEvent event) {
+        if (!event.getView().getTitle().equals(LEAVE_CONFIRM_TITLE))
+            return;
+        event.setCancelled(true);
+
+        if (!(event.getWhoClicked() instanceof Player player))
+            return;
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta())
+            return;
+
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) {
+            player.closeInventory();
+            return;
+        }
+
+        Material type = clicked.getType();
+
+        if (type == Material.OAK_DOOR) {
+            // Confirmer le départ
+            player.closeInventory();
+
+            if (townManager.leaveTown(player)) {
+                NavigationManager.sendSuccess(player, "Vous avez quitté la ville " + townName + ".");
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_CELEBRATE, 1f, 1f);
+            } else {
+                NavigationManager.sendError(player, "Impossible de quitter la ville.");
+            }
+        } else if (type == Material.EMERALD_BLOCK) {
+            // Annuler - retour au menu principal
+            player.closeInventory();
+            openTownMenu(player, townName);
         }
     }
 

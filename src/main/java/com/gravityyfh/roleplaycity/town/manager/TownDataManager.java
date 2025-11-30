@@ -109,6 +109,14 @@ public class TownDataManager {
         return persistenceService.loadTowns();
     }
 
+    /**
+     * Supprime une ville de la base de données
+     * @param townName Le nom de la ville à supprimer
+     */
+    public void deleteTownFromDB(String townName) {
+        persistenceService.deleteTownFromDB(townName);
+    }
+
     // ====================================================================================
     // LEGACY YAML SUPPORT (Pour la migration)
     // ====================================================================================

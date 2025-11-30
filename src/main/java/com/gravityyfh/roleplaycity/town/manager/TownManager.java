@@ -168,8 +168,8 @@ public class TownManager {
 
         plugin.getLogger().info("Ville supprimée: " + townName);
 
-        // Sauvegarder immédiatement
-        saveTownsNow();
+        // Supprimer de la base de données SQLite
+        plugin.getTownDataManager().deleteTownFromDB(townName);
 
         return true;
     }

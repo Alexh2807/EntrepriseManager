@@ -13,8 +13,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 
-import java.util.List;
-
 public class EventListener implements Listener {
 
     private final EntrepriseManagerLogic entrepriseLogic;

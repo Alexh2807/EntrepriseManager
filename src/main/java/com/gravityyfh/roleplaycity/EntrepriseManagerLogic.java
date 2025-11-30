@@ -1549,7 +1549,10 @@ public class EntrepriseManagerLogic {
             // Nettoyer après 30 secondes
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (suppressionsEnAttente.remove(initiator.getUniqueId(), nomEntreprise)) {
-                    initiator.sendMessage(ChatColor.YELLOW + "Demande de suppression de '" + nomEntreprise + "' annulée (timeout).");
+                    // Ne pas afficher le message si l'entreprise n'existe plus (déjà supprimée)
+                    if (getEntreprise(nomEntreprise) != null && initiator.isOnline()) {
+                        initiator.sendMessage(ChatColor.YELLOW + "Demande de suppression de '" + nomEntreprise + "' annulée (timeout).");
+                    }
                 }
             }, 30 * 20L); // 30 secondes
         }

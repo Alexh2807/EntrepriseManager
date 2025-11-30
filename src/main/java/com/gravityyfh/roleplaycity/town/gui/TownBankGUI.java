@@ -126,23 +126,7 @@ public class TownBankGUI implements Listener {
             inv.setItem(16, withdrawItem);
         }
 
-        // Collecter les taxes (slot 20 - maire/adjoint uniquement)
-        if (role == TownRole.MAIRE || role == TownRole.ADJOINT) {
-            ItemStack taxItem = new ItemStack(Material.DIAMOND);
-            ItemMeta taxMeta = taxItem.getItemMeta();
-            taxMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Collecter les Taxes");
-            List<String> taxLore = new ArrayList<>();
-            taxLore.add(ChatColor.GRAY + "Collecter les taxes");
-            taxLore.add(ChatColor.GRAY + "de toutes les parcelles");
-            taxLore.add("");
-            taxLore.add(ChatColor.GRAY + "Dernière collecte:");
-            taxLore.add(ChatColor.WHITE + town.getLastTaxCollection().toLocalDate().toString());
-            taxLore.add("");
-            taxLore.add(ChatColor.YELLOW + "Cliquez pour collecter");
-            taxMeta.setLore(taxLore);
-            taxItem.setItemMeta(taxMeta);
-            inv.setItem(20, taxItem);
-        }
+        // Note: La collecte des taxes est réservée aux admins via /roleplaycity admin collecttaxes
 
         // Retour au menu principal (haut gauche)
         ItemStack backItem = new ItemStack(Material.ARROW);
@@ -257,8 +241,6 @@ public class TownBankGUI implements Listener {
         } else if (displayName.contains("Historique")) {
             player.closeInventory();
             openTransactionsMenu(player, townName);
-        } else if (displayName.contains("Collecter les Taxes")) {
-            handleCollectTaxes(player, townName);
         } else if (displayName.contains("Retour")) {
             player.closeInventory();
             // Retour au menu principal de la ville
@@ -320,21 +302,6 @@ public class TownBankGUI implements Listener {
 
         pendingActions.put(player.getUniqueId(),
             new BankActionContext(ActionType.WITHDRAW, townName));
-    }
-
-    private void handleCollectTaxes(Player player, String townName) {
-        player.closeInventory();
-
-        TownEconomyManager.TaxCollectionResult result = economyManager.collectTaxes(townName);
-
-        player.sendMessage(ChatColor.GREEN + "=== Collecte des Taxes ===");
-        player.sendMessage(ChatColor.GOLD + "Total collecté: " + String.format("%.2f€", result.totalCollected()));
-        player.sendMessage(ChatColor.GRAY + "Parcelles: " + result.parcelsCollected());
-
-        if (result.unpaidCount() > 0) {
-            player.sendMessage(ChatColor.RED + "Impayés: " + result.unpaidCount());
-            player.sendMessage(ChatColor.GRAY + "Joueurs: " + String.join(", ", result.unpaidPlayers()));
-        }
     }
 
     @EventHandler

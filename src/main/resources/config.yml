@@ -61,26 +61,29 @@ types-entreprise:
         DEEPSLATE_DIAMOND_ORE: {}
         NETHER_QUARTZ_ORE: {}
         ANCIENT_DEBRIS: {}
+    # Prix calculés pour: limite lvl0 (10/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 40€ par minerai
+    # Entreprise CHÈRE (5000€) = items de grande valeur (diamant, netherite)
     activites-payantes:
       BLOCK_BREAK:
-        COAL_ORE: 0.70
-        COPPER_ORE: 1.20
-        IRON_ORE: 2.80
-        GOLD_ORE: 4.00
-        LAPIS_ORE: 3.80
-        REDSTONE_ORE: 1.20
-        EMERALD_ORE: 30.00
-        DIAMOND_ORE: 60.00
-        DEEPSLATE_COAL_ORE: 0.70
-        DEEPSLATE_COPPER_ORE: 1.20
-        DEEPSLATE_IRON_ORE: 2.80
-        DEEPSLATE_GOLD_ORE: 4.00
-        DEEPSLATE_LAPIS_ORE: 3.80
-        DEEPSLATE_REDSTONE_ORE: 1.20
-        DEEPSLATE_EMERALD_ORE: 30.00
-        DEEPSLATE_DIAMOND_ORE: 60.00
-        NETHER_QUARTZ_ORE: 0.90
-        ANCIENT_DEBRIS: 60.00
+        COAL_ORE: 15.0
+        COPPER_ORE: 20.0
+        IRON_ORE: 35.0
+        GOLD_ORE: 45.0
+        LAPIS_ORE: 40.0
+        REDSTONE_ORE: 25.0
+        EMERALD_ORE: 80.0
+        DIAMOND_ORE: 120.0
+        DEEPSLATE_COAL_ORE: 18.0
+        DEEPSLATE_COPPER_ORE: 25.0
+        DEEPSLATE_IRON_ORE: 40.0
+        DEEPSLATE_GOLD_ORE: 50.0
+        DEEPSLATE_LAPIS_ORE: 45.0
+        DEEPSLATE_REDSTONE_ORE: 30.0
+        DEEPSLATE_EMERALD_ORE: 90.0
+        DEEPSLATE_DIAMOND_ORE: 130.0
+        NETHER_QUARTZ_ORE: 22.0
+        ANCIENT_DEBRIS: 150.0
     message-erreur-restriction:
       - "&cSeule une entreprise de &6Minage &cpeut exploiter cette ressource en continu."
       - "&eLimite : %limite% unités par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -107,7 +110,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Complexe minier industriel"
     limite-non-membre-par-heure: 5
-    cout-creation: 6000.0
+    cout-creation: 5000.0
 
   Agriculture:
     description: "Culture et récolte de produits végétaux essentiels. Items principaux : Blé, Carottes, Pommes de terre, Verrues du Nether."
@@ -126,19 +129,23 @@ types-entreprise:
         BAMBOO: {}
         CACTUS: {}
         HAY_BLOCK: {}
+    # Prix calculés pour: limite lvl0 (20/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 20€ par récolte
+    # Entreprise PEU CHÈRE (1500€) = produits basiques, faciles à farmer
+    # Ces items se vendent pas cher en shop donc prix de craft raisonnable
     activites-payantes:
       BLOCK_BREAK:
-        WHEAT: 1.60
-        CARROTS: 1.60
-        POTATOES: 1.60
-        BEETROOTS: 1.60
-        NETHER_WART: 1.50
-        COCOA_BEANS: 1.60
-        PUMPKIN: 1.60
-        MELON: 1.30
-        SUGAR_CANE: 1.40
-        BAMBOO: 1.20
-        CACTUS: 1.35
+        WHEAT: 18.0
+        CARROTS: 18.0
+        POTATOES: 18.0
+        BEETROOTS: 20.0
+        NETHER_WART: 25.0
+        COCOA_BEANS: 22.0
+        PUMPKIN: 20.0
+        MELON: 15.0
+        SUGAR_CANE: 16.0
+        BAMBOO: 12.0
+        CACTUS: 14.0
     message-erreur-restriction:
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite : %limite% récoltes par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -165,7 +172,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Exploitation agricole industrielle"
     limite-non-membre-par-heure: 6
-    cout-creation: 6000.0
+    cout-creation: 1500.0
     aide-etat-horaire: 150.0
     services:
       permission-employe: true
@@ -224,50 +231,53 @@ types-entreprise:
         STRIPPED_WARPED_HYPHAE: {}
         BAMBOO_BLOCK: {}
         STRIPPED_BAMBOO_BLOCK: {}
+    # Prix calculés pour: limite lvl0 (15/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 27€ par bûche
+    # Entreprise PEU CHÈRE (1800€) = bois facile à obtenir, vente pas très chère
     activites-payantes:
       BLOCK_BREAK:
-        OAK_LOG: 2.50
-        SPRUCE_LOG: 2.50
-        BIRCH_LOG: 2.50
-        JUNGLE_LOG: 2.50
-        ACACIA_LOG: 2.50
-        DARK_OAK_LOG: 2.50
-        MANGROVE_LOG: 2.50
-        CHERRY_LOG: 2.50
-        CRIMSON_STEM: 2.50
-        WARPED_STEM: 2.50
-        OAK_WOOD: 2.50
-        SPRUCE_WOOD: 2.50
-        BIRCH_WOOD: 2.50
-        JUNGLE_WOOD: 2.50
-        ACACIA_WOOD: 2.50
-        DARK_OAK_WOOD: 2.50
-        MANGROVE_WOOD: 2.50
-        CHERRY_WOOD: 2.50
-        CRIMSON_HYPHAE: 2.50
-        WARPED_HYPHAE: 2.50
-        STRIPPED_OAK_LOG: 2.50
-        STRIPPED_SPRUCE_LOG: 2.50
-        STRIPPED_BIRCH_LOG: 2.50
-        STRIPPED_JUNGLE_LOG: 2.50
-        STRIPPED_ACACIA_LOG: 2.50
-        STRIPPED_DARK_OAK_LOG: 2.50
-        STRIPPED_MANGROVE_LOG: 2.50
-        STRIPPED_CHERRY_LOG: 2.50
-        STRIPPED_CRIMSON_STEM: 2.50
-        STRIPPED_WARPED_STEM: 2.50
-        STRIPPED_OAK_WOOD: 2.50
-        STRIPPED_SPRUCE_WOOD: 2.50
-        STRIPPED_BIRCH_WOOD: 2.50
-        STRIPPED_JUNGLE_WOOD: 2.50
-        STRIPPED_ACACIA_WOOD: 2.50
-        STRIPPED_DARK_OAK_WOOD: 2.50
-        STRIPPED_MANGROVE_WOOD: 2.50
-        STRIPPED_CHERRY_WOOD: 2.50
-        STRIPPED_CRIMSON_HYPHAE: 2.50
-        STRIPPED_WARPED_HYPHAE: 2.50
-        BAMBOO_BLOCK: 2.50
-        STRIPPED_BAMBOO_BLOCK: 2.50
+        OAK_LOG: 25.0
+        SPRUCE_LOG: 25.0
+        BIRCH_LOG: 25.0
+        JUNGLE_LOG: 28.0
+        ACACIA_LOG: 28.0
+        DARK_OAK_LOG: 30.0
+        MANGROVE_LOG: 30.0
+        CHERRY_LOG: 35.0
+        CRIMSON_STEM: 35.0
+        WARPED_STEM: 35.0
+        OAK_WOOD: 25.0
+        SPRUCE_WOOD: 25.0
+        BIRCH_WOOD: 25.0
+        JUNGLE_WOOD: 28.0
+        ACACIA_WOOD: 28.0
+        DARK_OAK_WOOD: 30.0
+        MANGROVE_WOOD: 30.0
+        CHERRY_WOOD: 35.0
+        CRIMSON_HYPHAE: 35.0
+        WARPED_HYPHAE: 35.0
+        STRIPPED_OAK_LOG: 28.0
+        STRIPPED_SPRUCE_LOG: 28.0
+        STRIPPED_BIRCH_LOG: 28.0
+        STRIPPED_JUNGLE_LOG: 30.0
+        STRIPPED_ACACIA_LOG: 30.0
+        STRIPPED_DARK_OAK_LOG: 32.0
+        STRIPPED_MANGROVE_LOG: 32.0
+        STRIPPED_CHERRY_LOG: 38.0
+        STRIPPED_CRIMSON_STEM: 38.0
+        STRIPPED_WARPED_STEM: 38.0
+        STRIPPED_OAK_WOOD: 28.0
+        STRIPPED_SPRUCE_WOOD: 28.0
+        STRIPPED_BIRCH_WOOD: 28.0
+        STRIPPED_JUNGLE_WOOD: 30.0
+        STRIPPED_ACACIA_WOOD: 30.0
+        STRIPPED_DARK_OAK_WOOD: 32.0
+        STRIPPED_MANGROVE_WOOD: 32.0
+        STRIPPED_CHERRY_WOOD: 38.0
+        STRIPPED_CRIMSON_HYPHAE: 38.0
+        STRIPPED_WARPED_HYPHAE: 38.0
+        BAMBOO_BLOCK: 22.0
+        STRIPPED_BAMBOO_BLOCK: 25.0
     message-erreur-restriction:
       - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
       - "&eLimite : %limite% bûches par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -294,7 +304,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Complexe forestier industriel"
     limite-non-membre-par-heure: 6
-    cout-creation: 1500.0
+    cout-creation: 1800.0
 
   Boucherie:
     description: "Abattage et transformation d'animaux pour la production de viandes, cuirs, et autres sous-produits. Maîtrise des techniques de boucherie et d'élevage pour un rendement optimal."
@@ -319,26 +329,29 @@ types-entreprise:
         STRIDER: {}
         MOOSHROOM: {}
         TURTLE: {}
+    # Prix calculés pour: limite lvl0 (5/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 80€ par animal
+    # Entreprise MOYENNE (2300€) = viande/cuir se vendent bien en shop
     activites-payantes:
       ENTITY_KILL:
-        SHEEP: 8.50
-        COW: 6.50
-        PIG: 6.50
-        CHICKEN: 9.00
-        RABBIT: 9.00
-        HORSE: 9.00
-        DONKEY: 9.00
-        MULE: 9.00
-        LLAMA: 9.00
-        GOAT: 6.50
-        FOX: 6.50
-        WOLF: 6.50
-        BEAR: 7.80
-        POLAR_BEAR: 7.80
-        HOGLIN: 7.80
-        STRIDER: 6.50
-        MOOSHROOM: 6.50
-        TURTLE: 6.50
+        SHEEP: 75.0
+        COW: 85.0
+        PIG: 70.0
+        CHICKEN: 60.0
+        RABBIT: 65.0
+        HORSE: 95.0
+        DONKEY: 90.0
+        MULE: 90.0
+        LLAMA: 85.0
+        GOAT: 75.0
+        FOX: 70.0
+        WOLF: 70.0
+        BEAR: 100.0
+        POLAR_BEAR: 100.0
+        HOGLIN: 110.0
+        STRIDER: 80.0
+        MOOSHROOM: 95.0
+        TURTLE: 85.0
     message-erreur-restriction:
       - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
       - "&eLimite : %limite% abattages/crafts par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -366,7 +379,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Abattoir industriel"
     limite-non-membre-par-heure: 2
-    cout-creation: 7500.0
+    cout-creation: 2300.0
 
 
   # ========================================
@@ -399,38 +412,47 @@ types-entreprise:
         SHIELD: {}
         BOW: {}
         CROSSBOW: {}
+    # Prix calculés pour: limite lvl0 (1/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 400€+ par item
+    # Entreprise CHÈRE (7200€) = items de GRANDE valeur, revente très chère en shop
+    # ATTENTION: Ces items se vendent TRÈS cher en shop (armure diamant = 2000-5000€)
+    # Donc le prix de craft doit rester inférieur au prix de vente potentiel
     activites-payantes:
       CRAFT_ITEM:
-        IRON_SWORD: 12.0
-        IRON_PICKAXE: 18.0
-        IRON_AXE: 18.0
-        IRON_SHOVEL: 7.0
-        IRON_HOE: 12.0
-        IRON_HELMET: 28.0
-        IRON_CHESTPLATE: 45.0
-        IRON_LEGGINGS: 38.0
-        IRON_BOOTS: 22.0
-        DIAMOND_SWORD: 160.0
-        DIAMOND_PICKAXE: 240.0
-        DIAMOND_AXE: 240.0
-        DIAMOND_SHOVEL: 80.0
-        DIAMOND_HOE: 150.0
-        DIAMOND_HELMET: 380.0
-        DIAMOND_CHESTPLATE: 600.0
-        DIAMOND_LEGGINGS: 520.0
-        DIAMOND_BOOTS: 300.0
-        NETHERITE_SWORD: 150.0
-        NETHERITE_PICKAXE: 150.0
-        NETHERITE_AXE: 150.0
-        NETHERITE_SHOVEL: 150.0
-        NETHERITE_HOE: 150.0
-        NETHERITE_HELMET: 150.0
-        NETHERITE_CHESTPLATE: 150.0
-        NETHERITE_LEGGINGS: 150.0
-        NETHERITE_BOOTS: 150.0
-        SHIELD: 10.0
-        BOW: 15.0
-        CROSSBOW: 30.0
+        # Fer - prix modérés (revente ~200-500€)
+        IRON_SWORD: 120.0
+        IRON_PICKAXE: 150.0
+        IRON_AXE: 150.0
+        IRON_SHOVEL: 80.0
+        IRON_HOE: 100.0
+        IRON_HELMET: 180.0
+        IRON_CHESTPLATE: 280.0
+        IRON_LEGGINGS: 240.0
+        IRON_BOOTS: 160.0
+        # Diamant - prix élevés (revente ~1500-4000€)
+        DIAMOND_SWORD: 450.0
+        DIAMOND_PICKAXE: 550.0
+        DIAMOND_AXE: 550.0
+        DIAMOND_SHOVEL: 350.0
+        DIAMOND_HOE: 400.0
+        DIAMOND_HELMET: 650.0
+        DIAMOND_CHESTPLATE: 900.0
+        DIAMOND_LEGGINGS: 800.0
+        DIAMOND_BOOTS: 550.0
+        # Netherite - prix premium (revente ~3000-8000€)
+        NETHERITE_SWORD: 800.0
+        NETHERITE_PICKAXE: 900.0
+        NETHERITE_AXE: 900.0
+        NETHERITE_SHOVEL: 600.0
+        NETHERITE_HOE: 700.0
+        NETHERITE_HELMET: 1100.0
+        NETHERITE_CHESTPLATE: 1500.0
+        NETHERITE_LEGGINGS: 1300.0
+        NETHERITE_BOOTS: 950.0
+        # Armes à distance
+        SHIELD: 150.0
+        BOW: 200.0
+        CROSSBOW: 350.0
     message-erreur-restriction:
       - "&cLa forge de cet équipement requiert une expertise d'&5Armurier&c."
       - "&eLimite : %limite% fabrications par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -457,7 +479,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Forge de maître"
     limite-non-membre-par-heure: 0
-    cout-creation: 12000.0
+    cout-creation: 7200.0
 
   Boulangerie:
     description: "Confection de pains, gâteaux et autres délices cuits au four. Items principaux : Pain, Gâteaux, Cookies."
@@ -470,14 +492,17 @@ types-entreprise:
         PUMPKIN_PIE: {}
         MUSHROOM_STEW: {}
         RABBIT_STEW: {}
+    # Prix calculés pour: limite lvl0 (8/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 50€ par produit
+    # Entreprise PEU CHÈRE (2000€) = nourriture basique, vente pas très chère
     activites-payantes:
       CRAFT_ITEM:
-        BREAD: 3.20
-        COOKIE: 3.80
-        CAKE: 10.00
-        PUMPKIN_PIE: 4.50
-        MUSHROOM_STEW: 6.20
-        RABBIT_STEW: 7.00
+        BREAD: 45.0
+        COOKIE: 40.0
+        CAKE: 80.0
+        PUMPKIN_PIE: 55.0
+        MUSHROOM_STEW: 60.0
+        RABBIT_STEW: 65.0
     message-erreur-restriction:
       - "&cLa production en grande quantité est réservée aux &eBoulangeries&c."
       - "&eLimite : %limite% produits par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -504,7 +529,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Boulangerie industrielle"
     limite-non-membre-par-heure: 2
-    cout-creation: 8000.0
+    cout-creation: 2000.0
 
   Styliste:
     description: "Artisan spécialisé dans la création de sacs, valises et accessoires de voyage sur mesure. Items principaux : Backpacks (Sacoche, Valisette, Sac à dos, Valise)."
@@ -520,16 +545,20 @@ types-entreprise:
         sacados_moyen: {}
         sacados_grand: {}
         valise_voyage: {}
+    # Prix calculés pour: limite lvl0 (2/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 200€ par sac
+    # Entreprise MOYENNE (4200€) = sacs de grande valeur, revente chère en shop
+    # ATTENTION: Sacs sont des items rares et recherchés = prix de vente élevé
     activites-payantes:
-      # Gains par backpack crafté
+      # Gains par backpack crafté - progression selon taille
       CRAFT_BACKPACK:
-        sacoche: 5.00
-        valisette: 8.00
-        sac_course: 10.00
-        sac_sport: 15.00
-        sacados_moyen: 25.00
-        sacados_grand: 35.00
-        valise_voyage: 50.00
+        sacoche: 150.0
+        valisette: 200.0
+        sac_course: 250.0
+        sac_sport: 320.0
+        sacados_moyen: 400.0
+        sacados_grand: 500.0
+        valise_voyage: 650.0
     message-erreur-restriction:
       - "&cLa confection de sacs et accessoires est réservée aux &dStylistes&c."
       - "&eLimite : %limite% créations par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -557,7 +586,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Manufacture de luxe"
     limite-non-membre-par-heure: 0
-    cout-creation: 6000.0
+    cout-creation: 4200.0
 
 
   # ========================================
@@ -594,7 +623,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Centre commercial"
     limite-non-membre-par-heure: 0
-    cout-creation: 20000.0
+    cout-creation: 3000.0
 
 
   # ========================================
@@ -631,20 +660,24 @@ types-entreprise:
           limite-par-heure: 2
         platinum:
           limite-par-heure: 2
+    # Prix calculés pour: limite lvl0 (3/h) × prix × 50% split ≥ 200€/h
+    # Donc prix moyen cible: 135€ minimum par item
+    # Entreprise TRÈS CHÈRE (8500€) = téléphones de grande valeur
+    # ATTENTION: Téléphones sont essentiels au RP = revente chère (500-1500€)
     activites-payantes:
       CRAFT_PHONE:
-        phone_black: 150.0
-        phone_blue: 150.0
-        phone_orange: 150.0
-        phone_white: 150.0
-        phone_yellow: 150.0
-        phone_pink: 150.0
-        phone_red: 150.0
-        phone_green: 150.0
+        phone_black: 180.0
+        phone_blue: 180.0
+        phone_orange: 180.0
+        phone_white: 180.0
+        phone_yellow: 180.0
+        phone_pink: 180.0
+        phone_red: 180.0
+        phone_green: 180.0
       CRAFT_PLAN:
-        silver: 50.0
-        gold: 100.0
-        platinum: 200.0
+        silver: 80.0
+        gold: 150.0
+        platinum: 280.0
     message-erreur-restriction:
       - "&cVous n'etes pas autorise a fabriquer cet equipement de telecommunication."
       - "&7Rejoignez une entreprise Telecom pour obtenir cette autorisation."
@@ -671,7 +704,7 @@ types-entreprise:
         cout-amelioration: 0
         description: "Operateur regional"
     limite-non-membre-par-heure: 0
-    cout-creation: 50000.0
+    cout-creation: 8500.0
 
 
 #--------------------------------------------------------------------------------------------------

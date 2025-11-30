@@ -34,6 +34,7 @@ public class TownPoliceGUI implements Listener {
     private static final String SELECT_PLAYER_TITLE = ChatColor.DARK_BLUE + "👤 Sélectionner un joueur";
     private static final String SELECT_FINE_TITLE = ChatColor.DARK_BLUE + "📋 Type d'amende";
     private static final String SELECT_ID_TITLE = ChatColor.DARK_BLUE + "📋 Demander l'Identité";
+    private static final String FINES_DOSSIERS_TITLE = ChatColor.DARK_BLUE + "📂 Dossiers Amendes";
 
     private final Map<UUID, FineContext> pendingFines;
 
@@ -345,6 +346,131 @@ public class TownPoliceGUI implements Listener {
         inv.setItem(inv.getSize() - 1, closeItem);
     }
 
+    /**
+     * Ouvre le menu des dossiers d'amendes (en attente + contestées)
+     */
+    private void openFinesDossiersMenu(Player player) {
+        String townName = townManager.getPlayerTown(player.getUniqueId());
+        if (townName == null) return;
+
+        List<Fine> townFines = policeManager.getTownFines(townName);
+
+        // Filtrer: uniquement PENDING, CONTESTED et JUDGED_VALID (à payer)
+        List<Fine> activeFines = townFines.stream()
+                .filter(f -> f.getStatus() == Fine.FineStatus.PENDING
+                          || f.getStatus() == Fine.FineStatus.CONTESTED
+                          || f.getStatus() == Fine.FineStatus.JUDGED_VALID)
+                .sorted((a, b) -> b.getIssueDate().compareTo(a.getIssueDate())) // Plus récentes en premier
+                .toList();
+
+        Inventory inv = Bukkit.createInventory(null, 54, FINES_DOSSIERS_TITLE);
+
+        // En-tête avec stats
+        var stats = policeManager.getTownStatistics(townName);
+        ItemStack infoItem = new ItemStack(Material.BOOK);
+        ItemMeta infoMeta = infoItem.getItemMeta();
+        infoMeta.setDisplayName(ChatColor.GOLD + "📊 Résumé des Dossiers");
+        List<String> infoLore = new ArrayList<>();
+        infoLore.add(ChatColor.GRAY + "Total actifs: " + ChatColor.WHITE + activeFines.size());
+        infoLore.add(ChatColor.RED + "• En attente: " + stats.pendingFines());
+        infoLore.add(ChatColor.YELLOW + "• Contestées: " + stats.contestedFines());
+        infoLore.add("");
+        infoLore.add(ChatColor.GRAY + "Légende des couleurs:");
+        infoLore.add(ChatColor.RED + "■ " + ChatColor.GRAY + "En attente de paiement");
+        infoLore.add(ChatColor.YELLOW + "■ " + ChatColor.GRAY + "Contestée (attente juge)");
+        infoLore.add(ChatColor.GOLD + "■ " + ChatColor.GRAY + "Confirmée par juge");
+        infoMeta.setLore(infoLore);
+        infoItem.setItemMeta(infoMeta);
+        inv.setItem(4, infoItem);
+
+        // Liste des amendes
+        int slot = 9;
+        for (Fine fine : activeFines) {
+            if (slot >= 45) break;
+
+            Material mat = switch (fine.getStatus()) {
+                case PENDING -> Material.RED_STAINED_GLASS_PANE;
+                case CONTESTED -> Material.YELLOW_STAINED_GLASS_PANE;
+                case JUDGED_VALID -> Material.ORANGE_STAINED_GLASS_PANE;
+                default -> Material.GRAY_STAINED_GLASS_PANE;
+            };
+
+            ItemStack item = new ItemStack(mat);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(ChatColor.YELLOW + fine.getOffenderName());
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "ID: " + ChatColor.WHITE + fine.getFineId().toString().substring(0, 8));
+            lore.add(ChatColor.GRAY + "Montant: " + ChatColor.GOLD + String.format("%.2f€", fine.getAmount()));
+            lore.add(ChatColor.GRAY + "Date: " + ChatColor.WHITE + fine.getIssueDate().toLocalDate());
+            lore.add(ChatColor.GRAY + "Statut: " + getStatusColor(fine.getStatus()) + fine.getStatus().getDisplayName());
+            lore.add("");
+            lore.add(ChatColor.GRAY + "Motif:");
+            // Tronquer le motif s'il est trop long
+            String reason = fine.getReason();
+            if (reason.length() > 40) {
+                lore.add(ChatColor.WHITE + reason.substring(0, 40) + "...");
+            } else {
+                lore.add(ChatColor.WHITE + reason);
+            }
+
+            if (fine.getStatus() == Fine.FineStatus.CONTESTED && fine.getContestReason() != null) {
+                lore.add("");
+                lore.add(ChatColor.YELLOW + "Contestation:");
+                String contestReason = fine.getContestReason();
+                if (contestReason.length() > 35) {
+                    lore.add(ChatColor.WHITE + contestReason.substring(0, 35) + "...");
+                } else {
+                    lore.add(ChatColor.WHITE + contestReason);
+                }
+            }
+
+            lore.add("");
+            lore.add(ChatColor.RED + "Clic droit: Annuler l'amende");
+
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+            inv.setItem(slot++, item);
+        }
+
+        if (activeFines.isEmpty()) {
+            ItemStack emptyItem = new ItemStack(Material.GREEN_STAINED_GLASS_PANE);
+            ItemMeta emptyMeta = emptyItem.getItemMeta();
+            emptyMeta.setDisplayName(ChatColor.GREEN + "✓ Aucun dossier actif");
+            emptyMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Toutes les amendes ont été",
+                    ChatColor.GRAY + "payées ou traitées."));
+            emptyItem.setItemMeta(emptyMeta);
+            inv.setItem(22, emptyItem);
+        }
+
+        // Retour
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(45, backItem);
+
+        // Fermer
+        ItemStack closeItem = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = closeItem.getItemMeta();
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
+        closeItem.setItemMeta(closeMeta);
+        inv.setItem(53, closeItem);
+
+        player.openInventory(inv);
+    }
+
+    private ChatColor getStatusColor(Fine.FineStatus status) {
+        return switch (status) {
+            case PENDING -> ChatColor.RED;
+            case CONTESTED -> ChatColor.YELLOW;
+            case JUDGED_VALID -> ChatColor.GOLD;
+            case PAID -> ChatColor.GREEN;
+            default -> ChatColor.GRAY;
+        };
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         String title = event.getView().getTitle();
@@ -377,9 +503,9 @@ public class TownPoliceGUI implements Listener {
                 if (plugin.getImprisonmentWorkflowGUI() != null)
                     plugin.getImprisonmentWorkflowGUI().openPrisonerSelectionMenu(player);
             } else if (displayName.contains("Dossiers Amendes")) {
-                // TODO: Open Active/Contested Fines Menu (Combined or Separate)
-                // For now, let's just show a message or open a simple list if available
-                player.sendMessage(ChatColor.YELLOW + "Fonctionnalité en cours de refonte (Dossiers).");
+                if (!reVerifyPoliceAccess(player))
+                    return;
+                openFinesDossiersMenu(player);
             } else if (displayName.contains("Détenus")) {
                 if (!reVerifyPoliceAccess(player))
                     return;
@@ -484,6 +610,42 @@ public class TownPoliceGUI implements Listener {
                 openPoliceMenu(player);
             } else if (displayName.contains("Fermer")) {
                 player.closeInventory();
+            }
+        } else if (title.equals(FINES_DOSSIERS_TITLE)) {
+            event.setCancelled(true);
+
+            if (displayName.contains("Retour")) {
+                openPoliceMenu(player);
+            } else if (displayName.contains("Fermer")) {
+                player.closeInventory();
+            } else if (clicked.getType().name().contains("STAINED_GLASS_PANE")
+                    && !clicked.getType().name().contains("GREEN")) {
+                // Clic sur une amende - Récupérer l'ID depuis le lore
+                if (!reVerifyPoliceAccess(player))
+                    return;
+
+                if (event.isRightClick()) {
+                    // Annuler l'amende
+                    List<String> lore = clicked.getItemMeta().getLore();
+                    if (lore != null && !lore.isEmpty()) {
+                        String firstLine = ChatColor.stripColor(lore.get(0));
+                        if (firstLine.startsWith("ID: ")) {
+                            String fineIdPrefix = firstLine.substring(4);
+                            String townName = townManager.getPlayerTown(player.getUniqueId());
+                            List<Fine> townFines = policeManager.getTownFines(townName);
+
+                            for (Fine fine : townFines) {
+                                if (fine.getFineId().toString().startsWith(fineIdPrefix)) {
+                                    fine.cancel();
+                                    player.sendMessage(ChatColor.GREEN + "✓ Amende annulée pour " + fine.getOffenderName());
+                                    // Rafraîchir le menu
+                                    openFinesDossiersMenu(player);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
