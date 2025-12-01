@@ -48,7 +48,7 @@ public class TownBankGUI implements Listener {
     }
 
     public void openBankMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous devez être dans une ville.");
             return;
@@ -60,16 +60,22 @@ public class TownBankGUI implements Listener {
             return;
         }
 
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+
         Inventory inv = Bukkit.createInventory(null, 27, BANK_TITLE);
 
         // Solde de la banque
         ItemStack balanceItem = new ItemStack(Material.GOLD_BLOCK);
         ItemMeta balanceMeta = balanceItem.getItemMeta();
         balanceMeta.setDisplayName(ChatColor.GOLD + "Solde de la Banque");
-        
+
         double limit = plugin.getTownLevelManager().getConfig(town.getLevel()).getBankLimit();
-        
+
         List<String> balanceLore = new ArrayList<>();
+        if (isAdminOverride) {
+            balanceLore.add(ChatColor.RED + "⚠ MODE ADMIN ⚠");
+            balanceLore.add("");
+        }
         balanceLore.add(ChatColor.GRAY + "Solde actuel:");
         balanceLore.add(ChatColor.GOLD + "" + ChatColor.BOLD + String.format("%.2f€", town.getBankBalance()));
         balanceLore.add(ChatColor.GRAY + "Limite: " + ChatColor.YELLOW + String.format("%.2f€", limit));
@@ -82,7 +88,8 @@ public class TownBankGUI implements Listener {
         balanceItem.setItemMeta(balanceMeta);
         inv.setItem(4, balanceItem);
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        // Admin override = accès maire
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         // Déposer (slot 10)
         ItemStack depositItem = new ItemStack(Material.EMERALD);
@@ -226,7 +233,7 @@ public class TownBankGUI implements Listener {
             return;
         }
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.closeInventory();
             return;
@@ -367,7 +374,8 @@ public class TownBankGUI implements Listener {
                     player.sendMessage(ChatColor.RED + "La banque est pleine ! Impossible de déposer.");
                 }
             } else if (context.actionType == ActionType.WITHDRAW) {
-                TownRole role = town.getMemberRole(player.getUniqueId());
+                boolean isAdminOverride = townManager.isAdminOverride(player, context.townName);
+                TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
                 if (role != TownRole.MAIRE && role != TownRole.ADJOINT) {
                     player.sendMessage(ChatColor.RED + "Seul le maire et les adjoints peuvent retirer de l'argent.");
                     return;

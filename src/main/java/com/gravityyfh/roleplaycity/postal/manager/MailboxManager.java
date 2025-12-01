@@ -32,7 +32,7 @@ public class MailboxManager {
      * Place une nouvelle boîte aux lettres sur un terrain
      * Remplace automatiquement l'ancienne si elle existe (conserve le courrier)
      */
-    public boolean placeMailbox(Plot plot, Location headLocation, MailboxType type) {
+    public boolean placeMailbox(Plot plot, Location headLocation, MailboxType type, Player placer) {
         // Vérifier que la position de la tête est dans le terrain
         if (!isLocationInPlot(headLocation, plot)) {
             plugin.getLogger().warning("Tentative de placement de mailbox hors du terrain");
@@ -55,6 +55,12 @@ public class MailboxManager {
         Block headBlock = headLocation.getBlock();
         headBlock.setType(Material.PLAYER_HEAD);
         org.bukkit.block.Skull skull = (org.bukkit.block.Skull) headBlock.getState();
+
+        // Orienter la boîte aux lettres face au joueur qui la place
+        if (placer != null) {
+            org.bukkit.block.BlockFace facing = getPlayerFacing(placer);
+            skull.setRotation(facing);
+        }
 
         // Appliquer la texture custom
         applySkullTexture(skull, type);
@@ -250,6 +256,25 @@ public class MailboxManager {
 
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING, "Impossible d'appliquer la texture custom à la boîte aux lettres", e);
+        }
+    }
+
+    /**
+     * Détermine la direction cardinale vers laquelle regarde un joueur (N/S/E/W)
+     */
+    private org.bukkit.block.BlockFace getPlayerFacing(Player player) {
+        float yaw = player.getLocation().getYaw();
+        // Normaliser le yaw entre 0 et 360
+        yaw = (yaw % 360 + 360) % 360;
+
+        if (yaw >= 315 || yaw < 45) {
+            return org.bukkit.block.BlockFace.SOUTH;
+        } else if (yaw >= 45 && yaw < 135) {
+            return org.bukkit.block.BlockFace.WEST;
+        } else if (yaw >= 135 && yaw < 225) {
+            return org.bukkit.block.BlockFace.NORTH;
+        } else {
+            return org.bukkit.block.BlockFace.EAST;
         }
     }
 

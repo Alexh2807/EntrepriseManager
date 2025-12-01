@@ -31,6 +31,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private Main lightEconomyMain;
     private Economy econ;
     private TownManager townManager;
+    private com.gravityyfh.roleplaycity.town.manager.AdminTownSessionManager adminTownSessionManager;
     private com.gravityyfh.roleplaycity.town.manager.ClaimManager claimManager;
     private TownDataManager townDataManager;
     private com.gravityyfh.roleplaycity.town.manager.TownEconomyManager townEconomyManager;
@@ -77,6 +78,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.gui.TownUpgradeGUI townUpgradeGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyPropertyGUI myPropertyGUI;
     private com.gravityyfh.roleplaycity.town.gui.RentedPropertyGUI rentedPropertyGUI;
+    private com.gravityyfh.roleplaycity.town.gui.PlotAuthorizationGUI plotAuthorizationGUI;
     private com.gravityyfh.roleplaycity.town.gui.MyCompaniesGUI myCompaniesGUI;
     private com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI companySelectionGUI;
     private com.gravityyfh.roleplaycity.town.gui.DebtManagementGUI debtManagementGUI;
@@ -88,6 +90,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.town.listener.TownProtectionListener townProtectionListener;
     private com.gravityyfh.roleplaycity.town.listener.PlotGroupingListener plotGroupingListener;
     private com.gravityyfh.roleplaycity.town.task.TownEconomyTask townEconomyTask;
+    private com.gravityyfh.roleplaycity.town.task.DayNightCycleTask dayNightCycleTask;
     private com.gravityyfh.roleplaycity.town.manager.NotificationDataManager notificationDataManager;
     private com.gravityyfh.roleplaycity.town.manager.NotificationManager notificationManager;
     private com.gravityyfh.roleplaycity.town.manager.DebtNotificationService debtNotificationService;
@@ -418,6 +421,8 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         
         townLevelManager = new com.gravityyfh.roleplaycity.town.manager.TownLevelManager(this);
         townManager = new com.gravityyfh.roleplaycity.town.manager.TownManager(this);
+        adminTownSessionManager = new com.gravityyfh.roleplaycity.town.manager.AdminTownSessionManager(this, townManager);
+        getServer().getPluginManager().registerEvents(adminTownSessionManager, this);
         claimManager = new com.gravityyfh.roleplaycity.town.manager.ClaimManager(this, townManager);
         
         notificationManager = new com.gravityyfh.roleplaycity.town.manager.NotificationManager(this, notificationDataManager, townManager);
@@ -595,6 +600,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         townEconomyTask = new com.gravityyfh.roleplaycity.town.task.TownEconomyTask(this, townManager,
                 townEconomyManager);
         townEconomyTask.start();
+
+        // Démarrer le cycle jour/nuit personnalisé
+        dayNightCycleTask = new com.gravityyfh.roleplaycity.town.task.DayNightCycleTask(this);
+        dayNightCycleTask.start();
 
         // Système Médical
         medicalSystemManager = new com.gravityyfh.roleplaycity.medical.manager.MedicalSystemManager(this,
@@ -912,6 +921,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Arrêter la tâche économique
         if (townEconomyTask != null) {
             townEconomyTask.cancel();
+        }
+
+        // Arrêter le cycle jour/nuit personnalisé
+        if (dayNightCycleTask != null) {
+            dayNightCycleTask.stop();
         }
 
         // Nettoyer le système de téléportation des villes
@@ -1718,6 +1732,22 @@ public class RoleplayCity extends JavaPlugin implements Listener {
                 getLogger().info("✓ Système de téléphonie rechargé (phones.yml)");
             }
 
+            // 15. Recharger le cycle jour/nuit personnalisé
+            if (dayNightCycleTask != null) {
+                // Arrêter l'ancienne tâche
+                dayNightCycleTask.stop();
+            }
+            // Recréer et redémarrer avec la nouvelle config
+            dayNightCycleTask = new com.gravityyfh.roleplaycity.town.task.DayNightCycleTask(this);
+            dayNightCycleTask.start();
+            if (dayNightCycleTask.isEnabled()) {
+                getLogger().info("✓ Cycle jour/nuit rechargé (Jour: " +
+                    dayNightCycleTask.getDayStartHour() + "h, Nuit: " +
+                    dayNightCycleTask.getNightStartHour() + "h)");
+            } else {
+                getLogger().info("✓ Cycle jour/nuit rechargé (désactivé)");
+            }
+
             getLogger().info("════════════════════════════════════════════════════");
             getLogger().info("RoleplayCity rechargé avec succès !");
             getLogger().info("════════════════════════════════════════════════════");
@@ -1825,6 +1855,14 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return townManager;
     }
 
+    public com.gravityyfh.roleplaycity.town.task.DayNightCycleTask getDayNightCycleTask() {
+        return dayNightCycleTask;
+    }
+
+    public com.gravityyfh.roleplaycity.town.manager.AdminTownSessionManager getAdminTownSessionManager() {
+        return adminTownSessionManager;
+    }
+
     public com.gravityyfh.roleplaycity.police.service.PoliceServiceManager getPoliceServiceManager() {
         return policeServiceManager;
     }
@@ -1928,6 +1966,19 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             }
         }
         return rentedPropertyGUI;
+    }
+
+    public com.gravityyfh.roleplaycity.town.gui.PlotAuthorizationGUI getPlotAuthorizationGUI() {
+        if (plotAuthorizationGUI == null) {
+            synchronized (this) {
+                if (plotAuthorizationGUI == null) {
+                    plotAuthorizationGUI = new com.gravityyfh.roleplaycity.town.gui.PlotAuthorizationGUI(this, townManager);
+                    getServer().getPluginManager().registerEvents(plotAuthorizationGUI, this);
+                    debugLogger.debug("LAZY_LOAD", "PlotAuthorizationGUI initialisé et enregistré");
+                }
+            }
+        }
+        return plotAuthorizationGUI;
     }
 
     public com.gravityyfh.roleplaycity.town.gui.CompanySelectionGUI getCompanySelectionGUI() {

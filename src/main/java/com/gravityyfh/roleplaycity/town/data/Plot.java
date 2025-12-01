@@ -70,6 +70,12 @@ public class Plot {
     // 📬 Système de boîte aux lettres (intégré dans le plot)
     private com.gravityyfh.roleplaycity.postal.data.Mailbox mailbox;
 
+    // 🔑 Système d'autorisations parentales (propriétaire/locataire -> enfants)
+    // Les autorisations sont liées au parent : si le parent perd le terrain, les enfants perdent leurs autorisations
+    private final Set<UUID> ownerAuthorizedPlayers; // Joueurs autorisés par le propriétaire
+    private final Set<UUID> renterAuthorizedPlayers; // Joueurs autorisés par le locataire
+    private static final int MAX_AUTHORIZED_PLAYERS = 5; // Limite par propriétaire/locataire
+
     /**
      * Constructeur pour un nouveau terrain (1 chunk initial)
      */
@@ -96,6 +102,8 @@ public class Plot {
         this.playerPermissions = new HashMap<>();
         this.trustedPlayers = new HashSet<>();
         this.flags = new EnumMap<>(PlotFlag.class);
+        this.ownerAuthorizedPlayers = new HashSet<>();
+        this.renterAuthorizedPlayers = new HashSet<>();
 
         // Initialiser les flags avec leurs valeurs par défaut
         for (PlotFlag flag : PlotFlag.values()) {
@@ -128,6 +136,8 @@ public class Plot {
         this.playerPermissions = new HashMap<>();
         this.trustedPlayers = new HashSet<>();
         this.flags = new EnumMap<>(PlotFlag.class);
+        this.ownerAuthorizedPlayers = new HashSet<>();
+        this.renterAuthorizedPlayers = new HashSet<>();
 
         for (PlotFlag flag : PlotFlag.values()) {
             flags.put(flag, flag.getDefaultValue());
@@ -282,6 +292,12 @@ public class Plot {
 
     public void setOwner(UUID ownerUuid, String ownerName) {
         UUID oldOwnerUuid = this.ownerUuid;
+
+        // 🔑 Si le propriétaire change, nettoyer les autorisations de l'ancien
+        if (oldOwnerUuid != null && !oldOwnerUuid.equals(ownerUuid)) {
+            clearOwnerAuthorizations();
+        }
+
         this.ownerUuid = ownerUuid;
         this.ownerName = ownerName;
 
@@ -383,6 +399,9 @@ public class Plot {
 
         UUID oldRenter = this.renterUuid;
         String oldRenterSiret = this.renterCompanySiret; // SAUVEGARDER avant de clear
+
+        // 🔑 NETTOYER les autorisations du locataire AVANT de le supprimer
+        clearRenterAuthorizations();
 
         this.renterUuid = null;
         this.renterCompanySiret = null;
@@ -733,6 +752,10 @@ public class Plot {
 
     public void clearOwner() {
         UUID oldOwnerUuid = this.ownerUuid;
+
+        // 🔑 NETTOYER les autorisations du propriétaire AVANT de le supprimer
+        clearOwnerAuthorizations();
+
         this.ownerUuid = null;
         this.ownerName = null;
         this.companyName = null;
@@ -795,8 +818,8 @@ public class Plot {
             return role == TownRole.MAIRE || role == TownRole.ADJOINT;
         }
 
-        // Particulier/Professionnel : propriétaire ou locataire
-        return isOwnedBy(playerUuid) || isRentedBy(playerUuid);
+        // Particulier/Professionnel : propriétaire, locataire OU joueur autorisé
+        return isOwnedBy(playerUuid) || isRentedBy(playerUuid) || hasAuthorization(playerUuid);
     }
 
     /**
@@ -830,6 +853,11 @@ public class Plot {
         // Particulier/Professionnel
         // Si locataire, toujours autorisé
         if (isRentedBy(playerUuid)) {
+            return true;
+        }
+
+        // Si joueur autorisé (par propriétaire ou locataire), autorisé
+        if (hasAuthorization(playerUuid)) {
             return true;
         }
 
@@ -1018,6 +1046,150 @@ public class Plot {
     public void resetAllFlags() {
         for (PlotFlag flag : PlotFlag.values()) {
             flags.put(flag, flag.getDefaultValue());
+        }
+    }
+
+    // ========== 🔑 Système d'autorisations parentales ==========
+
+    /**
+     * Ajoute un joueur autorisé par le propriétaire
+     * @param childUuid UUID du joueur à autoriser
+     * @return true si ajouté, false si limite atteinte ou déjà présent
+     */
+    public boolean addOwnerAuthorizedPlayer(UUID childUuid) {
+        if (ownerAuthorizedPlayers.size() >= MAX_AUTHORIZED_PLAYERS) {
+            return false;
+        }
+        return ownerAuthorizedPlayers.add(childUuid);
+    }
+
+    /**
+     * Ajoute un joueur autorisé par le locataire
+     * @param childUuid UUID du joueur à autoriser
+     * @return true si ajouté, false si limite atteinte ou déjà présent
+     */
+    public boolean addRenterAuthorizedPlayer(UUID childUuid) {
+        if (renterAuthorizedPlayers.size() >= MAX_AUTHORIZED_PLAYERS) {
+            return false;
+        }
+        return renterAuthorizedPlayers.add(childUuid);
+    }
+
+    /**
+     * Retire un joueur autorisé par le propriétaire
+     */
+    public boolean removeOwnerAuthorizedPlayer(UUID childUuid) {
+        return ownerAuthorizedPlayers.remove(childUuid);
+    }
+
+    /**
+     * Retire un joueur autorisé par le locataire
+     */
+    public boolean removeRenterAuthorizedPlayer(UUID childUuid) {
+        return renterAuthorizedPlayers.remove(childUuid);
+    }
+
+    /**
+     * Obtenir tous les joueurs autorisés par le propriétaire
+     */
+    public Set<UUID> getOwnerAuthorizedPlayers() {
+        return new HashSet<>(ownerAuthorizedPlayers);
+    }
+
+    /**
+     * Obtenir tous les joueurs autorisés par le locataire
+     */
+    public Set<UUID> getRenterAuthorizedPlayers() {
+        return new HashSet<>(renterAuthorizedPlayers);
+    }
+
+    /**
+     * Vérifie si un joueur est autorisé (par propriétaire OU locataire)
+     * @param playerUuid UUID du joueur
+     * @return true si le joueur a une autorisation valide
+     */
+    public boolean hasAuthorization(UUID playerUuid) {
+        // Propriétaire ou locataire = toujours autorisé
+        if (isOwnedBy(playerUuid) || isRentedBy(playerUuid)) {
+            return true;
+        }
+        // Autorisé par le propriétaire (si propriétaire existe)
+        if (ownerUuid != null && ownerAuthorizedPlayers.contains(playerUuid)) {
+            return true;
+        }
+        // Autorisé par le locataire (si locataire existe)
+        if (renterUuid != null && renterAuthorizedPlayers.contains(playerUuid)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Vérifie si un joueur est autorisé par le propriétaire
+     */
+    public boolean isAuthorizedByOwner(UUID playerUuid) {
+        return ownerAuthorizedPlayers.contains(playerUuid);
+    }
+
+    /**
+     * Vérifie si un joueur est autorisé par le locataire
+     */
+    public boolean isAuthorizedByRenter(UUID playerUuid) {
+        return renterAuthorizedPlayers.contains(playerUuid);
+    }
+
+    /**
+     * Nettoie les autorisations du propriétaire (appelé quand le propriétaire change)
+     */
+    public void clearOwnerAuthorizations() {
+        ownerAuthorizedPlayers.clear();
+    }
+
+    /**
+     * Nettoie les autorisations du locataire (appelé quand le locataire change)
+     */
+    public void clearRenterAuthorizations() {
+        renterAuthorizedPlayers.clear();
+    }
+
+    /**
+     * Obtenir le nombre maximum d'autorisations par parent
+     */
+    public static int getMaxAuthorizedPlayers() {
+        return MAX_AUTHORIZED_PLAYERS;
+    }
+
+    /**
+     * Vérifie si le propriétaire peut encore ajouter des joueurs autorisés
+     */
+    public boolean canOwnerAddMore() {
+        return ownerAuthorizedPlayers.size() < MAX_AUTHORIZED_PLAYERS;
+    }
+
+    /**
+     * Vérifie si le locataire peut encore ajouter des joueurs autorisés
+     */
+    public boolean canRenterAddMore() {
+        return renterAuthorizedPlayers.size() < MAX_AUTHORIZED_PLAYERS;
+    }
+
+    /**
+     * Définit les joueurs autorisés par le propriétaire (pour chargement)
+     */
+    public void setOwnerAuthorizedPlayers(Set<UUID> players) {
+        ownerAuthorizedPlayers.clear();
+        if (players != null) {
+            ownerAuthorizedPlayers.addAll(players);
+        }
+    }
+
+    /**
+     * Définit les joueurs autorisés par le locataire (pour chargement)
+     */
+    public void setRenterAuthorizedPlayers(Set<UUID> players) {
+        renterAuthorizedPlayers.clear();
+        if (players != null) {
+            renterAuthorizedPlayers.addAll(players);
         }
     }
 

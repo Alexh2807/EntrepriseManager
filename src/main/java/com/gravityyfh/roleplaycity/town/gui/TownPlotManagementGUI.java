@@ -128,8 +128,10 @@ public class TownPlotManagementGUI implements Listener {
         infoItem.setItemMeta(infoMeta);
         inv.setItem(4, infoItem);
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
-        boolean canManage = role == TownRole.MAIRE || role == TownRole.ADJOINT ||
+        // Vérifier le mode admin override pour donner tous les droits
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
+        boolean canManage = isAdminOverride || role == TownRole.MAIRE || role == TownRole.ADJOINT ||
             (plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(player.getUniqueId()));
 
         // === LIGNE 2: Actions de Commerce ===
@@ -235,6 +237,34 @@ public class TownPlotManagementGUI implements Listener {
             rechargeMeta.setLore(rechargeLore);
             rechargeItem.setItemMeta(rechargeMeta);
             inv.setItem(13, rechargeItem);
+        }
+
+        // 🔑 Gérer Autorisations (slot 14 - Propriétaire OU Locataire, terrains PARTICULIER et PROFESSIONNEL)
+        boolean isOwner = plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(player.getUniqueId());
+        boolean isRenter = plot.isRentedBy(player.getUniqueId());
+        if ((isOwner || isRenter) && (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL)) {
+            int authorizedCount = isRenter ? plot.getRenterAuthorizedPlayers().size() : plot.getOwnerAuthorizedPlayers().size();
+            int maxAuthorized = Plot.getMaxAuthorizedPlayers();
+
+            ItemStack authItem = new ItemStack(Material.PLAYER_HEAD);
+            ItemMeta authMeta = authItem.getItemMeta();
+            authMeta.setDisplayName(ChatColor.AQUA + "Gérer Autorisations");
+            List<String> authLore = new ArrayList<>();
+            authLore.add(ChatColor.GRAY + "Autoriser d'autres joueurs");
+            authLore.add(ChatColor.GRAY + "a utiliser ce terrain");
+            authLore.add("");
+            authLore.add(ChatColor.YELLOW + "Joueurs autorises: " + ChatColor.WHITE + authorizedCount + "/" + maxAuthorized);
+            authLore.add("");
+            if (isRenter) {
+                authLore.add(ChatColor.GRAY + "En tant que " + ChatColor.GOLD + "Locataire");
+            } else {
+                authLore.add(ChatColor.GRAY + "En tant que " + ChatColor.GOLD + "Proprietaire");
+            }
+            authLore.add("");
+            authLore.add(ChatColor.GREEN + "Cliquez pour gerer");
+            authMeta.setLore(authLore);
+            authItem.setItemMeta(authMeta);
+            inv.setItem(14, authItem);
         }
 
         // === LIGNE 2: Configuration ===
@@ -677,6 +707,8 @@ public class TownPlotManagementGUI implements Listener {
             handleSetPrisonSpawn(player, plot);
         } else if (displayName.contains("Gestion Boîte aux Lettres")) {
             handleMailboxManagement(player, plot, event.getClick());
+        } else if (displayName.contains("Gérer Autorisations")) {
+            handleManageAuthorizations(player, plot);
         } else if (displayName.contains("Dégrouper ce Terrain")) {
             handleUngroupPlot(player, plot, townName);
         } else if (displayName.contains("Retourner à la Ville")) {
@@ -954,6 +986,28 @@ public class TownPlotManagementGUI implements Listener {
         }
 
         NavigationManager.sendError(player, "Ce terrain n'a ni propriétaire ni locataire !");
+    }
+
+    private void handleManageAuthorizations(Player player, Plot plot) {
+        player.closeInventory();
+
+        // Déterminer si le joueur est propriétaire ou locataire
+        boolean isOwner = plot.getOwnerUuid() != null && plot.getOwnerUuid().equals(player.getUniqueId());
+        boolean isRenter = plot.isRentedBy(player.getUniqueId());
+
+        if (!isOwner && !isRenter) {
+            player.sendMessage(ChatColor.RED + "Vous devez être propriétaire ou locataire pour gérer les autorisations !");
+            return;
+        }
+
+        // Ouvrir le menu d'autorisations
+        PlotAuthorizationGUI authGUI = plugin.getPlotAuthorizationGUI();
+        if (authGUI != null) {
+            // Le locataire a priorité s'il est à la fois propriétaire et locataire (impossible en pratique)
+            authGUI.openAuthorizationMenu(player, plot, isRenter);
+        } else {
+            player.sendMessage(ChatColor.RED + "Erreur: Module d'autorisations non disponible.");
+        }
     }
 
     private void openPlotTypeSelectionMenu(Player player, Plot plot, String townName) {

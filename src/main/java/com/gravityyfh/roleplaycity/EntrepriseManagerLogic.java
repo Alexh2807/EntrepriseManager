@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 
 // Imports des classes du package model
 import com.gravityyfh.roleplaycity.entreprise.model.*;
+import com.gravityyfh.roleplaycity.town.data.TownRole;
 
 public class EntrepriseManagerLogic {
     // FIX CRITIQUE: Retirer 'static' pour éviter race conditions et problèmes de synchronisation
@@ -1790,7 +1791,12 @@ public class EntrepriseManagerLogic {
             }
             recordPlayerHistoryEntry(employeUUID, entreprise, "Employé", LocalDateTime.now());
             entreprise.retirerPrimeEmploye(employeUUID.toString());
-            EmployeeActivityRecord record = entreprise.getEmployeeActivityRecord(employeUUID); if (record != null) record.endSession();
+            // Terminer et supprimer l'enregistrement d'activité pour éviter les données orphelines
+            EmployeeActivityRecord record = entreprise.getEmployeeActivityRecord(employeUUID);
+            if (record != null) {
+                record.endSession();
+                entreprise.removeEmployeeActivityRecord(employeUUID);
+            }
             saveEntreprises();
             gerant.sendMessage(ChatColor.GREEN + nomEmployeAKick + " viré de '" + nomEntreprise + "'.");
             Player onlineEmp = employeOffline.getPlayer(); if (onlineEmp != null) { onlineEmp.sendMessage(ChatColor.RED + "Vous avez été viré de '" + nomEntreprise + "'."); }
@@ -1811,7 +1817,12 @@ public class EntrepriseManagerLogic {
             }
             recordPlayerHistoryEntry(joueur.getUniqueId(), entreprise, "Employé", LocalDateTime.now());
             entreprise.retirerPrimeEmploye(joueur.getUniqueId().toString());
-            EmployeeActivityRecord record = entreprise.getEmployeeActivityRecord(joueur.getUniqueId()); if (record != null) record.endSession();
+            // Terminer et supprimer l'enregistrement d'activité pour éviter les données orphelines
+            EmployeeActivityRecord record = entreprise.getEmployeeActivityRecord(joueur.getUniqueId());
+            if (record != null) {
+                record.endSession();
+                entreprise.removeEmployeeActivityRecord(joueur.getUniqueId());
+            }
             saveEntreprises();
             joueur.sendMessage(ChatColor.GREEN + "Vous avez quitté '" + nomEntreprise + "'.");
             Player gerantPlayer = Bukkit.getPlayerExact(entreprise.getGerant()); if (gerantPlayer != null && gerantPlayer.isOnline()) { gerantPlayer.sendMessage(ChatColor.YELLOW + joueur.getName() + " a quitté '" + nomEntreprise + "'."); }
@@ -2021,6 +2032,15 @@ public class EntrepriseManagerLogic {
     public boolean estMaire(Player joueur) {
         // Utilise notre système de ville au lieu de Towny
         return plugin.getTownManager().isPlayerMayor(joueur.getUniqueId());
+    }
+
+    /**
+     * Vérifie si un joueur est Maire OU Adjoint dans sa ville
+     * Utilisé pour la déclaration d'entreprises (comme le système police)
+     */
+    public boolean estMaireOuAdjoint(Player joueur) {
+        TownRole role = plugin.getTownManager().getPlayerRole(joueur.getUniqueId());
+        return role == TownRole.MAIRE || role == TownRole.ADJOINT;
     }
     public Set<String> getEmployesDeLEntreprise(String nomEntreprise) { Entreprise entreprise = getEntreprise(nomEntreprise); return (entreprise != null) ? entreprise.getEmployes() : Collections.emptySet(); }
     public void retirerArgent(Player player, String nomEntreprise, double montant) {
@@ -2558,13 +2578,13 @@ public class EntrepriseManagerLogic {
     // --- Getters et Utilitaires ---
     public double getActiviteHoraireValeurPour(String nomEntreprise) {double revenusProductifs = activiteProductiveHoraireValeur.getOrDefault(nomEntreprise, 0.0);double revenusMagasins = activiteMagasinHoraireValeur.getOrDefault(nomEntreprise, 0.0);return revenusProductifs + revenusMagasins;
     }    public List<Transaction> getTransactionsPourEntreprise(String nomEntreprise, int limit) { Entreprise entreprise = getEntreprise(nomEntreprise); if (entreprise == null) return Collections.emptyList(); List<Transaction> log = new ArrayList<>(entreprise.getTransactionLog()); Collections.reverse(log); return (limit <= 0 || limit >= log.size()) ? log : log.subList(0, limit); }
-    public Collection<String> getPlayersInMayorTown(Player mayor) {
-        // Utilise notre système de ville au lieu de Towny
-        if (!estMaire(mayor)) {
+    public Collection<String> getPlayersInMayorTown(Player mayorOrAdjoint) {
+        // Utilise notre système de ville - Maires ET Adjoints peuvent voir les membres
+        if (!estMaireOuAdjoint(mayorOrAdjoint)) {
             return Collections.emptyList();
         }
 
-        com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getPlayerTownObject(mayor.getUniqueId());
+        com.gravityyfh.roleplaycity.town.data.Town town = plugin.getTownManager().getPlayerTownObject(mayorOrAdjoint.getUniqueId());
         if (town == null) {
             return Collections.emptyList();
         }

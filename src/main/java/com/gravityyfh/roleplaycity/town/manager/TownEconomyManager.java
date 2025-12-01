@@ -630,7 +630,8 @@ public class TownEconomyManager {
      */
     public void checkExpiredRents() {
         for (Town town : townManager.getAllTowns()) {
-            for (Plot plot : town.getPlots().values()) {
+            // Utiliser getUniquePlots() pour éviter de traiter les terrains groupés plusieurs fois
+            for (Plot plot : town.getUniquePlots()) {
                 // FIX BASSE #7: Utiliser getRentDaysRemaining() au lieu de isRentExpired() deprecated
                 if (plot.getRenterUuid() != null && plot.getRentDaysRemaining() <= 0) {
                     // Location expirée
@@ -674,8 +675,8 @@ public class TownEconomyManager {
         int parcelsWithTax = 0;
         List<String> unpaidPlayers = new ArrayList<>();
 
-        // Traiter tous les plots (individuels et groupés)
-        for (Plot plot : town.getPlots().values()) {
+        // Traiter tous les plots UNIQUES (évite les doublons pour terrains groupés)
+        for (Plot plot : town.getUniquePlots()) {
 
             double tax = plot.getDailyTax();
             if (tax <= 0) {
@@ -957,10 +958,18 @@ public class TownEconomyManager {
 
         town.setLastTaxCollection(LocalDateTime.now());
 
+        // Sauvegarder les villes
         townManager.saveTownsNow();
 
+        // IMPORTANT: Sauvegarder aussi les entreprises (soldes modifiés par les taxes)
+        if (plugin.getEntrepriseManagerLogic() != null) {
+            plugin.getEntrepriseManagerLogic().saveEntreprises();
+        }
+
         return new TaxCollectionResult(totalCollected, parcelsWithTax, unpaidPlayers.size(), unpaidPlayers);
-    }    public TaxCollectionResult collectTaxesHourly(String townName) {
+    }
+
+    public TaxCollectionResult collectTaxesHourly(String townName) {
         Town town = townManager.getTown(townName);
         if (town == null) {
             return new TaxCollectionResult(0, 0, 0, new ArrayList<>());
@@ -971,8 +980,8 @@ public class TownEconomyManager {
         List<String> unpaidPlayers = new ArrayList<>();
         Map<UUID, Double> playerTaxes = new HashMap<>(); // Pour les rapports individuels
 
-        // Collecter les taxes de toutes les parcelles (individuelles et groupées)
-        for (Plot plot : town.getPlots().values()) {
+        // Collecter les taxes de toutes les parcelles UNIQUES (évite les doublons pour terrains groupés)
+        for (Plot plot : town.getUniquePlots()) {
             double dailyTax = plot.getDailyTax();
             if (dailyTax <= 0) continue;
 
@@ -1298,8 +1307,13 @@ public class TownEconomyManager {
             }
         }
 
-        // Sauvegarder
+        // Sauvegarder les villes
         townManager.saveTownsNow();
+
+        // IMPORTANT: Sauvegarder aussi les entreprises (soldes modifiés par les taxes)
+        if (plugin.getEntrepriseManagerLogic() != null) {
+            plugin.getEntrepriseManagerLogic().saveEntreprises();
+        }
 
         // NOUVEAU : Générer les rapports
         generateTaxReports(town, totalCollected, parcelsWithTax, unpaidPlayers.size(), playerTaxes);

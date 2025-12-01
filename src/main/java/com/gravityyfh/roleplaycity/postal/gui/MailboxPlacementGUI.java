@@ -187,8 +187,8 @@ public class MailboxPlacementGUI implements Listener {
         // Position où la tête sera placée (au-dessus du bloc cliqué)
         org.bukkit.Location headLocation = clickedBlock.getLocation().add(0, 1, 0);
 
-        // Tenter de placer la mailbox
-        boolean success = mailboxManager.placeMailbox(plot, headLocation, type);
+        // Tenter de placer la mailbox (passer le joueur pour orienter la boîte face à lui)
+        boolean success = mailboxManager.placeMailbox(plot, headLocation, type, player);
 
         if (success) {
             player.sendMessage(ChatColor.GREEN + "✓ Boîte aux lettres placée avec succès !");

@@ -554,6 +554,33 @@ public class TownManager {
         return playerTowns.get(playerUuid);
     }
 
+    /**
+     * Retourne la ville "effective" du joueur:
+     * - Si le joueur est un admin avec une session active, retourne la ville ciblée
+     * - Sinon, retourne la ville du joueur normalement
+     *
+     * @param player Le joueur
+     * @return Le nom de la ville effective, ou null si aucune
+     */
+    public String getEffectiveTown(Player player) {
+        AdminTownSessionManager adminSessionManager = plugin.getAdminTownSessionManager();
+        if (adminSessionManager != null && adminSessionManager.hasActiveSession(player.getUniqueId())) {
+            return adminSessionManager.getAdminTargetTown(player.getUniqueId());
+        }
+        return getPlayerTown(player.getUniqueId());
+    }
+
+    /**
+     * Vérifie si le joueur est en mode admin sur une ville spécifique
+     * @param player Le joueur
+     * @param townName Le nom de la ville
+     * @return true si admin override actif sur cette ville
+     */
+    public boolean isAdminOverride(Player player, String townName) {
+        AdminTownSessionManager adminSessionManager = plugin.getAdminTownSessionManager();
+        return adminSessionManager != null && adminSessionManager.isAdminOverride(player.getUniqueId(), townName);
+    }
+
     public Town getPlayerTownObject(UUID playerUuid) {
         String townName = getPlayerTown(playerUuid);
         return townName != null ? getTown(townName) : null;

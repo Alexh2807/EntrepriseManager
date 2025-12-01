@@ -61,30 +61,36 @@ public class MyPropertyGUI implements Listener {
             isCurrentPlotRented = playerUuid.equals(currentPlot.getRenterUuid());
         }
 
-        // Récupérer les terrains possédés
-        List<Plot> ownedPlots = new ArrayList<>();
+        // Récupérer les terrains possédés (avec déduplication pour terrains groupés)
+        // Un terrain groupé est stocké plusieurs fois dans la map (une fois par chunk),
+        // mais c'est le même objet Plot, donc on utilise un Set pour dédupliquer
+        Set<Plot> ownedPlotsSet = new LinkedHashSet<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getOwnerUuid())) {
-                // Si c'est la parcelle actuelle, on la met en premier
-                if (isCurrentPlotOwned && plot.equals(currentPlot)) {
-                    ownedPlots.add(0, plot);
-                } else {
-                    ownedPlots.add(plot);
-                }
+                ownedPlotsSet.add(plot); // Set ignore les doublons automatiquement
             }
         }
 
-        // Récupérer les terrains loués
-        List<Plot> rentedPlots = new ArrayList<>();
+        // Convertir en liste et mettre la parcelle actuelle en premier si trouvée
+        List<Plot> ownedPlots = new ArrayList<>(ownedPlotsSet);
+        if (isCurrentPlotOwned && currentPlot != null && ownedPlots.contains(currentPlot)) {
+            ownedPlots.remove(currentPlot);
+            ownedPlots.add(0, currentPlot);
+        }
+
+        // Récupérer les terrains loués (avec déduplication pour terrains groupés)
+        Set<Plot> rentedPlotsSet = new LinkedHashSet<>();
         for (Plot plot : town.getPlots().values()) {
             if (playerUuid.equals(plot.getRenterUuid())) {
-                // Si c'est la parcelle actuelle, on la met en premier
-                if (isCurrentPlotRented && plot.equals(currentPlot)) {
-                    rentedPlots.add(0, plot);
-                } else {
-                    rentedPlots.add(plot);
-                }
+                rentedPlotsSet.add(plot); // Set ignore les doublons automatiquement
             }
+        }
+
+        // Convertir en liste et mettre la parcelle actuelle en premier si trouvée
+        List<Plot> rentedPlots = new ArrayList<>(rentedPlotsSet);
+        if (isCurrentPlotRented && currentPlot != null && rentedPlots.contains(currentPlot)) {
+            rentedPlots.remove(currentPlot);
+            rentedPlots.add(0, currentPlot);
         }
 
         // Calculer la taille de l'inventaire (multiple de 9)
@@ -267,7 +273,7 @@ public class MyPropertyGUI implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) return;
 
         Town town = townManager.getTown(townName);

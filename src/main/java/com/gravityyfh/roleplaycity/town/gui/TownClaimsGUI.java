@@ -73,7 +73,7 @@ public class TownClaimsGUI implements Listener {
     }
 
     public void openClaimsMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous devez être dans une ville pour accéder à ce menu.");
             return;
@@ -85,8 +85,9 @@ public class TownClaimsGUI implements Listener {
             return;
         }
 
-        // Obtenir le rôle du joueur dans la ville
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        // Admin override = accès maire/architecte
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         Inventory inv = Bukkit.createInventory(null, 27, CLAIMS_TITLE);
 
@@ -287,7 +288,7 @@ public class TownClaimsGUI implements Listener {
             return;
         }
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.closeInventory();
             player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
@@ -301,7 +302,9 @@ public class TownClaimsGUI implements Listener {
             return;
         }
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        // Admin override = accès maire/architecte
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
         String displayName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
         Chunk currentChunk = player.getLocation().getChunk();
 

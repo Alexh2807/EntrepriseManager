@@ -43,7 +43,7 @@ public class TownMembersGUI implements Listener {
     }
 
     public void openMembersMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
             return;
@@ -55,7 +55,9 @@ public class TownMembersGUI implements Listener {
             return;
         }
 
-        TownRole playerRole = town.getMemberRole(player.getUniqueId());
+        // Admin override = accès maire
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole playerRole = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.AQUA + "👥 Membres de " + townName);
 
@@ -130,7 +132,7 @@ public class TownMembersGUI implements Listener {
     }
 
     public void openRoleSelectionMenu(Player player, UUID targetUuid, String targetName) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             return;
         }
@@ -140,7 +142,8 @@ public class TownMembersGUI implements Listener {
             return;
         }
 
-        if (!town.isMayor(player.getUniqueId())) {
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        if (!isAdminOverride && !town.isMayor(player.getUniqueId())) {
             player.sendMessage(ChatColor.RED + "Seul le maire peut changer les rôles.");
             return;
         }
@@ -261,7 +264,7 @@ public class TownMembersGUI implements Listener {
         String displayName = clicked.getItemMeta().getDisplayName();
         String strippedName = ChatColor.stripColor(displayName);
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             return;
         }
@@ -271,7 +274,9 @@ public class TownMembersGUI implements Listener {
             return;
         }
 
-        TownRole playerRole = town.getMemberRole(player.getUniqueId());
+        // Admin override = accès maire
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole playerRole = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         if (title.contains("Membres de")) {
             if (strippedName.contains("Retour")) {

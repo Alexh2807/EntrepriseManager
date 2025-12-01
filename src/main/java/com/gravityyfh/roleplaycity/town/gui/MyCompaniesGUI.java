@@ -96,7 +96,7 @@ public class MyCompaniesGUI implements Listener {
         lore.add(ChatColor.YELLOW + "Employés: " + ChatColor.WHITE + company.getEmployes().size());
 
         // SYSTÈME UNIFIÉ : Compter terrains PROFESSIONNEL (tous dans town.getPlots())
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         int companyPlots = 0;
         int companyGroups = 0;
         int totalChunks = 0;
@@ -250,7 +250,7 @@ public class MyCompaniesGUI implements Listener {
      * SYSTÈME UNIFIÉ : Affiche les terrains PROFESSIONNEL de l'entreprise
      */
     private void showCompanyPlots(Player player, Entreprise company) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
             return;
@@ -352,7 +352,7 @@ public class MyCompaniesGUI implements Listener {
      * SYSTÈME UNIFIÉ : Paye les dettes de l'entreprise
      */
     private void payCompanyDebts(Player player, Entreprise company) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
             return;

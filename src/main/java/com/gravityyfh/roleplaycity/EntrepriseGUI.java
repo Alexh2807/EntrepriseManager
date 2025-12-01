@@ -394,10 +394,10 @@ public class EntrepriseGUI implements Listener {
 
     private void handleMainMenuClick(Player player, PlayerGUIContext context, String itemName) {
         if (itemName.equals("Créer une Entreprise")) {
-            if (entrepriseLogic.estMaire(player)) {
+            if (entrepriseLogic.estMaireOuAdjoint(player)) {
                 openCreateEntrepriseSelectGerantMenu(player, context);
             } else {
-                player.sendMessage(ChatColor.RED + "Seuls les maires peuvent créer des entreprises.");
+                player.sendMessage(ChatColor.RED + "Seuls les maires et adjoints peuvent créer des entreprises.");
                 player.closeInventory();
             }
         } else if (itemName.equals("Lister les Entreprises")) {

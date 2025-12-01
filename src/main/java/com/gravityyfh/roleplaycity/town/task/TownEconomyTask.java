@@ -37,6 +37,9 @@ public class TownEconomyTask extends BukkitRunnable {
         if (tickCounter % 6000 == 0) {
             updateAllRentDays();
             economyManager.checkExpiredRents();
+
+            // Sauvegarde automatique des villes et entreprises toutes les 5 minutes
+            saveAllData();
         }
 
         // Toutes les 30 minutes (36000 ticks) : Nettoyer les invitations expirées
@@ -51,6 +54,25 @@ public class TownEconomyTask extends BukkitRunnable {
     }
 
     /**
+     * Sauvegarde automatique des villes et entreprises
+     */
+    private void saveAllData() {
+        try {
+            // Sauvegarder les villes
+            townManager.saveTownsNow();
+
+            // Sauvegarder les entreprises
+            if (plugin.getEntrepriseManagerLogic() != null) {
+                plugin.getEntrepriseManagerLogic().saveEntreprises();
+            }
+
+            plugin.getLogger().info("[AutoSave] Sauvegarde automatique des villes et entreprises effectuée.");
+        } catch (Exception e) {
+            plugin.getLogger().warning("[AutoSave] Erreur lors de la sauvegarde automatique: " + e.getMessage());
+        }
+    }
+
+    /**
      * Vérifie l'expiration des locations de toutes les parcelles
      * Système basé sur la date d'expiration (comme AbonnementConnection)
      */
@@ -58,7 +80,8 @@ public class TownEconomyTask extends BukkitRunnable {
         townManager.getTownNames().forEach(townName -> {
             var town = townManager.getTown(townName);
             if (town != null) {
-                town.getPlots().values().forEach(plot -> {
+                // Utiliser getUniquePlots() pour éviter de traiter les terrains groupés plusieurs fois
+                town.getUniquePlots().forEach(plot -> {
                     if (plot.getRenterUuid() != null) {
                         plot.checkRentExpiration();
                     }

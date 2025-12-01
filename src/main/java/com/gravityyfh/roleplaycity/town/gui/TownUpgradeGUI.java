@@ -41,7 +41,7 @@ public class TownUpgradeGUI implements Listener {
     }
 
     public void openUpgradeMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes dans aucune ville.");
             return;
@@ -53,8 +53,9 @@ public class TownUpgradeGUI implements Listener {
             return;
         }
 
-        // Vérifier que le joueur est maire
-        if (!town.isMayor(player.getUniqueId())) {
+        // Admin override = bypass vérification maire
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        if (!isAdminOverride && !town.isMayor(player.getUniqueId())) {
             player.sendMessage(ChatColor.RED + "Seul le maire peut améliorer la ville.");
             return;
         }
@@ -249,7 +250,7 @@ public class TownUpgradeGUI implements Listener {
             return;
         }
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.closeInventory();
             player.sendMessage(ChatColor.RED + "Erreur: Vous n'êtes pas dans une ville.");

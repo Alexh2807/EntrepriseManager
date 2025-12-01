@@ -739,6 +739,9 @@ public class TownCommandHandler implements CommandExecutor {
         }
 
         if (args.length < 2) {
+            player.sendMessage(ChatColor.GOLD + "=== Commandes Admin - Villes ===");
+            player.sendMessage(ChatColor.YELLOW + "/ville admin town <nom_ville>" + ChatColor.GRAY + " - Gérer une ville (mode admin)");
+            player.sendMessage(ChatColor.YELLOW + "/ville admin town exit" + ChatColor.GRAY + " - Quitter le mode admin");
             player.sendMessage(ChatColor.GOLD + "=== Commandes Admin - Taxes ===");
             player.sendMessage(ChatColor.YELLOW + "/ville admin collecttaxes" + ChatColor.GRAY + " - Force la collecte horaire");
             player.sendMessage(ChatColor.YELLOW + "/ville admin forcepay <joueur>" + ChatColor.GRAY + " - Force le paiement d'un joueur");
@@ -749,6 +752,9 @@ public class TownCommandHandler implements CommandExecutor {
         String adminSubCommand = args[1].toLowerCase();
 
         switch (adminSubCommand) {
+            case "town" -> {
+                return handleAdminTown(player, args);
+            }
             case "collecttaxes" -> {
                 return handleAdminCollectTaxes(player);
             }
@@ -772,6 +778,52 @@ public class TownCommandHandler implements CommandExecutor {
                 return true;
             }
         }
+    }
+
+    /**
+     * Gère la commande /ville admin town <nom_ville|exit>
+     * Permet à un admin de gérer une ville dont il n'est pas membre
+     */
+    private boolean handleAdminTown(Player player, String[] args) {
+        var adminSessionManager = plugin.getAdminTownSessionManager();
+        if (adminSessionManager == null) {
+            player.sendMessage(ChatColor.RED + "❌ Système admin non disponible.");
+            return true;
+        }
+
+        if (args.length < 3) {
+            // Afficher le statut actuel
+            if (adminSessionManager.hasActiveSession(player.getUniqueId())) {
+                String currentTown = adminSessionManager.getAdminTargetTown(player.getUniqueId());
+                player.sendMessage(ChatColor.GOLD + "=== Mode Admin Actif ===");
+                player.sendMessage(ChatColor.GRAY + "Ville ciblée: " + ChatColor.GREEN + currentTown);
+                player.sendMessage(ChatColor.YELLOW + "/ville admin town exit" + ChatColor.GRAY + " - Quitter le mode admin");
+                player.sendMessage(ChatColor.YELLOW + "/ville" + ChatColor.GRAY + " - Ouvrir le menu de la ville");
+            } else {
+                player.sendMessage(ChatColor.GOLD + "=== Mode Admin Ville ===");
+                player.sendMessage(ChatColor.YELLOW + "/ville admin town <nom_ville>" + ChatColor.GRAY + " - Gérer une ville");
+                player.sendMessage(ChatColor.YELLOW + "/ville admin town exit" + ChatColor.GRAY + " - Quitter le mode admin");
+            }
+            return true;
+        }
+
+        String townArg = args[2];
+
+        // Exit - Quitter le mode admin
+        if (townArg.equalsIgnoreCase("exit")) {
+            adminSessionManager.endSession(player);
+            return true;
+        }
+
+        // Démarrer une session admin sur la ville
+        if (adminSessionManager.startSession(player, townArg)) {
+            // Ouvrir directement le menu de la ville
+            if (plugin.getTownMainGUI() != null) {
+                plugin.getTownMainGUI().openMainMenu(player);
+            }
+        }
+
+        return true;
     }
 
     /**

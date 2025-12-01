@@ -50,7 +50,7 @@ public class TownPoliceGUI implements Listener {
     }
 
     private boolean reVerifyPoliceAccess(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.closeInventory();
             player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
@@ -62,6 +62,12 @@ public class TownPoliceGUI implements Listener {
             player.closeInventory();
             player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
             return false;
+        }
+
+        // Admin override = bypass toutes les vérifications
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        if (isAdminOverride) {
+            return true;
         }
 
         TownRole role = town.getMemberRole(player.getUniqueId());
@@ -83,7 +89,7 @@ public class TownPoliceGUI implements Listener {
     }
 
     private boolean reVerifyPoliceAccessNoClose(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             player.sendMessage(ChatColor.RED + "Vous n'êtes plus dans une ville.");
             return false;
@@ -93,6 +99,12 @@ public class TownPoliceGUI implements Listener {
         if (town == null) {
             player.sendMessage(ChatColor.RED + "Erreur: Ville introuvable.");
             return false;
+        }
+
+        // Admin override = bypass toutes les vérifications
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        if (isAdminOverride) {
+            return true;
         }
 
         TownRole role = town.getMemberRole(player.getUniqueId());
@@ -115,7 +127,7 @@ public class TownPoliceGUI implements Listener {
         if (!reVerifyPoliceAccess(player))
             return;
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         Inventory inv = Bukkit.createInventory(null, 45, POLICE_TITLE);
 
         // --- SECTION INTERVENTIONS (Ligne 2) ---
@@ -350,7 +362,7 @@ public class TownPoliceGUI implements Listener {
      * Ouvre le menu des dossiers d'amendes (en attente + contestées)
      */
     private void openFinesDossiersMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) return;
 
         List<Fine> townFines = policeManager.getTownFines(townName);
@@ -631,7 +643,7 @@ public class TownPoliceGUI implements Listener {
                         String firstLine = ChatColor.stripColor(lore.get(0));
                         if (firstLine.startsWith("ID: ")) {
                             String fineIdPrefix = firstLine.substring(4);
-                            String townName = townManager.getPlayerTown(player.getUniqueId());
+                            String townName = townManager.getEffectiveTown(player);
                             List<Fine> townFines = policeManager.getTownFines(townName);
 
                             for (Fine fine : townFines) {
@@ -675,7 +687,7 @@ public class TownPoliceGUI implements Listener {
                 player.sendMessage(ChatColor.RED + "Description trop courte (min 20).");
                 return;
             }
-            String townName = townManager.getPlayerTown(player.getUniqueId());
+            String townName = townManager.getEffectiveTown(player);
             Fine fine = policeManager.issueFine(townName, context.targetUuid, context.targetName, player,
                     context.fineTitle + " - " + input, context.amount);
             if (fine != null) {

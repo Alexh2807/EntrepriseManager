@@ -69,6 +69,18 @@ public class Town {
     public TownLevel getLevel() { return level; }
     public Map<UUID, TownMember> getMembers() { return new HashMap<>(members); }
     public Map<String, Plot> getPlots() { return new HashMap<>(plots); }
+
+    /**
+     * Retourne une collection de plots UNIQUES (dédupliqués).
+     * Pour les terrains groupés, le même Plot est stocké plusieurs fois dans la map
+     * (une fois par chunk). Cette méthode retourne chaque Plot une seule fois.
+     *
+     * UTILISER CETTE MÉTHODE pour les opérations qui doivent traiter chaque terrain une seule fois
+     * (collecte de taxes, vérification d'expiration, etc.)
+     */
+    public java.util.Collection<Plot> getUniquePlots() {
+        return new java.util.LinkedHashSet<>(plots.values());
+    }
     public int getTotalClaims() { return totalClaims; }
     public LocalDateTime getLastTaxCollection() { return lastTaxCollection; }
 

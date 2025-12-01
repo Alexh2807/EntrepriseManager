@@ -378,7 +378,7 @@ public class EntrepriseCommandHandler implements CommandExecutor {
         String typeEntreprise = args[2];
         Player gerantCiblePlayer = Bukkit.getPlayerExact(nomGerantCible);
 
-        if (!entrepriseLogic.estMaire(player)) { player.sendMessage(ChatColor.RED + "Seuls les maires peuvent créer."); return; }
+        if (!entrepriseLogic.estMaireOuAdjoint(player)) { player.sendMessage(ChatColor.RED + "Seuls les maires et adjoints peuvent créer."); return; }
         String villeDuMaire = entrepriseLogic.getTownNameFromPlayer(player);
         if (villeDuMaire == null) { player.sendMessage(ChatColor.RED + "Ville introuvable."); return; }
         if (gerantCiblePlayer == null || !gerantCiblePlayer.isOnline()) { player.sendMessage(ChatColor.RED + "Joueur gérant cible hors ligne ou introuvable."); return; }

@@ -365,7 +365,7 @@ public class PlotOwnerGUI implements Listener {
         } else if (displayName.contains("Retour à Mes Propriétés")) {
             player.closeInventory();
             if (myPropertyGUI != null) {
-                String townName = townManager.getPlayerTown(player.getUniqueId());
+                String townName = townManager.getEffectiveTown(player);
                 if (townName != null) {
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         myPropertyGUI.openPropertyMenu(player, townName);

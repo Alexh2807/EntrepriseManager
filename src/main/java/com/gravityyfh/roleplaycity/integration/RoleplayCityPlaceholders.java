@@ -125,7 +125,130 @@ public class RoleplayCityPlaceholders extends PlaceholderExpansion {
             return identity != null ? "true" : "false";
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // PLACEHOLDERS DE TEMPS (Cycle Jour/Nuit)
+        // ═══════════════════════════════════════════════════════════
+
+        // %roleplaycity_time% → "14:30" (heure in-game formatée)
+        if (identifier.equals("time")) {
+            return getIngameTime();
+        }
+
+        // %roleplaycity_time_hour% → "14" (heure seule)
+        if (identifier.equals("time_hour")) {
+            return getIngameHour();
+        }
+
+        // %roleplaycity_time_minute% → "30" (minutes seules)
+        if (identifier.equals("time_minute")) {
+            return getIngameMinute();
+        }
+
+        // %roleplaycity_time_period% → "Jour" ou "Nuit"
+        if (identifier.equals("time_period")) {
+            return getTimePeriod();
+        }
+
+        // %roleplaycity_time_period_icon% → "☀" ou "☾"
+        if (identifier.equals("time_period_icon")) {
+            return getTimePeriodIcon();
+        }
+
+        // %roleplaycity_time_full% → "☀ 14:30 (Jour)"
+        if (identifier.equals("time_full")) {
+            return getTimePeriodIcon() + " " + getIngameTime() + " (" + getTimePeriod() + ")";
+        }
+
         return null;
+    }
+
+    /**
+     * Obtient l'heure in-game formatée (HH:MM)
+     */
+    private String getIngameTime() {
+        var dayNightTask = plugin.getDayNightCycleTask();
+        if (dayNightTask != null && dayNightTask.isEnabled()) {
+            return dayNightTask.getFormattedTime();
+        }
+        // Fallback: calculer depuis le temps Minecraft vanilla
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
+        if (world != null) {
+            long time = world.getTime();
+            int hours = (int) ((time / 1000 + 6) % 24);
+            int minutes = (int) ((time % 1000) * 60 / 1000);
+            return String.format("%02d:%02d", hours, minutes);
+        }
+        return "??:??";
+    }
+
+    /**
+     * Obtient l'heure in-game (0-23)
+     */
+    private String getIngameHour() {
+        var dayNightTask = plugin.getDayNightCycleTask();
+        if (dayNightTask != null && dayNightTask.isEnabled()) {
+            return String.valueOf(dayNightTask.getCurrentHour());
+        }
+        // Fallback
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
+        if (world != null) {
+            long time = world.getTime();
+            int hours = (int) ((time / 1000 + 6) % 24);
+            return String.valueOf(hours);
+        }
+        return "0";
+    }
+
+    /**
+     * Obtient les minutes in-game (0-59)
+     */
+    private String getIngameMinute() {
+        var dayNightTask = plugin.getDayNightCycleTask();
+        if (dayNightTask != null && dayNightTask.isEnabled()) {
+            return String.format("%02d", dayNightTask.getCurrentMinute());
+        }
+        // Fallback
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
+        if (world != null) {
+            long time = world.getTime();
+            int minutes = (int) ((time % 1000) * 60 / 1000);
+            return String.format("%02d", minutes);
+        }
+        return "00";
+    }
+
+    /**
+     * Obtient la période (Jour/Nuit)
+     */
+    private String getTimePeriod() {
+        var dayNightTask = plugin.getDayNightCycleTask();
+        if (dayNightTask != null && dayNightTask.isEnabled()) {
+            return dayNightTask.isDay() ? "Jour" : "Nuit";
+        }
+        // Fallback
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
+        if (world != null) {
+            long time = world.getTime();
+            return (time < 12000) ? "Jour" : "Nuit";
+        }
+        return "Jour";
+    }
+
+    /**
+     * Obtient l'icône de la période
+     */
+    private String getTimePeriodIcon() {
+        var dayNightTask = plugin.getDayNightCycleTask();
+        if (dayNightTask != null && dayNightTask.isEnabled()) {
+            return dayNightTask.isDay() ? "☀" : "☾";
+        }
+        // Fallback
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
+        if (world != null) {
+            long time = world.getTime();
+            return (time < 12000) ? "☀" : "☾";
+        }
+        return "☀";
     }
 
     /**

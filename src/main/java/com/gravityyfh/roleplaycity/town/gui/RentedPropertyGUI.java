@@ -164,6 +164,24 @@ public class RentedPropertyGUI implements Listener {
         mailboxItem.setItemMeta(mailboxMeta);
         inv.setItem(15, mailboxItem);
 
+        // BOUTON: Gérer Autorisations (slot 16)
+        int authorizedCount = plot.getRenterAuthorizedPlayers().size();
+        int maxAuthorized = Plot.getMaxAuthorizedPlayers();
+
+        ItemStack authItem = new ItemStack(Material.PLAYER_HEAD);
+        ItemMeta authMeta = authItem.getItemMeta();
+        authMeta.setDisplayName(ChatColor.AQUA + "Gérer Autorisations");
+        List<String> authLore = new ArrayList<>();
+        authLore.add(ChatColor.GRAY + "Autoriser d'autres joueurs");
+        authLore.add(ChatColor.GRAY + "à utiliser ce terrain");
+        authLore.add("");
+        authLore.add(ChatColor.YELLOW + "Joueurs autorisés: " + ChatColor.WHITE + authorizedCount + "/" + maxAuthorized);
+        authLore.add("");
+        authLore.add(ChatColor.GREEN + "➜ Cliquez pour gérer");
+        authMeta.setLore(authLore);
+        authItem.setItemMeta(authMeta);
+        inv.setItem(16, authItem);
+
         // BOUTON: Acheter (si disponible à la vente)
         if (forSale) {
             ItemStack buyItem = new ItemStack(Material.DIAMOND);
@@ -228,11 +246,22 @@ public class RentedPropertyGUI implements Listener {
             return;
         }
 
-        // BOUTON: Résilier
+        // BOUTON: Boîte aux lettres (doit être vérifié AVANT "Résilier" car les deux utilisent RED_CONCRETE)
+        if (clicked.getType() == Material.LIME_CONCRETE || clicked.getType() == Material.RED_CONCRETE) {
+            if (clicked.getItemMeta() != null && clicked.getItemMeta().getDisplayName().contains("Gestion Boîte aux Lettres")) {
+                player.closeInventory();
+                handleMailbox(player, town, chunkKey, event.getClick());
+                return;
+            }
+        }
+
+        // BOUTON: Résilier (utilise aussi RED_CONCRETE mais avec un nom différent)
         if (clicked.getType() == Material.RED_CONCRETE) {
-            player.closeInventory();
-            handleCancel(player, town, chunkKey);
-            return;
+            if (clicked.getItemMeta() != null && clicked.getItemMeta().getDisplayName().contains("Résilier")) {
+                player.closeInventory();
+                handleCancel(player, town, chunkKey);
+                return;
+            }
         }
 
         // BOUTON: Acheter
@@ -242,11 +271,12 @@ public class RentedPropertyGUI implements Listener {
             return;
         }
 
-        // BOUTON: Boîte aux lettres
-        if (clicked.getType() == Material.LIME_CONCRETE || clicked.getType() == Material.RED_CONCRETE) {
-            if (clicked.getItemMeta().getDisplayName().contains("Gestion Boîte aux Lettres")) {
+        // BOUTON: Gérer Autorisations
+        if (clicked.getType() == Material.PLAYER_HEAD) {
+            if (clicked.getItemMeta() != null && clicked.getItemMeta().getDisplayName().contains("Gérer Autorisations")) {
                 player.closeInventory();
-                handleMailbox(player, town, chunkKey, event.getClick());
+                handleManageAuthorizations(player, town, chunkKey);
+                return;
             }
         }
     }
@@ -360,6 +390,27 @@ public class RentedPropertyGUI implements Listener {
         } else {
             // Pas de mailbox, placer une nouvelle
             plugin.getMailboxVisualPlacement().startVisualPlacement(player, plot);
+        }
+    }
+
+    /**
+     * Gère l'ouverture du menu de gestion des autorisations pour le locataire
+     */
+    private void handleManageAuthorizations(Player player, Town town, String chunkKey) {
+        String[] parts = chunkKey.split(":");
+        Plot plot = town.getPlot(parts[2], Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+
+        if (plot == null || !player.getUniqueId().equals(plot.getRenterUuid())) {
+            player.sendMessage(ChatColor.RED + "Erreur: Terrain loué introuvable.");
+            return;
+        }
+
+        // Ouvrir le menu d'autorisations en tant que locataire
+        var authGUI = plugin.getPlotAuthorizationGUI();
+        if (authGUI != null) {
+            authGUI.openAuthorizationMenu(player, plot, true); // true = locataire
+        } else {
+            player.sendMessage(ChatColor.RED + "Erreur: Module d'autorisations non disponible.");
         }
     }
 }

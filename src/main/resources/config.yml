@@ -13,6 +13,33 @@
 # restrictions d'activités, et économie des métiers
 
 # ============================================
+#          CYCLE JOUR/NUIT PERSONNALISÉ
+# ============================================
+# Permet de configurer des durées et heures différentes pour le jour et la nuit
+# L'heure affichée est l'heure "roleplay" (ex: 10h → 19h = jour)
+# La luminosité Minecraft suit automatiquement (soleil levé = jour, soleil couché = nuit)
+#
+# Placeholders disponibles (PlaceholderAPI):
+#   %roleplaycity_time%           → "14:30" (heure in-game)
+#   %roleplaycity_time_hour%      → "14"
+#   %roleplaycity_time_minute%    → "30"
+#   %roleplaycity_time_period%    → "Jour" ou "Nuit"
+#   %roleplaycity_time_period_icon% → "☀" ou "☾"
+#   %roleplaycity_time_full%      → "☀ 14:30 (Jour)"
+#
+day-night-cycle:
+  enabled: true                    # Activer le cycle personnalisé
+  world: "world"                   # Nom du monde à gérer
+  day-start-hour: 10               # Heure de début du jour (0-23) - lever du soleil
+  night-start-hour: 19             # Heure de début de la nuit (0-23) - coucher du soleil
+  day-duration-minutes: 50         # Durée IRL du jour (10h → 19h = 9h virtuelles en 50 min IRL)
+  night-duration-minutes: 10       # Durée IRL de la nuit (19h → 10h = 15h virtuelles en 10 min IRL)
+  # Avec ces valeurs:
+  # - Cycle total = 60 minutes IRL (1 heure)
+  # - Jour (10h-19h) = 50 min IRL
+  # - Nuit (19h-10h) = 10 min IRL
+
+# ============================================
 #          OPTIONS DE DEBUG
 # ============================================
 # Active les logs de debug pour diagnostiquer les problèmes

@@ -222,7 +222,8 @@ public class MailboxVisualPlacement implements Listener {
         }
 
         // Tenter de placer la mailbox (ownerUuid retiré, géré par le manager via le plot)
-        boolean success = mailboxManager.placeMailbox(plot, headLocation, selectedType);
+        // Le joueur est passé pour orienter la boîte face à lui
+        boolean success = mailboxManager.placeMailbox(plot, headLocation, selectedType, player);
 
         if (success) {
             player.sendMessage("");

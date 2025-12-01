@@ -155,7 +155,8 @@ public class TownMainGUI implements Listener {
         // FIX: Fermer l'inventaire actuel avant d'ouvrir le nouveau
         player.closeInventory();
 
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        // Utiliser getEffectiveTown pour supporter le mode admin
+        String townName = townManager.getEffectiveTown(player);
 
         if (townName == null) {
             // Joueur sans ville : ouvrir le nouveau NoTownGUI
@@ -166,7 +167,7 @@ public class TownMainGUI implements Listener {
                 openNoTownMenu(player);
             }
         } else {
-            // Joueur avec ville : menu principal de gestion
+            // Joueur avec ville (ou admin en mode admin) : menu principal de gestion
             openTownMenu(player, townName);
         }
     }
@@ -225,9 +226,13 @@ public class TownMainGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 54, "Menu Ville");
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        // Vérifier si l'admin est en mode override sur cette ville
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+
+        // Si admin override, traiter comme MAIRE, sinon récupérer le rôle réel
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
         TownMember member = town.getMember(player.getUniqueId());
-        boolean isAdmin = (role == TownRole.MAIRE || role == TownRole.ADJOINT);
+        boolean isAdmin = isAdminOverride || (role == TownRole.MAIRE || role == TownRole.ADJOINT);
         boolean isArchitect = (role == TownRole.ARCHITECTE);
 
         // ═══════════════════════════════════════════════════════════
@@ -446,7 +451,8 @@ public class TownMainGUI implements Listener {
     }
 
     private void openServicesMenu(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        // Utiliser getEffectiveTown pour supporter le mode admin
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             return;
         }
@@ -456,7 +462,11 @@ public class TownMainGUI implements Listener {
             return;
         }
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        // Vérifier si l'admin est en mode override
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+
+        // Si admin override, traiter comme MAIRE pour avoir accès à tout
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         Inventory inv = Bukkit.createInventory(null, 27, "Services Municipaux");
 
@@ -600,7 +610,7 @@ public class TownMainGUI implements Listener {
                 NavigationManager.sendInfo(player, "AUCUNE PROPRIÉTÉ", "Vous ne possédez actuellement aucun terrain.");
                 return;
             }
-            String currentTownName = townManager.getPlayerTown(player.getUniqueId());
+            String currentTownName = townManager.getEffectiveTown(player);
             plugin.getLogger().info("[DEBUG TownMainGUI] myPropertyGUI is null: " + (myPropertyGUI == null)
                     + ", townName: " + currentTownName);
             if (myPropertyGUI != null && currentTownName != null) {
@@ -631,7 +641,7 @@ public class TownMainGUI implements Listener {
             player.closeInventory();
             // Ouvrir le menu des dettes par défaut, ou un menu combiné
             if (debtManagementGUI != null) {
-                String currentTownName = townManager.getPlayerTown(player.getUniqueId());
+                String currentTownName = townManager.getEffectiveTown(player);
                 debtManagementGUI.openDebtMenu(player, currentTownName);
             }
         } else if (strippedName.contains("Police Municipale")) {
@@ -653,7 +663,7 @@ public class TownMainGUI implements Listener {
             }
         } else if (strippedName.contains("Administration")) {
             player.closeInventory();
-            String currentTownName = townManager.getPlayerTown(player.getUniqueId());
+            String currentTownName = townManager.getEffectiveTown(player);
             if (currentTownName != null && adminGUI != null) {
                 Town town = townManager.getTown(currentTownName);
                 if (town != null) {
@@ -718,7 +728,7 @@ public class TownMainGUI implements Listener {
     }
 
     private void showTownInfo(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
@@ -730,7 +740,8 @@ public class TownMainGUI implements Listener {
             return;
         }
 
-        TownRole role = town.getMemberRole(player.getUniqueId());
+        boolean isAdminOverride = townManager.isAdminOverride(player, townName);
+        TownRole role = isAdminOverride ? TownRole.MAIRE : town.getMemberRole(player.getUniqueId());
 
         // Récupérer le nom du maire via le membre
         String mayorName = "Inconnu";
@@ -749,17 +760,22 @@ public class TownMainGUI implements Listener {
         info.add("Banque: " + String.format("%.2f€", town.getBankBalance()));
         info.add("");
 
-        // Afficher tous les rôles du joueur
-        TownMember member = town.getMember(player.getUniqueId());
-        if (member != null) {
-            Set<TownRole> playerRoles = member.getRoles();
-            if (playerRoles.size() == 1) {
-                info.add("+Votre rôle: " + role.getDisplayName());
-            } else {
-                info.add("+Vos rôles:");
-                // FIX BASSE #16: Renamed 'r' → 'townRole' for clarity
-                for (TownRole townRole : playerRoles) {
-                    info.add("*" + townRole.getDisplayName());
+        // Afficher les rôles (admin override ou membre réel)
+        if (isAdminOverride) {
+            info.add("+Mode Admin: §c§lAdministrateur");
+            info.add("*Vous gérez cette ville en tant qu'admin");
+        } else {
+            TownMember member = town.getMember(player.getUniqueId());
+            if (member != null) {
+                Set<TownRole> playerRoles = member.getRoles();
+                if (playerRoles.size() == 1) {
+                    info.add("+Votre rôle: " + role.getDisplayName());
+                } else {
+                    info.add("+Vos rôles:");
+                    // FIX BASSE #16: Renamed 'r' → 'townRole' for clarity
+                    for (TownRole townRole : playerRoles) {
+                        info.add("*" + townRole.getDisplayName());
+                    }
                 }
             }
         }
@@ -768,7 +784,7 @@ public class TownMainGUI implements Listener {
     }
 
     private void handleShowRules(Player player) {
-        String townName = townManager.getPlayerTown(player.getUniqueId());
+        String townName = townManager.getEffectiveTown(player);
         if (townName == null) {
             NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
             return;
@@ -795,6 +811,13 @@ public class TownMainGUI implements Listener {
     }
 
     private void handleLeaveTown(Player player) {
+        // Un admin en mode override ne peut pas "quitter" une ville dont il n'est pas membre
+        String effectiveTown = townManager.getEffectiveTown(player);
+        if (effectiveTown != null && townManager.isAdminOverride(player, effectiveTown)) {
+            NavigationManager.sendError(player, "Vous êtes en mode admin. Utilisez /ville admin town exit pour quitter ce mode.");
+            return;
+        }
+
         String townName = townManager.getPlayerTown(player.getUniqueId());
         if (townName == null) {
             NavigationManager.sendError(player, "Vous n'êtes dans aucune ville.");
