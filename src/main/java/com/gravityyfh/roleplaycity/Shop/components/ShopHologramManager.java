@@ -183,12 +183,17 @@ public class ShopHologramManager {
             currentHeight -= spacing;
 
             // === LIGNE 5: Stock avec indicateur visuel ===
-            int stock = validator.countItemsInChest(shop);
+            int rawStock = validator.countRawItemsInChest(shop); // Nombre total d'items
+            int availableLots = validator.countItemsInChest(shop); // Nombre de lots achetables
             String stockText;
-            if (stock > 0) {
-                // Afficher le nombre d'items en stock
-                String formattedStock = formatStock(stock);
+            if (availableLots > 0) {
+                // Afficher le nombre total d'items en stock
+                String formattedStock = formatStock(rawStock);
                 stockText = ChatColor.GREEN + "📦 " + ChatColor.WHITE + formattedStock + ChatColor.GRAY + " en stock";
+            } else if (rawStock > 0) {
+                // Il reste des items mais pas assez pour un lot
+                stockText = ChatColor.RED + "⚠ " + ChatColor.DARK_RED + "Stock insuffisant " +
+                    ChatColor.GRAY + "(" + rawStock + "/" + shop.getQuantityPerSale() + ")";
             } else {
                 stockText = ChatColor.RED + "✗ " + ChatColor.DARK_RED + ChatColor.BOLD + "RUPTURE DE STOCK";
             }

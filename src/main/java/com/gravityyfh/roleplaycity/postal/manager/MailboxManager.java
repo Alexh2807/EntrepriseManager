@@ -31,8 +31,23 @@ public class MailboxManager {
     /**
      * Place une nouvelle boîte aux lettres sur un terrain
      * Remplace automatiquement l'ancienne si elle existe (conserve le courrier)
+     * Note: Les terrains PUBLIC ne peuvent pas avoir de boîte aux lettres
      */
     public boolean placeMailbox(Plot plot, Location headLocation, MailboxType type, Player placer) {
+        // Vérifier que le terrain n'est pas PUBLIC (routes, places publiques)
+        if (plot.getType() == com.gravityyfh.roleplaycity.town.data.PlotType.PUBLIC) {
+            if (placer != null) {
+                placer.sendMessage(org.bukkit.ChatColor.RED + "Impossible de placer une boîte aux lettres sur un terrain public.");
+            }
+            return false;
+        }
+
+        // Vérifier que le terrain a un numéro (sécurité supplémentaire)
+        if (plot.getPlotNumber() == null) {
+            plugin.getLogger().warning("Tentative de placement de mailbox sur un terrain sans numéro");
+            return false;
+        }
+
         // Vérifier que la position de la tête est dans le terrain
         if (!isLocationInPlot(headLocation, plot)) {
             plugin.getLogger().warning("Tentative de placement de mailbox hors du terrain");

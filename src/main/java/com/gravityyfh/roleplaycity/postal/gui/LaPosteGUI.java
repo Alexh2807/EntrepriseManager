@@ -247,9 +247,12 @@ public class LaPosteGUI implements Listener {
         }
 
         // Récupérer tous les terrains du résident (propriétaire ou locataire)
+        // IMPORTANT: Dédupliquer les terrains groupés (qui ont plusieurs entrées dans la Map)
+        Set<String> seenIdentifiers = new HashSet<>();
         List<Plot> plots = town.getPlots().values().stream()
             .filter(p -> (p.getOwnerUuid() != null && p.getOwnerUuid().equals(context.targetResidentUuid)) ||
                         (p.getRenterUuid() != null && p.getRenterUuid().equals(context.targetResidentUuid)))
+            .filter(p -> seenIdentifiers.add(p.getIdentifier())) // Déduplique par identifiant
             .collect(Collectors.toList());
 
         if (plots.isEmpty()) {
@@ -310,8 +313,11 @@ public class LaPosteGUI implements Listener {
         }
 
         // Récupérer tous les terrains municipaux de la ville
+        // IMPORTANT: Dédupliquer les terrains groupés (qui ont plusieurs entrées dans la Map)
+        Set<String> seenIdentifiers = new HashSet<>();
         List<Plot> municipalPlots = town.getPlots().values().stream()
             .filter(p -> p.getType() == PlotType.MUNICIPAL)
+            .filter(p -> seenIdentifiers.add(p.getIdentifier())) // Déduplique par identifiant
             .collect(Collectors.toList());
 
         if (municipalPlots.isEmpty()) {
@@ -563,13 +569,15 @@ public class LaPosteGUI implements Listener {
                 return;
             }
 
-            // Récupérer le plot sélectionné
+            // Récupérer le plot sélectionné (avec déduplication des terrains groupés)
             int slot = event.getSlot();
             Town town = townManager.getTown(context.targetTownName);
             if (town != null) {
+                Set<String> seenIdentifiers = new HashSet<>();
                 List<Plot> plots = town.getPlots().values().stream()
                     .filter(p -> (p.getOwnerUuid() != null && p.getOwnerUuid().equals(context.targetResidentUuid)) ||
                                 (p.getRenterUuid() != null && p.getRenterUuid().equals(context.targetResidentUuid)))
+                    .filter(p -> seenIdentifiers.add(p.getIdentifier()))
                     .collect(Collectors.toList());
 
                 if (slot < plots.size()) {
@@ -592,12 +600,14 @@ public class LaPosteGUI implements Listener {
                 return;
             }
 
-            // Récupérer le plot municipal sélectionné
+            // Récupérer le plot municipal sélectionné (avec déduplication des terrains groupés)
             int slot = event.getSlot();
             Town town = townManager.getTown(context.targetTownName);
             if (town != null) {
+                Set<String> seenIdentifiers = new HashSet<>();
                 List<Plot> municipalPlots = town.getPlots().values().stream()
                     .filter(p -> p.getType() == PlotType.MUNICIPAL)
+                    .filter(p -> seenIdentifiers.add(p.getIdentifier()))
                     .collect(Collectors.toList());
 
                 if (slot < municipalPlots.size()) {

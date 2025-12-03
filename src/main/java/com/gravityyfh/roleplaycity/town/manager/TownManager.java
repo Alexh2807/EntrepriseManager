@@ -305,6 +305,9 @@ public class TownManager {
                 "Nouveau membre",
                 String.format("%s a rejoint votre ville !", player.getName()));
 
+        // FIX: Sauvegarder immédiatement après l'ajout du membre
+        saveTownsNow();
+
         return true;
     }
 

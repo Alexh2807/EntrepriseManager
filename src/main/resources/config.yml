@@ -1189,3 +1189,52 @@ lotto-system:
     broadcast-no-winner:
       - "&c      TIRAGE DU LOTO ANNULÉ"
       - "&7  Aucun ticket vendu cette heure-ci."
+
+# ============================================
+#     RÉGÉNÉRATION DES EXPLOSIONS
+# ============================================
+# Restaure automatiquement les blocs détruits par des explosions
+# (TNT, Creepers, Dynamite, etc.) en dehors des villes
+explosion-regeneration:
+  enabled: true                    # Activer/désactiver le système
+  delay-seconds: 60                # Délai avant régénération (en secondes)
+  interval-ticks: 2                # Intervalle entre chaque régénération (en ticks, 20 ticks = 1 sec)
+  blocks-per-tick: 3               # Nombre de blocs régénérés par intervalle
+  particles: true                  # Afficher des particules lors de la régénération
+
+  # Liste des mondes où la régénération est active
+  # Laisser vide [] pour activer dans tous les mondes
+  worlds:
+    - "world"
+    - "world_nether"
+    - "world_the_end"
+
+  # Blocs à ne PAS régénérer (items dropés, blocs non-naturels, etc.)
+  ignored-blocks:
+    - "TNT"
+    - "FIRE"
+    - "TORCH"
+    - "WALL_TORCH"
+    - "REDSTONE_TORCH"
+    - "REDSTONE_WALL_TORCH"
+    - "CHEST"
+    - "TRAPPED_CHEST"
+    - "ENDER_CHEST"
+    - "BARREL"
+    - "HOPPER"
+    - "DROPPER"
+    - "DISPENSER"
+    - "FURNACE"
+    - "BLAST_FURNACE"
+    - "SMOKER"
+    - "CRAFTING_TABLE"
+    - "ENCHANTING_TABLE"
+    - "ANVIL"
+    - "CHIPPED_ANVIL"
+    - "DAMAGED_ANVIL"
+    - "BEACON"
+    - "BREWING_STAND"
+    - "CAULDRON"
+    - "LECTERN"
+    - "SPAWNER"
+    - "BEDROCK"

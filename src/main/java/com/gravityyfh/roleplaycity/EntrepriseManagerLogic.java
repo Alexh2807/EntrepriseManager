@@ -763,7 +763,32 @@ public class EntrepriseManagerLogic {
 
                 // The balance for primes and charges was already updated within their respective methods.
                 // Now, we just add the net revenue from this hour's activities.
-                entreprise.setSolde(entreprise.getSolde() + caNet);
+                // FIX: Respecter la limite de solde maximum de l'entreprise
+                double soldeActuel = entreprise.getSolde();
+                double soldeMax = getLimiteMaxSoldeActuelle(entreprise);
+                double nouveauSolde = soldeActuel + caNet;
+                double pertePlafond = 0; // Montant perdu à cause du plafond bancaire
+
+                if (soldeMax > 0 && nouveauSolde > soldeMax) {
+                    // Plafonner au maximum autorisé
+                    pertePlafond = nouveauSolde - soldeMax;
+                    nouveauSolde = soldeMax;
+                    plugin.getLogger().info("[Finance] Entreprise '" + entreprise.getNom() + "': Solde plafonné à " +
+                        String.format("%,.2f€", soldeMax) + " (+" + String.format("%,.2f€", pertePlafond) + " perdus car limite atteinte)");
+
+                    // Alerter le gérant s'il est en ligne
+                    String gerantUuidStr = entreprise.getGerantUUID();
+                    if (gerantUuidStr != null && !gerantUuidStr.isEmpty()) {
+                        org.bukkit.entity.Player gerant = org.bukkit.Bukkit.getPlayer(java.util.UUID.fromString(gerantUuidStr));
+                        if (gerant != null && gerant.isOnline()) {
+                            gerant.sendMessage(org.bukkit.ChatColor.GOLD + "⚠ [" + entreprise.getNom() + "] " +
+                                org.bukkit.ChatColor.YELLOW + "Solde maximum atteint (" + String.format("%,.2f€", soldeMax) + ") ! " +
+                                org.bukkit.ChatColor.RED + String.format("%,.2f€", pertePlafond) + " de revenus perdus.");
+                            gerant.sendMessage(org.bukkit.ChatColor.GRAY + "→ Améliorez le niveau de solde max dans le menu entreprise.");
+                        }
+                    }
+                }
+                entreprise.setSolde(nouveauSolde);
                 entreprise.setChiffreAffairesTotal(entreprise.getChiffreAffairesTotal() + caBrut);
 
                 // --- 4. Transaction Logging ---
@@ -775,7 +800,7 @@ public class EntrepriseManagerLogic {
                 }
 
                 // --- 5. Report Generation ---
-                genererEtEnvoyerRapportFinancier(entreprise, ancienSolde, revenuActivite, revenuMagasins, montantTaxes, fraisPrimes, fraisChargesSalariales, beneficeFinal);
+                genererEtEnvoyerRapportFinancier(entreprise, ancienSolde, revenuActivite, revenuMagasins, montantTaxes, fraisPrimes, fraisChargesSalariales, beneficeFinal, pertePlafond);
             }
 
             // --- 6. Reset Hourly Data for the next cycle ---
@@ -938,10 +963,10 @@ public class EntrepriseManagerLogic {
     /**
      * Generates and sends the detailed hourly financial report to the company manager.
      */
-    private void genererEtEnvoyerRapportFinancier(Entreprise entreprise, double ancienSolde, double revActivite, double revMagasins, double taxes, double primes, double charges, double benefice) {
+    private void genererEtEnvoyerRapportFinancier(Entreprise entreprise, double ancienSolde, double revActivite, double revMagasins, double taxes, double primes, double charges, double benefice, double pertePlafond) {
         double caBrut = revActivite + revMagasins;
         double totalDepenses = taxes + primes + charges;
-        double nouveauSolde = ancienSolde + benefice;
+        double nouveauSolde = ancienSolde + benefice - pertePlafond; // Le solde réel tient compte de la perte
         String typeEntreprise = entreprise.getType() != null ? entreprise.getType() : "N/A";
         // FIX BASSE #26: Utiliser ConfigDefaults
         double taxRate = plugin.getConfig().getDouble("finance.pourcentage-taxes",
@@ -968,6 +993,15 @@ public class EntrepriseManagerLogic {
 
         String beneficePrefix = benefice >= 0 ? ChatColor.GREEN + "+" : ChatColor.RED + "";
         report.add(String.format(ChatColor.BOLD + "  Bénéfice/Perte Horaire : %s%,.2f €", beneficePrefix, benefice));
+
+        // Afficher la perte due au plafond bancaire si applicable
+        if (pertePlafond > 0) {
+            report.add("");
+            report.add(ChatColor.DARK_RED + "  ⚠ PLAFOND BANCAIRE ATTEINT ⚠");
+            report.add(String.format(ChatColor.RED + "    Revenus perdus : %s-%,.2f €", ChatColor.DARK_RED + "" + ChatColor.BOLD, pertePlafond));
+            report.add(ChatColor.GRAY + "    → Améliorez votre niveau de solde max !");
+        }
+
         report.add("");
         report.add(ChatColor.DARK_AQUA + "  Solde de l'entreprise :");
         report.add(String.format(ChatColor.GRAY + "    Ancien solde : " + ChatColor.WHITE + "%,.2f €", ancienSolde));
@@ -983,7 +1017,13 @@ public class EntrepriseManagerLogic {
         } else {
             OfflinePlayer offlineGerant = Bukkit.getOfflinePlayer(UUID.fromString(entreprise.getGerantUUID()));
             if(offlineGerant.hasPlayedBefore() || offlineGerant.isOnline()){
-                String resume = String.format("Rapport Horaire '%s': Bénéfice/Perte de %.2f€. Nouveau solde: %.2f€.", entreprise.getNom(), benefice, nouveauSolde);
+                String resume;
+                if (pertePlafond > 0) {
+                    resume = String.format("Rapport Horaire '%s': Bénéfice/Perte de %.2f€. " + ChatColor.RED + "⚠ %.2f€ perdus (plafond atteint)!" + ChatColor.GREEN + " Nouveau solde: %.2f€.",
+                        entreprise.getNom(), benefice, pertePlafond, nouveauSolde);
+                } else {
+                    resume = String.format("Rapport Horaire '%s': Bénéfice/Perte de %.2f€. Nouveau solde: %.2f€.", entreprise.getNom(), benefice, nouveauSolde);
+                }
                 ajouterMessageGerantDifferre(entreprise.getGerantUUID(), ChatColor.GREEN + resume, entreprise.getNom());
             }
         }
@@ -1237,6 +1277,34 @@ public class EntrepriseManagerLogic {
     public List<Entreprise> getEntreprisesGereesPar(String nomGerant) { return entreprises.values().stream().filter(e -> e.getGerant() != null && e.getGerant().equalsIgnoreCase(nomGerant)).collect(Collectors.toList()); }
 
     /**
+     * Mapping des items récoltés vers leur bloc de culture correspondant
+     * Utilisé pour autoriser la vente d'items issus de cultures (CARROT -> CARROTS, etc.)
+     */
+    private static final Map<Material, Material> CROP_ITEM_TO_BLOCK = new HashMap<>();
+    static {
+        // Cultures dont le nom de l'item diffère du bloc
+        CROP_ITEM_TO_BLOCK.put(Material.CARROT, Material.CARROTS);
+        CROP_ITEM_TO_BLOCK.put(Material.POTATO, Material.POTATOES);
+        CROP_ITEM_TO_BLOCK.put(Material.BEETROOT, Material.BEETROOTS);
+        // Melon et citrouille (le bloc "STEM" produit l'item)
+        CROP_ITEM_TO_BLOCK.put(Material.MELON_SLICE, Material.MELON);
+        CROP_ITEM_TO_BLOCK.put(Material.PUMPKIN, Material.PUMPKIN);
+        // Canne à sucre
+        CROP_ITEM_TO_BLOCK.put(Material.SUGAR_CANE, Material.SUGAR_CANE);
+        // Cacao
+        CROP_ITEM_TO_BLOCK.put(Material.COCOA_BEANS, Material.COCOA);
+        // Nether wart
+        CROP_ITEM_TO_BLOCK.put(Material.NETHER_WART, Material.NETHER_WART);
+        // Blé (même nom mais ajoutons pour cohérence)
+        CROP_ITEM_TO_BLOCK.put(Material.WHEAT, Material.WHEAT);
+        // Seeds
+        CROP_ITEM_TO_BLOCK.put(Material.WHEAT_SEEDS, Material.WHEAT);
+        CROP_ITEM_TO_BLOCK.put(Material.BEETROOT_SEEDS, Material.BEETROOTS);
+        CROP_ITEM_TO_BLOCK.put(Material.MELON_SEEDS, Material.MELON);
+        CROP_ITEM_TO_BLOCK.put(Material.PUMPKIN_SEEDS, Material.PUMPKIN);
+    }
+
+    /**
      * Vérifie si un item peut être vendu dans un shop selon le type d'entreprise
      * @param typeEntreprise Le type de l'entreprise (ex: "Minage", "Agriculture", "Supermarche", "Styliste")
      * @param itemMaterial Le matériau de l'item à vendre
@@ -1268,6 +1336,16 @@ public class EntrepriseManagerLogic {
             return false;
         }
 
+        // Préparer les matériaux à vérifier (item + son bloc de culture correspondant si applicable)
+        List<String> materialsToCheck = new ArrayList<>();
+        materialsToCheck.add(itemMaterial.name());
+
+        // Si l'item est un produit de culture, ajouter aussi le nom du bloc de culture
+        Material cropBlock = CROP_ITEM_TO_BLOCK.get(itemMaterial);
+        if (cropBlock != null && !cropBlock.name().equals(itemMaterial.name())) {
+            materialsToCheck.add(cropBlock.name());
+        }
+
         // Parcourir tous les types d'actions (BLOCK_BREAK, CRAFT_ITEM, ENTITY_KILL, BLOCK_PLACE, CRAFT_BACKPACK)
         for (String actionType : actionsSection.getKeys(false)) {
             ConfigurationSection materialsSection = plugin.getConfig().getConfigurationSection(
@@ -1278,9 +1356,11 @@ public class EntrepriseManagerLogic {
                 continue;
             }
 
-            // Vérifier si le matériau est dans cette section
-            if (materialsSection.contains(itemMaterial.name())) {
-                return true;
+            // Vérifier si l'un des matériaux est dans cette section
+            for (String materialName : materialsToCheck) {
+                if (materialsSection.contains(materialName)) {
+                    return true;
+                }
             }
         }
 
@@ -2050,42 +2130,7 @@ public class EntrepriseManagerLogic {
         if (montant <= 0) { player.sendMessage(ChatColor.RED + "Montant doit être positif."); return; }
         if (entreprise.getSolde() < montant) { player.sendMessage(ChatColor.RED + "Solde ent. (" + String.format("%,.2f€", entreprise.getSolde()) + ") insuffisant."); return; }
 
-        // FIX MOYENNE: Système de confirmation pour montants >= 1000€
-        if (montant >= 1000.0) {
-            WithdrawalRequest requestEnAttente = retraitsEnAttente.get(player.getUniqueId());
-
-            if (requestEnAttente != null &&
-                requestEnAttente.entrepriseName.equals(nomEntreprise) &&
-                Math.abs(requestEnAttente.amount - montant) < 0.01 &&
-                !requestEnAttente.isExpired()) {
-
-                // Confirmation reçue, procéder au retrait
-                retraitsEnAttente.remove(player.getUniqueId());
-            } else {
-                // Première demande, avertir
-                retraitsEnAttente.put(player.getUniqueId(), new WithdrawalRequest(nomEntreprise, montant));
-
-                player.sendMessage("");
-                player.sendMessage(ChatColor.GOLD + "⚠ CONFIRMATION RETRAIT D'ARGENT ⚠");
-                player.sendMessage(ChatColor.YELLOW + "Entreprise: " + ChatColor.WHITE + nomEntreprise);
-                player.sendMessage(ChatColor.YELLOW + "Montant: " + ChatColor.GREEN + String.format("%,.2f€", montant));
-                player.sendMessage(ChatColor.YELLOW + "Solde restant: " + ChatColor.WHITE + String.format("%,.2f€", entreprise.getSolde() - montant));
-                player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Pour confirmer, retapez la même commande dans les 30 secondes.");
-                player.sendMessage("");
-
-                // Timeout après 30 secondes
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    WithdrawalRequest req = retraitsEnAttente.remove(player.getUniqueId());
-                    if (req != null && req.entrepriseName.equals(nomEntreprise)) {
-                        player.sendMessage(ChatColor.GRAY + "[Entreprise] Demande de retrait expirée.");
-                    }
-                }, CONFIRMATION_TIMEOUT_TICKS);
-
-                return;
-            }
-        }
-
-        // FIX MOYENNE: Log détaillé transaction Vault
+        // Log détaillé transaction Vault
         plugin.getLogger().info("[Vault] DEPOSIT (Retrait entreprise): " + player.getName() + " ← " + String.format("%.2f€", montant) +
             " (Entreprise: " + nomEntreprise + ", Solde avant: " + String.format("%.2f€", entreprise.getSolde()) + ")");
 

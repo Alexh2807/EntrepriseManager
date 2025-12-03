@@ -50,8 +50,12 @@ public class EventListener implements Listener {
             // Vérifier si le bloc a été placé par CE joueur
             blockWasPlacedBySamePlayer = cache.wasPlacedByPlayer(block, player.getName());
 
-            // Vérifier si le bloc a été placé par N'IMPORTE QUEL joueur
-            if (!blockWasPlacedBySamePlayer) {
+            if (blockWasPlacedBySamePlayer) {
+                // FIX CRITIQUE: Si placé par le même joueur, c'est aussi placé par un joueur!
+                // Sans ce fix, les joueurs pouvaient gagner de l'argent en plaçant/cassant leurs blocs
+                blockWasPlayerPlaced = true;
+            } else {
+                // Vérifier si le bloc a été placé par N'IMPORTE QUEL autre joueur
                 blockWasPlayerPlaced = cache.wasPlacedByAnyPlayer(block);
 
                 if (blockWasPlayerPlaced) {

@@ -237,37 +237,74 @@ public class ChatListener implements Listener {
     }
 
     private void handleShopNewPrice(Player player, PlayerInputContext context, String message) {
+        Shop shop = (Shop) context.data;
+        if (shop == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Shop non trouvé.");
+            return;
+        }
+
         try {
             double newPrice = Double.parseDouble(message.replace(',', '.'));
             if (newPrice <= 0) {
                 player.sendMessage(ChatColor.RED + "Le prix doit être un nombre positif.");
+            } else if (newPrice > 1000000000) {
+                player.sendMessage(ChatColor.RED + "Le prix ne peut pas dépasser 1 milliard.");
             } else {
-                // TODO: Réimplémenter le changement de prix de shop
-                player.sendMessage(ChatColor.RED + "Modification de prix temporairement désactivée.");
-                // plugin.getShopManager().changeShopPrice(shop, newPrice);
-                // player.sendMessage(ChatColor.GREEN + "Le prix de la boutique a été mis à jour à " + String.format("%,.2f", newPrice) + "€.");
+                double oldPrice = shop.getPricePerSale();
+                shop.setPricePerSale(newPrice);
+
+                // Mettre à jour les composants visuels (hologramme, panneau)
+                if (plugin.getShopManager() != null) {
+                    plugin.getShopManager().getComponents().updateComponents(shop);
+                }
+
+                player.sendMessage(ChatColor.GREEN + "✓ Prix modifié: " +
+                    ChatColor.GOLD + String.format("%,.2f", oldPrice) + "€" +
+                    ChatColor.GREEN + " → " +
+                    ChatColor.GOLD + String.format("%,.2f", newPrice) + "€");
             }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre (ex: 150.50).");
         }
-        reopenPreviousMenu(player, context);
     }
 
     private void handleShopNewQuantity(Player player, PlayerInputContext context, String message) {
+        Shop shop = (Shop) context.data;
+        if (shop == null) {
+            player.sendMessage(ChatColor.RED + "Erreur: Shop non trouvé.");
+            return;
+        }
+
         try {
             int newQuantity = Integer.parseInt(message);
             if (newQuantity <= 0) {
                 player.sendMessage(ChatColor.RED + "La quantité doit être un nombre entier positif.");
+            } else if (newQuantity > 64) {
+                player.sendMessage(ChatColor.RED + "La quantité ne peut pas dépasser 64 (un stack).");
             } else {
-                // TODO: Réimplémenter le changement de quantité de shop
-                player.sendMessage(ChatColor.RED + "Modification de quantité temporairement désactivée.");
-                // plugin.getShopManager().changeShopQuantity(shop, newQuantity);
-                // player.sendMessage(ChatColor.GREEN + "La quantité par vente a été mise à jour à " + newQuantity + ".");
+                int oldQuantity = shop.getQuantityPerSale();
+                shop.setQuantityPerSale(newQuantity);
+
+                // Mettre à jour les composants visuels (hologramme, panneau)
+                if (plugin.getShopManager() != null) {
+                    plugin.getShopManager().getComponents().updateComponents(shop);
+                }
+
+                player.sendMessage(ChatColor.GREEN + "✓ Quantité par vente modifiée: " +
+                    ChatColor.YELLOW + oldQuantity +
+                    ChatColor.GREEN + " → " +
+                    ChatColor.YELLOW + newQuantity);
+
+                // Avertir si le stock actuel est insuffisant pour le nouveau lot
+                int currentStock = plugin.getShopManager().getValidator().countRawItemsInChest(shop);
+                if (currentStock < newQuantity) {
+                    player.sendMessage(ChatColor.GOLD + "⚠ Attention: stock actuel (" + currentStock +
+                        ") insuffisant pour cette quantité. La boutique sera en rupture.");
+                }
             }
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "Entrée invalide. Veuillez entrer un nombre entier (ex: 16).");
         }
-        reopenPreviousMenu(player, context);
     }
 
     private void handleGenericCallback(PlayerInputContext context, String message) {

@@ -1,5 +1,7 @@
 package com.gravityyfh.roleplaycity.town.data;
 
+import com.gravityyfh.roleplaycity.util.PlayerNameResolver;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -7,14 +9,15 @@ import java.util.UUID;
 
 public class TownMember {
     private final UUID playerUuid;
-    private final String playerName;
+    // Nom stocké uniquement pour fallback si le joueur n'a jamais été vu
+    private final String storedName;
     private final Set<TownRole> roles;
     private final LocalDateTime joinDate;
     private LocalDateTime lastOnline;
 
     public TownMember(UUID playerUuid, String playerName, TownRole role) {
         this.playerUuid = playerUuid;
-        this.playerName = playerName;
+        this.storedName = playerName;
         this.roles = new HashSet<>();
         this.roles.add(role);
         this.joinDate = LocalDateTime.now();
@@ -25,7 +28,7 @@ public class TownMember {
     public TownMember(UUID playerUuid, String playerName, TownRole role, LocalDateTime joinDate,
             LocalDateTime lastOnline) {
         this.playerUuid = playerUuid;
-        this.playerName = playerName;
+        this.storedName = playerName;
         this.roles = new HashSet<>();
         this.roles.add(role);
         this.joinDate = joinDate;
@@ -36,7 +39,7 @@ public class TownMember {
     public TownMember(UUID playerUuid, String playerName, Set<TownRole> roles, LocalDateTime joinDate,
             LocalDateTime lastOnline) {
         this.playerUuid = playerUuid;
-        this.playerName = playerName;
+        this.storedName = playerName;
         this.roles = new HashSet<>(roles);
         this.joinDate = joinDate;
         this.lastOnline = lastOnline;
@@ -46,12 +49,27 @@ public class TownMember {
         return playerUuid;
     }
 
+    /**
+     * Retourne le nom actuel du joueur (résolu dynamiquement via UUID).
+     * Si le joueur a changé son pseudo sur Mojang, le nouveau nom sera retourné.
+     */
     public String getPlayerName() {
-        return playerName;
+        return PlayerNameResolver.getName(playerUuid, storedName);
     }
 
+    /**
+     * Retourne le nom actuel du joueur (alias de getPlayerName).
+     */
     public String getName() {
-        return playerName;
+        return getPlayerName();
+    }
+
+    /**
+     * Retourne le nom stocké en base de données (pour sauvegarde).
+     * Note: Ce nom peut être obsolète si le joueur a changé de pseudo.
+     */
+    public String getStoredName() {
+        return storedName;
     }
 
     /**

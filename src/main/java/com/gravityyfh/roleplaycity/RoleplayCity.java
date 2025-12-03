@@ -45,6 +45,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.Listener.EntityDamageListener entityDamageListener;
     private com.gravityyfh.roleplaycity.Listener.EntityDeathListener entityDeathListener;
     private com.gravityyfh.roleplaycity.Listener.TreeCutListener treeCutListener;
+    private com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener explosionRegenerationListener;
     private EntrepriseManagerLogic entrepriseLogic;
     private ChatListener chatListener;
     private EntrepriseGUI entrepriseGUI;
@@ -340,6 +341,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         playerCache = new com.gravityyfh.roleplaycity.util.PlayerCache(this);
         getServer().getPluginManager().registerEvents(playerCache, this);
         debugLogger.debug("STARTUP", "PlayerCache initialisé avec " + playerCache.getOnlineCount() + " joueurs");
+
+        // Initialiser le cache des noms de joueurs (résolution dynamique des pseudos)
+        com.gravityyfh.roleplaycity.util.PlayerNameResolver.preloadOnlinePlayers();
+        getServer().getPluginManager().registerEvents(new com.gravityyfh.roleplaycity.Listener.PlayerNameCacheListener(), this);
+        debugLogger.debug("STARTUP", "PlayerNameResolver initialisé (résolution dynamique des pseudos)");
 
         // FIX BASSE #10: Initialiser gestionnaire de tâches asynchrones
         asyncTaskManager = new com.gravityyfh.roleplaycity.util.AsyncTaskManager(this);
@@ -1165,6 +1171,18 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             } catch (Exception e) {
                 getLogger().severe("[ShopSystem] ERREUR lors de l'enregistrement du listener: " + e.getMessage());
                 e.printStackTrace();
+            }
+        }
+
+        // Enregistrer le listener de régénération des explosions
+        if (getConfig().getBoolean("explosion-regeneration.enabled", true)) {
+            try {
+                explosionRegenerationListener = new com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener(this);
+                pm.registerEvents(explosionRegenerationListener, this);
+                getLogger().info("[ExplosionRegen] Système de régénération des explosions activé (délai: " +
+                    getConfig().getInt("explosion-regeneration.delay-seconds", 60) + "s)");
+            } catch (Exception e) {
+                getLogger().warning("[ExplosionRegen] Erreur lors de l'initialisation: " + e.getMessage());
             }
         }
 
@@ -2282,6 +2300,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener getPhoneCallListener() {
         return phoneCallListener;
+    }
+
+    // Système de régénération des explosions
+    public com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener getExplosionRegenerationListener() {
+        return explosionRegenerationListener;
     }
 
     /**

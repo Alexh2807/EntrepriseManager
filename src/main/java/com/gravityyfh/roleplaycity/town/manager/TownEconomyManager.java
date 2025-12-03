@@ -629,11 +629,14 @@ public class TownEconomyManager {
      * Vérifie les locations expirées et les termine
      */
     public void checkExpiredRents() {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
         for (Town town : townManager.getAllTowns()) {
             // Utiliser getUniquePlots() pour éviter de traiter les terrains groupés plusieurs fois
             for (Plot plot : town.getUniquePlots()) {
-                // FIX BASSE #7: Utiliser getRentDaysRemaining() au lieu de isRentExpired() deprecated
-                if (plot.getRenterUuid() != null && plot.getRentDaysRemaining() <= 0) {
+                // FIX: Vérifier la date d'expiration exacte au lieu des jours entiers
+                // getRentDaysRemaining() retourne 0 s'il reste < 24h, ce qui causait des expirations prématurées
+                if (plot.getRenterUuid() != null && plot.getRentEndDate() != null && now.isAfter(plot.getRentEndDate())) {
                     // Location expirée
                     UUID renterUuid = plot.getRenterUuid();
                     Player renter = Bukkit.getPlayer(renterUuid);

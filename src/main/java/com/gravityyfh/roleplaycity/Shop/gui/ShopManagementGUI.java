@@ -68,7 +68,8 @@ public class ShopManagementGUI implements Listener {
         // Statistiques
         inv.setItem(13, createInfoButton(Material.PAPER,
             ChatColor.AQUA + "Statistiques",
-            ChatColor.GRAY + "Ventes totales: " + ChatColor.WHITE + shop.getTotalSales(),
+            ChatColor.GRAY + "Items vendus: " + ChatColor.WHITE + shop.getTotalItemsSold(),
+            ChatColor.GRAY + "Transactions: " + ChatColor.WHITE + shop.getTotalSales(),
             ChatColor.GRAY + "Revenu total: " + ChatColor.GOLD + priceFormat.format(shop.getTotalRevenue()) + "€",
             "",
             ChatColor.GRAY + "Top acheteurs:",

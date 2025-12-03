@@ -61,8 +61,22 @@ public class TownMembersGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.AQUA + "👥 Membres de " + townName);
 
-        // Liste des membres
-        int slot = 0;
+        // Bouton retour (haut gauche) - PLACER EN PREMIER pour ne pas écraser les membres
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
+        backItem.setItemMeta(backMeta);
+        inv.setItem(0, backItem);
+
+        // Bouton fermer (haut droite) - PLACER EN PREMIER pour ne pas écraser les membres
+        ItemStack closeItem = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = closeItem.getItemMeta();
+        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
+        closeItem.setItemMeta(closeMeta);
+        inv.setItem(8, closeItem);
+
+        // Liste des membres - COMMENCER À SLOT 9 (après la première ligne de navigation)
+        int slot = 9;
         for (TownMember member : town.getMembers().values()) {
             if (slot >= 45) break; // Réserver les dernières lignes pour les actions
 
@@ -113,20 +127,6 @@ public class TownMembersGUI implements Listener {
             inviteItem.setItemMeta(inviteMeta);
             inv.setItem(48, inviteItem);
         }
-
-        // Bouton retour (haut gauche)
-        ItemStack backItem = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = backItem.getItemMeta();
-        backMeta.setDisplayName(ChatColor.YELLOW + "← Retour");
-        backItem.setItemMeta(backMeta);
-        inv.setItem(0, backItem);
-
-        // Bouton fermer (haut droite)
-        ItemStack closeItem = new ItemStack(Material.BARRIER);
-        ItemMeta closeMeta = closeItem.getItemMeta();
-        closeMeta.setDisplayName(ChatColor.RED + "✖ Fermer");
-        closeItem.setItemMeta(closeMeta);
-        inv.setItem(8, closeItem);
 
         player.openInventory(inv);
     }
