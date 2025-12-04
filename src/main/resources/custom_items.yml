@@ -1,0 +1,325 @@
+# ==================================================================
+# CONFIGURATION DES ITEMS CUSTOMS & ACTIONS
+# RoleplayCity - Système d'objets scriptés
+# ==================================================================
+
+items:
+  # --- CASIER DE POLICE (Bloc posé) ---
+  casier_police:
+    display_name: "&bCasier de Police"
+    itemsadder_id: "my_items:casierpoliceservice"
+    stackable: false  # Ne se stack pas (chaque casier est unique)
+    lore:
+      - "&7Clic droit sur le casier posé"
+      - "&7pour prendre votre service"
+    recipe:
+      enabled: true
+      shape:
+        - " I "
+        - " I "
+        - " I "
+      ingredients:
+        I: IRON_INGOT
+    triggers:
+      RIGHT_CLICK_PLACED_BLOCK:
+        conditions:
+          town_role: [ "POLICIER", "MAIRE", "ADJOINT" ]
+          plot_subtype: [ "COMMISSARIAT" ]
+        actions:
+          - type: PLAYER_POLICE_SERVICE
+          - type: PLAY_SOUND
+            sound: "ITEM_ARMOR_EQUIP_LEATHER"
+            volume: 1.0
+            pitch: 1.0
+
+  # --- CASIER MÉDICAL (Bloc posé) ---
+  casier_medical:
+    display_name: "&aCasier Médical"
+    itemsadder_id: "my_items:casiermedecinservice"
+    stackable: false
+    lore:
+      - "&7Clic droit sur le casier posé"
+      - "&7pour prendre votre service médical"
+    recipe:
+      enabled: true
+      shape:
+        - " E "
+        - " I "
+        - " I "
+      ingredients:
+        E: EMERALD
+        I: IRON_INGOT
+    triggers:
+      RIGHT_CLICK_PLACED_BLOCK:
+        conditions:
+          town_role: [ "MEDECIN", "MAIRE", "ADJOINT" ]
+          plot_subtype: [ "HOPITAL" ]
+        actions:
+          - type: PLAYER_MEDICAL_SERVICE
+          - type: PLAY_SOUND
+            sound: "ITEM_ARMOR_EQUIP_LEATHER"
+            volume: 1.0
+            pitch: 1.0
+
+  # --- CASIER DE JUGE (Bloc posé) ---
+  casier_juge:
+    display_name: "&eCasier de Justice"
+    itemsadder_id: "my_items:casierjugeservice"
+    stackable: false
+    lore:
+      - "&7Clic droit sur le casier posé"
+      - "&7pour prendre votre service de juge"
+    recipe:
+      enabled: true
+      shape:
+        - " G "
+        - " I "
+        - " I "
+      ingredients:
+        G: GOLD_INGOT
+        I: IRON_INGOT
+    triggers:
+      RIGHT_CLICK_PLACED_BLOCK:
+        conditions:
+          town_role: [ "JUGE", "MAIRE", "ADJOINT" ]
+          plot_subtype: [ "TRIBUNAL" ]
+        actions:
+          - type: PLAYER_JUDGE_SERVICE
+          - type: PLAY_SOUND
+            sound: "ITEM_ARMOR_EQUIP_LEATHER"
+            volume: 1.0
+            pitch: 1.0
+
+  # --- DYNAMITE (Physique réaliste - tombe et se pose au sol) ---
+  dynamite:
+    display_name: "&cDynamite"
+    itemsadder_id: "my_items:dynamite"
+    material: LEATHER  # Changé de TNT à LEATHER pour éviter le bug de flash visuel (Material.TNT est un BLOCK)
+    stackable: true  # Se stack normalement (consommable)
+    lore:
+      - "&7Clic droit pour lancer"
+      - "&7Se pose au sol avant d'exploser"
+      - "&cExplosion imminente !"
+
+    recipe:
+      enabled: true
+      shape:
+        - " S "
+        - " T "
+        - "   "
+      ingredients:
+        S: STRING
+        T: TNT
+
+    triggers:
+      RIGHT_CLICK_AIR:
+        actions:
+          - type: THROW_ITEM
+            advanced_physics: true
+            power: 0.6              # Lancer doux
+            throw_angle: 5          # Arc léger
+            gravity: 0.05          # Tombe rapidement (objet lourd)
+            bounce: true          # Ne rebondit pas
+            show_trail: true
+            trail_particle: "SMOKE_NORMAL"
+            rotate: true          # Pas de rotation (reste stable)
+            # === EXPLOSION ===
+            fuse_seconds: 3         # 3 secondes au sol avant explosion
+            explosion_power: 4.0   # Force pour casser les blocs résistants (10.0 = peut casser la stone facilement)
+            explosion_radius: 3   # Rayon précis de destruction (2.5 blocs de rayon)
+            fire: false
+            break_blocks: true
+            damage_entities: true   # Inflige des dégâts aux joueurs/mobs
+            # === PARTICULES ===
+            particle_count: 60      # Nombre de particules de lave (30 = effet moyen, 100 = beaucoup)
+            particle_radius: 1.0    # Rayon de dispersion des particules (0.5 = concentré, 1.5 = dispersé)
+          - type: TAKE_ITEM
+      RIGHT_CLICK_BLOCK:
+        actions:
+          - type: THROW_ITEM
+            advanced_physics: true
+            power: 0.6
+            throw_angle: 5
+            gravity: 0.05
+            bounce: false
+            show_trail: true
+            trail_particle: "SMOKE_NORMAL"
+            rotate: false
+            fuse_seconds: 3
+            explosion_power: 4.0   # Force pour casser les blocs résistants (10.0 = peut casser la stone facilement)
+            explosion_radius: 3   # Rayon précis de destruction (2.5 blocs de rayon)
+            fire: false
+            break_blocks: true
+            damage_entities: true   # Inflige des dégâts aux joueurs/mobs
+            # === PARTICULES ===
+            particle_count: 60      # Nombre de particules de lave (30 = effet moyen, 100 = beaucoup)
+            particle_radius: 1.0    # Rayon de dispersion des particules (0.5 = concentré, 1.5 = dispersé)
+          - type: TAKE_ITEM
+
+
+
+
+
+
+
+
+
+
+
+  # --- ATM / Distributeur de billets ---
+  atm_machine:
+    display_name: "&aDistributeur Automatique"
+    itemsadder_id: "my_items:atm" # ID de votre modèle 3D ItemsAdder
+    material: STONE
+    stackable: false
+    lore:
+      - "&7Clic droit pour placer."
+    
+    recipe:
+      enabled: true
+      shape:
+        - "IGI"
+        - "IRI"
+        - "III"
+      ingredients:
+        I: IRON_BLOCK
+        G: GLASS_PANE
+        R: REDSTONE
+    
+    triggers:
+      RIGHT_CLICK_PLACED_BLOCK:
+        conditions:
+          plot_subtype: [ "BANQUE" ]
+        actions:
+          - type: OPEN_BANK
+          - type: PLAY_SOUND
+            sound: "BLOCK_IRON_DOOR_OPEN"
+            volume: 1.0
+            pitch: 2.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  # --- BOMBE DE CAMBRIOLAGE ---
+  # Système en 2 étapes:
+  # 1. Clic droit sur bloc → pose la bombe (PLACE_HEIST_BOMB)
+  # 2. Clic droit sur la bombe posée → confirmation → démarre le cambriolage
+  heist_bomb:
+    display_name: "&4Bombe de Cambriolage"
+    itemsadder_id: "my_items:bomb"
+    material: LEATHER
+    stackable: false
+    lore:
+      - "&7Clic droit sur un bloc pour poser"
+      - "&7puis clic droit pour confirmer"
+      - "&c⚠ Sur terrain protégé: alerte police"
+      - "&c⚠ Explose après le délai !"
+      - "&7"
+      - "&8Conditions requises:"
+      - "&8- 5 habitants connectés minimum"
+      - "&8- 2 policiers connectés minimum"
+      - "&8- Commissariat dans la ville"
+
+    recipe:
+      enabled: true
+      shape:
+        - "TTT"
+        - "TTT"
+        - "TTT"
+      ingredients:
+        T: TNT
+
+    triggers:
+      RIGHT_CLICK_BLOCK:
+        actions:
+          - type: PLACE_HEIST_BOMB
+          - type: TAKE_ITEM
+
+  # --- TASER (Équipement Police) ---
+  # Note: La logique du taser est gérée par TaserListener
+  # Les triggers sont automatiques via le système police
+  taser:
+    display_name: "&6Taser"
+    itemsadder_id: "my_items:taser"
+    stackable: false
+    lore:
+      - "&7Clic droit pour taser un joueur"
+      - "&7à proximité (3 blocs)"
+      - "&7Charges: &6&l10"
+    recipe:
+      enabled: true
+      mayor_only: true  # Seul le maire peut crafter
+      shape:
+        - " I "
+        - "RSR"
+        - " C "
+      ingredients:
+        I: IRON_INGOT
+        R: REDSTONE
+        S: STICK
+        C: COPPER_INGOT
+
+  # --- MENOTTES (Équipement Police) ---
+  # Note: La logique des menottes est gérée par HandcuffsListener
+  # Les triggers sont automatiques via le système police
+  handcuffs:
+    display_name: "&eMenottes"
+    itemsadder_id: "my_items:handcuffs"
+    stackable: false
+    lore:
+      - "&7Clic droit sur un joueur"
+      - "&7pour le menotter"
+      - "&7Shift pour affaiblir les menottes"
+    recipe:
+      enabled: true
+      mayor_only: true  # Seul le maire peut crafter
+      shape:
+        - "ICI"
+        - " I "
+        - "   "
+      ingredients:
+        I: IRON_INGOT
+        C: CHAIN
+
+  # --- BORNE Automatique - MAIRIE ---
+  borne_mairie:
+    display_name: "&aBorne Automatique - MAIRIE"
+    itemsadder_id: "my_items:bornemairie" # ID de votre modèle 3D ItemsAdder
+    material: STONE
+    stackable: false
+    lore:
+      - "&7Clic droit pour placer."
+
+    recipe:
+      enabled: true
+      shape:
+        - "IGI"
+        - "IGI"
+        - "III"
+      ingredients:
+        I: IRON_BLOCK
+        G: GLASS_PANE
+    triggers:
+      RIGHT_CLICK_PLACED_BLOCK:
+        conditions:
+          plot_subtype: [ "MAIRIE" ]        # conditions:
+        actions:
+          - type: OPEN_MAIRIE
+          - type: PLAY_SOUND
+            sound: "BLOCK_IRON_DOOR_OPEN"
+            volume: 1.0
+            pitch: 2.0
+
+

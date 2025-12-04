@@ -30,6 +30,7 @@ public class BackpackType {
 
     // Craft
     private final boolean craftEnabled;
+    private final boolean craftColoration; // True si recette de teinture (gérée par DyeCraftListener)
     private final List<String> craftPattern;
     private final Map<Character, Material> craftIngredients;
 
@@ -97,6 +98,7 @@ public class BackpackType {
         ConfigurationSection craftConfig = config.getConfigurationSection("craft_recipe");
         if (craftConfig != null) {
             this.craftEnabled = craftConfig.getBoolean("enabled", true);
+            this.craftColoration = craftConfig.getBoolean("coloration", false);
             this.craftPattern = craftConfig.getStringList("pattern");
 
             // Charger les ingrédients
@@ -118,6 +120,7 @@ public class BackpackType {
             }
         } else {
             this.craftEnabled = false;
+            this.craftColoration = false;
             this.craftPattern = new ArrayList<>();
             this.craftIngredients = new HashMap<>();
         }
@@ -174,6 +177,10 @@ public class BackpackType {
 
     public boolean isCraftEnabled() {
         return craftEnabled;
+    }
+
+    public boolean isCraftColoration() {
+        return craftColoration;
     }
 
     public List<String> getCraftPattern() {

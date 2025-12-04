@@ -32,6 +32,12 @@ public class MedicalListener implements Listener {
             return;
         }
 
+        // Ignorer les joueurs MDT - le système MDT gère ses propres morts
+        if (plugin.getMDTRushManager() != null &&
+            plugin.getMDTRushManager().isPlayerInGame(player.getUniqueId())) {
+            return;
+        }
+
         // Si le joueur est déjà blessé, annuler
         if (medicalManager.isInjured(player)) {
             event.setCancelled(true);
@@ -52,6 +58,12 @@ public class MedicalListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+
+        // Ignorer les joueurs MDT - le système MDT gère ses propres morts
+        if (plugin.getMDTRushManager() != null &&
+            plugin.getMDTRushManager().isPlayerInGame(player.getUniqueId())) {
             return;
         }
 

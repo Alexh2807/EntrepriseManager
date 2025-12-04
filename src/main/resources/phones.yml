@@ -1,0 +1,354 @@
+# =============================================================================
+# CONFIGURATION DU SYSTEME DE TELEPHONIE - RoleplayCity
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# TELEPHONES
+# -----------------------------------------------------------------------------
+phones:
+  # --- TÉLÉPHONE BLANC ---
+  phone_white:
+    enabled: true
+    display_name: "&f&lTelephone Blanc"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_white"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: WHITE_DYE
+
+  # --- TÉLÉPHONE NOIR ---
+  phone_black:
+    enabled: true
+    display_name: "&8&lTelephone Noir"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_black"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: BLACK_DYE
+
+  # --- TÉLÉPHONE BLEU ---
+  phone_blue:
+    enabled: true
+    display_name: "&9&lTelephone Bleu"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_blue"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: BLUE_DYE
+
+  # --- TÉLÉPHONE VERT ---
+  phone_green:
+    enabled: true
+    display_name: "&a&lTelephone Vert"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_green"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: GREEN_DYE
+
+  # --- TÉLÉPHONE ORANGE ---
+  phone_orange:
+    enabled: true
+    display_name: "&6&lTelephone Orange"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_orange"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: ORANGE_DYE
+
+  # --- TÉLÉPHONE ROSE ---
+  phone_pink:
+    enabled: true
+    display_name: "&d&lTelephone Rose"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_pink"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: PINK_DYE
+
+  # --- TÉLÉPHONE ROUGE ---
+  phone_red:
+    enabled: true
+    display_name: "&c&lTelephone Rouge"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_red"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: RED_DYE
+
+  # --- TÉLÉPHONE JAUNE ---
+  phone_yellow:
+    enabled: true
+    display_name: "&e&lTelephone Jaune"
+    lore:
+      - "&7Un telephone moderne"
+      - "&7Credit: &e{credits} credits"
+      - ""
+      - "&8Clic droit pour utiliser"
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "my_items:phone_yellow"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IGI"
+        - "IRI"
+        - "IDI"
+      ingredients:
+        I: IRON_INGOT
+        G: GLASS_PANE
+        R: REDSTONE_BLOCK
+        D: YELLOW_DYE
+
+# -----------------------------------------------------------------------------
+# FORFAITS
+# -----------------------------------------------------------------------------
+plans:
+  argent:
+    enabled: true
+    display_name: "&7&lForfait Argent"
+    lore:
+      - "&7Recharge de credit telephonique"
+      - "&fAjoute &e500 credits"
+      - ""
+      - "&8Utilisez sur un telephone"
+    credits: 500
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "iageneric:white_coupon"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - " P "
+        - "PEP"
+        - " P "
+      ingredients:
+        P: PAPER
+        E: IRON_BLOCK
+
+  gold:
+    enabled: true
+    display_name: "&6&lForfait Gold"
+    lore:
+      - "&7Recharge de credit telephonique"
+      - "&fAjoute &e1000 credits"
+      - ""
+      - "&8Utilisez sur un telephone"
+    credits: 1000
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "iageneric:golden_coupon"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - " P "
+        - "PGP"
+        - " P "
+      ingredients:
+        P: PAPER
+        G: GOLD_BLOCK
+
+  platinum:
+    enabled: true
+    display_name: "&b&lForfait Platinum"
+    lore:
+      - "&7Recharge de credit telephonique"
+      - "&fAjoute &e2500 credits"
+      - ""
+      - "&8Utilisez sur un telephone"
+    credits: 2500
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "iageneric:turquoise_coupon"
+    craft_recipe:
+      enabled: true
+      pattern:
+        - " P "
+        - "PDP"
+        - " P "
+      ingredients:
+        P: PAPER
+        D: DIAMOND_BLOCK
+
+# -----------------------------------------------------------------------------
+# COUTS DES SERVICES
+# -----------------------------------------------------------------------------
+costs:
+  call_per_minute: 50      # Credits consommes par minute d'appel
+  sms_per_message: 10      # Credits consommes par SMS envoye
+
+# -----------------------------------------------------------------------------
+# CONFIGURATION MUSIQUE
+# Liste des fichiers audio disponibles sur OpenAudioMc
+# Format: files:chemin/fichier.mp3 ou URL directe
+# -----------------------------------------------------------------------------
+music:
+  tracks:
+    - id: "track_1"
+      name: "GIMS - Ciel"
+      source: "files:music/gims_ciel.mp3"
+
+
+
+# -----------------------------------------------------------------------------
+# SONS SYSTEME
+# -----------------------------------------------------------------------------
+sounds:
+  ringtone: "files:sounds/phone_ringtone.mp3"
+  notification_sms: "files:sounds/sms.mp3"
+  call_end: "files:sounds/call_end.mp3"
+
+# -----------------------------------------------------------------------------
+# MESSAGES
+# -----------------------------------------------------------------------------
+messages:
+  # Erreurs
+  no_credits: "&c[Telephone] Vous n'avez plus de credits ! Rechargez votre forfait."
+  not_connected_voice: "&c[Telephone] Vous devez etre connecte au chat vocal pour utiliser le telephone !"
+  phone_required_hand: "&c[Telephone] Vous devez tenir votre telephone en main pour appeler !"
+  phone_required_inventory: "&c[Telephone] Vous n'avez pas de telephone dans votre inventaire !"
+  number_not_found: "&c[Telephone] Numero introuvable."
+  player_offline: "&c[Telephone] Ce joueur n'est pas connecte."
+  player_not_voice: "&c[Telephone] Ce joueur n'est pas connecte au chat vocal."
+  call_busy: "&c[Telephone] Ce numero est occupe."
+  insufficient_credits: "&c[Telephone] Credits insuffisants (minimum 50 pour 1 minute)."
+
+  # Appels
+  call_started: "&a[Telephone] Communication etablie avec &f{player}&a..."
+  call_ended: "&7[Telephone] Appel termine. Duree: &f{duration} &7- Cout: &e{cost} credits"
+  incoming_call: "&e[Telephone] Appel entrant de &f{caller}&e..."
+  missed_call: "&c[Telephone] Appel manque de &f{caller}"
+  call_rejected: "&7[Telephone] Appel rejete."
+  call_timeout: "&7[Telephone] Pas de reponse."
+  call_disconnected: "&c[Telephone] Appel interrompu - telephone retire."
+  credits_depleted: "&c[Telephone] Credits epuises - appel termine."
+
+  # SMS
+  sms_sent: "&a[Telephone] SMS envoye a &f{number}"
+  sms_received: "&a[SMS de {sender}] {preview}..."
+  sms_new: "&e[Telephone] Vous avez {count} nouveau(x) message(s) !"
+
+  # Forfait
+  credit_added: "&a[Telephone] +{amount} credits ajoutes ! Total: &e{total} credits"
+  credit_balance: "&e[Telephone] Solde: {credits} credits"
+
+  # Numero
+  number_assigned: "&a[Telephone] Votre numero de telephone: &f{number}"
+  your_number: "&e[Telephone] Votre numero: &f{number}"
+
+# -----------------------------------------------------------------------------
+# PARAMETRES DIVERS
+# -----------------------------------------------------------------------------
+settings:
+  # Timeout pour repondre a un appel (secondes)
+  call_timeout: 60
+
+  # Longueur max d'un SMS
+  sms_max_length: 160
+
+  # Nombre max de SMS stockes par conversation
+  sms_history_limit: 50
+
+  # Nombre max de contacts
+  max_contacts: 50
+
+  # Format du numero de telephone (XXX-XXXX)
+  number_format: "XXX-XXXX"

@@ -1,0 +1,218 @@
+# ==================================================================
+# CONFIGURATION DU SYSTÈME DE CAMBRIOLAGE
+# RoleplayCity - Système de braquage roleplay
+# ==================================================================
+
+# Activer/désactiver le système de cambriolage
+enabled: true
+
+# ==================================================================
+# CONDITIONS D'ACTIVATION
+# ==================================================================
+# Ces conditions doivent être remplies pour qu'un cambriolage puisse démarrer
+
+conditions:
+  # Nombre minimum d'habitants connectés dans la ville
+  min-online-citizens: 0
+
+  # Nombre minimum de policiers connectés (POLICIER, MAIRE ou ADJOINT)
+  min-online-police: 0
+
+  # La ville doit posséder un commissariat (MunicipalSubType.COMMISSARIAT)
+  require-commissariat: false
+
+  # Types de terrains pouvant être cambriolés
+  target-plot-types:
+    - PARTICULIER
+    - PROFESSIONNEL
+
+# ==================================================================
+# TIMERS (en secondes)
+# ==================================================================
+
+timers:
+  # Durée du compte à rebours avant explosion de la bombe
+  # Pendant ce temps, la police peut désamorcer
+  countdown-duration: 300
+
+  # Durée de la phase de vol après explosion
+  # Les cambrioleurs ont accès au terrain pendant ce temps
+  robbery-duration: 30
+
+  # Délai de grâce pour reconnexion (minutes)
+  # Si un cambrioleur se déconnecte, il garde son statut pendant ce temps
+  disconnect-grace-minutes: 5
+
+# ==================================================================
+# COOLDOWNS (en heures)
+# ==================================================================
+
+cooldowns:
+  # Délai avant de pouvoir re-cambrioler le même terrain
+  plot-cooldown-hours: 0
+
+  # Délai avant qu'un joueur puisse re-cambrioler (n'importe quel terrain)
+  player-cooldown-hours: 0
+
+# ==================================================================
+# PARAMÈTRES DE LA BOMBE
+# ==================================================================
+
+bomb:
+  # Puissance de l'explosion - Force pour casser les blocs résistants (stone, cobblestone, etc.)
+  # Plus cette valeur est élevée, plus l'explosion peut détruire des blocs résistants
+  # TNT vanilla = 4.0, Valeurs recommandées : 8.0-15.0 pour une bombe de heist destructrice
+  explosion-power: 10.0
+
+  # Rayon de l'explosion en blocs - Contrôle la portée EXACTE de destruction
+  # Indépendant de explosion-power. Permet d'avoir une explosion puissante mais compacte
+  # Valeurs recommandées : 3.0-6.0 pour une bombe de heist
+  explosion-radius: 4.0
+
+  # L'explosion casse les blocs
+  break-blocks: true
+
+  # L'explosion inflige des dégâts aux entités
+  damage-entities: true
+
+  # Créer du feu avec l'explosion
+  create-fire: false
+
+  # Particules de l'explosion
+  particle-count: 80      # Nombre de particules de lave (50 = effet spectaculaire pour une bombe)
+  particle-radius: 1.4   # Rayon de dispersion des particules (1.2 = bien dispersé)
+
+# ==================================================================
+# EFFETS VISUELS ET SONORES
+# ==================================================================
+
+effects:
+  # Afficher un hologramme avec le timer au-dessus de la bombe
+  show-timer-hologram: true
+
+  # Particules autour de la bombe
+  bomb-particles:
+    enabled: false
+    type: FLAME
+    count: 5
+    interval-ticks: 20  # Toutes les secondes
+
+  # Sons de bip qui accélèrent proche de l'explosion
+  beep-sound:
+    enabled: true
+    sound: BLOCK_NOTE_BLOCK_HAT
+    # Intervalle entre les bips (en secondes)
+    # Accélère automatiquement dans les dernières secondes
+    initial-interval: 5
+    final-interval: 0.5  # Quand < 30 secondes restantes
+
+# ==================================================================
+# PUZZLE DE DÉSAMORÇAGE
+# ==================================================================
+
+defuse-puzzle:
+  # Nombre maximum de tentatives pour couper le bon fil
+  max-attempts: 3
+
+  # Pénalité en secondes si mauvais fil coupé (0 = pas de pénalité, juste perte d'une tentative)
+  wrong-wire-penalty-seconds: 15
+
+  # Indice cryptique pour aider la police
+  # %color% sera remplacé par la couleur à NE PAS couper
+  hints:
+    - "Ne coupez pas le fil de la couleur du sang"      # Rouge
+    - "Ne coupez pas le fil de la couleur du ciel"      # Bleu
+    - "Ne coupez pas le fil de la couleur de l'herbe"   # Vert
+    - "Ne coupez pas le fil de la couleur du soleil"    # Jaune
+    - "Ne coupez pas le fil sans couleur"               # Blanc/Gris
+
+# ==================================================================
+# PÉNALITÉS ET RÉCOMPENSES
+# ==================================================================
+
+penalties:
+  # Amende fixe si un cambrioleur est arrêté
+  arrest-fine: 3000
+
+  # Le butin tombe au sol si le cambrioleur meurt
+  death-drops-loot: true
+
+  # Temps de prison supplémentaire pour cambriolage (en plus de l'amende)
+  prison-time-minutes: 60
+
+# ==================================================================
+# NOTIFICATIONS
+# ==================================================================
+
+notifications:
+  # Annonce publique (broadcast) quand un cambriolage commence
+  broadcast-heist-start: true
+
+  # Annonce publique quand un cambriolage se termine
+  broadcast-heist-end: true
+
+  # Notifier le propriétaire du terrain s'il se connecte pendant le cambriolage
+  notify-owner-on-join: true
+
+  # Son d'alerte pour la police
+  police-alert-sound: ENTITY_WITHER_SPAWN
+
+  # Titre affiché aux policiers lors de l'alerte
+  police-alert-title:
+    title: "&c&l🚨 CAMBRIOLAGE EN COURS"
+    subtitle: "&eUn terrain est attaqué dans votre ville!"
+    fade-in: 10
+    stay: 100
+    fade-out: 20
+
+# ==================================================================
+# MESSAGES
+# ==================================================================
+
+messages:
+  # Préfixe des messages
+  prefix: "&8[&4Cambriolage&8] "
+
+  # Erreurs de conditions
+  error-not-enough-citizens: "&cImpossible: Il faut au moins %min% habitants connectés dans la ville."
+  error-not-enough-police: "&cImpossible: Il faut au moins %min% policiers connectés."
+  error-no-commissariat: "&cImpossible: La ville doit posséder un commissariat."
+  error-invalid-plot-type: "&cImpossible: Ce type de terrain ne peut pas être cambriolé."
+  error-plot-cooldown: "&cCe terrain a été cambriolé récemment. Attendez encore %time%."
+  error-player-cooldown: "&cVous avez déjà cambriolé récemment. Attendez encore %time%."
+  error-already-active: "&cUn cambriolage est déjà en cours sur ce terrain!"
+  error-not-participant: "&cVous ne participez pas à ce cambriolage."
+
+  # Démarrage
+  heist-started: "&aVous avez lancé un cambriolage! La bombe explosera dans %time%."
+  heist-join: "&eVous avez rejoint le cambriolage en cours."
+  police-alert: "&c🚨 ALERTE: Un cambriolage est en cours sur le terrain %plot% à %town%!"
+
+  # Désamorçage
+  defuse-success: "&a✓ Bombe désamorcée! Le cambriolage est annulé."
+  defuse-wrong-wire: "&c✗ Mauvais fil! Il vous reste %attempts% tentative(s)."
+  defuse-failed: "&c✗ Échec du désamorçage! La bombe va exploser plus tôt!"
+
+  # Explosion et vol
+  explosion: "&4💥 BOOM! La bombe a explosé! Les cambrioleurs ont %time% pour voler!"
+  robbery-started: "&eLa phase de vol a commencé. Accès au terrain autorisé."
+  robbery-ended: "&7La phase de vol est terminée."
+
+  # Fin du cambriolage
+  heist-success: "&aLe cambriolage s'est terminé avec succès pour les voleurs!"
+  heist-defused: "&aLa police a désamorcé la bombe. Cambriolage échoué!"
+  heist-all-arrested: "&aLa police a arrêté tous les cambrioleurs!"
+
+  # Arrestation
+  arrested-during-heist: "&cVous avez été arrêté pendant le cambriolage!"
+  arrest-fine-message: "&cVous devez payer une amende de &e%amount%€ &cpour cambriolage."
+
+# ==================================================================
+# PERMISSIONS
+# ==================================================================
+
+# Les permissions sont vérifiées dans cet ordre:
+# 1. roleplaycity.heist.bypass - Ignore toutes les restrictions
+# 2. roleplaycity.heist.start - Peut démarrer un cambriolage
+# 3. roleplaycity.heist.defuse - Peut désamorcer (police uniquement)
+# 4. roleplaycity.heist.admin - Commandes admin (/heist stop, etc.)

@@ -1,0 +1,42 @@
+/*
+ * Decompiled with CFR 0.153-SNAPSHOT (d6f6758-dirty).
+ */
+package de.lightplugins.economy.utils;
+
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
+
+public class Sorter {
+    private HashMap<String, Double> list;
+
+    public Sorter(HashMap<String, Double> list) {
+        this.list = list;
+    }
+
+    public TreeMap<String, Double> get() {
+        ValueComparator bvc = new ValueComparator(this.list);
+        TreeMap<String, Double> sorted_map = new TreeMap<String, Double>(bvc);
+        sorted_map.putAll(this.list);
+        return sorted_map;
+    }
+
+    class ValueComparator
+    implements Comparator<String> {
+        Map<String, Double> base;
+
+        public ValueComparator(HashMap<String, Double> map) {
+            this.base = map;
+        }
+
+        @Override
+        public int compare(String a, String b) {
+            if (this.base.get(a) >= this.base.get(b)) {
+                return -1;
+            }
+            return 1;
+        }
+    }
+}
+

@@ -238,6 +238,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener phoneCallListener;
     private com.gravityyfh.roleplaycity.phone.listener.PhoneChatListener phoneChatListener;
 
+    // Système MDT Rush (Mini-jeu BedWars-like)
+    private com.gravityyfh.roleplaycity.mdt.config.MDTConfig mdtConfig;
+    private com.gravityyfh.roleplaycity.mdt.MDTRushManager mdtRushManager;
+
     public void onEnable() {
         // Force log via Logger to ensure it appears in console even if stdout is redirected
         java.util.logging.Logger.getGlobal().info("[RPC-ENABLE] onEnable() method has been called! (Global Logger)");
@@ -867,6 +871,19 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             }
         }
 
+        // Système MDT Rush (Mini-jeu style BedWars)
+        try {
+            getLogger().info("[DEBUG] Initialisation du système MDT Rush...");
+            mdtConfig = new com.gravityyfh.roleplaycity.mdt.config.MDTConfig(this);
+            mdtRushManager = new com.gravityyfh.roleplaycity.mdt.MDTRushManager(this, mdtConfig);
+            mdtRushManager.registerListeners();
+            getLogger().info("[MDT] Système MDT Rush initialisé avec succès!");
+        } catch (Exception e) {
+            getLogger().warning("[MDT] MDT Rush désactivé: " + e.getMessage());
+            e.printStackTrace();
+            mdtRushManager = null;
+        }
+
         getLogger().info("Tous les composants ont été initialisés avec succès.");
     }
 
@@ -874,6 +891,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Nettoyer le système de cambriolage
         if (heistManager != null) {
             heistManager.shutdown();
+        }
+
+        // Nettoyer le système MDT Rush
+        if (mdtRushManager != null) {
+            getLogger().info("[MDT] Arrêt du système MDT Rush...");
+            mdtRushManager.shutdown();
+            getLogger().info("[MDT] Système MDT Rush arrêté");
         }
 
         // Nettoyer le système de backpacks
@@ -1371,6 +1395,18 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().info("Commande /phone enregistree");
         } else {
             getLogger().warning("Commande /phone non trouvee dans plugin.yml");
+        }
+
+        // Commande MDT Rush
+        var mdtCmd = getCommand("mdt");
+        if (mdtCmd != null && mdtRushManager != null) {
+            com.gravityyfh.roleplaycity.mdt.command.MDTCommandHandler mdtHandler =
+                new com.gravityyfh.roleplaycity.mdt.command.MDTCommandHandler(this, mdtRushManager);
+            mdtCmd.setExecutor(mdtHandler);
+            mdtCmd.setTabCompleter(mdtHandler);
+            getLogger().info("[MDT] Commande /mdt enregistree");
+        } else if (mdtCmd == null) {
+            getLogger().warning("[MDT] Commande /mdt non trouvee dans plugin.yml");
         }
     }
 
@@ -2075,6 +2111,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     // FIX PERFORMANCES: Getter pour block place cache
     public com.gravityyfh.roleplaycity.util.PlayerBlockPlaceCache getBlockPlaceCache() {
         return blockPlaceCache;
+    }
+
+    // Getter pour MDT Rush Manager
+    public com.gravityyfh.roleplaycity.mdt.MDTRushManager getMDTRushManager() {
+        return mdtRushManager;
     }
 
     public TownCommandHandler getTownCommandHandler() {
