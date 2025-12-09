@@ -1,0 +1,123 @@
+/*
+ * Decompiled with CFR 0.153-SNAPSHOT (d6f6758-dirty).
+ * 
+ * Could not load the following classes:
+ *  net.milkbowl.vault.economy.EconomyResponse
+ *  org.bukkit.configuration.file.FileConfiguration
+ *  org.bukkit.entity.Player
+ */
+package de.lightplugins.economy.commands.money;
+
+import de.lightplugins.economy.database.querys.MoneyTableAsync;
+import de.lightplugins.economy.enums.MessagePath;
+import de.lightplugins.economy.enums.PermissionPath;
+import de.lightplugins.economy.master.Main;
+import de.lightplugins.economy.utils.SubCommand;
+import java.util.concurrent.ExecutionException;
+import net.milkbowl.vault.economy.EconomyResponse;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+
+public class MoneyAddCommand
+extends SubCommand {
+    @Override
+    public String getName() {
+        return "add";
+    }
+
+    @Override
+    public String getDescription() {
+        return "add Money to Player";
+    }
+
+    @Override
+    public String getSyntax() {
+        return "/money add " + Main.util.languagePlayer() + " " + Main.util.languageAmount();
+    }
+
+    @Override
+    public boolean perform(Player player, String[] args) {
+        try {
+            // LOG VISIBLE: Pour identifier le problème
+            player.sendMessage("§a[DEBUG] MoneyAddCommand.perform() appelé avec " + args.length + " arguments");
+            org.bukkit.Bukkit.getLogger().info("[MoneyAddCommand] Called by " + player.getName() + " with args: " + java.util.Arrays.toString(args));
+
+            player.sendMessage("§e[DEBUG] Récupération de la config...");
+            FileConfiguration settings = Main.settings.getConfig();
+            double maxPocketBalance = settings.getDouble("settings.max-pocket-balance");
+            player.sendMessage("§e[DEBUG] Config OK, maxPocketBalance = " + maxPocketBalance);
+
+        player.sendMessage("§e[DEBUG] Vérification des arguments...");
+        // DEBUG: Log de la commande (peut causer une NPE si debugPrinting est null)
+        if (Main.debugPrinting != null) {
+            // Main.debugPrinting.sendInfo("MoneyAddCommand called by " + player.getName() + " with args: " + java.util.Arrays.toString(args));
+        }
+
+        player.sendMessage("§e[DEBUG] Test args.length = " + args.length);
+        if (args.length != 3) {
+            Main.util.sendMessage(player, MessagePath.WrongCommand.getPath().replace("#command#", this.getSyntax()));
+            return true;
+        }
+
+        // DEBUG: V\u00e9rification du compte
+        // Main.debugPrinting.sendInfo("Checking if account exists for: " + args[1]);
+        if (!Main.economyImplementer.hasAccount(args[1])) {
+            Main.util.sendMessage(player, MessagePath.PlayerNotExists.getPath());
+            // Main.debugPrinting.sendError("Account does not exist for: " + args[1]);
+            return false;
+        }
+
+        // DEBUG: V\u00e9rification de la permission
+        String perm = PermissionPath.MoneyAdd.getPerm();
+        boolean hasPerm = player.hasPermission(perm);
+        boolean isOp = player.isOp();
+        // Main.debugPrinting.sendInfo("Permission check: perm=" + perm + ", hasPerm=" + hasPerm + ", isOp=" + isOp);
+
+        // Accepter si le joueur a la permission OU s'il est OP
+        if (!hasPerm) {
+            if (!isOp) {
+                Main.util.sendMessage(player, MessagePath.NoPermission.getPath());
+                // Main.debugPrinting.sendError("No permission for " + player.getName());
+                return false;
+            }
+            // Main.debugPrinting.sendInfo("Player is OP, allowing command despite missing permission");
+        }
+        try {
+            MoneyTableAsync moneyTableAsync = new MoneyTableAsync(Main.getInstance);
+            try {
+                double amount = Double.parseDouble(args[2]);
+                double playerBalance = moneyTableAsync.playerBalance(args[1]).get();
+                if (playerBalance + amount > maxPocketBalance) {
+                    Main.util.sendMessage(player, MessagePath.TransactionFailed.getPath().replace("#reason#", "This value reached the max pocket balance of " + maxPocketBalance + "!"));
+                    return false;
+                }
+                if (amount == 0.0) {
+                    Main.util.sendMessage(player, MessagePath.NotZero.getPath().replace("#min-amount#", "0.01").replace("#currency#", Main.util.getCurrency(0.0)));
+                    return true;
+                }
+                if (amount < 0.0) {
+                    Main.util.sendMessage(player, MessagePath.OnlyPositivNumbers.getPath());
+                    return true;
+                }
+                EconomyResponse moneyAdd = Main.economyImplementer.depositPlayer(args[1], amount);
+                if (moneyAdd.transactionSuccess()) {
+                    Main.util.sendMessage(player, MessagePath.MoneyAddPlayer.getPath().replace("#amount#", Main.util.finalFormatDouble(amount)).replace("#target#", args[1]).replace("#currency#", Main.util.getCurrency(amount)).replace("#balance#", Main.util.finalFormatDouble(playerBalance + amount)));
+                    return true;
+                }
+                // Main.debugPrinting.sendError(moneyAdd.errorMessage);
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException("Something went wrong on player add money", e);
+            }
+        } catch (NumberFormatException notANumber) {
+            player.sendMessage("§c[DEBUG] Erreur NumberFormat: " + notANumber.getMessage());
+            Main.util.sendMessage(player, MessagePath.NotANumber.getPath());
+        }
+        return false;
+        } catch (Exception globalEx) {
+            player.sendMessage("§4[DEBUG] ERREUR GLOBALE: " + globalEx.getClass().getName() + ": " + globalEx.getMessage());
+            globalEx.printStackTrace();
+            return false;
+        }
+    }
+}
+

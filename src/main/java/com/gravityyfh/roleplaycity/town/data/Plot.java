@@ -1,5 +1,6 @@
 package com.gravityyfh.roleplaycity.town.data;
 
+import com.gravityyfh.roleplaycity.util.PlayerNameResolver;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 
@@ -23,7 +24,7 @@ public class Plot {
     private MunicipalSubType municipalSubType;
 
     private UUID ownerUuid; // Pour PARTICULIER : UUID joueur, Pour PROFESSIONNEL : UUID gérant
-    private String ownerName;
+    private String storedOwnerName; // Nom stocké pour fallback (peut être obsolète)
     private String companyName; // Pour PROFESSIONNEL uniquement
     private String companySiret; // SIRET de l'entreprise propriétaire (PROFESSIONNEL uniquement)
 
@@ -223,7 +224,22 @@ public class Plot {
 
     public UUID getOwnerUuid() { return ownerUuid; }
 
-    public String getOwnerName() { return ownerName; }
+    /**
+     * Retourne le nom actuel du propriétaire (résolu dynamiquement via UUID).
+     * Si le joueur a changé son pseudo sur Mojang, le nouveau nom sera retourné.
+     * Si le terrain n'a pas de propriétaire, retourne "Municipal".
+     */
+    public String getOwnerName() {
+        if (ownerUuid == null && storedOwnerName == null) {
+            return "Municipal";
+        }
+        return PlayerNameResolver.getName(ownerUuid, storedOwnerName);
+    }
+
+    /**
+     * Retourne le nom stocké en base de données (pour sauvegarde).
+     */
+    public String getStoredOwnerName() { return storedOwnerName; }
 
     public String getCompanyName() { return companyName; }
 
@@ -254,6 +270,14 @@ public class Plot {
     public boolean isForRent() { return forRent; }
 
     public UUID getRenterUuid() { return renterUuid; }
+
+    /**
+     * Retourne le nom actuel du locataire (résolu dynamiquement via UUID).
+     * Si le joueur a changé son pseudo sur Mojang, le nouveau nom sera retourné.
+     */
+    public String getRenterName() {
+        return PlayerNameResolver.getName(renterUuid);
+    }
 
     public String getRenterCompanySiret() { return renterCompanySiret; }
 
@@ -299,7 +323,7 @@ public class Plot {
         }
 
         this.ownerUuid = ownerUuid;
-        this.ownerName = ownerName;
+        this.storedOwnerName = ownerName;
 
         // Fire event
         com.gravityyfh.roleplaycity.town.event.PlotOwnerChangeEvent event =
@@ -757,7 +781,7 @@ public class Plot {
         clearOwnerAuthorizations();
 
         this.ownerUuid = null;
-        this.ownerName = null;
+        this.storedOwnerName = null;
         this.companyName = null;
         this.forSale = false;
         this.forRent = false;
@@ -803,6 +827,16 @@ public class Plot {
     }
 
     public boolean canPlayerBuild(UUID playerUuid, TownRole role) {
+        // PRIORITÉ 1: Locataire peut TOUJOURS construire sur son terrain loué
+        if (isRentedBy(playerUuid)) {
+            return true;
+        }
+
+        // PRIORITÉ 2: Joueur autorisé peut construire
+        if (hasAuthorization(playerUuid)) {
+            return true;
+        }
+
         // Public : espaces communs (routes, places, parcs) - seuls maire/adjoints peuvent aménager
         if (isPublic()) {
             return role == TownRole.MAIRE || role == TownRole.ADJOINT;
@@ -813,13 +847,13 @@ public class Plot {
             return role == TownRole.ARCHITECTE || role == TownRole.MAIRE || role == TownRole.ADJOINT;
         }
 
-        // Terrain non-attribué (pas de propriétaire) : maire et adjoints peuvent construire
+        // Terrain non-attribué (pas de propriétaire, pas de locataire) : maire et adjoints
         if (ownerUuid == null) {
             return role == TownRole.MAIRE || role == TownRole.ADJOINT;
         }
 
-        // Particulier/Professionnel : propriétaire, locataire OU joueur autorisé
-        return isOwnedBy(playerUuid) || isRentedBy(playerUuid) || hasAuthorization(playerUuid);
+        // Particulier/Professionnel : propriétaire uniquement (locataire déjà vérifié)
+        return isOwnedBy(playerUuid);
     }
 
     /**

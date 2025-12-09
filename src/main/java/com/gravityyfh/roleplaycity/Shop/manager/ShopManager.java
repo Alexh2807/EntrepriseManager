@@ -168,9 +168,9 @@ public class ShopManager {
             20L * autoSaveInterval
         );
 
-        // Vérification d'intégrité toutes les 5 minutes
+        // Vérification d'intégrité toutes les 5 minutes (sur thread principal)
         int integrityCheckInterval = plugin.getConfig().getInt("shop-system.integrity-check-interval", 300);
-        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,
+        Bukkit.getScheduler().runTaskTimer(plugin,
             this::checkIntegrity,
             20L * integrityCheckInterval,
             20L * integrityCheckInterval
@@ -569,10 +569,16 @@ public class ShopManager {
         lock.lock();
 
         try {
-            // 1. Valider l'intégrité
+            // 1. Valider l'intégrité - seul le coffre manquant est critique pour un achat
             ValidationResult validation = validator.validateShop(shop);
-            if (!validation.isValid()) {
+            if (!validation.isValid() && validation.getSuggestedAction() == RepairAction.DELETE) {
+                // Coffre manquant = shop vraiment cassé
                 return PurchaseResult.shopBroken();
+            }
+
+            // Si autres problèmes (hologramme/panneau manquant), tenter de réparer silencieusement
+            if (!validation.isValid() && validation.getSuggestedAction() == RepairAction.REPAIR) {
+                components.updateComponents(shop);
             }
 
             // 2. Vérifier le stock
@@ -636,6 +642,15 @@ public class ShopManager {
                 shop.getPricePerSale(),
                 shop.getShopId().toString().substring(0, 8)
             ));
+
+            // 11. Vérifier si le stock restant est suffisant pour le prochain achat
+            int remainingStock = validator.countRawItemsInChest(shop);
+            if (remainingStock < shop.getQuantityPerSale()) {
+                // Stock insuffisant pour un autre lot → mettre en rupture
+                shop.setStatus(ShopStatus.OUT_OF_STOCK);
+                plugin.getLogger().info("[ShopSystem] Shop " + shop.getShopId().toString().substring(0, 8) +
+                    " mis en rupture (reste " + remainingStock + " items, lot de " + shop.getQuantityPerSale() + ")");
+            }
 
             // Mettre à jour l'affichage
             components.updateComponents(shop);

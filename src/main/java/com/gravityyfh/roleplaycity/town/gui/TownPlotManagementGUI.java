@@ -268,11 +268,23 @@ public class TownPlotManagementGUI implements Listener {
         }
 
         // === LIGNE 2: Configuration ===
-        // Boîte aux lettres (slot 15 - Maire/Adjoint OU Propriétaire/Locataire, terrains PARTICULIER et PROFESSIONNEL)
-        boolean canManageMailbox = ((role == TownRole.MAIRE || role == TownRole.ADJOINT) ||
-            (plot.getOwnerUuid() != null &&
-             (plot.getOwnerUuid().equals(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId())))) &&
-            (plot.getType() == PlotType.PARTICULIER || plot.getType() == PlotType.PROFESSIONNEL);
+        // Boîte aux lettres (slot 15)
+        // - MUNICIPAL: Uniquement Maire/Adjoint
+        // - PARTICULIER/PROFESSIONNEL: Maire/Adjoint OU Propriétaire/Locataire
+        // - PUBLIC: Pas de mailbox possible
+        boolean isMaireOrAdjoint = (role == TownRole.MAIRE || role == TownRole.ADJOINT);
+        boolean isOwnerOrRenter = plot.getOwnerUuid() != null &&
+            (plot.getOwnerUuid().equals(player.getUniqueId()) || plot.isRentedBy(player.getUniqueId()));
+
+        boolean canManageMailbox;
+        if (plot.getType() == PlotType.PUBLIC) {
+            canManageMailbox = false; // Pas de mailbox sur terrain PUBLIC
+        } else if (plot.getType() == PlotType.MUNICIPAL) {
+            canManageMailbox = isMaireOrAdjoint; // Uniquement Maire/Adjoint sur MUNICIPAL
+        } else {
+            // PARTICULIER ou PROFESSIONNEL: Maire/Adjoint OU Propriétaire/Locataire
+            canManageMailbox = isMaireOrAdjoint || isOwnerOrRenter;
+        }
 
         if (canManageMailbox) {
             boolean hasMailbox = plot.hasMailbox();
@@ -569,10 +581,11 @@ public class TownPlotManagementGUI implements Listener {
                             plot.setMunicipalSubType(MunicipalSubType.NONE);
                         }
 
-                        // 📬 Supprimer la boîte aux lettres si on passe en PUBLIC ou MUNICIPAL
-                        if ((selectedType == PlotType.PUBLIC || selectedType == PlotType.MUNICIPAL) && plot.hasMailbox()) {
+                        // 📬 Supprimer la boîte aux lettres uniquement si on passe en PUBLIC (routes, places)
+                        // Note: MUNICIPAL peut garder une boîte aux lettres (ex: mairie, commissariat)
+                        if (selectedType == PlotType.PUBLIC && plot.hasMailbox()) {
                             plugin.getMailboxManager().removeMailbox(plot);
-                            player.sendMessage(ChatColor.YELLOW + "→ La boîte aux lettres a été supprimée (incompatible avec le type " + selectedType.getDisplayName() + ")");
+                            player.sendMessage(ChatColor.YELLOW + "→ La boîte aux lettres a été supprimée (incompatible avec terrain public)");
                         }
 
                         // Si on passe à PARTICULIER, PROFESSIONNEL ou MUNICIPAL depuis PUBLIC, attribuer un numéro

@@ -42,7 +42,8 @@ public class Shop {
     private final LocalDateTime creationDate;
     private LocalDateTime lastStockCheck;
     private LocalDateTime lastPurchase;
-    private int totalSales;
+    private int totalSales;        // Nombre de transactions (lots vendus)
+    private int totalItemsSold;    // Nombre total d'items vendus
     private double totalRevenue;
 
     // === STATUT ===
@@ -84,6 +85,7 @@ public class Shop {
         this.cachedStock = 0;
 
         this.totalSales = 0;
+        this.totalItemsSold = 0;
         this.totalRevenue = 0.0;
         this.hologramTextEntityIds = new ArrayList<>();
         this.topBuyers = new HashMap<>();
@@ -96,7 +98,7 @@ public class Shop {
                  Location chestLocation, Location signLocation, Location hologramLocation,
                  ItemStack itemTemplate, int quantityPerSale, double pricePerSale,
                  LocalDateTime creationDate, LocalDateTime lastStockCheck, LocalDateTime lastPurchase,
-                 int totalSales, double totalRevenue, ShopStatus status,
+                 int totalSales, int totalItemsSold, double totalRevenue, ShopStatus status,
                  UUID displayItemEntityId, List<UUID> hologramTextEntityIds,
                  Map<String, Integer> topBuyers) {
         this.shopId = shopId;
@@ -114,6 +116,7 @@ public class Shop {
         this.lastStockCheck = lastStockCheck;
         this.lastPurchase = lastPurchase;
         this.totalSales = totalSales;
+        this.totalItemsSold = totalItemsSold;
         this.totalRevenue = totalRevenue;
         this.status = status;
         this.displayItemEntityId = displayItemEntityId;
@@ -181,6 +184,10 @@ public class Shop {
 
     public int getTotalSales() {
         return totalSales;
+    }
+
+    public int getTotalItemsSold() {
+        return totalItemsSold;
     }
 
     public double getTotalRevenue() {
@@ -253,6 +260,7 @@ public class Shop {
      */
     public void incrementSales() {
         this.totalSales++;
+        this.totalItemsSold += this.quantityPerSale; // Ajoute le nombre d'items vendus
     }
 
     /**
@@ -303,6 +311,7 @@ public class Shop {
             map.put("lastPurchase", lastPurchase.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
         map.put("totalSales", totalSales);
+        map.put("totalItemsSold", totalItemsSold);
         map.put("totalRevenue", totalRevenue);
 
         // Statut
@@ -365,6 +374,7 @@ public class Shop {
                 ? LocalDateTime.parse((String) map.get("lastPurchase"), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                 : null;
             int totalSales = ((Number) map.getOrDefault("totalSales", 0)).intValue();
+            int totalItemsSold = ((Number) map.getOrDefault("totalItemsSold", 0)).intValue();
             double totalRevenue = ((Number) map.getOrDefault("totalRevenue", 0.0)).doubleValue();
 
             // Statut
@@ -399,7 +409,7 @@ public class Shop {
                 Shop shop = new Shop(id, entrepriseName, siret, ownerId, ownerName,
                     chestLoc, signLoc, hologramLoc, item, quantity, price,
                     creationDate, lastStockCheck, lastPurchase,
-                    totalSales, totalRevenue, status,
+                    totalSales, totalItemsSold, totalRevenue, status,
                     displayItemId, hologramIds, topBuyers);
                 shop.setCachedStock(cachedStock);
                 return shop;

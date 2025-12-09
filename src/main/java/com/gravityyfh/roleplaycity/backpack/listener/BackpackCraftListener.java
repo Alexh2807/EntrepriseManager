@@ -44,7 +44,8 @@ public class BackpackCraftListener implements Listener {
         unregisterRecipes();
 
         for (BackpackType type : itemManager.getBackpackTypes().values()) {
-            if (!type.isCraftEnabled()) {
+            if (!type.isCraftEnabled() || type.isCraftColoration()) {
+                // Les recettes avec coloration: true sont gérées par DyeCraftListener
                 continue;
             }
 

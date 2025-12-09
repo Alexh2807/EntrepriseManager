@@ -1,0 +1,21 @@
+titles:
+  deposit-wallet:
+    enable: true
+    min-trigger-amount: 1000.0
+    counter:
+      upper-line: '&7Dépôt &asur &7portefeuille'
+      lower-line: '&a+ &7#amount#'
+    final:
+      sound: BLOCK_NOTE_BLOCK_HAT
+      upper-line: '&a+ &7#amount#'
+      lower-line: '&7Argent reçu'
+  withdraw-wallet:
+    enable: true
+    min-trigger-amount: 1000.0
+    counter:
+      upper-line: '&7Retrait &cdu &7portefeuille'
+      lower-line: '&c- &7#amount#'
+    final:
+      sound: ENTITY_DRAGON_FIREBALL_EXPLODE
+      upper-line: '&c- &7#amount#'
+      lower-line: '&7Achat effectué'

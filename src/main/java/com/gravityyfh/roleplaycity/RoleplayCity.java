@@ -45,6 +45,7 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.Listener.EntityDamageListener entityDamageListener;
     private com.gravityyfh.roleplaycity.Listener.EntityDeathListener entityDeathListener;
     private com.gravityyfh.roleplaycity.Listener.TreeCutListener treeCutListener;
+    private com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener explosionRegenerationListener;
     private EntrepriseManagerLogic entrepriseLogic;
     private ChatListener chatListener;
     private EntrepriseGUI entrepriseGUI;
@@ -237,6 +238,10 @@ public class RoleplayCity extends JavaPlugin implements Listener {
     private com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener phoneCallListener;
     private com.gravityyfh.roleplaycity.phone.listener.PhoneChatListener phoneChatListener;
 
+    // Système MDT Rush (Mini-jeu BedWars-like)
+    private com.gravityyfh.roleplaycity.mdt.config.MDTConfig mdtConfig;
+    private com.gravityyfh.roleplaycity.mdt.MDTRushManager mdtRushManager;
+
     public void onEnable() {
         // Force log via Logger to ensure it appears in console even if stdout is redirected
         java.util.logging.Logger.getGlobal().info("[RPC-ENABLE] onEnable() method has been called! (Global Logger)");
@@ -340,6 +345,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         playerCache = new com.gravityyfh.roleplaycity.util.PlayerCache(this);
         getServer().getPluginManager().registerEvents(playerCache, this);
         debugLogger.debug("STARTUP", "PlayerCache initialisé avec " + playerCache.getOnlineCount() + " joueurs");
+
+        // Initialiser le cache des noms de joueurs (résolution dynamique des pseudos)
+        com.gravityyfh.roleplaycity.util.PlayerNameResolver.preloadOnlinePlayers();
+        getServer().getPluginManager().registerEvents(new com.gravityyfh.roleplaycity.Listener.PlayerNameCacheListener(), this);
+        debugLogger.debug("STARTUP", "PlayerNameResolver initialisé (résolution dynamique des pseudos)");
 
         // FIX BASSE #10: Initialiser gestionnaire de tâches asynchrones
         asyncTaskManager = new com.gravityyfh.roleplaycity.util.AsyncTaskManager(this);
@@ -861,6 +871,19 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             }
         }
 
+        // Système MDT Rush (Mini-jeu style BedWars)
+        try {
+            getLogger().info("[DEBUG] Initialisation du système MDT Rush...");
+            mdtConfig = new com.gravityyfh.roleplaycity.mdt.config.MDTConfig(this);
+            mdtRushManager = new com.gravityyfh.roleplaycity.mdt.MDTRushManager(this, mdtConfig);
+            mdtRushManager.registerListeners();
+            getLogger().info("[MDT] Système MDT Rush initialisé avec succès!");
+        } catch (Exception e) {
+            getLogger().warning("[MDT] MDT Rush désactivé: " + e.getMessage());
+            e.printStackTrace();
+            mdtRushManager = null;
+        }
+
         getLogger().info("Tous les composants ont été initialisés avec succès.");
     }
 
@@ -868,6 +891,13 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         // Nettoyer le système de cambriolage
         if (heistManager != null) {
             heistManager.shutdown();
+        }
+
+        // Nettoyer le système MDT Rush
+        if (mdtRushManager != null) {
+            getLogger().info("[MDT] Arrêt du système MDT Rush...");
+            mdtRushManager.shutdown();
+            getLogger().info("[MDT] Système MDT Rush arrêté");
         }
 
         // Nettoyer le système de backpacks
@@ -1168,6 +1198,18 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             }
         }
 
+        // Enregistrer le listener de régénération des explosions
+        if (getConfig().getBoolean("explosion-regeneration.enabled", true)) {
+            try {
+                explosionRegenerationListener = new com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener(this);
+                pm.registerEvents(explosionRegenerationListener, this);
+                getLogger().info("[ExplosionRegen] Système de régénération des explosions activé (délai: " +
+                    getConfig().getInt("explosion-regeneration.delay-seconds", 60) + "s)");
+            } catch (Exception e) {
+                getLogger().warning("[ExplosionRegen] Erreur lors de l'initialisation: " + e.getMessage());
+            }
+        }
+
         getLogger().info("Tous les listeners ont été enregistrés avec succès.");
         getLogger().info(
                 "NOTE: Les GUIs en lazy loading s'enregistreront automatiquement lors de leur première utilisation.");
@@ -1353,6 +1395,30 @@ public class RoleplayCity extends JavaPlugin implements Listener {
             getLogger().info("Commande /phone enregistree");
         } else {
             getLogger().warning("Commande /phone non trouvee dans plugin.yml");
+        }
+
+        // Commande MDT Rush
+        var mdtCmd = getCommand("mdt");
+        if (mdtCmd != null && mdtRushManager != null) {
+            com.gravityyfh.roleplaycity.mdt.command.MDTCommandHandler mdtHandler =
+                new com.gravityyfh.roleplaycity.mdt.command.MDTCommandHandler(this, mdtRushManager);
+            mdtCmd.setExecutor(mdtHandler);
+            mdtCmd.setTabCompleter(mdtHandler);
+            getLogger().info("[MDT] Commande /mdt enregistree");
+        } else if (mdtCmd == null) {
+            getLogger().warning("[MDT] Commande /mdt non trouvee dans plugin.yml");
+        }
+
+        // Commande MDT Schématique (FAWE)
+        var mdtSchematicCmd = getCommand("mdtschematic");
+        if (mdtSchematicCmd != null && mdtRushManager != null) {
+            com.gravityyfh.roleplaycity.mdt.schematic.MDTSchematicCommand schematicHandler =
+                new com.gravityyfh.roleplaycity.mdt.schematic.MDTSchematicCommand(this, mdtRushManager);
+            mdtSchematicCmd.setExecutor(schematicHandler);
+            mdtSchematicCmd.setTabCompleter(schematicHandler);
+            getLogger().info("[MDT] Commande /mdtschematic (FAWE) enregistree");
+        } else if (mdtSchematicCmd == null) {
+            getLogger().warning("[MDT] Commande /mdtschematic non trouvee dans plugin.yml");
         }
     }
 
@@ -2059,6 +2125,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
         return blockPlaceCache;
     }
 
+    // Getter pour MDT Rush Manager
+    public com.gravityyfh.roleplaycity.mdt.MDTRushManager getMDTRushManager() {
+        return mdtRushManager;
+    }
+
     public TownCommandHandler getTownCommandHandler() {
         return (TownCommandHandler) getCommand("ville").getExecutor();
     }
@@ -2282,6 +2353,11 @@ public class RoleplayCity extends JavaPlugin implements Listener {
 
     public com.gravityyfh.roleplaycity.phone.listener.PhoneCallListener getPhoneCallListener() {
         return phoneCallListener;
+    }
+
+    // Système de régénération des explosions
+    public com.gravityyfh.roleplaycity.Listener.ExplosionRegenerationListener getExplosionRegenerationListener() {
+        return explosionRegenerationListener;
     }
 
     /**

@@ -85,6 +85,14 @@ commands:
     description: Système de téléphone - Appels, SMS, contacts
     usage: /<command> [call|sms|contacts|inbox|give]
     aliases: [tel, telephone]
+  mdt:
+    description: MDT Rush - Mini-jeu style BedWars avec équipes, lits et générateurs
+    usage: /<command> [join|leave|team|info|start|stop|setup|reload]
+    aliases: [mdtrush, bedwars]
+  mdtschematic:
+    description: MDT Schematic - Gestion des schématiques FAWE pour la restauration automatique des maps
+    usage: /<command> [save|restore|list|tools|info|protect|bypass|selection]
+    aliases: [mdtschem, mdtsch]
 
 permissions:
   roleplaycity.use:
@@ -201,4 +209,21 @@ permissions:
     default: op
   roleplaycity.phone.admin:
     description: Permet d'administrer le système de téléphone
+    default: op
+
+  # Permissions MDT Rush
+  roleplaycity.mdt.play:
+    description: Permet de participer au MDT Rush
+    default: true
+  roleplaycity.mdt.admin:
+    description: Permet de démarrer/arrêter le MDT Rush et recharger la config
+    default: op
+  roleplaycity.mdt.setup:
+    description: Permet de configurer les spawns et paramètres du MDT Rush
+    default: op
+  mdt.admin:
+    description: Permet d'utiliser les commandes d'administration du MDT
+    default: op
+  mdt.bypass:
+    description: Permet de bypasser la protection de la région MDT
     default: op

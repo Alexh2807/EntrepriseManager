@@ -1,0 +1,18 @@
+voucher:
+  enable: true
+  min-value: 1.0
+  max-value: 50000.0
+  # Change to iageneric:banknote to use ItemsAdder item
+  material: iageneric:banknote
+  custom-material:
+    enable: false
+    custom-id: 0
+  glow: false
+  name: '&a&lBillet de Banque &7(&e#amount# #currency#&7)'
+  lore:
+  - '&8&m--------&r&c●&8&m--&r &e&lINFO &8&m--&r&c●&8&m--------&r'
+  - ' '
+  - '&7Émis par: &e#creator#'
+  - '&7Valeur: &e#amount# &7#currency#'
+  - ' '
+  - '&e&lASTUCE &8- &7Clic-droit pour encaisser'

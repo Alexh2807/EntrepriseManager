@@ -1,0 +1,217 @@
+# ============================================================
+# NIVEAUX DE BANQUE - RoleplayCity
+# ============================================================
+# Améliorations du compte bancaire
+# Stockage: 5 000€ → 2 000 000€
+# ============================================================
+
+levels:
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 1 - COMPTE STANDARD
+  # ═══════════════════════════════════════════════════════════
+  level-1:
+    level: 1
+    max-value: 5000
+    price: 1000
+    needed-permission: lighteconomy.bank.buy.level.1
+    title: '&7Compte &fStandard'
+    material: PAPER
+    lore:
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 1 &7- &fCompte Standard'
+    - ' '
+    - '&7► Plafond: &f5 000€'
+    - '&7► Frais d''amélioration: &e1 000€'
+    - ' '
+    - '&7Compte de base pour'
+    - '&7vos transactions quotidiennes.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 2 - COMPTE BRONZE
+  # ═══════════════════════════════════════════════════════════
+  level-2:
+    level: 2
+    max-value: 15000
+    price: 5000
+    needed-permission: lighteconomy.bank.buy.level.2
+    title: '&7Compte &6Bronze'
+    material: IRON_INGOT
+    lore:
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 2 &7- &6Compte Bronze'
+    - ' '
+    - '&7► Plafond: &6 15 000€'
+    - '&7► Frais d''amélioration: &e5 000€'
+    - ' '
+    - '&7Augmentez votre plafond'
+    - '&7pour plus de flexibilité.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 3 - COMPTE ARGENT
+  # ═══════════════════════════════════════════════════════════
+  level-3:
+    level: 3
+    max-value: 50000
+    price: 15000
+    needed-permission: lighteconomy.bank.buy.level.3
+    title: '&7Compte &7Argent'
+    material: GOLD_INGOT
+    lore:
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 3 &7- &7Compte Argent'
+    - ' '
+    - '&7► Plafond: &750 000€'
+    - '&7► Frais d''amélioration: &e15 000€'
+    - ' '
+    - '&7Un plafond confortable'
+    - '&7pour vos projets.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&8▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 4 - COMPTE OR
+  # ═══════════════════════════════════════════════════════════
+  level-4:
+    level: 4
+    max-value: 150000
+    price: 50000
+    needed-permission: lighteconomy.bank.buy.level.4
+    title: '&7Compte &6Or'
+    material: DIAMOND
+    lore:
+    - '&6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 4 &7- &6Compte Or'
+    - ' '
+    - '&7► Plafond: &6150 000€'
+    - '&7► Frais d''amélioration: &e50 000€'
+    - ' '
+    - '&7Réservé aux clients'
+    - '&7les plus fidèles.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 5 - COMPTE PLATINE
+  # ═══════════════════════════════════════════════════════════
+  level-5:
+    level: 5
+    max-value: 400000
+    price: 125000
+    needed-permission: lighteconomy.bank.buy.level.5
+    title: '&7Compte &fPlatine'
+    material: EMERALD
+    lore:
+    - '&f▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 5 &7- &fCompte Platine'
+    - ' '
+    - '&7► Plafond: &f400 000€'
+    - '&7► Frais d''amélioration: &e125 000€'
+    - ' '
+    - '&7Services privilégiés'
+    - '&7pour notre clientèle VIP.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&f▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 6 - COMPTE DIAMANT
+  # ═══════════════════════════════════════════════════════════
+  level-6:
+    level: 6
+    max-value: 1000000
+    price: 300000
+    needed-permission: lighteconomy.bank.buy.level.6
+    title: '&7Compte &bDiamant'
+    material: NETHERITE_INGOT
+    lore:
+    - '&b▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 6 &7- &bCompte Diamant'
+    - ' '
+    - '&7► Plafond: &b1 000 000€'
+    - '&7► Frais d''amélioration: &e300 000€'
+    - ' '
+    - '&7Réservé à notre clientèle'
+    - '&7la plus fortunée.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&b▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+  
+  # ═══════════════════════════════════════════════════════════
+  # NIVEAU 7 - COMPTE PRESTIGE
+  # ═══════════════════════════════════════════════════════════
+  level-7:
+    level: 7
+    max-value: 2000000
+    price: 750000
+    needed-permission: lighteconomy.bank.buy.level.7
+    title: '&8[&6★&8] &eCompte Prestige &8[&6★&8]'
+    material: NETHER_STAR
+    lore:
+    - '&6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+    - ' '
+    - '&eNiveau 7 &7- &eCompte Prestige'
+    - ' '
+    - '&7► Plafond: &e2 000 000€'
+    - '&7► Frais d''amélioration: &e750 000€'
+    - ' '
+    - '&7Le summum de la banque.'
+    - '&7Niveau maximum atteint.'
+    - ' '
+    - '&e➤ Clic gauche pour améliorer'
+    - '&6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬'
+
+# ============================================================
+# CONFIGURATION DU GUI
+# ============================================================
+gui:
+  title: '&8Banque | &7Améliorer mon compte'
+  pages:
+    previous-page:
+      column: 2
+      row: 3
+      material: ARROW
+      displayname: '&7← Page précédente'
+      lore: []
+    next-page:
+      column: 2
+      row: 5
+      material: ARROW
+      displayname: '&7Page suivante →'
+      lore: []
+    back:
+      column: 2
+      row: 4
+      material: BARRIER
+      displayname: '&cRetour'
+      lore:
+      - '&7Retourner au menu principal'
+  other:
+    no-permission:
+      title: '&8Niveau #level# &7- Non éligible'
+      glow: false
+      material: BARRIER
+      lore-extra: '&cVous ne remplissez pas les conditions'
+    already-bought:
+      title: '&8Niveau #level# &a✔ Débloqué'
+      glow: true
+      material: LIME_DYE
+      lore-extra: '&aVous avez débloqué ce niveau'
+    no-money:
+      title: '&8Niveau #level# &7- Fonds insuffisants'
+      glow: false
+      material: RED_DYE
+      lore-extra: '&cSolde insuffisant pour améliorer'

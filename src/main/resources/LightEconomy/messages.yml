@@ -1,0 +1,219 @@
+#
+#  $$\ |$$\           $$\        $$\     $$$$$$$$\n#  $$ |\__|          $$ |       $$ |    $$  _____|
+#  $$ |$$\  $$$$$$\  $$$$$$$\ $$$$$$\   $$ |      $$$$$$$\  $$$$$$\  $$$$$$$\   $$$$$$\  $$$$$$\$$$$\  $$\   $$\n#  $$ |$$ |$$  __$$\ $$  __$$\_$$  _|
+#  $$ |$$ |$$ /  $$ |$$ |  $$ | $$ |    $$  __|
+#  $$ |$$ |$$ |  $$ |$$ |  $$ | $$ |$$\ $$ |
+#  $$ |$$ |\$$$$$$$ |$$ |  $$ | \$$$$  |$$$$$$$$\$$$$$$$\\$$$$$$  |$$ |  $$ |\$$$$$$  |$$ | $$ | $$ |\$$$$$$$ |
+#  \__|\__| \____$$ |\__|  \__|  \____/ \________|\_______| \______/ \__|  \__| \______/ \__| \__| \__| \____$$ |
+#          $$\   $$ |
+#          \$$$$$$  |
+#           \______/                                                                                    \______/ 
+#
+# Here you can translate ALL the plugin messages. You can use ColorCodes like &c and HEX Colors like #ff4442
+#
+prefix: '&e&lBanque &8●⏺ &7'
+noPermission: '&cVous n''avez pas la permission d''exécuter cette commande &7!'
+notNumber: '&cCe n''est pas un nombre valide &7!'
+exception: '&4Une erreur critique est survenue. Consultez les logs pour plus d''informations
+  &7!'
+notEnoughtMoney: '&cVous n''avez pas assez d''argent pour effectuer cette action &7!'
+notEnoughtMoneyTarget: '&cCe joueur n''a pas assez d''argent pour effectuer cette
+  action &7!'
+playerNotFound: '&cCe joueur est introuvable ou est sur un autre serveur &7!'
+playerNotExists: '&cJoueur introuvable dans la base de données &7!'
+wrongCommand: '&cCette commande n''existe pas. Essayez peut-être &4#command#'
+cooldown: '&cVeuillez patienter &4#seconds# &cseconde(s) avant de pouvoir exécuter
+  cette commande à nouveau &7!'
+notYourself: '&cVous ne pouvez pas vous payer vous-même &7!'
+notZero: '&cVous devez donner au moins &4#min-amount# &c#currency# &7!'
+onlyPostiv: '&cAssurez-vous d''utiliser uniquement des nombres positifs &7!'
+updatePlayerName: '&cLe joueur &4#target# &ca mis à jour son nom en &4#new-name# &7!'
+sqlError: '&cUne erreur est survenue dans le SQLGetter &7!'
+targetIsOffline: '&cRAPPEL &8| &7Le joueur à qui vous essayez d''envoyer de l''argent
+  est hors ligne OU sur un autre serveur ! Il n''a pas reçu de message de confirmation.'
+reload: '&7La configuration a été rechargée avec succès.'
+noConsole: Cette commande ne peut être exécutée que par un joueur
+noPlayer: '&cCette commande ne peut être exécutée que par la console &7!'
+maxMoneyPocket: '&cVous avez atteint le solde maximum autorisé dans votre poche &7!'
+maxMoneyBank: '&cVous avez atteint le solde maximum autorisé dans votre banque &7!'
+negativeNumber: '&cVous ne pouvez pas utiliser de nombres négatifs &7!'
+transactionFailed: '&7La transaction a échoué, cause : &c#reason#'
+firstJoinMessage: '&7Bienvenue sur notre serveur. Votre solde de départ est de &c#startbalance#
+  &7#currency#'
+# ●
+moneyBalance: '&7Vous avez &c#balance# &7#currency#'
+moneyBalanceOther: '&7Le joueur &c#target# &7a &c#balance# &7#currency#'
+moneyAddPlayer: '&7Vous avez ajouté &c#amount# &7#currency# au joueur &c#target#.
+  &7Il a maintenant &c#balance# &7#currency#'
+moneyAddNonPlayer: '&7Vous avez ajouté &c#amount# &7#currency# au compte non-joueur
+  &c#target#. &7Il a maintenant &c#balance# &7#currency#'
+moneySetPlayer: '&7Vous avez défini l''argent du joueur &c#target# &7à &c#amount#
+  &7#currency#'
+moneySetNonPlayer: '&7Vous avez défini l''argent du compte non-joueur &c#target# &7à
+  &c#amount# &7#currency#'
+moneyRemovePlayer: '&7Vous avez retiré &c#amount# &7#currency# de &c#target#&7!'
+moneyTopHeader:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' &7Top 10 des joueurs avec le plus grand'
+- '     &7solde sur le serveur'
+- ' '
+- '&8● &c&lTotal &7- &c#overall# &7#currency#'
+- ' '
+moneyTopFormat: '&8● &c&l#number#&7# &8● &c#name# &7- &c#amount# &7#currency#'
+moneyTopFooter:
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'
+bankTopHeader:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' &7Top 10 des joueurs avec le plus grand'
+- '     &csolde bancaire &7sur le serveur'
+- ' '
+- '&8● &c&lTotal &7- &c#overall# &7#currency#'
+- ' '
+bankTopFormat: '&8● &c&l#number#&7# &8● &c#name# &7- &c#amount# &7#currency#'
+bankTopFooter:
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'
+moneyAddAll: '&c#successcount# &7sur &c#overallcount# &7joueur(s) ont reçu &c#amount#
+  &7#currency#.'
+moneyAddAllTarget: 'Vous avez reçu un paiement global de &c#sender#&7. Montant : &c#amount#
+  &7#currency#'
+moneyAddAllFailed: '&c#failcount# &7transactions ont échoué. Veuillez consulter les
+  logs pour les erreurs.'
+# ●
+payToggleEnabled: '&7Vous avez &activé &7les paiements des autres joueurs.'
+payToggleDisabled: '&7Vous avez &cdésactivé &7les paiements des autres joueurs.'
+paySenderOnSuccess: '&7Vous avez envoyé avec succès &c#amount# &7#currency# à &c#target#'
+payTargetOnSuccess: '&7Vous avez reçu &c#amount# &7#currency# de &c#sender#'
+payTransactionFailed: '&cLa transaction de paiement a échoué cause : &7#reason#'
+payCooldown: '&cVeuillez patienter quelques secondes avant de pouvoir payer à nouveau
+  &7!'
+payNotHappening: '&cCela n''aurait pas dû arriver. Vous avez perdu l''argent à cause
+  de la commande pay. Veuillez contacter un administrateur !'
+payWrongCommand: '&cMauvaise commande. Veuillez utiliser &7/pay [pseudo] [montant]
+  &cou &7/pay toggle'
+# ●
+voucherCreate: '&7Vous avez converti &c#amount# &7#currency# de votre solde en un
+  bon physique'
+voucherMinValue: '&7Vous avez besoin d''au moins &c#min-value# &7#currency# pour convertir
+  l''argent en bon.'
+voucherMaxValue: '&7Vous avez atteint la limite de valeur max pour un seul bon ! max
+  &c#max-value# &7#currency#'
+voucherDisabled: '&7Le système de bons est actuellement &cdésactivé &7!'
+convertNotEnough: '&cVous n''avez pas assez d''argent pour cette conversion &7!'
+convertNotEnabled: '&cLes bons d''argent ne sont pas activés &7!'
+convertCollect: '&7Vous avez collecté &c#amount# &7#currency# d''un bon.'
+voucherOffHanad: '&7Vous ne pouvez pas mettre un &cBon &7dans votre main secondaire
+  !'
+# ●
+bankDepositValueViaChat: '&7Écrivez le montant que vous souhaitez déposer sur votre
+  compte bancaire !'
+bankDepositSuccessfully: '&7Vous avez ajouté &c#amount# &7#currency# à votre compte
+  bancaire.'
+bankDepositNotEnough: '&7Vous n''avez pas cet argent à déposer sur votre compte bancaire.'
+bankDepositOverLimit: '&7Votre compte bancaire a atteint la limite avec votre valeur.'
+bankDepositAll: '&7Vous avez déposé &c#amount# &7#currency# sur votre compte bancaire.'
+bankDepositAllLimit: '&7Vous avez déposé &c#amount# &7#currency# sur votre compte
+  bancaire et atteint la limite.'
+bankDepositNotPossible: '&7Vous ne pouvez pas déposer plus d''argent car vous avez
+  atteint la limite bancaire par niveau.'
+bankWithdrawNotEnough: '&7Vous n''avez pas cet argent sur votre compte bancaire.'
+bankWithdrawValueViaChat: '&7Écrivez le montant que vous souhaitez retirer de votre
+  compte bancaire.'
+bankWithdrawSuccessfully: '&7Vous avez retiré &c#amount# &7#currency# de votre compte
+  bancaire.'
+bankWithdrawAll: '&7Vous avez retiré tout votre argent de votre compte bancaire.'
+bankAddPlayer: '&7Vous avez ajouté &c#amount# &7#currency# &7au compte bancaire de
+  &c#target#.'
+bankAddPlayerLimit: '&cVous ne pouvez pas ajouter plus d''argent au compte bancaire
+  du joueur. Il a atteint la limite due à son niveau bancaire. Le max est &4#limit#&7!'
+bankSetPlayer: '&7Vous avez défini le compte bancaire de &c#target# &7à &c#amount#
+  &7#currency#'
+bankSetPlayerLimit: '&cVous ne pouvez pas définir cette valeur sur le compte bancaire
+  du joueur. C''est au-dessus de la limite due à son niveau bancaire. Le max est &4#limit#&7!'
+bankRemovePlayer: '&7Vous avez retiré &c#amount# &7#currency# du compte bancaire de
+  &c#target#.'
+bankShowOther:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' '
+- '&7Statistiques bancaires de &c#target#'
+- ' '
+- '&7Solde bancaire actuel : &c#bank-balance# &7#currency# / &c#limit-by-level# &7#currency#'
+- '&7Niveau bancaire actuel : &c#current-bank-level# &7/ &c#max-level#'
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'
+# ●
+bankUpgradeNoPermission: '&cVous n''avez pas la permission d''acheter ce niveau. Vous
+  avez besoin de &7#permission#'
+bankUpgradeAlreadyOwn: '&cVous possédez déjà ce niveau &7!'
+bankUpgradeNeedPreviousLevel: '&cVous devez acheter un niveau précédent avant de pouvoir
+  acheter celui-ci &7!'
+bankUpgradeNoMoney: '&cVous n''avez pas assez d''argent pour acheter ce niveau &7!'
+bankUpgradeSuccess: '&7Vous avez acheté avec succès le niveau bancaire &c#level#&7.'
+bankSetLevelPlayer: '&7Vous avez défini le niveau du joueur de &c#old-level# &7à &c#new-level#&7.'
+bankSetLevelPlayerMax: '&cCe niveau n''existe pas dans le &4bank-level.yml &7!'
+bankSetLevelPlayerToLow: '&cVous ne pouvez pas définir un niveau bancaire à &40 &cou
+  &4inférieur &7!'
+bankDisabled: '&cLe système bancaire est désactivé sur ce serveur &7!'
+# ●
+loseMoneyOnDeath: '&7Vous êtes mort et avez perdu &c#amount# &7#currency# de votre
+  poche.'
+# ●
+helpCommandAdmin:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' '
+- '  &7Commandes Admin :'
+- '&8● &c/money balance &8[&7joueur&8] &7- Voir le solde d''un joueur'
+- '&8● &c/money add/set/remove &8[&7joueur&8] &8[&7montant&8] &7- Changer l''argent
+  d''un joueur'
+- '&8● &c/le reload &7- Recharger la config et les messages.'
+- '&8● &c/le help &7- Afficher toutes les commandes'
+- '&8● &c/bank add/set/remove &8[&7joueur&8] &8[&7montant&8] &7- Changer la valeur
+  bancaire d''un joueur'
+- '&8● &c/bank level set &8[&7niveau&8] &7- Changer le niveau bancaire de la cible'
+- '&8● &c/bank show &8[&7joueur&8] &7- Voir les stats bancaires de la cible'
+- '&8● &c/bank open &8[&7joueur&8] &7- Ouvrir le menu bancaire pour une cible'
+- ' '
+- '  &7Commandes Joueur :'
+- '&8● &c/pay &8[&7joueur&8] &8[&7montant&8] &7- Envoyer de l''argent à d''autres
+  joueurs'
+- '&8● &c/pay toggle &7- Activer/Désactiver les paiements des autres joueurs'
+- '&8● &c/money top &7- Liste des joueurs avec les 10 plus gros soldes'
+- '&8● &c/money voucher create &8[&7montant&8] &7- Créer un bon physique'
+- '&8● &c/money &7- Voir votre solde actuel'
+- ' '
+- ' &7Commandes Console :'
+- '&8● &c/eco give&7/&cremove&7/&cset &8[&7joueur&8] &8[&7montant&8] &7- Gérer l''argent
+  depuis la console'
+- '&8● &c/eco bank open &8[&7joueur&8] &7- Ouvrir le menu bancaire pour une cible.'
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'
+helpCommandPlayer:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' '
+- '  &7Commandes Joueur :'
+- '&8● &c/pay &8[&7joueur&8] &8[&7montant&8] &7- Envoyer de l''argent à d''autres
+  joueurs'
+- '&8● &c/pay toggle &7- Activer/Désactiver les paiements des autres joueurs'
+- '&8● &c/money top &7- Liste des joueurs avec les 10 plus gros soldes'
+- '&8● &c/money &7- Voir votre solde actuel'
+- '&8● &c/money voucher create &8[&7montant&8] &7- Créer un bon physique'
+- '&8● &c/bank &7- Ouvre le menu bancaire'
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'
+# ●
+pcCreateWrongRankID: '&cVeuillez utiliser des nombres de &41 &cà &410'
+timeRewardMoney: 'Vous avez reçu #amount# #currency# pour avoir joué #intervallMinutes#
+  minutes.'
+debugMessage:
+- '&7&m-----&r&c●&7&m-----&r &e&lBanque &7&m-----&r&c●&7&m-----&r'
+- ' '
+- ' &8● &7La base de données est &aconnectée avec succès &7à &c#databaseSource#'
+- '  &8- &7Connexions totales : &c#totalConnections#'
+- '  &8- &7Connexions actives : &c#activeConnections#'
+- '  &8- &7Connexions en attente : &c#pendingThreads#'
+- '  &8- &7Utilisateurs dans la BDD : &c#tableSize# &7(pris &c#queryDuration# &7ms)'
+- '&8● &7Version Bukkit : &c#bukkitVersion#'
+- '&8● &7Version Economy : &c#ecoVersion#'
+- ' '
+- '&7&m-----&r&c●&7&m-----&r &7&m-----&r&c●&7⏺&c●&7&m-----&r &7&m-----&r&c●&7&m-----&r'

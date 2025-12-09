@@ -1,5 +1,7 @@
 package com.gravityyfh.roleplaycity.town.data;
 
+import com.gravityyfh.roleplaycity.util.PlayerNameResolver;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -30,9 +32,9 @@ public class Fine {
     private final UUID fineId;
     private final String townName;
     private final UUID offenderUuid;
-    private final String offenderName;
+    private final String storedOffenderName; // Nom stocké pour fallback
     private final UUID policierUuid;
-    private final String policierName;
+    private final String storedPolicierName; // Nom stocké pour fallback
     private final String reason;
     private final double amount;
     private final LocalDateTime issueDate;
@@ -49,9 +51,9 @@ public class Fine {
         this.fineId = UUID.randomUUID();
         this.townName = townName;
         this.offenderUuid = offenderUuid;
-        this.offenderName = offenderName;
+        this.storedOffenderName = offenderName;
         this.policierUuid = policierUuid;
-        this.policierName = policierName;
+        this.storedPolicierName = policierName;
         this.reason = reason;
         this.amount = amount;
         this.issueDate = LocalDateTime.now();
@@ -65,9 +67,9 @@ public class Fine {
         this.fineId = fineId;
         this.townName = townName;
         this.offenderUuid = offenderUuid;
-        this.offenderName = offenderName;
+        this.storedOffenderName = offenderName;
         this.policierUuid = policierUuid;
-        this.policierName = policierName;
+        this.storedPolicierName = policierName;
         this.reason = reason;
         this.amount = amount;
         this.issueDate = issueDate;
@@ -114,9 +116,32 @@ public class Fine {
     public UUID getFineId() { return fineId; }
     public String getTownName() { return townName; }
     public UUID getOffenderUuid() { return offenderUuid; }
-    public String getOffenderName() { return offenderName; }
+
+    /**
+     * Retourne le nom actuel du contrevenant (résolu dynamiquement via UUID).
+     */
+    public String getOffenderName() {
+        return PlayerNameResolver.getName(offenderUuid, storedOffenderName);
+    }
+
+    /**
+     * Retourne le nom stocké du contrevenant (pour sauvegarde).
+     */
+    public String getStoredOffenderName() { return storedOffenderName; }
+
     public UUID getPolicierUuid() { return policierUuid; }
-    public String getPolicierName() { return policierName; }
+
+    /**
+     * Retourne le nom actuel du policier (résolu dynamiquement via UUID).
+     */
+    public String getPolicierName() {
+        return PlayerNameResolver.getName(policierUuid, storedPolicierName);
+    }
+
+    /**
+     * Retourne le nom stocké du policier (pour sauvegarde).
+     */
+    public String getStoredPolicierName() { return storedPolicierName; }
     public String getReason() { return reason; }
     public double getAmount() { return amount; }
     public LocalDateTime getIssueDate() { return issueDate; }

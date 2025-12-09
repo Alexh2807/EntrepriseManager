@@ -6,10 +6,13 @@
 
 backpacks:
 
-  # 1 — Sacoche (le moins coûteux)
-  sacoche:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SACOCHE (Size: 1 ligne = 9 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sacoche_white:
     enabled: true
-    display_name: '&6&lSacoche'
+    display_name: '&f&lSacoche Blanche'
     lore:
       - '&7Une petite sacoche simple.'
       - '&7Pratique pour quelques objets.'
@@ -21,19 +24,128 @@ backpacks:
       enabled: true
       pattern:
         - ".C."
-        - "CSC"
+        - "CDS"
         - ".C."
       ingredients:
         C: LEATHER
         S: STRING
+        D: WHITE_DYE
 
-  # 2 — Valisette
-  valisette:
+  sacoche_black:
     enabled: true
-    display_name: '&6&lValisette'
+    display_name: '&8&lSacoche Noire'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CDS"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+        D: BLACK_DYE
+
+  sacoche_green:
+    enabled: true
+    display_name: '&a&lSacoche Verte'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CDS"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+        D: GREEN_DYE
+
+  sacoche_red:
+    enabled: true
+    display_name: '&c&lSacoche Rouge'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CDS"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+        D: RED_DYE
+
+  sacoche_pink:
+    enabled: true
+    display_name: '&d&lSacoche Rose'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CDS"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+        D: PINK_DYE
+
+  sacoche_blue:
+    enabled: true
+    display_name: '&9&lSacoche Bleue'
+    lore:
+      - '&7Une petite sacoche simple.'
+      - '&7Pratique pour quelques objets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_fannypack"
+    size: 1
+    craft_recipe:
+      enabled: true
+      pattern:
+        - ".C."
+        - "CDS"
+        - ".C."
+      ingredients:
+        C: LEATHER
+        S: STRING
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # VALISETTE (Size: 2 lignes = 18 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  valisette_white:
+    enabled: true
+    display_name: '&f&lValisette Blanche'
     lore:
       - '&7Une petite valisette rigide.'
-      - '&7Plus solide qu&apos;une sacoche.'
+      - '&7Plus solide qu une sacoche.'
     item:
       type: ITEMSADDER_ITEM
       itemsadder_id: "fbackpacks:white_briefcase"
@@ -42,19 +154,128 @@ backpacks:
       enabled: true
       pattern:
         - "CBC"
-        - "BCB"
+        - "BDB"
         - "CBC"
       ingredients:
         C: LEATHER
         B: OAK_PLANKS
+        D: WHITE_DYE
 
-  # 3 — Sac de course
-  sac_course:
+  valisette_black:
     enabled: true
-    display_name: '&6&lSac de course'
+    display_name: '&8&lValisette Noire'
     lore:
-      - '&7Un sac en tissu léger.'
-      - '&7Idéal pour les courses rapides.'
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BDB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+        D: BLACK_DYE
+
+  valisette_green:
+    enabled: true
+    display_name: '&a&lValisette Verte'
+    lore:
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BDB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+        D: GREEN_DYE
+
+  valisette_red:
+    enabled: true
+    display_name: '&c&lValisette Rouge'
+    lore:
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BDB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+        D: RED_DYE
+
+  valisette_pink:
+    enabled: true
+    display_name: '&d&lValisette Rose'
+    lore:
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BDB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+        D: PINK_DYE
+
+  valisette_blue:
+    enabled: true
+    display_name: '&9&lValisette Bleue'
+    lore:
+      - '&7Une petite valisette rigide.'
+      - '&7Plus solide qu une sacoche.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_briefcase"
+    size: 2
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CBC"
+        - "BDB"
+        - "CBC"
+      ingredients:
+        C: LEATHER
+        B: OAK_PLANKS
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SAC DE COURSE (Size: 3 lignes = 27 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sac_course_white:
+    enabled: true
+    display_name: '&f&lSac de course Blanc'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
     item:
       type: ITEMSADDER_ITEM
       itemsadder_id: "fbackpacks:white_shoppingbag"
@@ -63,15 +284,119 @@ backpacks:
       enabled: true
       pattern:
         - "W.W"
-        - "W.W"
+        - "WDW"
         - "WWW"
       ingredients:
         W: WHITE_WOOL
+        D: WHITE_DYE
 
-  # 4 — Sac de sport
-  sac_sport:
+  sac_course_black:
     enabled: true
-    display_name: '&6&lSac de sport'
+    display_name: '&8&lSac de course Noir'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "WDW"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+        D: BLACK_DYE
+
+  sac_course_green:
+    enabled: true
+    display_name: '&a&lSac de course Vert'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "WDW"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+        D: GREEN_DYE
+
+  sac_course_red:
+    enabled: true
+    display_name: '&c&lSac de course Rouge'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "WDW"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+        D: RED_DYE
+
+  sac_course_pink:
+    enabled: true
+    display_name: '&d&lSac de course Rose'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "WDW"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+        D: PINK_DYE
+
+  sac_course_blue:
+    enabled: true
+    display_name: '&9&lSac de course Bleu'
+    lore:
+      - '&7Un sac en tissu leger.'
+      - '&7Ideal pour les courses rapides.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_shoppingbag"
+    size: 3
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "W.W"
+        - "WDW"
+        - "WWW"
+      ingredients:
+        W: WHITE_WOOL
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SAC DE SPORT (Size: 4 lignes = 36 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sac_sport_white:
+    enabled: true
+    display_name: '&f&lSac de sport Blanc'
     lore:
       - '&7Un sac robuste pour le sport.'
       - '&7Offre plus de contenance.'
@@ -83,20 +408,134 @@ backpacks:
       enabled: true
       pattern:
         - "CWC"
-        - "W.W"
+        - "WDW"
         - "CIC"
       ingredients:
         C: LEATHER
         W: WHITE_WOOL
         I: IRON_NUGGET
+        D: WHITE_DYE
 
-  # 5 — Sac à dos moyen
-  sacados_moyen:
+  sac_sport_black:
     enabled: true
-    display_name: '&6&lSac à dos moyen'
+    display_name: '&8&lSac de sport Noir'
     lore:
-      - '&7Un sac à dos pratique.'
-      - '&7Parfait pour les déplacements.'
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "WDW"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+        D: BLACK_DYE
+
+  sac_sport_green:
+    enabled: true
+    display_name: '&a&lSac de sport Vert'
+    lore:
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "WDW"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+        D: GREEN_DYE
+
+  sac_sport_red:
+    enabled: true
+    display_name: '&c&lSac de sport Rouge'
+    lore:
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "WDW"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+        D: RED_DYE
+
+  sac_sport_pink:
+    enabled: true
+    display_name: '&d&lSac de sport Rose'
+    lore:
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "WDW"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+        D: PINK_DYE
+
+  sac_sport_blue:
+    enabled: true
+    display_name: '&9&lSac de sport Bleu'
+    lore:
+      - '&7Un sac robuste pour le sport.'
+      - '&7Offre plus de contenance.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_sportbag"
+    size: 4
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CWC"
+        - "WDW"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        W: WHITE_WOOL
+        I: IRON_NUGGET
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SAC A DOS MOYEN (Size: 5 lignes = 45 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sacados_moyen_white:
+    enabled: true
+    display_name: '&f&lSac a dos moyen Blanc'
+    lore:
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
     item:
       type: ITEMSADDER_ITEM
       itemsadder_id: "fbackpacks:white_schoolbackpack"
@@ -105,21 +544,134 @@ backpacks:
       enabled: true
       pattern:
         - "CSC"
-        - "CBC"
+        - "CDC"
         - "CIC"
       ingredients:
         C: LEATHER
         S: STRING
-        B: OAK_PLANKS
         I: IRON_INGOT
+        D: WHITE_DYE
 
-  # 6 — Grand sac à dos
-  sacados_grand:
+  sacados_moyen_black:
     enabled: true
-    display_name: '&6&lGrand sac à dos'
+    display_name: '&8&lSac a dos moyen Noir'
     lore:
-      - '&7Un grand sac à dos solide.'
-      - '&7Conçu pour transporter beaucoup.'
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        I: IRON_INGOT
+        D: BLACK_DYE
+
+  sacados_moyen_green:
+    enabled: true
+    display_name: '&a&lSac a dos moyen Vert'
+    lore:
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        I: IRON_INGOT
+        D: GREEN_DYE
+
+  sacados_moyen_red:
+    enabled: true
+    display_name: '&c&lSac a dos moyen Rouge'
+    lore:
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        I: IRON_INGOT
+        D: RED_DYE
+
+  sacados_moyen_pink:
+    enabled: true
+    display_name: '&d&lSac a dos moyen Rose'
+    lore:
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        I: IRON_INGOT
+        D: PINK_DYE
+
+  sacados_moyen_blue:
+    enabled: true
+    display_name: '&9&lSac a dos moyen Bleu'
+    lore:
+      - '&7Un sac a dos pratique.'
+      - '&7Parfait pour les deplacements.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_schoolbackpack"
+    size: 5
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "CIC"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        I: IRON_INGOT
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GRAND SAC A DOS (Size: 6 lignes = 54 slots)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sacados_grand_white:
+    enabled: true
+    display_name: '&f&lGrand sac a dos Blanc'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
     item:
       type: ITEMSADDER_ITEM
       itemsadder_id: "fbackpacks:white_hikingbackpack"
@@ -128,21 +680,140 @@ backpacks:
       enabled: true
       pattern:
         - "CSC"
-        - "CBC"
-        - "ICI"
+        - "CDC"
+        - "IBI"
       ingredients:
         C: LEATHER
         S: STRING
         B: BARREL
         I: IRON_INGOT
+        D: WHITE_DYE
 
-  # 7 — Valise de voyage (le plus coûteux)
-  valise_voyage:
+  sacados_grand_black:
     enabled: true
-    display_name: '&6&lValise de voyage'
+    display_name: '&8&lGrand sac a dos Noir'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "IBI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+        D: BLACK_DYE
+
+  sacados_grand_green:
+    enabled: true
+    display_name: '&a&lGrand sac a dos Vert'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "IBI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+        D: GREEN_DYE
+
+  sacados_grand_red:
+    enabled: true
+    display_name: '&c&lGrand sac a dos Rouge'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "IBI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+        D: RED_DYE
+
+  sacados_grand_pink:
+    enabled: true
+    display_name: '&d&lGrand sac a dos Rose'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "IBI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+        D: PINK_DYE
+
+  sacados_grand_blue:
+    enabled: true
+    display_name: '&9&lGrand sac a dos Bleu'
+    lore:
+      - '&7Un grand sac a dos solide.'
+      - '&7Concu pour transporter beaucoup.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_hikingbackpack"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "CSC"
+        - "CDC"
+        - "IBI"
+      ingredients:
+        C: LEATHER
+        S: STRING
+        B: BARREL
+        I: IRON_INGOT
+        D: BLUE_DYE
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # VALISE DE VOYAGE (Size: 6 lignes = 54 slots) - Le plus couteux
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  valise_voyage_white:
+    enabled: true
+    display_name: '&f&lValise de voyage Blanche'
     lore:
       - '&7Une grande valise solide.'
-      - '&7Idéale pour les longs trajets.'
+      - '&7Ideale pour les longs trajets.'
     item:
       type: ITEMSADDER_ITEM
       itemsadder_id: "fbackpacks:white_suitcase"
@@ -151,13 +822,129 @@ backpacks:
       enabled: true
       pattern:
         - "IBI"
-        - "CBC"
+        - "CDC"
         - "BWB"
       ingredients:
         I: IRON_BLOCK
         B: OAK_PLANKS
         C: LEATHER
         W: STONE_BUTTON
+        D: WHITE_DYE
+
+  valise_voyage_black:
+    enabled: true
+    display_name: '&8&lValise de voyage Noire'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Ideale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:black_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CDC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+        D: BLACK_DYE
+
+  valise_voyage_green:
+    enabled: true
+    display_name: '&a&lValise de voyage Verte'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Ideale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:green_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CDC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+        D: GREEN_DYE
+
+  valise_voyage_red:
+    enabled: true
+    display_name: '&c&lValise de voyage Rouge'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Ideale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:red_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CDC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+        D: RED_DYE
+
+  valise_voyage_pink:
+    enabled: true
+    display_name: '&d&lValise de voyage Rose'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Ideale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:pink_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CDC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+        D: PINK_DYE
+
+  valise_voyage_blue:
+    enabled: true
+    display_name: '&9&lValise de voyage Bleue'
+    lore:
+      - '&7Une grande valise solide.'
+      - '&7Ideale pour les longs trajets.'
+    item:
+      type: ITEMSADDER_ITEM
+      itemsadder_id: "fbackpacks:blue_suitcase"
+    size: 6
+    craft_recipe:
+      enabled: true
+      pattern:
+        - "IBI"
+        - "CDC"
+        - "BWB"
+      ingredients:
+        I: IRON_BLOCK
+        B: OAK_PLANKS
+        C: LEATHER
+        W: STONE_BUTTON
+        D: BLUE_DYE
 
 
 

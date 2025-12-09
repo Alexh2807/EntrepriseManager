@@ -12,7 +12,7 @@
     <name>RoleplayCity</name>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>20</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -140,7 +140,7 @@
             <groupId>net.coreprotect</groupId> <artifactId>coreprotect</artifactId>
             <version>22.4</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/libs/CoreProtect-22.4.jar</systemPath>
+            <systemPath>${project.basedir}/libs/CoreProtect-22.2.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -165,6 +165,15 @@
             <version>5.1.0</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/libs/ProtocolLib.jar</systemPath>
+        </dependency>
+
+        <!-- FastAsyncWorldEdit: Fourni en JAR local pour snapshots MDT -->
+        <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>FastAsyncWorldEdit-Bukkit</artifactId>
+            <version>2.14.3-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/FastAsyncWorldEdit-Bukkit-2.14.3-SNAPSHOT-1229.jar</systemPath>
         </dependency>
 
         <dependency>

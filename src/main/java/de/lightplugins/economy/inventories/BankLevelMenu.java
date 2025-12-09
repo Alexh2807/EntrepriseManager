@@ -1,0 +1,239 @@
+/*
+ * Decompiled with CFR 0.153-SNAPSHOT (d6f6758-dirty).
+ * 
+ * Could not load the following classes:
+ *  org.bukkit.Material
+ *  org.bukkit.configuration.file.FileConfiguration
+ *  org.bukkit.enchantments.Enchantment
+ *  org.bukkit.entity.Player
+ *  org.bukkit.inventory.ItemFlag
+ *  org.bukkit.inventory.ItemStack
+ *  org.bukkit.inventory.meta.ItemMeta
+ */
+package de.lightplugins.economy.inventories;
+
+import de.lightplugins.economy.database.querys.BankTableAsync;
+import de.lightplugins.economy.database.querys.MoneyTableAsync;
+import de.lightplugins.economy.enums.MessagePath;
+import de.lightplugins.economy.inventories.BankMainMenu;
+import de.lightplugins.economy.master.Main;
+import de.lightplugins.economy.utils.Sounds;
+import fr.minuskube.inv.ClickableItem;
+import fr.minuskube.inv.SmartInventory;
+import fr.minuskube.inv.content.InventoryContents;
+import fr.minuskube.inv.content.InventoryProvider;
+import fr.minuskube.inv.content.Pagination;
+import fr.minuskube.inv.content.SlotIterator;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import org.bukkit.Material;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+public class BankLevelMenu
+implements InventoryProvider {
+    private static final FileConfiguration fileConfiguration = Main.bankLevelMenu.getConfig();
+    public static final SmartInventory INVENTORY = SmartInventory.builder().id("BANK_LEVEL_MENU").provider(new BankLevelMenu()).size(3, 9).title(Main.colorTranslation.hexTranslation(fileConfiguration.getString("gui.title"))).manager(Main.bankMenuInventoryManager).build();
+
+    @Override
+    public void init(Player player, InventoryContents inventoryContents) {
+        double currentPocket;
+        Pagination pagination = inventoryContents.pagination();
+        FileConfiguration config = Main.bankLevelMenu.getConfig();
+        Sounds sounds = new Sounds();
+        int levelCounter = Objects.requireNonNull(config.getConfigurationSection("levels")).getKeys(false).size();
+        BankTableAsync bankTable = new BankTableAsync(Main.getInstance);
+        MoneyTableAsync moneyTable = new MoneyTableAsync(Main.getInstance);
+        CompletableFuture<Double> pocketFuture = moneyTable.playerBalance(player.getName());
+        try {
+            currentPocket = pocketFuture.get();
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new RuntimeException(ex);
+        }
+        ClickableItem[] levelItems = new ClickableItem[levelCounter];
+        ItemStack glass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE, 1);
+        ItemMeta glassMeta = glass.getItemMeta();
+        assert (glassMeta != null);
+        glassMeta.setDisplayName(" ");
+        glass.setItemMeta(glassMeta);
+        inventoryContents.fill(ClickableItem.empty(glass));
+        int i = 0;
+        for (String path : Objects.requireNonNull(config.getConfigurationSection("levels")).getKeys(false)) {
+            int currentBankLevel;
+            Material alreadyBoughtMaterial;
+            List<String> alreadyBoughtExtraLore;
+            ++i;
+            config.getString("levels..material");
+            Material material = Material.valueOf((String)config.getString("levels." + path + ".material"));
+            int level = config.getInt("levels." + path + ".level");
+            String permission = config.getString("levels." + path + ".needed-permission");
+            assert (permission != null);
+            String title = config.getString("levels." + path + ".title");
+            assert (title != null);
+            double price = config.getDouble("levels." + path + ".price");
+            double limit = config.getDouble("levels." + path + ".max-value");
+            ItemStack is = new ItemStack(material);
+            is.setAmount(i);
+            ItemMeta im = is.getItemMeta();
+            assert (im != null);
+            im.setDisplayName(Main.colorTranslation.hexTranslation(title.replace("#level#", String.valueOf(level))));
+            ArrayList<String> lore = new ArrayList<String>();
+            for (String list : config.getStringList("levels." + path + ".lore")) {
+                String finalLore = list.replace("#level#", String.valueOf(level)).replace("#permission#", permission).replace("#amount#", Main.util.finalFormatDouble(price)).replace("#limit#", Main.util.finalFormatDouble(limit)).replace("#currency#", Main.util.getCurrency(price));
+                lore.add(Main.colorTranslation.hexTranslation(finalLore));
+            }
+            im.setLore(lore);
+            is.setItemMeta(im);
+            int levelValue = i;
+            CompletableFuture<Integer> completableFuture = bankTable.playerCurrentBankLevel(player.getName());
+            try {
+                currentBankLevel = completableFuture.get();
+            } catch (InterruptedException | ExecutionException e2) {
+                throw new RuntimeException(e2);
+            }
+            if (!player.hasPermission(permission) && currentBankLevel < levelValue) {
+                Material noPermMaterial = Material.valueOf((String)config.getString("gui.other.no-permission.material"));
+                is.setType(noPermMaterial);
+                List noPermExtraLore = im.getLore();
+                assert (noPermExtraLore != null);
+                noPermExtraLore.add(Main.colorTranslation.hexTranslation(config.getString("gui.other.no-permission.lore-extra")));
+                im.setLore(noPermExtraLore);
+                if (config.getBoolean("gui.other.no-permission.glow")) {
+                    im.addEnchant(Enchantment.DAMAGE_ALL, 1, true);
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ENCHANTS});
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ATTRIBUTES});
+                }
+                is.setItemMeta(im);
+            }
+            if (currentBankLevel >= levelValue) {
+                String materialName = config.getString("gui.other.already-bought.material");
+                alreadyBoughtMaterial = materialName != null ? Material.valueOf(materialName) : Material.STONE;
+                is.setType(alreadyBoughtMaterial);
+                alreadyBoughtExtraLore = im.getLore();
+                assert (alreadyBoughtExtraLore != null);
+                String loreExtra = config.getString("gui.other.already-bought.lore-extra");
+                alreadyBoughtExtraLore.add(Main.colorTranslation.hexTranslation(loreExtra != null ? loreExtra : ""));
+                im.setLore(alreadyBoughtExtraLore);
+                if (config.getBoolean("gui.other.already-bought.glow")) {
+                    im.addEnchant(Enchantment.DAMAGE_ALL, 1, true);
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ENCHANTS});
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ATTRIBUTES});
+                }
+                is.setItemMeta(im);
+            } else if (currentPocket < price) {
+                String noMoneyMaterialName = config.getString("gui.other.no-money.material");
+                alreadyBoughtMaterial = noMoneyMaterialName != null ? Material.valueOf(noMoneyMaterialName) : Material.BARRIER;
+                is.setType(alreadyBoughtMaterial);
+                alreadyBoughtExtraLore = im.getLore();
+                assert (alreadyBoughtExtraLore != null);
+                String noMoneyLoreExtra = config.getString("gui.other.no-money.lore-extra");
+                alreadyBoughtExtraLore.add(Main.colorTranslation.hexTranslation(noMoneyLoreExtra != null ? noMoneyLoreExtra : ""));
+                im.setLore(alreadyBoughtExtraLore);
+                if (config.getBoolean("gui.other.no-money.glow")) {
+                    im.addEnchant(Enchantment.DAMAGE_ALL, 1, true);
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ENCHANTS});
+                    im.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ATTRIBUTES});
+                }
+                is.setItemMeta(im);
+            }
+            levelItems[i - 1] = ClickableItem.of(is, e -> {
+                if (!player.hasPermission(permission) && currentBankLevel < levelValue) {
+                    Main.util.sendMessage(player, MessagePath.BankUpgradeNoPermission.getPath().replace("#permission#", permission));
+                    sounds.soundOnFailure(player);
+                    return;
+                }
+                if (currentBankLevel >= levelValue) {
+                    Main.util.sendMessage(player, MessagePath.BankUpgradeAlreadyOwn.getPath());
+                    sounds.soundOnFailure(player);
+                    return;
+                }
+                if (levelValue > currentBankLevel + 1) {
+                    Main.util.sendMessage(player, MessagePath.BankUpgradeNeedPreviousLevel.getPath());
+                    sounds.soundOnFailure(player);
+                    return;
+                }
+                if (levelValue == currentBankLevel + 1) {
+                    double currentPocketBalance;
+                    CompletableFuture<Double> future = moneyTable.playerBalance(player.getName());
+                    try {
+                        currentPocketBalance = future.get();
+                    } catch (InterruptedException | ExecutionException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    if (currentPocketBalance < price) {
+                        Main.util.sendMessage(player, MessagePath.BankUpgradeNoMoney.getPath());
+                        sounds.soundOnFailure(player);
+                        return;
+                    }
+                    CompletableFuture<Boolean> moneyFuture = moneyTable.setMoney(player.getName(), currentPocketBalance - price);
+                    CompletableFuture<Boolean> bankFuture = bankTable.setBankLevel(player.getName(), level);
+                    try {
+                        if (moneyFuture.get().booleanValue() && bankFuture.get().booleanValue()) {
+                            Main.util.sendMessage(player, MessagePath.BankUpgradeSuccess.getPath().replace("#level#", String.valueOf(level)));
+                            int test = pagination.getPage();
+                            INVENTORY.open(player, pagination.page(test).getPage());
+                            sounds.soundOnSuccess(player);
+                            return;
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            });
+        }
+        pagination.setItems(levelItems);
+        pagination.setItemsPerPage(7);
+        pagination.addToIterator(inventoryContents.newIterator(SlotIterator.Type.HORIZONTAL, 1, 1));
+        Material previousPageMaterial = Material.valueOf((String)config.getString("gui.pages.previous-page.material"));
+        String previousPageDisplayName = config.getString("gui.pages.previous-page.displayname");
+        int rowPrevious = config.getInt("gui.pages.previous-page.row");
+        int columnPrevious = config.getInt("gui.pages.previous-page.column");
+        ItemStack previousPageItemStack = new ItemStack(previousPageMaterial);
+        ItemMeta previousPageItemMeta = previousPageItemStack.getItemMeta();
+        assert (previousPageItemMeta != null);
+        if (previousPageItemMeta.hasLore()) {
+            Objects.requireNonNull(previousPageItemMeta.getLore()).clear();
+        }
+        previousPageItemMeta.setDisplayName(Main.colorTranslation.hexTranslation(previousPageDisplayName));
+        previousPageItemStack.setItemMeta(previousPageItemMeta);
+        Material nextPageMaterial = Material.valueOf((String)config.getString("gui.pages.next-page.material"));
+        String nextPageDisplayName = config.getString("gui.pages.next-page.displayname");
+        int rowNext = config.getInt("gui.pages.next-page.row");
+        int columnNext = config.getInt("gui.pages.next-page.column");
+        ItemStack nextPageItemStack = new ItemStack(nextPageMaterial);
+        ItemMeta nextPageItemMeta = nextPageItemStack.getItemMeta();
+        assert (nextPageItemMeta != null);
+        if (nextPageItemMeta.hasLore()) {
+            Objects.requireNonNull(nextPageItemMeta.getLore()).clear();
+        }
+        nextPageItemMeta.setDisplayName(Main.colorTranslation.hexTranslation(nextPageDisplayName));
+        nextPageItemStack.setItemMeta(nextPageItemMeta);
+        Material backMaterial = Material.valueOf((String)config.getString("gui.pages.back.material"));
+        String backDisplayName = config.getString("gui.pages.back.displayname");
+        int rowBack = config.getInt("gui.pages.back.row");
+        int columnBack = config.getInt("gui.pages.back.column");
+        ItemStack backItemStack = new ItemStack(backMaterial);
+        ItemMeta backItemMeta = nextPageItemStack.getItemMeta();
+        assert (backItemMeta != null);
+        if (backItemMeta.hasLore()) {
+            Objects.requireNonNull(backItemMeta.getLore()).clear();
+        }
+        backItemMeta.setDisplayName(Main.colorTranslation.hexTranslation(backDisplayName));
+        backItemStack.setItemMeta(backItemMeta);
+        inventoryContents.set(columnPrevious, rowPrevious, ClickableItem.of(previousPageItemStack, e -> INVENTORY.open(player, pagination.previous().getPage())));
+        inventoryContents.set(columnNext, rowNext, ClickableItem.of(nextPageItemStack, e -> INVENTORY.open(player, pagination.next().getPage())));
+        inventoryContents.set(columnBack, rowBack, ClickableItem.of(backItemStack, e -> BankMainMenu.INVENTORY.open(player)));
+    }
+
+    @Override
+    public void update(Player player, InventoryContents inventoryContents) {
+    }
+}
+

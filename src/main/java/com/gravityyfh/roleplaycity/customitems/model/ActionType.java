@@ -1,0 +1,25 @@
+package com.gravityyfh.roleplaycity.customitems.model;
+
+public enum ActionType {
+    MESSAGE,
+    CONSOLE_COMMAND,
+    PLAYER_COMMAND,
+    PLAY_SOUND,
+    POTION_EFFECT,
+    DAMAGE,
+    HEAL,
+    TAKE_ITEM,
+    GIVE_ITEM,
+    PARTICLE,
+    TELEPORT,
+    THROW_ITEM,
+    OPEN_BANK,
+    OPEN_MAIRIE,
+    START_HEIST,
+    PLACE_HEIST_BOMB,
+    PLAYER_POLICE_SERVICE,
+    PLAYER_MEDICAL_SERVICE,
+    PLAYER_JUDGE_SERVICE,
+    USE_TASER,
+    USE_HANDCUFFS
+}

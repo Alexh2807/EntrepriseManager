@@ -24,6 +24,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
@@ -195,6 +196,70 @@ public class ShopInteractionHandler implements Listener {
         }
     }
 
+    // ===== PROTECTION DES COFFRES DE SHOP =====
+
+    /**
+     * Empêche l'ouverture des coffres de shop par des joueurs non autorisés.
+     * Seuls le propriétaire du shop, le gérant de l'entreprise et les admins peuvent ouvrir.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onShopChestOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        if (!(event.getInventory().getHolder() instanceof Chest chest)) {
+            return;
+        }
+
+        // Vérifier si c'est un coffre de shop
+        Optional<Shop> shopOpt = shopManager.getShopByChestLocation(chest.getLocation());
+        if (!shopOpt.isPresent()) {
+            return; // Pas un coffre de shop, laisser passer
+        }
+
+        Shop shop = shopOpt.get();
+
+        // Vérifier les permissions
+        if (canAccessShopChest(player, shop)) {
+            return; // Autorisé
+        }
+
+        // Non autorisé - bloquer l'accès
+        event.setCancelled(true);
+        player.sendMessage(ChatColor.RED + "Vous ne pouvez pas ouvrir ce coffre de boutique.");
+        player.sendMessage(ChatColor.GRAY + "Seul le propriétaire du shop ou le gérant de l'entreprise peut y accéder.");
+        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+    }
+
+    /**
+     * Vérifie si un joueur peut accéder au coffre d'un shop
+     */
+    private boolean canAccessShopChest(Player player, Shop shop) {
+        UUID playerUuid = player.getUniqueId();
+
+        // 1. Admin bypass
+        if (player.hasPermission("roleplaycity.admin.shop.access")) {
+            return true;
+        }
+
+        // 2. Propriétaire du shop
+        if (shop.getOwnerUUID().equals(playerUuid)) {
+            return true;
+        }
+
+        // 3. Gérant de l'entreprise
+        Entreprise entreprise = entrepriseLogic.getEntrepriseBySiret(shop.getEntrepriseSiret());
+        if (entreprise != null) {
+            String gerantUuidStr = entreprise.getGerantUUID();
+            if (gerantUuidStr != null && gerantUuidStr.equals(playerUuid.toString())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // ===== SYNCHRONISATION APRÈS MODIFICATION DU COFFRE =====
 
     @EventHandler
@@ -211,25 +276,33 @@ public class ShopInteractionHandler implements Listener {
 
         Shop shop = shopOpt.get();
 
-        // Compter le nouveau stock
-        int newStock = shopManager.getValidator().countItemsInChest(shop);
+        // Compter le nouveau stock (en nombre de lots possibles)
+        int availableLots = shopManager.getValidator().countItemsInChest(shop);
+        int rawStock = shopManager.getValidator().countRawItemsInChest(shop);
 
         // Mettre à jour le statut
-        if (newStock > 0 && shop.getStatus() == ShopStatus.OUT_OF_STOCK) {
+        if (availableLots > 0 && shop.getStatus() == ShopStatus.OUT_OF_STOCK) {
+            // Assez de stock pour au moins un lot → réactiver
             shop.setStatus(ShopStatus.ACTIVE);
             shopManager.getComponents().updateComponents(shop);
 
-            if (event.getPlayer() instanceof Player) {
-                event.getPlayer().sendMessage(ChatColor.GREEN +
-                    "✓ Stock rechargé, la boutique est à nouveau ouverte.");
+            if (event.getPlayer() instanceof Player player) {
+                player.sendMessage(ChatColor.GREEN +
+                    "✓ Stock rechargé (" + availableLots + " lot(s) disponible(s)), la boutique est à nouveau ouverte.");
             }
-        } else if (newStock == 0 && shop.getStatus() == ShopStatus.ACTIVE) {
+        } else if (availableLots == 0 && shop.getStatus() == ShopStatus.ACTIVE) {
+            // Pas assez de stock pour un lot complet → rupture
             shop.setStatus(ShopStatus.OUT_OF_STOCK);
             shopManager.getComponents().updateComponents(shop);
 
-            if (event.getPlayer() instanceof Player) {
-                event.getPlayer().sendMessage(ChatColor.RED +
-                    "⚠ Stock vide, la boutique est fermée.");
+            if (event.getPlayer() instanceof Player player) {
+                if (rawStock > 0) {
+                    player.sendMessage(ChatColor.RED +
+                        "⚠ Stock insuffisant (" + rawStock + " items, lot de " + shop.getQuantityPerSale() + "), la boutique est fermée.");
+                } else {
+                    player.sendMessage(ChatColor.RED +
+                        "⚠ Stock vide, la boutique est fermée.");
+                }
             }
         } else {
             // Mettre à jour l'affichage (panneau ET hologramme)

@@ -13,33 +13,6 @@
 # restrictions d'activités, et économie des métiers
 
 # ============================================
-#          CYCLE JOUR/NUIT PERSONNALISÉ
-# ============================================
-# Permet de configurer des durées et heures différentes pour le jour et la nuit
-# L'heure affichée est l'heure "roleplay" (ex: 10h → 19h = jour)
-# La luminosité Minecraft suit automatiquement (soleil levé = jour, soleil couché = nuit)
-#
-# Placeholders disponibles (PlaceholderAPI):
-#   %roleplaycity_time%           → "14:30" (heure in-game)
-#   %roleplaycity_time_hour%      → "14"
-#   %roleplaycity_time_minute%    → "30"
-#   %roleplaycity_time_period%    → "Jour" ou "Nuit"
-#   %roleplaycity_time_period_icon% → "☀" ou "☾"
-#   %roleplaycity_time_full%      → "☀ 14:30 (Jour)"
-#
-day-night-cycle:
-  enabled: true                    # Activer le cycle personnalisé
-  world: "world"                   # Nom du monde à gérer
-  day-start-hour: 10               # Heure de début du jour (0-23) - lever du soleil
-  night-start-hour: 19             # Heure de début de la nuit (0-23) - coucher du soleil
-  day-duration-minutes: 50         # Durée IRL du jour (10h → 19h = 9h virtuelles en 50 min IRL)
-  night-duration-minutes: 10       # Durée IRL de la nuit (19h → 10h = 15h virtuelles en 10 min IRL)
-  # Avec ces valeurs:
-  # - Cycle total = 60 minutes IRL (1 heure)
-  # - Jour (10h-19h) = 50 min IRL
-  # - Nuit (19h-10h) = 10 min IRL
-
-# ============================================
 #          OPTIONS DE DEBUG
 # ============================================
 # Active les logs de debug pour diagnostiquer les problèmes
@@ -94,21 +67,21 @@ types-entreprise:
     activites-payantes:
       BLOCK_BREAK:
         COAL_ORE: 15.0
-        COPPER_ORE: 20.0
-        IRON_ORE: 35.0
-        GOLD_ORE: 45.0
-        LAPIS_ORE: 40.0
-        REDSTONE_ORE: 25.0
-        EMERALD_ORE: 80.0
-        DIAMOND_ORE: 120.0
+        COPPER_ORE: 15.0
+        IRON_ORE: 20.0
+        GOLD_ORE: 20.0
+        LAPIS_ORE: 10.0
+        REDSTONE_ORE: 10.0
+        EMERALD_ORE: 55.0
+        DIAMOND_ORE: 50.0
         DEEPSLATE_COAL_ORE: 18.0
         DEEPSLATE_COPPER_ORE: 25.0
-        DEEPSLATE_IRON_ORE: 40.0
-        DEEPSLATE_GOLD_ORE: 50.0
-        DEEPSLATE_LAPIS_ORE: 45.0
-        DEEPSLATE_REDSTONE_ORE: 30.0
-        DEEPSLATE_EMERALD_ORE: 90.0
-        DEEPSLATE_DIAMOND_ORE: 130.0
+        DEEPSLATE_IRON_ORE: 20.0
+        DEEPSLATE_GOLD_ORE: 20.0
+        DEEPSLATE_LAPIS_ORE: 10.0
+        DEEPSLATE_REDSTONE_ORE: 10.0
+        DEEPSLATE_EMERALD_ORE: 55.0
+        DEEPSLATE_DIAMOND_ORE: 50.0
         NETHER_QUARTZ_ORE: 22.0
         ANCIENT_DEBRIS: 150.0
     message-erreur-restriction:
@@ -162,17 +135,17 @@ types-entreprise:
     # Ces items se vendent pas cher en shop donc prix de craft raisonnable
     activites-payantes:
       BLOCK_BREAK:
-        WHEAT: 18.0
-        CARROTS: 18.0
-        POTATOES: 18.0
-        BEETROOTS: 20.0
-        NETHER_WART: 25.0
-        COCOA_BEANS: 22.0
-        PUMPKIN: 20.0
-        MELON: 15.0
-        SUGAR_CANE: 16.0
+        WHEAT: 14.0
+        CARROTS: 14.0
+        POTATOES: 14.0
+        BEETROOTS: 15.0
+        NETHER_WART: 12.0
+        COCOA_BEANS: 13.0
+        PUMPKIN: 15.0
+        MELON: 13.0
+        SUGAR_CANE: 12.0
         BAMBOO: 12.0
-        CACTUS: 14.0
+        CACTUS: 13.0
     message-erreur-restriction:
       - "&cLa culture de masse est réservée aux entreprises &2Agricoles&c."
       - "&eLimite : %limite% récoltes par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -263,48 +236,48 @@ types-entreprise:
     # Entreprise PEU CHÈRE (1800€) = bois facile à obtenir, vente pas très chère
     activites-payantes:
       BLOCK_BREAK:
-        OAK_LOG: 25.0
-        SPRUCE_LOG: 25.0
-        BIRCH_LOG: 25.0
-        JUNGLE_LOG: 28.0
-        ACACIA_LOG: 28.0
-        DARK_OAK_LOG: 30.0
-        MANGROVE_LOG: 30.0
-        CHERRY_LOG: 35.0
-        CRIMSON_STEM: 35.0
-        WARPED_STEM: 35.0
-        OAK_WOOD: 25.0
-        SPRUCE_WOOD: 25.0
-        BIRCH_WOOD: 25.0
-        JUNGLE_WOOD: 28.0
-        ACACIA_WOOD: 28.0
-        DARK_OAK_WOOD: 30.0
-        MANGROVE_WOOD: 30.0
-        CHERRY_WOOD: 35.0
-        CRIMSON_HYPHAE: 35.0
-        WARPED_HYPHAE: 35.0
-        STRIPPED_OAK_LOG: 28.0
-        STRIPPED_SPRUCE_LOG: 28.0
-        STRIPPED_BIRCH_LOG: 28.0
-        STRIPPED_JUNGLE_LOG: 30.0
-        STRIPPED_ACACIA_LOG: 30.0
-        STRIPPED_DARK_OAK_LOG: 32.0
-        STRIPPED_MANGROVE_LOG: 32.0
-        STRIPPED_CHERRY_LOG: 38.0
-        STRIPPED_CRIMSON_STEM: 38.0
-        STRIPPED_WARPED_STEM: 38.0
-        STRIPPED_OAK_WOOD: 28.0
-        STRIPPED_SPRUCE_WOOD: 28.0
-        STRIPPED_BIRCH_WOOD: 28.0
-        STRIPPED_JUNGLE_WOOD: 30.0
-        STRIPPED_ACACIA_WOOD: 30.0
-        STRIPPED_DARK_OAK_WOOD: 32.0
-        STRIPPED_MANGROVE_WOOD: 32.0
-        STRIPPED_CHERRY_WOOD: 38.0
-        STRIPPED_CRIMSON_HYPHAE: 38.0
-        STRIPPED_WARPED_HYPHAE: 38.0
-        BAMBOO_BLOCK: 22.0
-        STRIPPED_BAMBOO_BLOCK: 25.0
+        OAK_LOG: 18.0
+        SPRUCE_LOG: 18.0
+        BIRCH_LOG: 18.0
+        JUNGLE_LOG: 18.0
+        ACACIA_LOG: 18.0
+        DARK_OAK_LOG: 18.0
+        MANGROVE_LOG: 18.0
+        CHERRY_LOG: 18.0
+        CRIMSON_STEM: 18.0
+        WARPED_STEM: 18.0
+        OAK_WOOD: 18.0
+        SPRUCE_WOOD: 18.0
+        BIRCH_WOOD: 18.0
+        JUNGLE_WOOD: 18.0
+        ACACIA_WOOD: 18.0
+        DARK_OAK_WOOD: 18.0
+        MANGROVE_WOOD: 18.0
+        CHERRY_WOOD: 18.0
+        CRIMSON_HYPHAE: 18.0
+        WARPED_HYPHAE: 18.0
+        STRIPPED_OAK_LOG: 18.0
+        STRIPPED_SPRUCE_LOG: 18.0
+        STRIPPED_BIRCH_LOG: 18.0
+        STRIPPED_JUNGLE_LOG: 18.0
+        STRIPPED_ACACIA_LOG: 18.0
+        STRIPPED_DARK_OAK_LOG: 18.0
+        STRIPPED_MANGROVE_LOG: 18.0
+        STRIPPED_CHERRY_LOG: 18.0
+        STRIPPED_CRIMSON_STEM: 18.0
+        STRIPPED_WARPED_STEM: 18.0
+        STRIPPED_OAK_WOOD: 18.0
+        STRIPPED_SPRUCE_WOOD: 18.0
+        STRIPPED_BIRCH_WOOD: 18.0
+        STRIPPED_JUNGLE_WOOD: 18.0
+        STRIPPED_ACACIA_WOOD: 18.0
+        STRIPPED_DARK_OAK_WOOD: 18.0
+        STRIPPED_MANGROVE_WOOD: 18.0
+        STRIPPED_CHERRY_WOOD: 18.0
+        STRIPPED_CRIMSON_HYPHAE: 18.0
+        STRIPPED_WARPED_HYPHAE: 18.0
+        BAMBOO_BLOCK: 18.0
+        STRIPPED_BAMBOO_BLOCK: 18.0
     message-erreur-restriction:
       - "&cL'abattage en quantité de ce bois est réservé aux &6Bûcherons&c."
       - "&eLimite : %limite% bûches par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -319,11 +292,11 @@ types-entreprise:
         cout-amelioration: 15000.0
         description: "Petite scierie"
       2:  # Scierie moyenne
-        limite-par-heure: 90
+        limite-par-heure: 64
         cout-amelioration: 35000.0
         description: "Scierie moyenne"
       3:  # Grande scierie
-        limite-par-heure: 220
+        limite-par-heure: 128
         cout-amelioration: 80000.0
         description: "Grande scierie"
       4:  # Complexe forestier industriel (max)
@@ -373,12 +346,12 @@ types-entreprise:
         GOAT: 75.0
         FOX: 70.0
         WOLF: 70.0
-        BEAR: 100.0
-        POLAR_BEAR: 100.0
-        HOGLIN: 110.0
-        STRIDER: 80.0
-        MOOSHROOM: 95.0
-        TURTLE: 85.0
+        BEAR: 75.0
+        POLAR_BEAR: 75.0
+        HOGLIN: 65.0
+        STRIDER: 65.0
+        MOOSHROOM: 65.0
+        TURTLE: 50.0
     message-erreur-restriction:
       - "&cL'abattage en grande quantité de cet animal est une spécialité des &4Boucheries&c."
       - "&eLimite : %limite% abattages/crafts par heure. Améliorez votre entreprise avec /entreprise gui"
@@ -390,15 +363,15 @@ types-entreprise:
         cout-amelioration: 7000.0
         description: "Boucher artisan"
       1:  # Petite boucherie
-        limite-par-heure: 18
+        limite-par-heure: 12
         cout-amelioration: 18000.0
         description: "Petite boucherie"
       2:  # Boucherie établie
-        limite-par-heure: 50
+        limite-par-heure: 32
         cout-amelioration: 45000.0
         description: "Boucherie établie"
       3:  # Grande boucherie
-        limite-par-heure: 130
+        limite-par-heure: 64
         cout-amelioration: 100000.0
         description: "Grande boucherie"
       4:  # Abattoir industriel (max)
@@ -446,7 +419,6 @@ types-entreprise:
     # Donc le prix de craft doit rester inférieur au prix de vente potentiel
     activites-payantes:
       CRAFT_ITEM:
-        # Fer - prix modérés (revente ~200-500€)
         IRON_SWORD: 120.0
         IRON_PICKAXE: 150.0
         IRON_AXE: 150.0
@@ -456,26 +428,24 @@ types-entreprise:
         IRON_CHESTPLATE: 280.0
         IRON_LEGGINGS: 240.0
         IRON_BOOTS: 160.0
-        # Diamant - prix élevés (revente ~1500-4000€)
-        DIAMOND_SWORD: 450.0
-        DIAMOND_PICKAXE: 550.0
-        DIAMOND_AXE: 550.0
-        DIAMOND_SHOVEL: 350.0
-        DIAMOND_HOE: 400.0
-        DIAMOND_HELMET: 650.0
-        DIAMOND_CHESTPLATE: 900.0
-        DIAMOND_LEGGINGS: 800.0
-        DIAMOND_BOOTS: 550.0
-        # Netherite - prix premium (revente ~3000-8000€)
-        NETHERITE_SWORD: 800.0
-        NETHERITE_PICKAXE: 900.0
-        NETHERITE_AXE: 900.0
-        NETHERITE_SHOVEL: 600.0
-        NETHERITE_HOE: 700.0
-        NETHERITE_HELMET: 1100.0
-        NETHERITE_CHESTPLATE: 1500.0
-        NETHERITE_LEGGINGS: 1300.0
-        NETHERITE_BOOTS: 950.0
+        DIAMOND_SWORD: 280.0
+        DIAMOND_PICKAXE: 320.0
+        DIAMOND_AXE: 320.0
+        DIAMOND_SHOVEL: 140.0
+        DIAMOND_HOE: 280.0
+        DIAMOND_HELMET: 410.0
+        DIAMOND_CHESTPLATE: 520.0
+        DIAMOND_LEGGINGS: 480.0
+        DIAMOND_BOOTS: 370.0
+        NETHERITE_SWORD: 280.0
+        NETHERITE_PICKAXE: 280.0
+        NETHERITE_AXE: 280.0
+        NETHERITE_SHOVEL: 280.0
+        NETHERITE_HOE: 280.0
+        NETHERITE_HELMET: 280.0
+        NETHERITE_CHESTPLATE: 280.0
+        NETHERITE_LEGGINGS: 280.0
+        NETHERITE_BOOTS: 280.0
         # Armes à distance
         SHIELD: 150.0
         BOW: 200.0
@@ -490,15 +460,15 @@ types-entreprise:
         cout-amelioration: 5000.0
         description: "Atelier débutant"
       1:  # Atelier apprenti
-        limite-par-heure: 3
+        limite-par-heure: 2
         cout-amelioration: 15000.0
         description: "Atelier apprenti"
       2:  # Atelier compagnon
-        limite-par-heure: 8
+        limite-par-heure: 4
         cout-amelioration: 35000.0
         description: "Atelier compagnon"
       3:  # Atelier expert
-        limite-par-heure: 20
+        limite-par-heure: 8
         cout-amelioration: 75000.0
         description: "Atelier expert"
       4:  # Forge de maître (max)
@@ -524,7 +494,7 @@ types-entreprise:
     # Entreprise PEU CHÈRE (2000€) = nourriture basique, vente pas très chère
     activites-payantes:
       CRAFT_ITEM:
-        BREAD: 45.0
+        BREAD: 30.0
         COOKIE: 40.0
         CAKE: 80.0
         PUMPKIN_PIE: 55.0
@@ -536,19 +506,19 @@ types-entreprise:
     # Niveaux de restrictions (quotas horaires pour les membres)
     restriction-levels:
       0:  # Fournil artisan
-        limite-par-heure: 8
+        limite-par-heure: 16
         cout-amelioration: 7000.0
         description: "Fournil artisan"
       1:  # Petite boulangerie
-        limite-par-heure: 25
+        limite-par-heure: 32
         cout-amelioration: 17000.0
         description: "Petite boulangerie"
       2:  # Boulangerie établie
-        limite-par-heure: 65
+        limite-par-heure: 48
         cout-amelioration: 40000.0
         description: "Boulangerie établie"
       3:  # Grande boulangerie
-        limite-par-heure: 160
+        limite-par-heure: 64
         cout-amelioration: 90000.0
         description: "Grande boulangerie"
       4:  # Boulangerie industrielle (max)
@@ -593,7 +563,7 @@ types-entreprise:
     # Niveaux de restrictions (quotas horaires pour les membres)
     restriction-levels:
       0:  # Atelier artisan
-        limite-par-heure: 2
+        limite-par-heure: 1
         cout-amelioration: 10000.0
         description: "Atelier artisan"
       1:  # Petit atelier
@@ -605,7 +575,7 @@ types-entreprise:
         cout-amelioration: 60000.0
         description: "Atelier établi"
       3:  # Grand atelier
-        limite-par-heure: 12
+        limite-par-heure: 9
         cout-amelioration: 130000.0
         description: "Grand atelier"
       4:  # Manufacture de luxe (max)
@@ -664,43 +634,43 @@ types-entreprise:
       # Fabrication de telephones (8 couleurs)
       CRAFT_PHONE:
         phone_black:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_blue:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_orange:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_white:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_yellow:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_pink:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_red:
-          limite-par-heure: 2
+          limite-par-heure: 1
         phone_green:
-          limite-par-heure: 2
+          limite-par-heure: 1
       # Fabrication de forfaits
       CRAFT_PLAN:
         silver:
-          limite-par-heure: 2
+          limite-par-heure: 1
         gold:
-          limite-par-heure: 2
+          limite-par-heure: 1
         platinum:
-          limite-par-heure: 2
+          limite-par-heure: 1
     # Prix calculés pour: limite lvl0 (3/h) × prix × 50% split ≥ 200€/h
     # Donc prix moyen cible: 135€ minimum par item
     # Entreprise TRÈS CHÈRE (8500€) = téléphones de grande valeur
     # ATTENTION: Téléphones sont essentiels au RP = revente chère (500-1500€)
     activites-payantes:
       CRAFT_PHONE:
-        phone_black: 180.0
-        phone_blue: 180.0
-        phone_orange: 180.0
-        phone_white: 180.0
-        phone_yellow: 180.0
-        phone_pink: 180.0
-        phone_red: 180.0
-        phone_green: 180.0
+        phone_black: 400.0
+        phone_blue: 400.0
+        phone_orange: 400.0
+        phone_white: 400.0
+        phone_yellow: 400.0
+        phone_pink: 400.0
+        phone_red: 400.0
+        phone_green: 400.0
       CRAFT_PLAN:
         silver: 80.0
         gold: 150.0
@@ -711,19 +681,19 @@ types-entreprise:
     # Niveaux de restrictions (evolution de l'entreprise)
     restriction-levels:
       0:  # Boutique mobile
-        limite-par-heure: 3
+        limite-par-heure: 1
         cout-amelioration: 10000.0
         description: "Boutique mobile"
       1:  # Point de vente
-        limite-par-heure: 5
+        limite-par-heure: 3
         cout-amelioration: 40000.0
         description: "Point de vente"
       2:  # Magasin specialise
-        limite-par-heure: 8
+        limite-par-heure: 6
         cout-amelioration: 80000.0
         description: "Magasin specialise"
       3:  # Centre Telecom
-        limite-par-heure: 12
+        limite-par-heure: 9
         cout-amelioration: 150000.0
         description: "Centre Telecom"
       4:  # Operateur regional (max)
@@ -740,24 +710,24 @@ types-entreprise:
 
 finance:
   # Limites de création et d'emploi
-  max-entreprises-par-gerant: 3
+  max-entreprises-par-gerant: 2
   max-travail-joueur: 1
 
   # Taxes et charges
   pourcentage-taxes: 20.0
-  charge-salariale-par-employe-horaire: 5.0
+  charge-salariale-par-employe-horaire: 10.0
   charges-sur-employes-actifs-seulement: false
 
   # Allocation chômage
-  allocation-chomage-horaire: 200.0
+  allocation-chomage-horaire: 150.0
 
   # Évolution de l'entreprise (niveaux)
   max-employer-par-entreprise:
-    0: 2
-    1: 3
-    2: 5
-    3: 8
-    4: 12
+    0: 1
+    1: 2
+    2: 3
+    3: 4
+    4: 5
 
   cout-amelioration-niveau-max-employer:
     1: 2000.0
@@ -767,10 +737,10 @@ finance:
 
   max-solde-par-niveau:
     0: 2500.0
-    1: 10000.0
-    2: 30000.0
-    3: 60000.0
-    4: 100000.0
+    1: 5000.0
+    2: 12000.0
+    3: 24000.0
+    4: 50000.0
 
   cout-amelioration-niveau-max-solde:
     1: 2000.0
@@ -790,7 +760,7 @@ siret:
   longueur: 14
 
 # Coût pour renommer une entreprise
-rename-cost: 3000.0
+rename-cost: 500.0
 
 
 
@@ -809,10 +779,10 @@ town:
 
   # === GESTION DES PARCELLES ===
   claim-cost-per-chunk: 500.0         # Coût par chunk pour claim
-  unclaim-refund-percentage: 50.0     # Pourcentage récupéré lors du unclaim
+  unclaim-refund-percentage: 75.0     # Pourcentage récupéré lors du unclaim
 
   # === INVITATIONS ===
-  invitation-expiration-hours: 24     # Durée de validité des invitations
+  invitation-expiration-hours: 1     # Durée de validité des invitations
 
   # === SYSTÈME D'ÉVOLUTION DES VILLES ===
   # Progression: Campement → Village → Ville
@@ -821,12 +791,12 @@ town:
     # NIVEAU 1 : CAMPEMENT (1-4 joueurs)
     # Petite communauté de départ sans services municipaux
     campement:
-      creation-cost: 5000.0
+      creation-cost: 6000.0
       upgrade-cost: 0
       min-population: 1
       max-population: 6
       max-claims: 20
-      bank-limit: 5000.0          # Limite de solde bancaire
+      bank-limit: 8000.0          # Limite de solde bancaire
       max-policiers: 0
       max-juges: 0
       max-medecins: 0
@@ -838,11 +808,11 @@ town:
     # Communauté établie avec services de base
     village:
       creation-cost: 13000.0      # Coût total depuis le début (5000 + 8000)
-      upgrade-cost: 4500.0        # Coût pour passer de Campement à Village
+      upgrade-cost: 6200.0        # Coût pour passer de Campement à Village
       min-population: 5
       max-population: 14
-      max-claims: 130
-      bank-limit: 20000.0         # Limite de solde bancaire
+      max-claims: 180
+      bank-limit: 30000.0         # Limite de solde bancaire
       max-policiers: 1
       max-juges: 1
       max-medecins: 2
@@ -854,14 +824,14 @@ town:
     # Grande ville prospère avec tous les services
     ville:
       creation-cost: 28000.0      # Coût total depuis le début (5000 + 8000 + 15000)
-      upgrade-cost: 15000.0       # Coût pour passer de Village à Ville
+      upgrade-cost: 25000.0       # Coût pour passer de Village à Ville
       min-population: 12
       max-population: 29
-      max-claims: 250
+      max-claims: 350
       bank-limit: 50000.0         # Limite de solde bancaire
-      max-policiers: 5
-      max-juges: 5
-      max-medecins: 10
+      max-policiers: 3
+      max-juges: 3
+      max-medecins: 6
       police-enabled: true
       justice-enabled: true
       hospital-enabled: true
@@ -878,26 +848,29 @@ town:
   # === AMENDES PRÉDÉFINIES ===
   predefined-fines:
     - title: "Trouble à l'ordre public"
-      amount: 300.0
+      amount: 800.0
       description: "Comportement perturbant l'ordre public"
     - title: "Vol de bien"
-      amount: 500.0
+      amount: 1500.0
       description: "Vol ou tentative de vol de biens"
     - title: "Agression physique"
-      amount: 400.0
+      amount: 1200.0
       description: "Agression physique sur une personne"
     - title: "Dégradation de propriété"
       amount: 750.0
       description: "Destruction ou dégradation de biens publics ou privés"
     - title: "Non-respect des autorités"
-      amount: 200.0
+      amount: 400.0
       description: "Refus d'obtempérer aux ordres des forces de l'ordre"
     - title: "Fraude commerciale"
-      amount: 1000.0
+      amount: 2500.0
       description: "Pratiques commerciales frauduleuses"
     - title: "Trouble de voisinage"
       amount: 250.0
       description: "Nuisances sonores ou comportement gênant les voisins"
+    - title: "Tentative de cambriolage"
+      amount: 5000.0
+      description: "Cambrioleurs arrêté avant/après cambriolage."
 
 
 
@@ -976,11 +949,11 @@ police-equipment:
     following:
       enabled: true
       require-permission: false
-      steps-back: 10
-      max-distance: 15.0
+      steps-back: 8.0
+      max-distance: 10.0
       pull-distance: 2.0
 
-    boss-bar-title: "&fSanté des Menottes - Shift pour affaiblir"
+    boss-bar-title: "&fSanté des Menottes - Sneak pour affaiblir"
 
     sound: BLOCK_IRON_DOOR_CLOSE
     sound-remove: BLOCK_IRON_DOOR_OPEN
@@ -1039,6 +1012,33 @@ police-service:
 
 
 # ============================================
+#          CYCLE JOUR/NUIT PERSONNALISÉ
+# ============================================
+# Permet de configurer des durées et heures différentes pour le jour et la nuit
+# L'heure affichée est l'heure "roleplay" (ex: 10h → 19h = jour)
+# La luminosité Minecraft suit automatiquement (soleil levé = jour, soleil couché = nuit)
+#
+# Placeholders disponibles (PlaceholderAPI):
+#   %roleplaycity_time%           → "14:30" (heure in-game)
+#   %roleplaycity_time_hour%      → "14"
+#   %roleplaycity_time_minute%    → "30"
+#   %roleplaycity_time_period%    → "Jour" ou "Nuit"
+#   %roleplaycity_time_period_icon% → "☀" ou "☾"
+#   %roleplaycity_time_full%      → "☀ 14:30 (Jour)"
+#
+day-night-cycle:
+  enabled: true                    # Activer le cycle personnalisé
+  world: "world"                   # Nom du monde à gérer
+  day-start-hour: 10               # Heure de début du jour (0-23) - lever du soleil
+  night-start-hour: 19             # Heure de début de la nuit (0-23) - coucher du soleil
+  day-duration-minutes: 50         # Durée IRL du jour (10h → 19h = 9h virtuelles en 50 min IRL)
+  night-duration-minutes: 10       # Durée IRL de la nuit (19h → 10h = 15h virtuelles en 10 min IRL)
+  # Avec ces valeurs:
+  # - Cycle total = 60 minutes IRL (1 heure)
+  # - Jour (10h-19h) = 50 min IRL
+  # - Nuit (19h-10h) = 10 min IRL
+
+# ============================================
 #          SYSTÈME DE PRISON
 # ============================================
 # Configuration du système d'emprisonnement dans les COMMISSARIAT municipaux
@@ -1082,11 +1082,11 @@ prison-system:
 
 shop-system:
   # === LIMITES ===
-  max-shops-per-entreprise: 10
+  max-shops-per-entreprise: 20
   max-distance-chest-sign: 1
 
   # === ÉCONOMIE ===
-  creation-cost: 0.0
+  creation-cost: 250.0
 
   # === VALIDATION ET INTÉGRITÉ ===
   integrity-check-interval: 300    # 5 minutes
@@ -1129,7 +1129,7 @@ shop-deletion-on-events:
 
 # Configuration des hologrammes de shops
 shop-holograms:
-  base-height: 0.05           # Hauteur de base au-dessus du coffre
+  base-height: 0.15           # Hauteur de base au-dessus du coffre
   line-spacing: 0.15          # Espacement entre les lignes
   item-display:
     scale: 0.6                # Taille de l'item affiché
@@ -1154,15 +1154,15 @@ block-place-cache:
 # ============================================
 lotto-system:
   enabled: true
-  ticket-price: 20.0
-  
+  ticket-price: 100.0
+
   # Minutes de l'heure pour chaque étape
   # Exemple: start=15 ouvre à H:15, end=30 ferme à H:30, draw=45 tire à H:45
   schedule:
     start-minute: 15
     end-minute: 30
     draw-minute: 45
-    
+
   messages:
     broadcast-start:
       - "&6&l▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
@@ -1189,3 +1189,58 @@ lotto-system:
     broadcast-no-winner:
       - "&c      TIRAGE DU LOTO ANNULÉ"
       - "&7  Aucun ticket vendu cette heure-ci."
+
+
+
+
+
+
+
+# ============================================
+#     RÉGÉNÉRATION DES EXPLOSIONS
+# ============================================
+# Restaure automatiquement les blocs détruits par des explosions
+# (TNT, Creepers, Dynamite, etc.) en dehors des villes
+explosion-regeneration:
+  enabled: true                    # Activer/désactiver le système
+  delay-seconds: 120              # Délai avant régénération (en secondes)
+  interval-ticks: 5                # Intervalle entre chaque régénération (en ticks, 20 ticks = 1 sec)
+  blocks-per-tick: 1               # Nombre de blocs régénérés par intervalle
+  particles: true                  # Afficher des particules lors de la régénération
+
+  # Liste des mondes où la régénération est active
+  # Laisser vide [] pour activer dans tous les mondes
+  worlds:
+    - "world"
+    - "world_nether"
+    - "world_the_end"
+
+  # Blocs à ne PAS régénérer (items dropés, blocs non-naturels, etc.)
+  ignored-blocks:
+    - "TNT"
+    - "FIRE"
+    - "TORCH"
+    - "WALL_TORCH"
+    - "REDSTONE_TORCH"
+    - "REDSTONE_WALL_TORCH"
+    - "CHEST"
+    - "TRAPPED_CHEST"
+    - "ENDER_CHEST"
+    - "BARREL"
+    - "HOPPER"
+    - "DROPPER"
+    - "DISPENSER"
+    - "FURNACE"
+    - "BLAST_FURNACE"
+    - "SMOKER"
+    - "CRAFTING_TABLE"
+    - "ENCHANTING_TABLE"
+    - "ANVIL"
+    - "CHIPPED_ANVIL"
+    - "DAMAGED_ANVIL"
+    - "BEACON"
+    - "BREWING_STAND"
+    - "CAULDRON"
+    - "LECTERN"
+    - "SPAWNER"
+    - "BEDROCK"

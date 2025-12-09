@@ -1,0 +1,388 @@
+# ==================================================================
+# CONFIGURATION MDT RUSH (STYLE FUNCRAFT HARDCORE V2)
+# ==================================================================
+
+enabled: true
+world-name: mdt
+
+game:
+  max-duration: 1800 # 30 minutes par defaut (en secondes)
+  max-bonus-hearts: 4
+  tnt-fly-enabled: true
+  tnt-damage-self: 2.0
+  tnt-damage-teammates: 0.0
+  void-kill-height: -30 # Hauteur Y en dessous de laquelle les joueurs meurent
+  max-build-height: 0 # Hauteur Y maximale pour construire (0 = pas de limite)
+  unbreakable-blocks: # Blocs que les joueurs ne peuvent pas casser
+    - BEDROCK
+    - BARRIER
+    - END_CRYSTAL
+    - SPAWNER
+    - OBSIDIAN
+    - END_PORTAL_FRAME
+    - COMMAND_BLOCK
+    - REPEATING_COMMAND_BLOCK
+    - CHAIN_COMMAND_BLOCK
+    - SPRUCE_FENCE
+    - DARK_OAK_TRAPDOOR
+    - BLUE_STAINED_GLASS
+    - CHEST
+    - BEACON
+    - GLOWSTONE
+
+# Systeme de points
+points:
+  kill: 1 # +1 point par kill
+  bed-destroy: 10 # +10 points par lit detruit
+
+timers:
+  join-period: 20 # 1 minute pour rejoindre apres /mdt start
+  lobby-countdown: 10 # 1 minute d'attente dans le lobby
+  pre-game: 5 # 5 secondes avant le debut
+
+teams:
+  min-players: 1 # Minimum par equipe (1v1 possible)
+  max-players: 5 # Maximum par equipe (5v5)
+
+# Générateur UNIQUE (Présent sur les 6 îles)
+# Tout sort du même bloc !
+generators:
+  brick:
+    material: BRICK
+    name: '&cBrique'
+    interval: 1 # 1 seconde
+    max-stack: 64
+    spawn-at-base: true
+
+  iron:
+    material: IRON_INGOT
+    name: '&fFer'
+    interval: 15 # 15 secondes
+    max-stack: 16
+    spawn-at-base: true
+
+  gold:
+    material: GOLD_INGOT
+    name: '&6Or'
+    interval: 60 # 1 minute
+    max-stack: 8
+    spawn-at-base: true
+
+  diamond:
+    material: DIAMOND
+    name: '&bDiamant'
+    interval: 300 # 5 minutes
+    max-stack: 4
+    spawn-at-base: true # Oui, sur toutes les îles !
+
+# LES 4 GRANDS MARCHANDS SPÉCIALISÉS
+# (Le Petit marchand vendra tout ça mélangé)
+shops:
+  blocks:
+    title: '&8Blocs & Outils'
+    items:
+      - item: SANDSTONE
+        amount: 32
+        price-material: BRICK
+        price-amount: 4
+        name: '&eGrès'
+      - item: END_STONE
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 4
+        name: '&fPierre de l''End'
+      - item: OBSIDIAN
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 8
+        name: '&0Obsidienne'
+      - item: WOODEN_PICKAXE
+        amount: 1
+        price-material: BRICK
+        price-amount: 10
+        enchantments:
+          - DIG_SPEED:1
+      - item: IRON_PICKAXE
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 5
+        enchantments:
+          - DIG_SPEED:2
+      - item: DIAMOND_PICKAXE
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 2
+        enchantments:
+          - DIG_SPEED:3
+
+  weapons:
+    title: '&cArmes'
+    items:
+      - item: STICK
+        amount: 1
+        price-material: BRICK
+        price-amount: 10
+        enchantments:
+          - KNOCKBACK:1
+        name: '&dBâton de recul'
+      - item: IRON_SWORD
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 1
+      - item: DIAMOND_SWORD
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 1
+      - item: BOW
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 10
+      - item: ARROW
+        amount: 8
+        price-material: IRON_INGOT
+        price-amount: 2
+
+  armor:
+    title: '&9Armures'
+    items:
+      - item: CHAINMAIL_HELMET
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 2
+      - item: CHAINMAIL_CHESTPLATE
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 5
+      - item: CHAINMAIL_LEGGINGS
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 4
+      - item: CHAINMAIL_BOOTS
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 2
+      - item: IRON_CHESTPLATE
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 5
+
+  special:
+    title: '&5Spécial & Potions'
+    items:
+      - item: GOLDEN_APPLE
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 3
+      - item: TNT
+        amount: 1
+        price-material: GOLD_INGOT
+        price-amount: 4
+      - item: FLINT_AND_STEEL
+        amount: 1
+        price-material: IRON_INGOT
+        price-amount: 1
+      - item: ENDER_PEARL
+        amount: 1
+        price-material: DIAMOND
+        price-amount: 2
+      - item: custom:dynamite
+        amount: 1
+        price-material: DIAMOND
+        price-amount: 2
+        name: '&cDynamite'
+
+messages:
+  prefix: "&8[&cMDT&8] &r"
+  event-started: "&l&eL'event MDT Rush commence ! Cliquez pour rejoindre!"
+  join-phase-started: "&eL'event MDT Rush commence ! Rejoignez avec /mdt join (%time%s)"
+  join-phase-countdown: "&eEncore %time%s pour rejoindre!"
+  lobby-countdown: "&6&eLa partie commence dans %time%s..."
+  not-enough-players: "&cFPas assez de joueurs! (minimum 2)"
+  void-death: "&c%player% &7est tombe dans le vide!"
+  bed-break: "&c&lLe lit de l'équipe %team% a été détruit par %player% !"
+  neutral-bed-break: "&e%player% a explosé un lit neutre ! (+2 Cœurs)"
+  time-warning: "&6Attention! &eIl reste %time% avant la fin!"
+  team-wins: "&a&lL'equipe %team% &a&lremporte la victoire!"
+  team-wins-points: "&6&lTEMPS ECOULE! &eL'equipe %team% &egagne avec &6%points% points &e(vs %loser_points% pts)"
+  game-started: "&a&lGO! &eLa partie commence!"
+  game-ended: "&7La partie est terminee. Merci d'avoir joue!"
+  player-joined: "&e%player% &7a rejoint la partie!"
+  player-left: "&e%player% &7a quitte la partie."
+  player-killed: "&c%victim% &7a ete tue par &e%killer%!"
+  player-eliminated: "&4%player% &ca ete elimine!"
+  no-respawn: "&cTon lit a ete detruit! Tu ne peux plus respawn."
+  inventory-saved: "&7Ton inventaire a ete sauvegarde."
+  inventory-restored: "&7Ton inventaire a ete restaure."
+  team-joined: "&e%player% &7a rejoint l'equipe %team%!"
+
+sounds:
+  join: ENTITY_EXPERIENCE_ORB_PICKUP
+  leave: ENTITY_VILLAGER_NO
+  countdown-tick: BLOCK_NOTE_BLOCK_PLING
+  game-start: ENTITY_ENDER_DRAGON_GROWL
+  victory: UI_TOAST_CHALLENGE_COMPLETE
+  player-death: ENTITY_PLAYER_HURT
+
+
+locations:
+  beds:
+    red:
+      x: 10.0
+      y: -13.0
+      z: 140.0
+      yaw: 0.0
+      pitch: 0.0
+      material: RED_BED
+      savedAt: 1764974643411
+      head:
+        x: 10.0
+        y: -13.0
+        z: 140.0
+        facing: EAST
+        part: FOOT
+      foot:
+        x: 9.0
+        y: -13.0
+        z: 140.0
+        facing: WEST
+        part: FOOT
+    neutral:
+      - 10,-13,91
+    blue:
+      x: 152.0
+      y: -13.0
+      z: 140.0
+      yaw: 0.0
+      pitch: 0.0
+      material: BLUE_BED
+      savedAt: 1764974643413
+      head:
+        x: 152.0
+        y: -13.0
+        z: 140.0
+        facing: WEST
+        part: FOOT
+      foot:
+        x: 153.0
+        y: -13.0
+        z: 140.0
+        facing: EAST
+        part: FOOT
+  spawns:
+    red:
+      x: 10.5
+      y: -12.9
+      z: 140.5
+      yaw: 0.0
+      pitch: 0.0
+    blue:
+      x: 152.5
+      y: -12.9
+      z: 140.5
+      yaw: 0.0
+      pitch: 0.0
+    lobby:
+      x: 85.87723102079846
+      y: 279.0
+      z: 205.2698598593742
+      yaw: 137.93518
+      pitch: 1.3177391
+  merchants:
+    - 4,-12,148,-90,BLOCKS
+    - 4,-12,146,-90,WEAPONS
+    - 4,-12,134,-90,ARMOR
+    - 4,-12,132,-90,SPECIAL
+    - 4,-12,99,-90,BLOCKS
+    - 4,-12,97,-90,WEAPONS
+    - 4,-12,85,-90,ARMOR
+    - 4,-12,83,-90,SPECIAL
+    - 44,-12,43,0,BLOCKS
+    - 46,-12,43,0,WEAPONS
+    - 58,-12,43,0,ARMOR
+    - 60,-12,43,0,SPECIAL
+    - 102,-12,43,0,BLOCKS
+    - 104,-12,43,0,WEAPONS
+    - 116,-12,43,0,ARMOR
+    - 118,-12,43,0,SPECIAL
+    - 158,-12,83,90,BLOCKS
+    - 158,-12,85,90,WEAPONS
+    - 158,-12,97,90,ARMOR
+    - 158,-12,99,90,SPECIAL
+    - 158,-12,132,90,BLOCKS
+    - 158,-12,134,90,WEAPONS
+    - 158,-12,146,90,ARMOR
+    - 158,-12,148,90,SPECIAL
+    - 2,-12,144,-90,GLOBAL
+    - 2,-12,142,-90,GLOBAL
+    - 2,-12,140,-90,GLOBAL
+    - 2,-12,138,-90,GLOBAL
+    - 2,-12,136,-90,GLOBAL
+    - 2,-12,95,-90,GLOBAL
+    - 2,-12,93,-90,GLOBAL
+    - 2,-12,91,-90,GLOBAL
+    - 2,-12,89,-90,GLOBAL
+    - 2,-12,87,-90,GLOBAL
+    - 48,-12,41,0,GLOBAL
+    - 50,-12,41,0,GLOBAL
+    - 52,-12,41,0,GLOBAL
+    - 54,-12,41,0,GLOBAL
+    - 56,-12,41,0,GLOBAL
+    - 106,-12,41,0,GLOBAL
+    - 108,-12,41,0,GLOBAL
+    - 110,-12,41,0,GLOBAL
+    - 112,-12,41,0,GLOBAL
+    - 114,-12,41,0,GLOBAL
+    - 160,-12,87,90,GLOBAL
+    - 160,-12,89,90,GLOBAL
+    - 160,-12,91,90,GLOBAL
+    - 160,-12,93,90,GLOBAL
+    - 160,-12,95,90,GLOBAL
+    - 160,-12,136,90,GLOBAL
+    - 160,-12,138,90,GLOBAL
+    - 160,-12,140,90,GLOBAL
+    - 160,-12,142,90,GLOBAL
+    - 160,-12,144,90,GLOBAL
+  generators:
+    - 4,-12,144,universal
+    - 4,-12,142,universal
+    - 4,-12,140,universal
+    - 4,-12,138,universal
+    - 4,-12,136,universal
+    - 4,-12,95,universal
+    - 4,-12,93,universal
+    - 4,-12,91,universal
+    - 4,-12,89,universal
+    - 4,-12,87,universal
+    - 48,-12,43,universal
+    - 50,-12,43,universal
+    - 52,-12,43,universal
+    - 54,-12,43,universal
+    - 56,-12,43,universal
+    - 106,-12,43,universal
+    - 108,-12,43,universal
+    - 110,-12,43,universal
+    - 112,-12,43,universal
+    - 114,-12,43,universal
+    - 158,-12,87,universal
+    - 158,-12,89,universal
+    - 158,-12,91,universal
+    - 158,-12,93,universal
+    - 158,-12,95,universal
+    - 158,-12,136,universal
+    - 158,-12,138,universal
+    - 158,-12,140,universal
+    - 158,-12,142,universal
+    - 158,-12,144,universal
+region:
+  min:
+    x: -10.0
+    y: -16.0
+    z: 29.0
+    yaw: 0.0
+    pitch: 0.0
+  max:
+    x: 172.0
+    y: 0.0
+    z: 157.0
+    yaw: 0.0
+    pitch: 0.0
